@@ -36,16 +36,43 @@ void RogerCompositor::setRoom(Graphics::Surface *cleanPlate, SliceSet *slices, V
 	_views = views;
 }
 
+// Compute the centered, aspect-preserving rectangle for a srcW x srcH image
+// fitted inside a W x H destination (letterbox/pillarbox). Keeps the hires art
+// from stretching when the overlay/window aspect differs from the art's.
+static Common::Rect aspectFitRect(int srcW, int srcH, int W, int H) {
+	if (srcW <= 0 || srcH <= 0)
+		return Common::Rect(0, 0, (int16)W, (int16)H);
+	// Scale to fit (min of the two ratios), preserving aspect.
+	const float scale = MIN((float)W / srcW, (float)H / srcH);
+	const int fitW = (int)(srcW * scale);
+	const int fitH = (int)(srcH * scale);
+	const int x = (W - fitW) / 2;
+	const int y = (H - fitH) / 2;
+	return Common::Rect((int16)x, (int16)y, (int16)(x + fitW), (int16)(y + fitH));
+}
+
 void RogerCompositor::renderScene(Graphics::ManagedSurface &dest, const Common::Array<Sprite> &sprites) {
 	const int W = dest.w, H = dest.h;
 
-	// 1) Clean plate, scaled to the full destination.
-	if (_plate)
-		dest.blitFrom(*_plate, Common::Rect(0, 0, _plate->w, _plate->h), Common::Rect(0, 0, W, H));
+	// The hires content occupies an aspect-preserving rect centered in the overlay
+	// (the overlay/window may be a different shape than the 320x200 game art). All
+	// of plate, sprites and slices map into this same "game rect" so they stay
+	// aligned; the surrounding letterbox stays as cleared background.
+	const Common::Rect gameRect = _plate
+		? aspectFitRect(_plate->w, _plate->h, W, H)
+		: Common::Rect(0, 0, (int16)W, (int16)H);
+	const int GW = gameRect.width(), GH = gameRect.height();
 
-	// Manifest piece space -> dest scale (slices are authored at plate resolution).
-	const float msx = _plate ? (float)W / _plate->w : 1.0f;
-	const float msy = _plate ? (float)H / _plate->h : 1.0f;
+	// 0) Clear so letterbox borders are clean (transparent in an alpha overlay).
+	dest.clear(0);
+
+	// 1) Clean plate, scaled into the game rect (aspect preserved).
+	if (_plate)
+		dest.blitFrom(*_plate, Common::Rect(0, 0, _plate->w, _plate->h), gameRect);
+
+	// Manifest piece space (authored at plate/320x200 res) -> game-rect scale.
+	const float msx = _plate ? (float)GW / _plate->w : 1.0f;
+	const float msy = _plate ? (float)GH / _plate->h : 1.0f;
 
 	// 2) Sprites back-to-front, with slices above each sprite re-drawn for occlusion.
 	for (uint i = 0; i < sprites.size(); i++) {
@@ -55,10 +82,11 @@ void RogerCompositor::renderScene(Graphics::ManagedSurface &dest, const Common::
 			warning("ROGER: missing hires cel view=%d loop=%d cel=%d (skipped)", s.viewId, s.loopNo, s.celNo);
 			continue;
 		}
-		Common::Rect dst = sciCelRectToOverlay(s.celRect, W, H);
-		// Alpha-aware blit: respects the alpha channel of each pixel so that
-		// transparent non-black pixels (common in exported spritesheets) do not
-		// render opaque and cause halos.
+		// Map the 320x200 cel rect into the game rect (scaled + offset).
+		Common::Rect dst = sciCelRectToOverlay(s.celRect, GW, GH);
+		dst.translate(gameRect.left, gameRect.top);
+		// Alpha-aware blit: respects each pixel's alpha so transparent non-black
+		// pixels (common in exported spritesheets) do not render opaque (halos).
 		dest.blendBlitFrom(*cel, Common::Rect(0, 0, cel->w, cel->h), dst,
 		                   s.mirror ? Graphics::FLIP_H : Graphics::FLIP_NONE);
 
@@ -69,9 +97,10 @@ void RogerCompositor::renderScene(Graphics::ManagedSurface &dest, const Common::
 			for (uint j = 0; j < ps.size(); j++) {
 				if (ps[j].band <= s.priority || !ps[j].surface)
 					continue;
-				Common::Rect sdst((int16)(ps[j].x * msx), (int16)(ps[j].y * msy),
-				                  (int16)((ps[j].x + ps[j].surface->w) * msx),
-				                  (int16)((ps[j].y + ps[j].surface->h) * msy));
+				Common::Rect sdst((int16)(gameRect.left + ps[j].x * msx),
+				                  (int16)(gameRect.top + ps[j].y * msy),
+				                  (int16)(gameRect.left + (ps[j].x + ps[j].surface->w) * msx),
+				                  (int16)(gameRect.top + (ps[j].y + ps[j].surface->h) * msy));
 				if (!sdst.intersects(dst))
 					continue;
 				dest.blendBlitFrom(*ps[j].surface,
