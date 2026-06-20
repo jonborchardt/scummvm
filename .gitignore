@@ -322,3 +322,6 @@ __pycache__/
 /plans
 
 !build_and_run.ps1
+
+# Superpowers SDD session scratch (ledger, briefs, reports, review diffs)
+.superpowers/
