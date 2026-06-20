@@ -319,3 +319,4 @@ __pycache__/
 /plans
 
 !build_and_run.ps1
+!build_and_run_web.ps1
