@@ -40,6 +40,7 @@
 #include "sci/graphics/transitions.h"
 
 #include "sci/graphics/scifx.h"
+#include "sci/roger/roger_art_provider.h"
 
 namespace Sci {
 
@@ -88,6 +89,17 @@ void GfxPaint16::debugSetEGAdrawingVisualize(bool state) {
 }
 
 void GfxPaint16::drawPicture(GuiResourceId pictureId, bool mirroredFlag, bool addToFlag, GuiResourceId paletteId) {
+	// Roger art replacement hook
+	if (g_sciRogerProvider && g_sciRogerProvider->enabled
+			&& g_sciRogerProvider->hasBackground(pictureId)) {
+		g_sciRogerProvider->prefetch(pictureId);
+		if (g_sciRogerProvider->loadBuffers(pictureId, _screen)) {
+			g_sciRogerProvider->pushHiresBackground(pictureId);
+			_screen->setCurPaletteMapValue(0);
+			return;
+		}
+	}
+
 	// Set up custom per-picture palette mod
 	doCustomPicPalette(_screen, pictureId);
 
