@@ -23,6 +23,17 @@
 #include "sci/roger/roger_compositor.h"
 #include "sci/roger/view_cache.h"
 #include "sci/roger/slice_set.h"
+// animate.h references these SCI engine types in GfxAnimate's interface but does
+// not declare them itself. This translation unit includes animate.h (to iterate
+// the AnimateList in renderFromAnimateList) without first pulling in the full
+// engine-state headers, so forward-declare them here. Confined to this Roger file
+// to keep animate.h itself untouched.
+namespace Sci {
+struct EngineState;
+class ScriptPatcher;
+struct List;
+class GfxCompare;
+}
 #include "sci/graphics/animate.h"
 #include "sci/graphics/screen.h"
 #include "graphics/managed_surface.h"

@@ -22,12 +22,19 @@
 #define SCI_ROGER_ROGER_ART_PROVIDER_H
 
 #include "common/scummsys.h"
+#include "common/list.h"
 #include "sci/graphics/helpers.h"
-#include "sci/graphics/animate.h"
 
 namespace Sci {
 
 class GfxScreen;
+
+// Forward declaration of the SCI animate list, so this base header stays
+// decoupled from the full SCI engine internals (it is included by sci.cpp /
+// paint16.cpp / animate.cpp). The concrete definition lives in
+// sci/graphics/animate.h, which only file_roger_art_provider.cpp includes.
+struct AnimateEntry;
+typedef Common::List<AnimateEntry> AnimateList;
 
 class RogerArtProvider {
 public:

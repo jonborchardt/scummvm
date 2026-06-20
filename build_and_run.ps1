@@ -8,7 +8,8 @@
 
 param(
     [string]$Config   = "Release",
-    [string]$Platform = "x64"
+    [string]$Platform = "x64",
+    [switch]$NoLaunch    # build only; skip launching SQ3 (used for compile verification)
 )
 
 $ErrorActionPreference = "Stop"
@@ -178,6 +179,11 @@ Write-Host "`nBuild OK  : $Exe" -ForegroundColor Green
 Write-Host "Game      : $GameDir"
 Write-Host "Roger art : $RogerDir"
 Write-Host ""
+
+if ($NoLaunch) {
+    Write-Host "NoLaunch set - build only, skipping SQ3 launch." -ForegroundColor DarkGray
+    return
+}
 
 if (-not (Test-Path $GameDir)) { Write-Error "Game data not found at: $GameDir" }
 

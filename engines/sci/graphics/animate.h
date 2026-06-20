@@ -22,18 +22,9 @@
 #ifndef SCI_GRAPHICS_ANIMATE_H
 #define SCI_GRAPHICS_ANIMATE_H
 
-#include "common/array.h"
-#include "common/list.h"
 #include "sci/graphics/helpers.h"
 
 namespace Sci {
-
-// Forward declarations for types used in GfxAnimate's interface.
-// These allow animate.h to be included without pulling in the full engine headers.
-struct EngineState;
-class ScriptPatcher;
-struct List;
-class GfxCompare;
 
 // Flags for the signal selector
 enum ViewSignals {
