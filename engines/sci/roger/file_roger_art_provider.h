@@ -47,6 +47,7 @@ public:
 	void pushHiresBackground(GuiResourceId pictureId) override;
 	void renderFromAnimateList(const AnimateList &list) override;
 	void hideOverlayForUI() override;
+	void onNativePicture() override;
 
 	// Compose and present the current room to the OSystem overlay.
 	// Called each frame by the GfxAnimate hook (Task 7).

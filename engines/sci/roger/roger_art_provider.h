@@ -69,6 +69,10 @@ public:
 	// Default no-op; FileRogerArtProvider delegates to g_system->hideOverlay().
 	virtual void hideOverlayForUI() {}
 
+	// Called when a full-screen picture with NO replacement art is drawn: drop any
+	// hires overlay left over from a previous room so it does not bleed through.
+	virtual void onNativePicture() {}
+
 	// Set to false to disable Roger without destroying the provider.
 	// ScummVM native rendering is used when false.
 	bool enabled;

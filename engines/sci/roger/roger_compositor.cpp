@@ -56,10 +56,11 @@ void RogerCompositor::renderScene(Graphics::ManagedSurface &dest, const Common::
 			continue;
 		}
 		Common::Rect dst = sciCelRectToOverlay(s.celRect, W, H);
-		// Scaled blit with transparency (transColor=0 skips fully-transparent-black pixels).
-		// flipped=s.mirror handles horizontal mirroring.
-		dest.transBlitFrom(*cel, Common::Rect(0, 0, cel->w, cel->h), dst,
-		                   (uint32)0, s.mirror);
+		// Alpha-aware blit: respects the alpha channel of each pixel so that
+		// transparent non-black pixels (common in exported spritesheets) do not
+		// render opaque and cause halos.
+		dest.blendBlitFrom(*cel, Common::Rect(0, 0, cel->w, cel->h), dst,
+		                   s.mirror ? Graphics::FLIP_H : Graphics::FLIP_NONE);
 
 		// Foreground occlusion: any slice whose band is strictly above this
 		// sprite's band, overlapping the sprite's dest rect, is re-drawn on top.
@@ -73,7 +74,7 @@ void RogerCompositor::renderScene(Graphics::ManagedSurface &dest, const Common::
 				                  (int16)((ps[j].y + ps[j].surface->h) * msy));
 				if (!sdst.intersects(dst))
 					continue;
-				dest.transBlitFrom(*ps[j].surface,
+				dest.blendBlitFrom(*ps[j].surface,
 				                   Common::Rect(0, 0, ps[j].surface->w, ps[j].surface->h), sdst);
 			}
 		}

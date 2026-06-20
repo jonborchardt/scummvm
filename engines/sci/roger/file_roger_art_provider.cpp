@@ -180,6 +180,15 @@ void FileRogerArtProvider::hideOverlayForUI() {
 	g_system->hideOverlay();
 }
 
+void FileRogerArtProvider::onNativePicture() {
+	if (_compositor)
+		_compositor->setRoom(nullptr, nullptr, nullptr);
+	if (_plate) { _plate->free(); delete _plate; _plate = nullptr; }
+	delete _slices; _slices = nullptr;
+	_loadedPicId = -1;
+	g_system->hideOverlay();
+}
+
 FileRogerArtProvider::~FileRogerArtProvider() {
 	if (_plate) { _plate->free(); delete _plate; _plate = nullptr; }
 	delete _slices; _slices = nullptr;

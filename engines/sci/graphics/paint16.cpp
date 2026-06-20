@@ -100,6 +100,13 @@ void GfxPaint16::drawPicture(GuiResourceId pictureId, bool mirroredFlag, bool ad
 		}
 	}
 
+	// Reaching here means this picture is drawn natively (no replacement, or
+	// buffer load failed). For a full-screen room background, drop any stale hires
+	// overlay from a previous room (Hard Constraint 6). addToPic overlays must not
+	// evict the current room's plate.
+	if (!addToFlag && g_sciRogerProvider && g_sciRogerProvider->enabled)
+		g_sciRogerProvider->onNativePicture();
+
 	// Set up custom per-picture palette mod
 	doCustomPicPalette(_screen, pictureId);
 
