@@ -100,6 +100,7 @@ void FileRogerArtProvider::pushHiresBackground(GuiResourceId pictureId) {
 			canvas.width  = img.naturalWidth;
 			canvas.height = img.naturalHeight;
 			canvas.getContext('2d').drawImage(img, 0, 0);
+			URL.revokeObjectURL(img.src);
 		};
 		// Read from Emscripten virtual FS and draw via blob URL
 		try {
