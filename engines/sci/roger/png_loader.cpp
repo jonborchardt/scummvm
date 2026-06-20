@@ -1,0 +1,76 @@
+/* ScummVM - Graphic Adventure Engine
+ *
+ * ScummVM is the legal property of its developers, whose names
+ * are too numerous to list here. Please refer to the COPYRIGHT
+ * file distributed with this source distribution.
+ *
+ * This program is free software: you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 3 of
+ * the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+
+#include "sci/roger/png_loader.h"
+#include "image/png.h"
+#include "common/fs.h"
+#include "graphics/surface.h"
+#include "graphics/pixelformat.h"
+
+namespace Sci {
+namespace Roger {
+
+Common::Array<byte> loadGrayscale8(const Common::String &path) {
+	Common::FSNode node(path);
+	if (!node.exists() || !node.isReadable())
+		return Common::Array<byte>();
+
+	Common::SeekableReadStream *stream = node.createReadStream();
+	if (!stream)
+		return Common::Array<byte>();
+
+	Image::PNGDecoder decoder;
+	bool ok = decoder.loadStream(*stream);
+	delete stream;
+	if (!ok)
+		return Common::Array<byte>();
+
+	const Graphics::Surface *surf = decoder.getSurface();
+	if (!surf)
+		return Common::Array<byte>();
+
+	const int w = surf->w;
+	const int h = surf->h;
+	const int bpp = surf->format.bytesPerPixel;
+
+	Common::Array<byte> result;
+	result.resize(w * h);
+
+	for (int y = 0; y < h; y++) {
+		const byte *row = (const byte *)surf->getBasePtr(0, y);
+		for (int x = 0; x < w; x++) {
+			if (bpp == 1) {
+				// Grayscale or palette index — use directly
+				result[y * w + x] = row[x];
+			} else if (bpp >= 3) {
+				// RGB or RGBA — take red channel (R == G == B for grayscale source)
+				result[y * w + x] = row[x * bpp];
+			} else {
+				// Unexpected format — fill with zero
+				result[y * w + x] = 0;
+			}
+		}
+	}
+
+	return result;
+}
+
+} // namespace Roger
+} // namespace Sci
