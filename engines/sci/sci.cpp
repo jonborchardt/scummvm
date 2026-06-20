@@ -67,6 +67,7 @@
 #include "sci/graphics/screen.h"
 #include "sci/graphics/text16.h"
 #include "sci/graphics/transitions.h"
+#include "sci/roger/file_roger_art_provider.h"
 
 #ifdef ENABLE_SCI32
 #include "sci/graphics/controls32.h"
@@ -218,6 +219,8 @@ SciEngine::SciEngine(OSystem *syst, const ADGameDescription *desc, SciGameId gam
 }
 
 SciEngine::~SciEngine() {
+	delete g_sciRogerProvider;
+	g_sciRogerProvider = nullptr;
 #ifdef ENABLE_SCI32
 	delete _gfxControls32;
 	delete _gfxPaint32;
@@ -386,6 +389,7 @@ Common::Error SciEngine::run() {
 
 	// Initialize all graphics related subsystems
 	initGraphics();
+	g_sciRogerProvider = new FileRogerArtProvider(getGameIdStr(), ConfMan.get("path"));
 
 	// Sound must be initialized after graphics because SysEx transfers at the
 	// start of the game must pump the event loop to avoid making the OS think
