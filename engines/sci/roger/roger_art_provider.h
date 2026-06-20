@@ -22,14 +22,11 @@
 #define SCI_ROGER_ROGER_ART_PROVIDER_H
 
 #include "common/scummsys.h"
+#include "sci/graphics/helpers.h"
 
 namespace Sci {
 
 class GfxScreen;
-
-// GuiResourceId is typedef'd as int in sci/graphics/helpers.h.
-// Forward-declare compatible typedef here so this header is self-contained.
-typedef int GuiResourceId;
 
 class RogerArtProvider {
 public:
