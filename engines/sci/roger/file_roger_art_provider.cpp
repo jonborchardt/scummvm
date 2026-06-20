@@ -116,7 +116,14 @@ void FileRogerArtProvider::pushHiresBackground(GuiResourceId pictureId) {
 	delete _slices; _slices = nullptr;
 
 	_plate = Roger::loadSurfaceRGBA(visualPath(pictureId));
-	if (!_plate) { _loadedPicId = -1; return; } // no hires bg -> native shows
+	if (!_plate) {
+		// No hires bg -> native shows. Clear the compositor's borrowed pointers so
+		// it does not retain the slice/plate we just deleted above.
+		if (_compositor)
+			_compositor->setRoom(nullptr, nullptr, nullptr);
+		_loadedPicId = -1;
+		return;
+	}
 
 	_slices = new Roger::SliceSet(slicedDir(pictureId));
 	_slices->load(); // ok if it returns false (no slices -> no occlusion)
