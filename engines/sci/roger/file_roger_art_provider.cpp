@@ -36,12 +36,18 @@ class GfxCompare;
 }
 #include "sci/graphics/animate.h"
 #include "sci/graphics/screen.h"
+#include "sci/sci.h"
+#include "sci/graphics/cache.h"
+#include "sci/graphics/view.h"
 #include "graphics/managed_surface.h"
+#include "graphics/pixelformat.h"
+#include "graphics/surface.h"
 #include "common/array.h"
 #include "common/path.h"
 #include "common/fs.h"
 #include "common/config-manager.h"
 #include "common/system.h"
+#include "common/textconsole.h"
 
 namespace Sci {
 
@@ -159,8 +165,61 @@ void FileRogerArtProvider::renderFrame(const Common::Array<Roger::Sprite> &sprit
 	_compositor->presentToOverlay(scene);
 }
 
+Graphics::Surface *FileRogerArtProvider::renderNativeCel(int viewId, int loopNo, int celNo) const {
+	if (!g_sci || !g_sci->_gfxCache)
+		return nullptr;
+
+	GfxView *view = g_sci->_gfxCache->getView(viewId);
+	if (!view)
+		return nullptr;
+
+	int16 w = view->getWidth((int16)loopNo, (int16)celNo);
+	int16 h = view->getHeight((int16)loopNo, (int16)celNo);
+	if (w <= 0 || h <= 0)
+		return nullptr;
+
+	const CelInfo *ci = view->getCelInfo((int16)loopNo, (int16)celNo);
+	if (!ci)
+		return nullptr;
+
+	byte clearKey = ci->clearKey;
+
+	// getBitmap() caches the unpacked palette-index bitmap in the CelInfo.
+	// It handles mirroring and undithering for EGA, and is cheaper than
+	// calling unpackCel ourselves.
+	const SciSpan<const byte> &bitmap = view->getBitmap((int16)loopNo, (int16)celNo);
+	if (bitmap.size() < (uint)(w * h))
+		return nullptr;
+
+	Palette *pal = view->getPalette();
+	if (!pal)
+		return nullptr;
+
+	const Graphics::PixelFormat rgba(4, 8, 8, 8, 8, 24, 16, 8, 0);
+	Graphics::Surface *surf = new Graphics::Surface();
+	surf->create(w, h, rgba);
+
+	for (int16 y = 0; y < h; y++) {
+		for (int16 x = 0; x < w; x++) {
+			byte idx = bitmap[y * w + x];
+			uint32 px;
+			if (idx == clearKey) {
+				px = rgba.ARGBToColor(0, 0, 0, 0);
+			} else {
+				const Color &c = pal->colors[idx];
+				px = rgba.ARGBToColor(255, c.r, c.g, c.b);
+			}
+			surf->setPixel(x, y, px);
+		}
+	}
+
+	return surf;
+}
+
 void FileRogerArtProvider::renderFromAnimateList(const AnimateList &list) {
 	Common::Array<Roger::Sprite> sprites;
+	Common::Array<Graphics::Surface *> nativeSurfaces;
+
 	for (AnimateList::const_iterator it = list.begin(); it != list.end(); ++it) {
 		if (it->signal & kSignalHidden)
 			continue;
@@ -171,9 +230,24 @@ void FileRogerArtProvider::renderFromAnimateList(const AnimateList &list) {
 		s.celRect  = it->celRect;
 		s.priority = it->priority;
 		s.mirror   = false; // mirror refinement deferred to a later task
+
+		// Provide a native-cel fallback for sprites that have no hires view art.
+		// The compositor will use it only when getCel() returns nullptr.
+		Graphics::Surface *nativeSurf = renderNativeCel(it->viewId, it->loopNo, it->celNo);
+		s.celOverride = nativeSurf; // borrowed by the sprite (freed below)
+		if (nativeSurf)
+			nativeSurfaces.push_back(nativeSurf);
+
 		sprites.push_back(s);
 	}
+
+	// renderFrame composites synchronously; free native surfaces after it returns.
 	renderFrame(sprites);
+
+	for (uint i = 0; i < nativeSurfaces.size(); i++) {
+		nativeSurfaces[i]->free();
+		delete nativeSurfaces[i];
+	}
 }
 
 void FileRogerArtProvider::hideOverlayForUI() {

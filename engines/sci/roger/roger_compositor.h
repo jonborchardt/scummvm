@@ -37,6 +37,7 @@ struct Sprite {
 	Common::Rect celRect;  // 320x200 space
 	int priority;          // SCI band 0..15
 	bool mirror;
+	const Graphics::Surface *celOverride = nullptr; // optional pre-rendered native cel (RGBA), borrowed; used when no hires cel
 };
 
 class RogerCompositor {

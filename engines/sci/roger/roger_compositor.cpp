@@ -78,6 +78,8 @@ void RogerCompositor::renderScene(Graphics::ManagedSurface &dest, const Common::
 	for (uint i = 0; i < sprites.size(); i++) {
 		const Sprite &s = sprites[i];
 		const Graphics::Surface *cel = _views ? _views->getCel(s.viewId, s.loopNo, s.celNo) : nullptr;
+		if (!cel)
+			cel = s.celOverride;
 		if (!cel) {
 			warning("ROGER: missing hires cel view=%d loop=%d cel=%d (skipped)", s.viewId, s.loopNo, s.celNo);
 			continue;

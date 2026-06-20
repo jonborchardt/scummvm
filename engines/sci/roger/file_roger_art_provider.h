@@ -76,6 +76,10 @@ private:
 	Common::String priorityPath(GuiResourceId id) const;
 	Common::String controlPath(GuiResourceId id) const;
 	Common::String slicedDir(GuiResourceId id) const; // <roger>/pics/<id>/sliced
+
+	// Render a native SCI cel to a new RGBA surface. Caller owns and must free.
+	// Returns nullptr on any failure (guard: sprite will be skipped).
+	Graphics::Surface *renderNativeCel(int viewId, int loopNo, int celNo) const;
 };
 
 } // namespace Sci
