@@ -121,7 +121,10 @@
   <div class="emscripten" id="status">Downloading ScummVM...</div>
 
   <div class=emscripten_border>
-    <canvas class=emscripten id=canvas oncontextmenu=event.preventDefault() tabindex=-1></canvas>
+    <div id="scummvm-container" style="position:relative; display:inline-block;">
+      <canvas class=emscripten id=canvas oncontextmenu=event.preventDefault() tabindex=-1 style="position:relative; z-index:1;"></canvas>
+      <canvas id="roger-canvas" style="position:absolute; top:0; left:0; width:100%; height:100%; z-index:2; pointer-events:none; opacity:1;"></canvas>
+    </div>
   </div>
 
   <hr>

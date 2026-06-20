@@ -24,6 +24,10 @@
 #include "common/path.h"
 #include "common/fs.h"
 
+#ifdef __EMSCRIPTEN__
+#include <emscripten/emscripten.h>
+#endif
+
 namespace Sci {
 
 FileRogerArtProvider::FileRogerArtProvider(const Common::String &gameId,
@@ -83,8 +87,50 @@ bool FileRogerArtProvider::loadBuffers(GuiResourceId pictureId, GfxScreen *scree
 	return true;
 }
 
-void FileRogerArtProvider::pushHiresBackground(GuiResourceId) {
-	// Implemented in Task 8 (Emscripten canvas bridge)
+void FileRogerArtProvider::pushHiresBackground(GuiResourceId pictureId) {
+#ifdef __EMSCRIPTEN__
+	Common::String path = visualPath(pictureId);
+	// Draw the hires PNG to the roger-canvas overlay via the browser Canvas 2D API.
+	EM_ASM({
+		var path = UTF8ToString($0);
+		var canvas = document.getElementById('roger-canvas');
+		if (!canvas) return;
+		var img = new Image();
+		img.onload = function() {
+			canvas.width  = img.naturalWidth;
+			canvas.height = img.naturalHeight;
+			canvas.getContext('2d').drawImage(img, 0, 0);
+		};
+		// Read from Emscripten virtual FS and draw via blob URL
+		try {
+			var data = FS.readFile(path);
+			var blob = new Blob([data], {type: 'image/png'});
+			img.src = URL.createObjectURL(blob);
+		} catch(e) {
+			// File not in VFS — silently skip (native rendering on scummvm-canvas remains)
+		}
+	}, path.c_str());
+#endif
 }
 
 } // namespace Sci
+
+#ifdef __EMSCRIPTEN__
+extern "C" {
+	EMSCRIPTEN_KEEPALIVE void roger_set_enabled(int enabled) {
+		if (Sci::g_sciRogerProvider)
+			Sci::g_sciRogerProvider->enabled = (enabled != 0);
+		EM_ASM({
+			var canvas = document.getElementById('roger-canvas');
+			if (canvas) canvas.style.opacity = $0 ? '1' : '0';
+		}, enabled);
+	}
+
+	EMSCRIPTEN_KEEPALIVE void roger_set_opacity(float opacity) {
+		EM_ASM({
+			var canvas = document.getElementById('roger-canvas');
+			if (canvas) canvas.style.opacity = $0;
+		}, opacity);
+	}
+}
+#endif
