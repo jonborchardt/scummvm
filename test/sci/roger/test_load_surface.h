@@ -1,6 +1,7 @@
 #include <cxxtest/TestSuite.h>
 #include "sci/roger/png_loader.h"
 #include "graphics/surface.h"
+#include "common/str.h"
 #include "../../system/null_osystem.h"
 
 // FIXTURE_DIR defined by test/module.mk's TEST_CFLAGS (make) or

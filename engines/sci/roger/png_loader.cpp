@@ -21,6 +21,7 @@
 #include "sci/roger/png_loader.h"
 #include "image/png.h"
 #include "common/fs.h"
+#include "common/stream.h"
 #include "graphics/surface.h"
 #include "graphics/pixelformat.h"
 
