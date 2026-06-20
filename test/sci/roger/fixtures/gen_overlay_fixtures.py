@@ -56,4 +56,11 @@ dump_json({
                 "x": 4, "y": 0, "width": 4, "height": 4}],
 }, "slice_manifest.json")
 
+# View cache expects <base>/<id>/view.<id>.loop.<n>.{png,json}
+import shutil
+vdir = os.path.join(OUT, "900")
+os.makedirs(vdir, exist_ok=True)
+shutil.copy(os.path.join(OUT, "view.900.loop.0.png"), vdir)
+shutil.copy(os.path.join(OUT, "view.900.loop.0.json"), vdir)
+
 print("fixtures written to", OUT)

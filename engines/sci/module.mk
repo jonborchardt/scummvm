@@ -107,7 +107,8 @@ MODULE_OBJS := \
 MODULE_OBJS += \
 	roger/roger_art_provider.o \
 	roger/png_loader.o \
-	roger/file_roger_art_provider.o
+	roger/file_roger_art_provider.o \
+	roger/view_cache.o
 
 
 ifdef ENABLE_SCI32

@@ -51,7 +51,8 @@ $FixtureDir = ("$Root\test\sci\roger\fixtures" -replace '\\','/')
 # form create_project emits for every other ClCompile entry. Absolute paths break
 # MSBuild's per-file intermediate-dir computation.
 $RogerSources = @(
-    "..\..\engines\sci\roger\png_loader.cpp"
+    "..\..\engines\sci\roger\png_loader.cpp",
+    "..\..\engines\sci\roger\view_cache.cpp"
 )
 
 # The Roger test-suite headers to feed cxxtestgen, listed explicitly rather than via
@@ -62,7 +63,8 @@ $RogerSources = @(
 $RogerTestHeaders = @(
     "test_png_loader.h",
     "test_load_surface.h",
-    "test_roger_coords.h"
+    "test_roger_coords.h",
+    "test_view_cache.h"
 )
 
 # ── Locate MSBuild via vswhere ────────────────────────────────────────────────
