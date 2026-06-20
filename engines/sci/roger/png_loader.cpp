@@ -73,5 +73,25 @@ Common::Array<byte> loadGrayscale8(const Common::String &path) {
 	return result;
 }
 
+Graphics::Surface *loadSurfaceRGBA(const Common::String &path) {
+	Common::Path fsPath(path);
+	Common::FSNode node(fsPath);
+	if (!node.exists() || !node.isReadable())
+		return nullptr;
+	Common::SeekableReadStream *stream = node.createReadStream();
+	if (!stream)
+		return nullptr;
+	Image::PNGDecoder decoder;
+	bool ok = decoder.loadStream(*stream);
+	delete stream;
+	if (!ok || !decoder.getSurface())
+		return nullptr;
+
+	const Graphics::PixelFormat rgba(4, 8, 8, 8, 8, 24, 16, 8, 0);
+	// Use the no-palette overload: test fixtures and hires art are truecolor PNGs.
+	Graphics::Surface *out = decoder.getSurface()->convertTo(rgba);
+	return out;  // may be nullptr if conversion failed
+}
+
 } // namespace Roger
 } // namespace Sci
