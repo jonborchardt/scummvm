@@ -2,7 +2,7 @@
 """
 Generate synthetic 320x200 replacement art for a single SQ3 room.
 Usage: python3 gen_sq3_room.py <pic_id> <output_dir>
-Example: python3 gen_sq3_room.py 100 "J:/SteamLibrary/steamapps/common/Space Quest Collection/sq3-roger/pics/100"
+Example: python3 gen_sq3_room.py 2 "J:/SteamLibrary/steamapps/common/Space Quest Collection/sq3-roger/pics/2/source"
 """
 import sys, os
 try:
