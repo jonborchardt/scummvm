@@ -91,10 +91,17 @@ bool FileRogerArtProvider::loadBuffers(GuiResourceId pictureId, GfxScreen *scree
 
 void FileRogerArtProvider::pushHiresBackground(GuiResourceId pictureId) {
 #ifdef __EMSCRIPTEN__
-	Common::String path = visualPath(pictureId);
-	// Draw the hires PNG to the roger-canvas overlay via the browser Canvas 2D API.
+	// The Emscripten port serves all game data over HTTP from DATA_PATH ("/data")
+	// via ScummVM's HTTP filesystem — it is NOT preloaded into the MEMFS. So the
+	// hires PNG cannot be read with FS.readFile(); instead point an <img> at its
+	// HTTP URL and let the browser fetch it. visualPath() already yields the
+	// server-absolute URL (e.g. "/data/games/sq3-roger/pics/2/source/pic.2.png"):
+	// the same path string the HTTP filesystem maps a node's _url to.
+	// (The priority/control maps are loaded transparently over the same HTTP
+	// filesystem in loadBuffers(), so no explicit fetch is needed for those.)
+	Common::String url = visualPath(pictureId);
 	EM_ASM({
-		var path = UTF8ToString($0);
+		var url = UTF8ToString($0);
 		var canvas = document.getElementById('roger-canvas');
 		if (!canvas) return;
 		var img = new Image();
@@ -102,17 +109,12 @@ void FileRogerArtProvider::pushHiresBackground(GuiResourceId pictureId) {
 			canvas.width  = img.naturalWidth;
 			canvas.height = img.naturalHeight;
 			canvas.getContext('2d').drawImage(img, 0, 0);
-			URL.revokeObjectURL(img.src);
 		};
-		// Read from Emscripten virtual FS and draw via blob URL
-		try {
-			var data = FS.readFile(path);
-			var blob = new Blob([data], {type: 'image/png'});
-			img.src = URL.createObjectURL(blob);
-		} catch(e) {
-			// File not in VFS — silently skip (native rendering on scummvm-canvas remains)
-		}
-	}, path.c_str());
+		img.onerror = function() {
+			console.warn('roger: failed to load hires background', url);
+		};
+		img.src = url;
+	}, url.c_str());
 #endif
 }
 
