@@ -19,6 +19,8 @@
  */
 
 #include "sci/roger/file_roger_art_provider.h"
+#include "sci/roger/png_loader.h"
+#include "sci/graphics/screen.h"
 #include "common/path.h"
 #include "common/fs.h"
 
@@ -56,9 +58,29 @@ bool FileRogerArtProvider::hasBackground(GuiResourceId pictureId) const {
 	return v.exists() && p.exists() && c.exists();
 }
 
-bool FileRogerArtProvider::loadBuffers(GuiResourceId, GfxScreen *) {
-	// Implemented in Task 6
-	return false;
+bool FileRogerArtProvider::loadBuffers(GuiResourceId pictureId, GfxScreen *screen) {
+	Common::Array<byte> priority = Roger::loadGrayscale8(priorityPath(pictureId));
+	Common::Array<byte> control  = Roger::loadGrayscale8(controlPath(pictureId));
+
+	if (priority.empty() || control.empty())
+		return false;
+
+	const uint16 w = screen->getWidth();
+	const uint16 h = screen->getHeight();
+
+	if (priority.size() != (uint)(w * h) || control.size() != (uint)(w * h))
+		return false;
+
+	for (int16 y = 0; y < (int16)h; y++) {
+		for (int16 x = 0; x < (int16)w; x++) {
+			const byte p = priority[y * w + x];
+			const byte c = control[y * w + x];
+			screen->putPixel(x, y,
+				GFX_SCREEN_MASK_PRIORITY | GFX_SCREEN_MASK_CONTROL,
+				0, p, c);
+		}
+	}
+	return true;
 }
 
 void FileRogerArtProvider::pushHiresBackground(GuiResourceId) {
