@@ -2,16 +2,6 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## AI Attribution Requirement
-
-All commits that used AI assistance **must** include an attribution tag in the commit message:
-
-```
-Assisted-by: Claude:claude-sonnet-4-6
-```
-
-AI agents must never have co-authorship credit. The human submitter is the sole author.
-
 ## Build System
 
 ScummVM uses a configure + GNU Make build system on Linux/macOS. On Windows, use `devtools/create_project` to generate IDE project files.
