@@ -45,4 +45,9 @@ public:
 		Sci::Roger::ViewCache cache(Common::String(FIXTURE_DIR));
 		TS_ASSERT(cache.getCel(12345, 0, 0) == nullptr);
 	}
+	void test_malformed_json_returns_null() {
+		// View 901 has valid JSON but no "frames" key — must return nullptr, not crash.
+		Sci::Roger::ViewCache cache(Common::String(FIXTURE_DIR));
+		TS_ASSERT(cache.getCel(901, 0, 0) == nullptr);
+	}
 };

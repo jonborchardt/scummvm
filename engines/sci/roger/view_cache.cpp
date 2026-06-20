@@ -78,6 +78,11 @@ ViewCache::Loop *ViewCache::loadLoop(int viewId, int loopNo) {
 	Graphics::Surface *sheet = loadSurfaceRGBA(dir + stem + ".png");
 	if (!sheet) { delete root; return nullptr; }
 
+	// Guard: "frames" must exist and be an object.
+	if (!obj.contains("frames") || !obj["frames"]->isObject()) {
+		sheet->free(); delete sheet; delete root; return nullptr;
+	}
+
 	Loop loop;
 	loop.sheet = sheet;
 
@@ -88,8 +93,10 @@ ViewCache::Loop *ViewCache::loadLoop(int viewId, int loopNo) {
 		Common::JSONObject anim = obj["animations"]->asObject();
 		if (anim.contains("loop") && anim["loop"]->isArray()) {
 			Common::JSONArray arr = anim["loop"]->asArray();
-			for (uint i = 0; i < arr.size(); i++)
-				order.push_back(arr[i]->asString());
+			for (uint i = 0; i < arr.size(); i++) {
+				if (arr[i] && arr[i]->isString())
+					order.push_back(arr[i]->asString());
+			}
 		}
 	}
 	if (order.empty())
@@ -97,7 +104,18 @@ ViewCache::Loop *ViewCache::loadLoop(int viewId, int loopNo) {
 			order.push_back(it->_key);
 
 	for (uint i = 0; i < order.size(); i++) {
-		Common::JSONObject f = frames[order[i]]->asObject()["frame"]->asObject();
+		// Guard: frame entry must exist and have a valid "frame" sub-object.
+		if (!frames.contains(order[i]) || !frames[order[i]]->isObject())
+			continue;
+		Common::JSONObject frameEntry = frames[order[i]]->asObject();
+		if (!frameEntry.contains("frame") || !frameEntry["frame"]->isObject())
+			continue;
+		Common::JSONObject f = frameEntry["frame"]->asObject();
+		if (!f.contains("x") || !f["x"]->isIntegerNumber() ||
+		    !f.contains("y") || !f["y"]->isIntegerNumber() ||
+		    !f.contains("w") || !f["w"]->isIntegerNumber() ||
+		    !f.contains("h") || !f["h"]->isIntegerNumber())
+			continue;
 		int x = (int)f["x"]->asIntegerNumber();
 		int y = (int)f["y"]->asIntegerNumber();
 		int w = (int)f["w"]->asIntegerNumber();

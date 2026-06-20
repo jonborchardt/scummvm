@@ -35,6 +35,8 @@ class ViewCache {
 public:
 	explicit ViewCache(const Common::String &viewsBasePath);
 	~ViewCache();
+	ViewCache(const ViewCache &) = delete;
+	ViewCache &operator=(const ViewCache &) = delete;
 
 	// Borrowed pointer owned by the cache; nullptr if asset missing.
 	const Graphics::Surface *getCel(int viewId, int loopNo, int celNo);

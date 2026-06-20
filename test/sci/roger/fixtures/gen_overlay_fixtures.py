@@ -63,4 +63,18 @@ os.makedirs(vdir, exist_ok=True)
 shutil.copy(os.path.join(OUT, "view.900.loop.0.png"), vdir)
 shutil.copy(os.path.join(OUT, "view.900.loop.0.json"), vdir)
 
+# Malformed view 901: valid JSON but missing "frames" key — tests null-safety guard.
+write_png(os.path.join(OUT, "view.901.loop.0.png"), 2, 2, [
+    [(255, 0, 0, 255), (0, 255, 0, 255)],
+    [(0, 0, 255, 255), (0, 0, 0, 0)],
+])
+dump_json({
+    "animations": {"loop": ["0"]},
+    "meta": {"image": "view.901.loop.0.png"},
+}, "view.901.loop.0.json")
+vdir901 = os.path.join(OUT, "901")
+os.makedirs(vdir901, exist_ok=True)
+shutil.copy(os.path.join(OUT, "view.901.loop.0.png"), vdir901)
+shutil.copy(os.path.join(OUT, "view.901.loop.0.json"), vdir901)
+
 print("fixtures written to", OUT)
