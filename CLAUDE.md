@@ -95,6 +95,18 @@ sq3-roger/
 
 Target: view 0, loops 1–4 (Roger Wilco sprite). Not yet implemented.
 
+### Stage 3: Plugin migration (future)
+
+When Roger becomes its own plugin, these existing files must be revisited — all other changes are in `engines/sci/roger/` which will move wholesale:
+
+| File | What changes |
+|------|-------------|
+| `engines/sci/graphics/paint16.cpp` | Decouple the hard-coded `g_sciRogerProvider` global — SCI engine needs to expose a registration API (e.g. `setArtProvider()`) that the plugin calls at load time |
+| `engines/sci/sci.cpp` | Remove include, instantiation (`new FileRogerArtProvider(...)`), and destruction — plugin self-registers via the new API |
+| `engines/sci/module.mk` | Remove the `# Roger art replacement` block — `roger/*.o` files move to the plugin's own `module.mk` |
+| `test/module.mk` | Change test linking from `engines/sci/libsci.a` to a roger-specific static library |
+| `dists/emscripten/custom_shell.html` | Two-canvas structure stays; the canvas bridge mechanism may change if the plugin communicates via a different WASM interface |
+
 ## Code Style
 
 - **C++11**, tabs for indentation (width 4), no column limit
