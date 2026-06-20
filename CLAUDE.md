@@ -80,7 +80,7 @@ sq3-roger/
   pics/
     <id>/
       source/
-        pic.<id>.png      ← visual (hires, any resolution)
+        pic.<id>.png      ← visual (roger, any resolution)
         pic.<id>_p.png    ← priority map (must be exactly 320×200, grayscale)
         pic.<id>_c.png    ← control map (must be exactly 320×200, grayscale)
 ```

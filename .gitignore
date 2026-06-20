@@ -310,9 +310,12 @@ __pycache__/
 
 #Ignore vcpkg generated files
 /vcpkg_installed/
+/vcpkg-configuration.json
 
 #Ignore Claude instruction files
 .claude
 .superpowers
 /docs
 /plans
+
+!build_and_run.ps1
