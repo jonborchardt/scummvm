@@ -1,0 +1,171 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## AI Attribution Requirement
+
+All commits that used AI assistance **must** include an attribution tag in the commit message:
+
+```
+Assisted-by: Claude:claude-sonnet-4-6
+```
+
+AI agents must never have co-authorship credit. The human submitter is the sole author.
+
+## Build System
+
+ScummVM uses a configure + GNU Make build system on Linux/macOS. On Windows, use `devtools/create_project` to generate IDE project files.
+
+### Windows (quick start)
+
+A PowerShell script handles everything — installs dependencies via vcpkg, generates the VS solution, builds, and launches SQ3:
+
+```powershell
+.\build_and_run.ps1
+```
+
+- First run: ~15–30 min (vcpkg compiles SDL2, libpng, zlib etc. from source; cached after)
+- Subsequent runs: ~1–3 min incremental build + launch
+- Requires: Visual Studio 2019/2022 with "Desktop development with C++" workload
+
+Game data: `J:\SteamLibrary\steamapps\common\Space Quest Collection\sq3`
+Roger art: `J:\SteamLibrary\steamapps\common\Space Quest Collection\sq3-roger`
+
+### Configure and build (Linux/macOS)
+```sh
+./configure [--enable-engine=<name>] [--disable-engine=<name>]
+make -j$(nproc)
+```
+
+### Generate IDE project files (Windows/macOS IDE)
+```sh
+# From the build directory:
+/path/to/scummvm/devtools/create_project /path/to/scummvm --msvc    # Visual Studio
+/path/to/scummvm/devtools/create_project /path/to/scummvm --xcode   # Xcode
+```
+
+### Run unit tests
+```sh
+make test
+```
+
+Tests use the CxxTest framework located in `test/cxxtest/`. Test source files are in `test/`.
+
+## Roger Project
+
+This fork adds the **Roger** art replacement system for SCI0 games (SQ3, QFG1 EGA). It substitutes pre-generated high-resolution PNG backgrounds, priority maps, and control maps for SCI's native vector/cel rendering, while leaving all game logic intact.
+
+- Design spec: `docs/superpowers/specs/2026-06-19-roger-art-replacement-design.md`
+- Stage 1 implementation plan: `docs/superpowers/plans/2026-06-19-roger-stage1.md`
+- All Roger code lives in `engines/sci/roger/`
+
+### Stage 1: Background replacement (complete, branch `jonb`)
+
+Hook at top of `GfxPaint16::drawPicture()` checks `g_sciRogerProvider`. When non-null and `hasBackground()` returns true, fills priority + control buffers from PNG and returns early (skipping SCI vector rendering). Visual buffer is pushed to a `roger-canvas` HTML overlay in Emscripten builds.
+
+**Key files:**
+
+| File | Role |
+|------|------|
+| `engines/sci/roger/roger_art_provider.h` | Abstract interface + `g_sciRogerProvider` global |
+| `engines/sci/roger/file_roger_art_provider.h/cpp` | File-based provider: path construction, `hasBackground()`, `loadBuffers()`, Emscripten bridge |
+| `engines/sci/roger/png_loader.h/cpp` | `Sci::Roger::loadGrayscale8()` via `Image::PNGDecoder` |
+| `engines/sci/graphics/paint16.cpp` | 9-line hook at top of `drawPicture()` |
+| `engines/sci/sci.cpp` | Provider instantiated after `initGraphics()`, destroyed in destructor |
+| `dists/emscripten/custom_shell.html` | `roger-canvas` overlay (z-index:2, pointer-events:none) |
+
+**Asset layout** (`sq3-roger` is a sibling of the `sq3` game directory):
+```
+sq3-roger/
+  pics/
+    <id>/
+      source/
+        pic.<id>.png      ← visual (hires, any resolution)
+        pic.<id>_p.png    ← priority map (must be exactly 320×200, grayscale)
+        pic.<id>_c.png    ← control map (must be exactly 320×200, grayscale)
+```
+
+**Integration test:** Room 2 (pic resource 2). Synthetic magenta art at `sq3-roger/pics/2/source/`. Generate for any room with `python test/sci/roger/fixtures/gen_sq3_room.py <id> <output_dir>`.
+
+**Tests:** `test/sci/roger/` — run with `make test` in WSL (SCI must be a static plugin).
+
+**WASM exports:** `Module._roger_set_enabled(0/1)` and `Module._roger_set_opacity(0.0–1.0)` callable from browser console.
+
+### Stage 2: View replacement (planned)
+
+Target: view 0, loops 1–4 (Roger Wilco sprite). Not yet implemented.
+
+## Code Style
+
+- **C++11**, tabs for indentation (width 4), no column limit
+- Pointer/reference aligned to the right: `int *ptr`, `void foo(int &bar)`
+- Braces attached (K&R style): `if (x) {`
+- `.clang-format` is present and enforces these rules
+- No exceptions (`-fno-exceptions`), no RTTI
+- All code must be GPLv3+ compatible
+
+## Repository Architecture
+
+### Core modules (shared across all engines)
+
+| Directory | Purpose |
+|-----------|---------|
+| `common/` | Shared utilities: strings, streams, containers, file system, config manager, archive formats, event manager |
+| `graphics/` | 2D rendering: surfaces, pixel formats, font management, scalers, Mac GUI widgets |
+| `audio/` | Audio mixing, MIDI drivers, codec decoders |
+| `video/` | Video codec decoders (Bink, Smacker, QuickTime, etc.) |
+| `image/` | Image format decoders (PNG, JPEG, BMP, etc.) |
+| `math/` | Math utilities (vectors, matrices, frustum) |
+| `gui/` | ScummVM launcher GUI, dialog system, theme engine |
+| `base/` | Program entry point (`main.cpp`), plugin manager, command-line parsing |
+
+### Platform abstraction
+
+`backends/` contains platform-specific implementations. All platforms implement the `OSystem` interface defined in `common/system.h`. The SDL backend (`backends/platform/sdl/`) is the primary desktop backend. Other backends include Android, iOS, libretro, and various consoles.
+
+### Engine plugin system
+
+Each game engine lives in `engines/<name>/` and integrates via:
+
+- **`configure.engine`** — declares the engine to the build system (`add_engine` macro)
+- **`module.mk`** — lists all `.o` files to compile
+- **`MetaEngineDetection`** — handles game detection (can be compiled without the full engine for the detection plugin)
+- **`MetaEngine`** — creates `Engine` instances, manages save states, provides GUI options
+- **`Engine`** subclass — implements `run()` as the main game loop
+
+The plugin system (`base/plugins.h`) supports both static linking and dynamic ELF plugins.
+
+### Game detection
+
+Most engines use the `AdvancedDetector` framework (`engines/advancedDetector.h`). Detection tables in `engines/<name>/detection_tables.h` list `ADGameDescription` entries with filename + MD5 pairs. The detector matches game files against these tables to identify the specific game version.
+
+### Director engine (engines/director/)
+
+The Director engine implements Macromedia/Macromedia Director games. Key components:
+
+- **`DirectorEngine`** — top-level engine, manages windows and global state
+- **`Movie`** — represents a Director movie file (`.DIR`/`.DXR`/`.MMM`)
+- **`Cast`** — resource library holding all `CastMember` objects (bitmaps, sounds, scripts, text, shapes, etc.)
+- **`Score`** — the timeline/sequencer; contains `Frame` objects that define which channels are active each frame
+- **`Channel`** — one sprite slot in a frame
+- **`Window`** — a stage or MIAW (Movie In A Window)
+- **`Lingo`** — the scripting engine for the Lingo language (in `lingo/`)
+
+The Lingo subsystem uses bison/flex (`lingo-gr.y`, `lingo-lex.l`) to parse scripts and compiles them to bytecode. XObject/XLib support is in `lingo/xlibs/` and `lingo/xtras/`.
+
+## Developer Tools
+
+- **`devtools/make_class.py`** — scaffolds a new C++ class in an engine (creates `.cpp`/`.h`, updates `module.mk`):
+  ```sh
+  python3 devtools/make_class.py scumm . LeChuck        # engines/scumm/le_chuck.{cpp,h}
+  python3 devtools/make_class.py director lingo MyXObj  # engines/director/lingo/my_x_obj.{cpp,h}
+  ```
+- **`devtools/create_engine/`** — scaffolds a new engine
+- **`devtools/dumper-companion.py`** — dumps HFS/HFS+ volumes and Mac game files
+- Various `devtools/create_<engine>/` tools generate `.dat` data files for specific engines
+
+## Adding a New Engine
+
+1. Create `engines/<name>/` with `configure.engine`, `module.mk`, `detection.cpp`, `metaengine.cpp`, and the main engine class
+2. Run `./configure` to pick up the new engine
+3. Add detection entries in `detection_tables.h` using `ADGameDescription` structs and `AD_ENTRY*` macros
