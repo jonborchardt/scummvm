@@ -49,20 +49,27 @@ This fork adds the **Roger** art replacement system for SCI0 games (SQ3, QFG1 EG
 - Stage 1 implementation plan: `docs/superpowers/plans/2026-06-19-roger-stage1.md`
 - All Roger code lives in `engines/sci/roger/`
 
-### Stage 1: Background replacement (complete, branch `jonb`)
+> **Native rendering only.** Roger targets the native (desktop) ScummVM build. An
+> earlier web/Emscripten/PixiJS prototype was abandoned; all of that code, build
+> scripts, and the `roger-canvas` HTML overlay have been removed. The hires visual
+> is displayed through ScummVM's **OSystem overlay** (a higher-resolution layer
+> composited above the 320×200 game surface) — not a browser canvas.
 
-Hook at top of `GfxPaint16::drawPicture()` checks `g_sciRogerProvider`. When non-null and `hasBackground()` returns true, fills priority + control buffers from PNG and returns early (skipping SCI vector rendering). Visual buffer is pushed to a `roger-canvas` HTML overlay in Emscripten builds.
+### Stage 1: Background replacement
+
+Hook at top of `GfxPaint16::drawPicture()` checks `g_sciRogerProvider`. When non-null and `hasBackground()` returns true, it fills the **320×200 priority + control buffers** from PNG (so SCI pathfinding/occlusion honor the replacement) and returns early (skipping SCI vector rendering). The hires visual is then shown via the OSystem overlay (`pushHiresBackground()`).
+
+**Status:** the hook + priority/control buffer replacement are implemented and verified natively (ego walkability and sprite occlusion respond correctly to swapped maps). `pushHiresBackground()` is currently a **stub** — the native OSystem-overlay display is the next implementation step (see design spec).
 
 **Key files:**
 
 | File | Role |
 |------|------|
 | `engines/sci/roger/roger_art_provider.h` | Abstract interface + `g_sciRogerProvider` global |
-| `engines/sci/roger/file_roger_art_provider.h/cpp` | File-based provider: path construction, `hasBackground()`, `loadBuffers()`, Emscripten bridge |
+| `engines/sci/roger/file_roger_art_provider.h/cpp` | File-based provider: path construction, visual-variant selection, `hasBackground()`, `loadBuffers()`, `pushHiresBackground()` (OSystem overlay — TODO) |
 | `engines/sci/roger/png_loader.h/cpp` | `Sci::Roger::loadGrayscale8()` via `Image::PNGDecoder` |
-| `engines/sci/graphics/paint16.cpp` | 9-line hook at top of `drawPicture()` |
-| `engines/sci/sci.cpp` | Provider instantiated after `initGraphics()`, destroyed in destructor |
-| `dists/emscripten/custom_shell.html` | `roger-canvas` overlay (z-index:2, pointer-events:none) |
+| `engines/sci/graphics/paint16.cpp` | hook at top of `drawPicture()` |
+| `engines/sci/sci.cpp` | Provider instantiated after `initGraphics()` (with `ConfMan.getPath("path")`), destroyed in destructor |
 
 **Asset layout** (`sq3-roger` is a sibling of the `sq3` game directory):
 ```
@@ -70,20 +77,20 @@ sq3-roger/
   pics/
     <id>/
       source/
-        pic.<id>.png      ← visual (roger, any resolution)
-        pic.<id>_p.png    ← priority map (must be exactly 320×200, grayscale)
-        pic.<id>_c.png    ← control map (must be exactly 320×200, grayscale)
+        pic.<id>.png                 ← low-res original visual
+        pic.<variant>.<id>.png       ← hires visual, e.g. pic.omyac-upscaler.<id>.png
+        pic.<id>_p.png               ← priority map (must be exactly 320×200, grayscale)
+        pic.<id>_c.png               ← control map (must be exactly 320×200, grayscale)
 ```
+The hires visual variant is selected by config key `roger_visual_variant` (default `omyac-upscaler`; empty string uses the plain `pic.<id>.png`).
 
-**Integration test:** Room 2 (pic resource 2). Synthetic magenta art at `sq3-roger/pics/2/source/`. Generate for any room with `python test/sci/roger/fixtures/gen_sq3_room.py <id> <output_dir>`.
+**Integration test:** Room 2 (pic resource 2), art at `sq3-roger/pics/2/source/`. To verify the buffers are honored, swap in deliberately-wrong uniform priority/control maps and observe ego occlusion/walkability change.
 
-**Tests:** `test/sci/roger/` — run with `make test` in WSL (SCI must be a static plugin).
+**Tests:** `test/sci/roger/` (CxxTest) — require a `make`-based build to run (SCI as a static plugin).
 
-**WASM exports:** `Module._roger_set_enabled(0/1)` and `Module._roger_set_opacity(0.0–1.0)` callable from browser console.
+### Stage 2: Native hires overlay compositor (main remaining work)
 
-### Stage 2: View replacement (planned)
-
-Target: view 0, loops 1–4 (Roger Wilco sprite). Not yet implemented.
+Composite the ego/props (and the SCI UI elements that would otherwise be hidden under the overlay) into the OSystem overlay at hires, with SCI priority-band masking against the replacement art. Keeps all game logic at 320×200 in ScummVM; only the display layer is hires.
 
 ### Stage 3: Plugin migration (future)
 
@@ -95,7 +102,6 @@ When Roger becomes its own plugin, these existing files must be revisited — al
 | `engines/sci/sci.cpp` | Remove include, instantiation (`new FileRogerArtProvider(...)`), and destruction — plugin self-registers via the new API |
 | `engines/sci/module.mk` | Remove the `# Roger art replacement` block — `roger/*.o` files move to the plugin's own `module.mk` |
 | `test/module.mk` | Change test linking from `engines/sci/libsci.a` to a roger-specific static library |
-| `dists/emscripten/custom_shell.html` | Two-canvas structure stays; the canvas bridge mechanism may change if the plugin communicates via a different WASM interface |
 
 ## Code Style
 

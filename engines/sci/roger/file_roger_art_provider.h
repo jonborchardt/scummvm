@@ -47,7 +47,8 @@ public:
 	Common::String testControlPath(GuiResourceId id) const { return controlPath(id); }
 
 private:
-	Common::String _basePath; // absolute path to <gameid>-roger/ directory
+	Common::String _basePath;       // absolute path to <gameid>-roger/ directory
+	Common::String _visualVariant;  // hires visual variant, e.g. "omyac-upscaler" ("" = plain pic.<id>.png)
 
 	Common::String picDir(GuiResourceId id) const;
 	Common::String visualPath(GuiResourceId id) const;

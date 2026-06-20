@@ -33,19 +33,22 @@ public:
 	virtual ~RogerArtProvider() {}
 
 	// Called when a room transition begins — provider may prefetch assets.
-	// No-op in Stage 1 (Emscripten VFS reads are synchronous).
+	// No-op for the filesystem provider (reads are synchronous).
 	virtual void prefetch(GuiResourceId pictureId) {}
 
 	// Returns true if replacement assets exist for this picture resource.
 	virtual bool hasBackground(GuiResourceId pictureId) const = 0;
 
-	// Fills GfxScreen's priority and control buffers from pre-generated PNGs.
-	// Visual buffer is left untouched (roger-canvas covers it in Stage 1).
-	// Returns false and writes nothing if assets are missing or wrong size.
+	// Fills GfxScreen's priority and control buffers from pre-generated 320x200
+	// PNGs so game logic (pathfinding, occlusion) honors the replacement art.
+	// The visual buffer is left untouched; the hires visual is shown via the
+	// OSystem overlay in pushHiresBackground(). Returns false and writes nothing
+	// if assets are missing or wrong size.
 	virtual bool loadBuffers(GuiResourceId pictureId, GfxScreen *screen) = 0;
 
-	// Stage 1: pushes the hires visual PNG to the roger-canvas HTML overlay.
-	// No-op in non-Emscripten builds (base implementation).
+	// Shows the hires visual for this picture in ScummVM's OSystem overlay
+	// (a higher-resolution layer composited above the 320x200 game surface).
+	// Base implementation is a no-op.
 	virtual void pushHiresBackground(GuiResourceId pictureId) {}
 
 	// Set to false to disable Roger without destroying the provider.

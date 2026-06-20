@@ -23,10 +23,7 @@
 #include "sci/graphics/screen.h"
 #include "common/path.h"
 #include "common/fs.h"
-
-#ifdef __EMSCRIPTEN__
-#include <emscripten/emscripten.h>
-#endif
+#include "common/config-manager.h"
 
 namespace Sci {
 
@@ -37,6 +34,14 @@ FileRogerArtProvider::FileRogerArtProvider(const Common::String &gameId,
 	// getParent() works on Windows backslash paths too.
 	Common::Path rogerPath = gamePath.getParent().appendComponent(gameId + "-roger");
 	_basePath = rogerPath.toString('/');
+
+	// The art pipeline emits the low-res original as "pic.<id>.png" and the
+	// upscaled hires visual as "pic.<variant>.<id>.png". Default to the
+	// upscaler; override with the config key "roger_visual_variant" (empty
+	// string selects the plain "pic.<id>.png").
+	_visualVariant = "omyac-upscaler";
+	if (ConfMan.hasKey("roger_visual_variant"))
+		_visualVariant = ConfMan.get("roger_visual_variant");
 }
 
 Common::String FileRogerArtProvider::picDir(GuiResourceId id) const {
@@ -44,7 +49,11 @@ Common::String FileRogerArtProvider::picDir(GuiResourceId id) const {
 }
 
 Common::String FileRogerArtProvider::visualPath(GuiResourceId id) const {
-	return picDir(id) + "pic." + Common::String::format("%d", id) + ".png";
+	// "pic.<variant>.<id>.png" (hires), or "pic.<id>.png" when variant is empty.
+	const Common::String idStr = Common::String::format("%d", id);
+	if (_visualVariant.empty())
+		return picDir(id) + "pic." + idStr + ".png";
+	return picDir(id) + "pic." + _visualVariant + "." + idStr + ".png";
 }
 
 Common::String FileRogerArtProvider::priorityPath(GuiResourceId id) const {
@@ -90,52 +99,12 @@ bool FileRogerArtProvider::loadBuffers(GuiResourceId pictureId, GfxScreen *scree
 }
 
 void FileRogerArtProvider::pushHiresBackground(GuiResourceId pictureId) {
-#ifdef __EMSCRIPTEN__
-	// The Emscripten port serves all game data over HTTP from DATA_PATH ("/data")
-	// via ScummVM's HTTP filesystem — it is NOT preloaded into the MEMFS. So the
-	// hires PNG cannot be read with FS.readFile(); instead point an <img> at its
-	// HTTP URL and let the browser fetch it. visualPath() already yields the
-	// server-absolute URL (e.g. "/data/games/sq3-roger/pics/2/source/pic.2.png"):
-	// the same path string the HTTP filesystem maps a node's _url to.
-	// (The priority/control maps are loaded transparently over the same HTTP
-	// filesystem in loadBuffers(), so no explicit fetch is needed for those.)
-	Common::String url = visualPath(pictureId);
-	EM_ASM({
-		var url = UTF8ToString($0);
-		var canvas = document.getElementById('roger-canvas');
-		if (!canvas) return;
-		var img = new Image();
-		img.onload = function() {
-			canvas.width  = img.naturalWidth;
-			canvas.height = img.naturalHeight;
-			canvas.getContext('2d').drawImage(img, 0, 0);
-		};
-		img.onerror = function() {
-			console.warn('roger: failed to load hires background', url);
-		};
-		img.src = url;
-	}, url.c_str());
-#endif
+	// TODO (native hires overlay): decode visualPath(pictureId) and blit it into
+	// ScummVM's OSystem overlay (g_system->copyRectToOverlay + showOverlay),
+	// scaled to getOverlayWidth()/getOverlayHeight(). The follow-up compositor
+	// stage draws ego/props into the overlay at hires with priority masking.
+	// No-op until the native overlay compositor lands.
+	(void)pictureId;
 }
 
 } // namespace Sci
-
-#ifdef __EMSCRIPTEN__
-extern "C" {
-	EMSCRIPTEN_KEEPALIVE void roger_set_enabled(int enabled) {
-		if (Sci::g_sciRogerProvider)
-			Sci::g_sciRogerProvider->enabled = (enabled != 0);
-		EM_ASM({
-			var canvas = document.getElementById('roger-canvas');
-			if (canvas) canvas.style.opacity = $0 ? '1' : '0';
-		}, enabled);
-	}
-
-	EMSCRIPTEN_KEEPALIVE void roger_set_opacity(float opacity) {
-		EM_ASM({
-			var canvas = document.getElementById('roger-canvas');
-			if (canvas) canvas.style.opacity = $0;
-		}, opacity);
-	}
-}
-#endif
