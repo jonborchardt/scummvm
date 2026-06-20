@@ -113,8 +113,22 @@ void RogerCompositor::renderScene(Graphics::ManagedSurface &dest, const Common::
 }
 
 void RogerCompositor::presentToOverlay(Graphics::ManagedSurface &scene) {
+	// The scene is composited in RGBA32 (so the alpha-aware blendBlitFrom works -
+	// it only accepts an RGBA32 destination). The OSystem overlay, however, uses
+	// g_system->getOverlayFormat(), which is often NOT RGBA32 (e.g. RGB565), so
+	// convert before handing the pixels to copyRectToOverlay.
 	const Graphics::Surface *s = scene.surfacePtr();
-	g_system->copyRectToOverlay(s->getPixels(), s->pitch, 0, 0, s->w, s->h);
+	const Graphics::PixelFormat overlayFmt = g_system->getOverlayFormat();
+	if (s->format == overlayFmt) {
+		g_system->copyRectToOverlay(s->getPixels(), s->pitch, 0, 0, s->w, s->h);
+	} else {
+		Graphics::Surface *conv = s->convertTo(overlayFmt);
+		if (conv) {
+			g_system->copyRectToOverlay(conv->getPixels(), conv->pitch, 0, 0, conv->w, conv->h);
+			conv->free();
+			delete conv;
+		}
+	}
 	g_system->showOverlay(false);
 }
 

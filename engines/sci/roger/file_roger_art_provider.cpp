@@ -157,11 +157,14 @@ void FileRogerArtProvider::pushHiresBackground(GuiResourceId pictureId) {
 }
 
 void FileRogerArtProvider::renderFrame(const Common::Array<Roger::Sprite> &sprites) {
-	if (!_compositor || !_plate)
+	if (!_overlayActive || !_compositor || !_plate)
 		return;
+	// Composite in RGBA32 so the alpha-aware blendBlitFrom (used for view cels and
+	// slices) works - it requires an RGBA32 destination. presentToOverlay converts
+	// the finished scene to the actual overlay format before pushing it.
+	const Graphics::PixelFormat rgba(4, 8, 8, 8, 8, 24, 16, 8, 0);
 	Graphics::ManagedSurface scene(g_system->getOverlayWidth(),
-	                               g_system->getOverlayHeight(),
-	                               g_system->getOverlayFormat());
+	                               g_system->getOverlayHeight(), rgba);
 	_compositor->renderScene(scene, sprites);
 	_compositor->presentToOverlay(scene);
 }
@@ -227,9 +230,21 @@ void FileRogerArtProvider::renderFromAnimateList(const AnimateList &list) {
 	Common::Array<Roger::Sprite> sprites;
 	Common::Array<Graphics::Surface *> nativeSurfaces;
 
+	// Toggleable diagnostic log (Ctrl+Shift+L in-game, or roger_debug=true in config).
+	const bool dbg = _debugLog;
+	if (dbg) {
+		uint listLen = 0;
+		for (AnimateList::const_iterator it = list.begin(); it != list.end(); ++it) listLen++;
+		warning("ROGER DBG: animate-list entries=%u, pic=%d plate=%p compositor=%p overlay=%s",
+		        listLen, _loadedPicId, (void *)_plate, (void *)_compositor, _overlayActive ? "on" : "off");
+	}
+
 	for (AnimateList::const_iterator it = list.begin(); it != list.end(); ++it) {
-		if (it->signal & kSignalHidden)
+		if (it->signal & kSignalHidden) {
+			if (dbg)
+				warning("ROGER DBG   sprite view=%d hidden (signal=0x%x) skipped", it->viewId, it->signal);
 			continue;
+		}
 		Roger::Sprite s;
 		s.viewId   = it->viewId;
 		s.loopNo   = it->loopNo;
@@ -245,6 +260,12 @@ void FileRogerArtProvider::renderFromAnimateList(const AnimateList &list) {
 		if (nativeSurf)
 			nativeSurfaces.push_back(nativeSurf);
 
+		if (dbg)
+			warning("ROGER DBG   sprite view=%d loop=%d cel=%d rect=(%d,%d,%d,%d) prio=%d nativeCel=%s",
+			        s.viewId, s.loopNo, s.celNo, s.celRect.left, s.celRect.top, s.celRect.right,
+			        s.celRect.bottom, s.priority,
+			        nativeSurf ? Common::String::format("%dx%d", nativeSurf->w, nativeSurf->h).c_str() : "NULL");
+
 		sprites.push_back(s);
 	}
 
@@ -259,6 +280,19 @@ void FileRogerArtProvider::renderFromAnimateList(const AnimateList &list) {
 
 void FileRogerArtProvider::hideOverlayForUI() {
 	g_system->hideOverlay();
+}
+
+void FileRogerArtProvider::toggleOverlay() {
+	_overlayActive = !_overlayActive;
+	if (!_overlayActive)
+		g_system->hideOverlay(); // reveal the native 320x200 render underneath
+	// When re-enabled, the next kernelAnimate frame re-composites and re-shows it.
+	warning("ROGER: overlay %s", _overlayActive ? "ENABLED (upscaled)" : "DISABLED (original)");
+}
+
+void FileRogerArtProvider::toggleDebugLog() {
+	_debugLog = !_debugLog;
+	warning("ROGER: debug logging %s", _debugLog ? "ON" : "OFF");
 }
 
 void FileRogerArtProvider::onNativePicture() {

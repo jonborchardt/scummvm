@@ -73,6 +73,12 @@ public:
 	// hires overlay left over from a previous room so it does not bleed through.
 	virtual void onNativePicture() {}
 
+	// Debug/runtime toggles, invoked from the SCI event loop (see event.cpp):
+	// toggleOverlay flips between the upscaled overlay and the original native
+	// 320x200 render (A/B comparison); toggleDebugLog flips per-frame logging.
+	virtual void toggleOverlay() {}
+	virtual void toggleDebugLog() {}
+
 	// Set to false to disable Roger without destroying the provider.
 	// ScummVM native rendering is used when false.
 	bool enabled;

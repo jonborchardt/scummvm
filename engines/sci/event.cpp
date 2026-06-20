@@ -34,6 +34,7 @@
 #include "sci/graphics/frameout.h"
 #endif
 #include "sci/graphics/screen.h"
+#include "sci/roger/roger_art_provider.h"
 
 namespace Sci {
 
@@ -249,6 +250,21 @@ SciEvent EventManager::getScummVMEvent() {
 	if (ev.type == Common::EVENT_QUIT || ev.type == Common::EVENT_RETURN_TO_LAUNCHER) {
 		input.type = kSciEventQuit;
 		return input;
+	}
+
+	// Roger debug hotkeys (consumed, not passed to the game):
+	//   Ctrl+Shift+U - toggle the upscaled hires overlay vs the original 320x200
+	//   Ctrl+Shift+L - toggle per-frame Roger diagnostic logging
+	if (ev.type == Common::EVENT_KEYDOWN && g_sciRogerProvider &&
+	    (ev.kbd.flags & Common::KBD_CTRL) && (ev.kbd.flags & Common::KBD_SHIFT)) {
+		if (ev.kbd.keycode == Common::KEYCODE_u) {
+			g_sciRogerProvider->toggleOverlay();
+			return noEvent;
+		}
+		if (ev.kbd.keycode == Common::KEYCODE_l) {
+			g_sciRogerProvider->toggleDebugLog();
+			return noEvent;
+		}
 	}
 
 	int scummVMKeyFlags;

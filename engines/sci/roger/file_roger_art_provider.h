@@ -48,6 +48,8 @@ public:
 	void renderFromAnimateList(const AnimateList &list) override;
 	void hideOverlayForUI() override;
 	void onNativePicture() override;
+	void toggleOverlay() override;   // Ctrl+Shift+U: upscaled overlay <-> original native
+	void toggleDebugLog() override;  // Ctrl+Shift+L: per-frame Roger diagnostic logging
 
 	// Compose and present the current room to the OSystem overlay.
 	// Called each frame by the GfxAnimate hook (Task 7).
@@ -70,6 +72,8 @@ private:
 	Roger::SliceSet *_slices = nullptr;
 	Graphics::Surface *_plate = nullptr;
 	int _loadedPicId = -1;
+	bool _overlayActive = true;  // false = show native 320x200 (A/B comparison toggle)
+	bool _debugLog = false;      // per-frame diagnostic logging
 
 	Common::String picDir(GuiResourceId id) const;
 	Common::String visualPath(GuiResourceId id) const;
