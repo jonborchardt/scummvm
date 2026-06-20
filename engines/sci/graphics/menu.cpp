@@ -36,6 +36,7 @@
 #include "sci/graphics/text16.h"
 #include "sci/graphics/screen.h"
 #include "sci/graphics/menu.h"
+#include "sci/roger/roger_art_provider.h"
 
 namespace Sci {
 
@@ -744,6 +745,10 @@ void GfxMenu::interactiveStart(bool pauseSound) {
 	_cursor->kernelShow();
 	if (pauseSound)
 		g_sci->_soundCmd->pauseAll(true);
+	// Roger UI gate: hide the hires overlay while the menu is interactive.
+	// The overlay re-shows automatically on the next kernelAnimate frame.
+	if (g_sciRogerProvider && g_sciRogerProvider->enabled)
+		g_sciRogerProvider->hideOverlayForUI();
 }
 
 void GfxMenu::interactiveEnd(bool pauseSound) {

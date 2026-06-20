@@ -23,6 +23,7 @@
 
 #include "common/scummsys.h"
 #include "sci/graphics/helpers.h"
+#include "sci/graphics/animate.h"
 
 namespace Sci {
 
@@ -50,6 +51,16 @@ public:
 	// (a higher-resolution layer composited above the 320x200 game surface).
 	// Base implementation is a no-op.
 	virtual void pushHiresBackground(GuiResourceId pictureId) {}
+
+	// Called each frame by the GfxAnimate hook: translates the sorted animate
+	// list to Sprites and composites the hires scene into the OSystem overlay.
+	// Default no-op; FileRogerArtProvider overrides with the real compositor.
+	virtual void renderFromAnimateList(const AnimateList &list) {}
+
+	// Hides the OSystem overlay while a blocking SCI UI element (text box, menu)
+	// is on screen. The overlay re-shows automatically on the next frame hook.
+	// Default no-op; FileRogerArtProvider delegates to g_system->hideOverlay().
+	virtual void hideOverlayForUI() {}
 
 	// Set to false to disable Roger without destroying the provider.
 	// ScummVM native rendering is used when false.

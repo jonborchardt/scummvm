@@ -23,8 +23,10 @@
 #include "sci/roger/roger_compositor.h"
 #include "sci/roger/view_cache.h"
 #include "sci/roger/slice_set.h"
+#include "sci/graphics/animate.h"
 #include "sci/graphics/screen.h"
 #include "graphics/managed_surface.h"
+#include "common/array.h"
 #include "common/path.h"
 #include "common/fs.h"
 #include "common/config-manager.h"
@@ -144,6 +146,27 @@ void FileRogerArtProvider::renderFrame(const Common::Array<Roger::Sprite> &sprit
 	                               g_system->getOverlayFormat());
 	_compositor->renderScene(scene, sprites);
 	_compositor->presentToOverlay(scene);
+}
+
+void FileRogerArtProvider::renderFromAnimateList(const AnimateList &list) {
+	Common::Array<Roger::Sprite> sprites;
+	for (AnimateList::const_iterator it = list.begin(); it != list.end(); ++it) {
+		if (it->signal & kSignalHidden)
+			continue;
+		Roger::Sprite s;
+		s.viewId   = it->viewId;
+		s.loopNo   = it->loopNo;
+		s.celNo    = it->celNo;
+		s.celRect  = it->celRect;
+		s.priority = it->priority;
+		s.mirror   = false; // mirror refinement deferred to a later task
+		sprites.push_back(s);
+	}
+	renderFrame(sprites);
+}
+
+void FileRogerArtProvider::hideOverlayForUI() {
+	g_system->hideOverlay();
 }
 
 FileRogerArtProvider::~FileRogerArtProvider() {

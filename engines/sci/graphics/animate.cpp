@@ -41,6 +41,7 @@
 #include "sci/graphics/screen.h"
 #include "sci/graphics/transitions.h"
 #include "sci/graphics/animate.h"
+#include "sci/roger/roger_art_provider.h"
 
 namespace Sci {
 
@@ -569,6 +570,10 @@ void GfxAnimate::reAnimate(Common::Rect rect) {
 	} else {
 		_paint16->bitsShow(rect);
 	}
+
+	// Roger hires overlay: re-composite after the background is restored (e.g. after a dialog dismissal).
+	if (g_sciRogerProvider && g_sciRogerProvider->enabled)
+		g_sciRogerProvider->renderFromAnimateList(_list);
 }
 
 void GfxAnimate::addToPicDrawCels() {
@@ -700,6 +705,10 @@ void GfxAnimate::kernelAnimate(reg_t listReference, bool cycle, int argc, reg_t 
 
 	updateScreen(old_picNotValid);
 	restoreAndDelete(argc, argv);
+
+	// Roger hires overlay: composite the sorted cast into the OSystem overlay.
+	if (g_sciRogerProvider && g_sciRogerProvider->enabled)
+		g_sciRogerProvider->renderFromAnimateList(_list);
 
 	// We update the screen here as well, some scenes like EQ1 credits run w/o calling kGetEvent thus we wouldn't update
 	//  screen at all

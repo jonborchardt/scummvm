@@ -55,6 +55,7 @@
 #ifdef ENABLE_SCI32
 #include "sci/graphics/text32.h"
 #endif
+#include "sci/roger/roger_art_provider.h"
 
 namespace Sci {
 
@@ -1262,6 +1263,11 @@ reg_t kShakeScreen(EngineState *s, int argc, reg_t *argv) {
 }
 
 reg_t kDisplay(EngineState *s, int argc, reg_t *argv) {
+	// Roger UI gate: hide the hires overlay while a blocking text box is displayed.
+	// The overlay re-shows automatically on the next kernelAnimate frame.
+	if (g_sciRogerProvider && g_sciRogerProvider->enabled)
+		g_sciRogerProvider->hideOverlayForUI();
+
 	reg_t textp = argv[0];
 	int index = (argc > 1) ? argv[1].toUint16() : 0;
 

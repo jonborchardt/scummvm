@@ -45,6 +45,8 @@ public:
 	bool hasBackground(GuiResourceId pictureId) const override;
 	bool loadBuffers(GuiResourceId pictureId, GfxScreen *screen) override;
 	void pushHiresBackground(GuiResourceId pictureId) override;
+	void renderFromAnimateList(const AnimateList &list) override;
+	void hideOverlayForUI() override;
 
 	// Compose and present the current room to the OSystem overlay.
 	// Called each frame by the GfxAnimate hook (Task 7).
