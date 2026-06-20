@@ -61,7 +61,8 @@ $RogerSources = @(
 # test_slice_set.h, test_compositor.h).
 $RogerTestHeaders = @(
     "test_png_loader.h",
-    "test_load_surface.h"
+    "test_load_surface.h",
+    "test_roger_coords.h"
 )
 
 # ── Locate MSBuild via vswhere ────────────────────────────────────────────────
