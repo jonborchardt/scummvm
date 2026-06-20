@@ -46,7 +46,7 @@ Tests use the CxxTest framework located in `test/cxxtest/`. Test source files ar
 This fork adds the **Roger** art replacement system for SCI0 games (SQ3, QFG1 EGA). It substitutes pre-generated high-resolution PNG backgrounds, priority maps, and control maps for SCI's native vector/cel rendering, while leaving all game logic intact.
 
 - Design spec: `docs/superpowers/specs/2026-06-19-roger-art-replacement-design.md`
-- Stage 1 implementation plan: `docs/superpowers/plans/2026-06-19-roger-stage1.md`
+- Implementation plan (native overlay): `docs/superpowers/plans/2026-06-20-roger-native-overlay.md`
 - All Roger code lives in `engines/sci/roger/`
 
 > **Native rendering only.** Roger targets the native (desktop) ScummVM build. An
