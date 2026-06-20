@@ -38,7 +38,7 @@ FileRogerArtProvider::FileRogerArtProvider(const Common::String &gameId,
 }
 
 Common::String FileRogerArtProvider::picDir(GuiResourceId id) const {
-	return _basePath + "/pics/" + Common::String::format("%d", id) + "/";
+	return _basePath + "/pics/" + Common::String::format("%d", id) + "/source/";
 }
 
 Common::String FileRogerArtProvider::visualPath(GuiResourceId id) const {

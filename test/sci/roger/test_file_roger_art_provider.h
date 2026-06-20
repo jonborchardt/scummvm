@@ -13,31 +13,31 @@ public:
 	void test_visual_path_for_sq3_pic_100() {
 		Sci::FileRogerArtProvider p("sq3", "/games/sq3");
 		TS_ASSERT_EQUALS(p.testVisualPath(100),
-			Common::String("/games/sq3-roger/pics/100/pic.100.png"));
+			Common::String("/games/sq3-roger/pics/100/source/pic.100.png"));
 	}
 
 	void test_priority_path_for_sq3_pic_100() {
 		Sci::FileRogerArtProvider p("sq3", "/games/sq3");
 		TS_ASSERT_EQUALS(p.testPriorityPath(100),
-			Common::String("/games/sq3-roger/pics/100/pic.100_p.png"));
+			Common::String("/games/sq3-roger/pics/100/source/pic.100_p.png"));
 	}
 
 	void test_control_path_for_sq3_pic_100() {
 		Sci::FileRogerArtProvider p("sq3", "/games/sq3");
 		TS_ASSERT_EQUALS(p.testControlPath(100),
-			Common::String("/games/sq3-roger/pics/100/pic.100_c.png"));
+			Common::String("/games/sq3-roger/pics/100/source/pic.100_c.png"));
 	}
 
 	void test_path_for_pic_id_0() {
 		Sci::FileRogerArtProvider p("qfg1", "/games/qfg1");
 		TS_ASSERT_EQUALS(p.testVisualPath(0),
-			Common::String("/games/qfg1-roger/pics/0/pic.0.png"));
+			Common::String("/games/qfg1-roger/pics/0/source/pic.0.png"));
 	}
 
 	void test_path_for_pic_id_999() {
 		Sci::FileRogerArtProvider p("sq3", "/games/sq3");
 		TS_ASSERT_EQUALS(p.testPriorityPath(999),
-			Common::String("/games/sq3-roger/pics/999/pic.999_p.png"));
+			Common::String("/games/sq3-roger/pics/999/source/pic.999_p.png"));
 	}
 
 	// ---- hasBackground ----
