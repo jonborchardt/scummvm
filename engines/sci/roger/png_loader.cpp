@@ -28,7 +28,8 @@ namespace Sci {
 namespace Roger {
 
 Common::Array<byte> loadGrayscale8(const Common::String &path) {
-	Common::FSNode node(path);
+	Common::Path fsPath(path);
+	Common::FSNode node(fsPath);
 	if (!node.exists() || !node.isReadable())
 		return Common::Array<byte>();
 

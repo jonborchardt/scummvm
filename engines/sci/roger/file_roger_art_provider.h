@@ -24,14 +24,18 @@
 #include "sci/roger/roger_art_provider.h"
 #include "sci/roger/null_roger_art_provider.h"
 #include "common/str.h"
+#include "common/path.h"
 
 namespace Sci {
 
 class FileRogerArtProvider : public RogerArtProvider {
 public:
 	// gameId: ScummVM game ID string (e.g. "sq3", "qfg1")
-	// gamePath: absolute path to the game directory (from ConfMan.get("path"))
-	FileRogerArtProvider(const Common::String &gameId, const Common::String &gamePath);
+	// gamePath: path to the game directory, as a Common::Path so native
+	//   separators are parsed correctly (use ConfMan.getPath("path"), NOT
+	//   ConfMan.get("path") — the latter is a raw string with backslashes on
+	//   Windows that Common::Path's '/' separator cannot split).
+	FileRogerArtProvider(const Common::String &gameId, const Common::Path &gamePath);
 
 	bool hasBackground(GuiResourceId pictureId) const override;
 	bool loadBuffers(GuiResourceId pictureId, GfxScreen *screen) override;

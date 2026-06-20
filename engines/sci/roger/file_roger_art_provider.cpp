@@ -31,9 +31,11 @@
 namespace Sci {
 
 FileRogerArtProvider::FileRogerArtProvider(const Common::String &gameId,
-                                            const Common::String &gamePath) {
-	// Build path: gamePath/../<gameId>-roger/ using pure path string ops (no FS access)
-	Common::Path rogerPath = Common::Path(gamePath).getParent().appendComponent(gameId + "-roger");
+                                            const Common::Path &gamePath) {
+	// Build path: gamePath/../<gameId>-roger/ using pure path ops (no FS access).
+	// gamePath is already a Common::Path (native separators parsed), so
+	// getParent() works on Windows backslash paths too.
+	Common::Path rogerPath = gamePath.getParent().appendComponent(gameId + "-roger");
 	_basePath = rogerPath.toString('/');
 }
 
