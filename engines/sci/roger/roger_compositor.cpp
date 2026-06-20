@@ -24,6 +24,7 @@
 #include "sci/roger/roger_coords.h"
 #include "graphics/managed_surface.h"
 #include "graphics/surface.h"
+#include "common/system.h"
 #include "common/textconsole.h"
 
 namespace Sci {
@@ -77,6 +78,12 @@ void RogerCompositor::renderScene(Graphics::ManagedSurface &dest, const Common::
 			}
 		}
 	}
+}
+
+void RogerCompositor::presentToOverlay(Graphics::ManagedSurface &scene) {
+	const Graphics::Surface *s = scene.surfacePtr();
+	g_system->copyRectToOverlay(s->getPixels(), s->pitch, 0, 0, s->w, s->h);
+	g_system->showOverlay(false);
 }
 
 } // namespace Roger

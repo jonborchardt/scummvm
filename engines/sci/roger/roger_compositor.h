@@ -49,6 +49,9 @@ public:
 	// Compose dest = plate + sprites (assumed back-to-front) + occluding slices.
 	void renderScene(Graphics::ManagedSurface &dest, const Common::Array<Sprite> &sprites);
 
+	// Push scene to the OSystem overlay and make it visible.
+	void presentToOverlay(Graphics::ManagedSurface &scene);
+
 private:
 	Graphics::Surface *_plate;
 	SliceSet *_slices;

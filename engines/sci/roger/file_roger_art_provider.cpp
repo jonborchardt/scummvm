@@ -20,10 +20,15 @@
 
 #include "sci/roger/file_roger_art_provider.h"
 #include "sci/roger/png_loader.h"
+#include "sci/roger/roger_compositor.h"
+#include "sci/roger/view_cache.h"
+#include "sci/roger/slice_set.h"
 #include "sci/graphics/screen.h"
+#include "graphics/managed_surface.h"
 #include "common/path.h"
 #include "common/fs.h"
 #include "common/config-manager.h"
+#include "common/system.h"
 
 namespace Sci {
 
@@ -64,6 +69,10 @@ Common::String FileRogerArtProvider::controlPath(GuiResourceId id) const {
 	return picDir(id) + "pic." + Common::String::format("%d", id) + "_c.png";
 }
 
+Common::String FileRogerArtProvider::slicedDir(GuiResourceId id) const {
+	return _basePath + "/pics/" + Common::String::format("%d", id) + "/sliced";
+}
+
 bool FileRogerArtProvider::hasBackground(GuiResourceId pictureId) const {
 	if (!enabled)
 		return false;
@@ -99,12 +108,42 @@ bool FileRogerArtProvider::loadBuffers(GuiResourceId pictureId, GfxScreen *scree
 }
 
 void FileRogerArtProvider::pushHiresBackground(GuiResourceId pictureId) {
-	// TODO (native hires overlay): decode visualPath(pictureId) and blit it into
-	// ScummVM's OSystem overlay (g_system->copyRectToOverlay + showOverlay),
-	// scaled to getOverlayWidth()/getOverlayHeight(). The follow-up compositor
-	// stage draws ego/props into the overlay at hires with priority masking.
-	// No-op until the native overlay compositor lands.
-	(void)pictureId;
+	if (_loadedPicId == pictureId && _plate)
+		return; // already loaded for this room
+
+	// Evict previous room.
+	if (_plate) { _plate->free(); delete _plate; _plate = nullptr; }
+	delete _slices; _slices = nullptr;
+
+	_plate = Roger::loadSurfaceRGBA(visualPath(pictureId));
+	if (!_plate) { _loadedPicId = -1; return; } // no hires bg -> native shows
+
+	_slices = new Roger::SliceSet(slicedDir(pictureId));
+	_slices->load(); // ok if it returns false (no slices -> no occlusion)
+
+	if (!_viewCache)
+		_viewCache = new Roger::ViewCache(_basePath + "/views");
+	if (!_compositor)
+		_compositor = new Roger::RogerCompositor();
+	_compositor->setRoom(_plate, _slices, _viewCache);
+	_loadedPicId = pictureId;
+}
+
+void FileRogerArtProvider::renderFrame(const Common::Array<Roger::Sprite> &sprites) {
+	if (!_compositor || !_plate)
+		return;
+	Graphics::ManagedSurface scene(g_system->getOverlayWidth(),
+	                               g_system->getOverlayHeight(),
+	                               g_system->getOverlayFormat());
+	_compositor->renderScene(scene, sprites);
+	_compositor->presentToOverlay(scene);
+}
+
+FileRogerArtProvider::~FileRogerArtProvider() {
+	if (_plate) { _plate->free(); delete _plate; _plate = nullptr; }
+	delete _slices; _slices = nullptr;
+	delete _viewCache; _viewCache = nullptr;
+	delete _compositor; _compositor = nullptr;
 }
 
 } // namespace Sci

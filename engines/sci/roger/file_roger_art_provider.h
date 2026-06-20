@@ -23,10 +23,14 @@
 
 #include "sci/roger/roger_art_provider.h"
 #include "sci/roger/null_roger_art_provider.h"
+#include "common/array.h"
 #include "common/str.h"
 #include "common/path.h"
 
+namespace Graphics { struct Surface; }
+
 namespace Sci {
+namespace Roger { struct Sprite; class RogerCompositor; class ViewCache; class SliceSet; }
 
 class FileRogerArtProvider : public RogerArtProvider {
 public:
@@ -36,10 +40,18 @@ public:
 	//   ConfMan.get("path") — the latter is a raw string with backslashes on
 	//   Windows that Common::Path's '/' separator cannot split).
 	FileRogerArtProvider(const Common::String &gameId, const Common::Path &gamePath);
+	~FileRogerArtProvider();
 
 	bool hasBackground(GuiResourceId pictureId) const override;
 	bool loadBuffers(GuiResourceId pictureId, GfxScreen *screen) override;
 	void pushHiresBackground(GuiResourceId pictureId) override;
+
+	// Compose and present the current room to the OSystem overlay.
+	// Called each frame by the GfxAnimate hook (Task 7).
+	void renderFrame(const Common::Array<Roger::Sprite> &sprites);
+
+	// Accessor used by the GfxAnimate hook to translate AnimateEntry → Sprite.
+	Roger::ViewCache *viewCache() { return _viewCache; }
 
 	// Test-only accessors — expose private path helpers for white-box testing
 	Common::String testVisualPath(GuiResourceId id) const { return visualPath(id); }
@@ -50,10 +62,17 @@ private:
 	Common::String _basePath;       // absolute path to <gameid>-roger/ directory
 	Common::String _visualVariant;  // hires visual variant, e.g. "omyac-upscaler" ("" = plain pic.<id>.png)
 
+	Roger::RogerCompositor *_compositor = nullptr;
+	Roger::ViewCache *_viewCache = nullptr;
+	Roger::SliceSet *_slices = nullptr;
+	Graphics::Surface *_plate = nullptr;
+	int _loadedPicId = -1;
+
 	Common::String picDir(GuiResourceId id) const;
 	Common::String visualPath(GuiResourceId id) const;
 	Common::String priorityPath(GuiResourceId id) const;
 	Common::String controlPath(GuiResourceId id) const;
+	Common::String slicedDir(GuiResourceId id) const; // <roger>/pics/<id>/sliced
 };
 
 } // namespace Sci
