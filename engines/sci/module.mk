@@ -103,6 +103,10 @@ MODULE_OBJS := \
 	sound/drivers/pc9801.o \
 	video/seq_decoder.o
 
+# Roger art replacement
+MODULE_OBJS += \
+	roger/roger_art_provider.o
+
 
 ifdef ENABLE_SCI32
 MODULE_OBJS += \
