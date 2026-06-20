@@ -39,6 +39,7 @@ class GfxCompare;
 #include "sci/sci.h"
 #include "sci/graphics/cache.h"
 #include "sci/graphics/view.h"
+#include "sci/graphics/palette16.h"
 #include "graphics/managed_surface.h"
 #include "graphics/pixelformat.h"
 #include "graphics/surface.h"
@@ -191,9 +192,15 @@ Graphics::Surface *FileRogerArtProvider::renderNativeCel(int viewId, int loopNo,
 	if (bitmap.size() < (uint)(w * h))
 		return nullptr;
 
-	Palette *pal = view->getPalette();
-	if (!pal)
+	// The view's embedded palette (getPalette) is null for EGA (SCI0) cels, which
+	// is exactly what SQ3/QFG1 EGA use. The colors SCI actually displays live in
+	// the active SYSTEM palette: GfxPalette::setEGA() fills it with the 16 EGA
+	// colors for EGA games, or it holds the loaded palette for VGA. Use it so both
+	// EGA and VGA cels resolve to correct RGB (view->getPalette() returning null no
+	// longer drops the sprite).
+	if (!g_sci->_gfxPalette16)
 		return nullptr;
+	const Palette &pal = g_sci->_gfxPalette16->_sysPalette;
 
 	const Graphics::PixelFormat rgba(4, 8, 8, 8, 8, 24, 16, 8, 0);
 	Graphics::Surface *surf = new Graphics::Surface();
@@ -206,7 +213,7 @@ Graphics::Surface *FileRogerArtProvider::renderNativeCel(int viewId, int loopNo,
 			if (idx == clearKey) {
 				px = rgba.ARGBToColor(0, 0, 0, 0);
 			} else {
-				const Color &c = pal->colors[idx];
+				const Color &c = pal.colors[idx];
 				px = rgba.ARGBToColor(255, c.r, c.g, c.b);
 			}
 			surf->setPixel(x, y, px);
