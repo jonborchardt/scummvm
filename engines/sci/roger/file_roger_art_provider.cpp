@@ -19,20 +19,16 @@
  */
 
 #include "sci/roger/file_roger_art_provider.h"
-#include "sci/roger/png_loader.h"
-#include "sci/graphics/screen.h"
+#include "common/path.h"
 #include "common/fs.h"
-#include "common/str.h"
 
 namespace Sci {
 
 FileRogerArtProvider::FileRogerArtProvider(const Common::String &gameId,
                                             const Common::String &gamePath) {
-	// Build path: gamePath/../<gameId>-roger/
-	Common::FSNode gameNode(Common::Path(gamePath));
-	Common::FSNode parentNode = gameNode.getParent();
-	Common::FSNode rogerNode = parentNode.getChild(gameId + "-roger");
-	_basePath = rogerNode.getPath().toString('/');
+	// Build path: gamePath/../<gameId>-roger/ using pure path string ops (no FS access)
+	Common::Path rogerPath = Common::Path(gamePath).getParent().appendComponent(gameId + "-roger");
+	_basePath = rogerPath.toString('/');
 }
 
 Common::String FileRogerArtProvider::picDir(GuiResourceId id) const {
