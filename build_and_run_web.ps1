@@ -23,8 +23,21 @@ param(
 $ErrorActionPreference = "Stop"
 
 # --- WSL availability ---------------------------------------------------------
+# wsl.exe ships with Windows even when no distro is installed, so probe for a
+# usable distro by actually running a command in it (exit 0 = a distro answered).
 if (-not (Get-Command wsl -ErrorAction SilentlyContinue)) {
-    Write-Error "WSL not found. The Emscripten build requires WSL with a Linux distro."
+    Write-Error "wsl.exe not found. Install WSL (see below)."
+}
+& wsl.exe -e true 2>$null | Out-Null
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "No usable WSL distribution found." -ForegroundColor Yellow
+    Write-Host "The Emscripten/web build needs a Linux environment. To set one up:" -ForegroundColor Yellow
+    Write-Host ""
+    Write-Host "  1. In an ADMIN PowerShell:   wsl --install -d Ubuntu      (then reboot)"
+    Write-Host "  2. In Ubuntu once:           sudo apt update && sudo apt install -y build-essential git wget python3 xz-utils"
+    Write-Host "  3. Re-run:                   .\build_and_run_web.ps1"
+    Write-Host ""
+    Write-Error "WSL not ready."
 }
 
 # --- Convert Windows paths to WSL (/mnt/<drive>/...) --------------------------
