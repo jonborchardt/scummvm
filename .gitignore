@@ -255,6 +255,9 @@ ScummVM.cxxflags
 dists/msvc/**
 !dists/msvc/create_project.bat
 
+#Ignore the generated MSVC tests solution (built by build_tests.ps1)
+dists/msvc-tests/
+
 #Ignore bison debug output
 *.output
 
