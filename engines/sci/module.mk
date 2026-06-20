@@ -109,7 +109,8 @@ MODULE_OBJS += \
 	roger/png_loader.o \
 	roger/file_roger_art_provider.o \
 	roger/view_cache.o \
-	roger/slice_set.o
+	roger/slice_set.o \
+	roger/roger_compositor.o
 
 
 ifdef ENABLE_SCI32
