@@ -23,6 +23,7 @@
 
 #include "common/array.h"
 #include "common/rect.h"
+#include "sci/roger/roger_ui_layer.h"
 
 namespace Graphics { struct Surface; class ManagedSurface; }
 
@@ -30,6 +31,7 @@ namespace Sci {
 namespace Roger {
 
 class ViewCache;
+class RogerTextRenderer;
 
 struct Sprite {
 	int viewId, loopNo, celNo;
@@ -70,6 +72,13 @@ public:
 
 	// Push scene to the OSystem overlay and make it visible.
 	void presentToOverlay(Graphics::ManagedSurface &scene);
+
+	// Render the UI display-list on top of an already-composed scene. palette is
+	// 256*3 RGB (may be null -> fills skipped). gameRect is the 320x200 on-screen
+	// placement (computeGameRect). text may be null (text/caret skipped) for tests.
+	void renderUiLayer(Graphics::ManagedSurface &dest, const Common::Array<UiElement> &elems,
+	                   const byte *palette, const Common::Rect &gameRect,
+	                   const RogerTextRenderer *text);
 
 private:
 	Graphics::Surface *_plate;

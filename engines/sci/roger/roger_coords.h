@@ -86,6 +86,20 @@ inline Common::Rect sciCelRectToOverlay(const Common::Rect &r, int overlayW, int
 }
 
 /**
+ * Map a 320x200 SCI screen-space rect into a destination game rect (the
+ * on-screen placement of the native game, from computeGameRect). Used for UI
+ * elements, which live in the full 320x200 space (status bar included).
+ */
+inline Common::Rect sciRectToDest(const Common::Rect &nr, const Common::Rect &gameRect) {
+	const int gw = gameRect.width(), gh = gameRect.height();
+	return Common::Rect(
+		(int16)(gameRect.left + nr.left   * gw / 320),
+		(int16)(gameRect.top  + nr.top    * gh / 200),
+		(int16)(gameRect.left + nr.right  * gw / 320),
+		(int16)(gameRect.top  + nr.bottom * gh / 200));
+}
+
+/**
  * Return the SCI0 priority band (0..14) for a given y coordinate.
  *
  * Band 0 for y < 42 (above the horizon); bands 1..14 are distributed

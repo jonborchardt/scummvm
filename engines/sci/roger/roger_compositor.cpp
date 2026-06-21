@@ -21,6 +21,7 @@
 #include "sci/roger/roger_compositor.h"
 #include "sci/roger/view_cache.h"
 #include "sci/roger/roger_coords.h"
+#include "sci/roger/roger_text.h"
 #include "graphics/managed_surface.h"
 #include "graphics/surface.h"
 #include "common/system.h"
@@ -165,6 +166,57 @@ void RogerCompositor::presentToOverlay(Graphics::ManagedSurface &scene) {
 		}
 	}
 	g_system->showOverlay(false);
+}
+
+void RogerCompositor::renderUiLayer(Graphics::ManagedSurface &dest,
+                                    const Common::Array<UiElement> &elems,
+                                    const byte *palette, const Common::Rect &gameRect,
+                                    const RogerTextRenderer *text) {
+	const Graphics::PixelFormat &fmt = dest.surfacePtr()->format;
+	for (uint i = 0; i < elems.size(); i++) {
+		const UiElement &e = elems[i];
+		const Common::Rect d = sciRectToDest(e.nativeRect, gameRect);
+		if (d.isEmpty())
+			continue;
+
+		// Background fill (opaque) for windows / buttons / edit fields.
+		if (palette && e.backColor >= 0) {
+			const byte *bc = palette + e.backColor * 3;
+			dest.fillRect(d, fmt.ARGBToColor(255, bc[0], bc[1], bc[2]));
+		}
+
+		// Icon: blit the borrowed RGBA cel scaled into the rect (nearest).
+		if (e.type == kUiIcon && e.iconSurface) {
+			dest.blitFrom(*e.iconSurface,
+				Common::Rect(0, 0, e.iconSurface->w, e.iconSurface->h), d);
+		}
+
+		// Frame (1px native -> scaled): windows, edit fields, selected text/buttons.
+		const bool frame = e.hasFrame || e.type == kUiTextEdit ||
+		                   (e.type == kUiText && (e.style & 0x8)) ||
+		                   e.type == kUiButton || e.type == kUiWindow;
+		if (palette && frame) {
+			const byte *pc = palette + (e.penColor >= 0 ? e.penColor : 0) * 3;
+			const uint32 col = fmt.ARGBToColor(255, pc[0], pc[1], pc[2]);
+			dest.frameRect(d, col);
+		}
+
+		// Text + caret.
+		if (text && (e.type == kUiText || e.type == kUiButton || e.type == kUiTextEdit)
+		    && !e.text.empty()) {
+			const byte *pc = palette ? palette + (e.penColor >= 0 ? e.penColor : 0) * 3 : nullptr;
+			const uint32 col = pc ? fmt.ARGBToColor(255, pc[0], pc[1], pc[2])
+			                      : fmt.ARGBToColor(255, 255, 255, 255);
+			text->draw(dest, e.text, d, col, e.align);
+		}
+		if (text && e.type == kUiTextEdit && (e.style & 0x8)) { // SELECTED -> caret
+			const int cx = d.left + text->caretX(e.text, e.cursorPos, d.width(), d.height());
+			const byte *pc = palette ? palette + (e.penColor >= 0 ? e.penColor : 0) * 3 : nullptr;
+			const uint32 col = pc ? fmt.ARGBToColor(255, pc[0], pc[1], pc[2])
+			                      : fmt.ARGBToColor(255, 255, 255, 255);
+			dest.vLine(cx, d.top + 1, d.bottom - 2, col);
+		}
+	}
 }
 
 } // namespace Roger
