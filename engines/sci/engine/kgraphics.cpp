@@ -1263,11 +1263,10 @@ reg_t kShakeScreen(EngineState *s, int argc, reg_t *argv) {
 }
 
 reg_t kDisplay(EngineState *s, int argc, reg_t *argv) {
-	// Roger UI gate: hide the hires overlay while a blocking text box is displayed.
-	// The overlay re-shows automatically on the next kernelAnimate frame.
-	if (g_sciRogerProvider && g_sciRogerProvider->enabled)
-		g_sciRogerProvider->hideOverlayForUI();
-
+	// Roger hires dialogs: the overlay is no longer hidden for text. Blocking text is
+	// composited into the overlay (GfxPaint16::kernelDisplay captures the save-under
+	// box); when there is no hires scene the capture override returns early, leaving
+	// the native render visible.
 	reg_t textp = argv[0];
 	int index = (argc > 1) ? argv[1].toUint16() : 0;
 

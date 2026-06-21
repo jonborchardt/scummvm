@@ -383,6 +383,13 @@ void GfxPaint16::bitsGetRect(reg_t memoryHandle, Common::Rect *destRect) {
 }
 
 void GfxPaint16::bitsRestore(reg_t memoryHandle) {
+	// Roger hires dialogs: SCI restores the region under a save-under text box when it
+	// is dismissed; clear the captured message keyed by the same handle.
+	if (g_sciRogerProvider && g_sciRogerProvider->enabled && !memoryHandle.isNull()) {
+		const uint32 tok = ((uint32)memoryHandle.getSegment() << 16) | memoryHandle.getOffset();
+		g_sciRogerProvider->uiClearToken(tok);
+	}
+
 	if (!memoryHandle.isNull()) {
 		byte *memoryPtr = _segMan->getHunkPointer(memoryHandle);
 
@@ -596,6 +603,16 @@ reg_t GfxPaint16::kernelDisplay(const char *text, uint16 languageSplitter, int a
 
 	if (doSaveUnder)
 		result = bitsSave(rect, GFX_SCREEN_MASK_VISUAL);
+
+	// Roger hires dialogs: capture the blocking message box (gated on doSaveUnder so
+	// only blocking text is composited; transient non-blocking text does not flicker
+	// the overlay). rect here is already global/offset for the display path.
+	if (doSaveUnder && g_sciRogerProvider && g_sciRogerProvider->enabled) {
+		const uint32 tok = ((uint32)result.getSegment() << 16) | result.getOffset();
+		g_sciRogerProvider->uiPushText(rect, text, colorPen >= 0 ? colorPen : 0,
+		                               colorBack, -1, alignment, tok);
+	}
+
 	if (colorBack != -1)
 		fillRect(rect, GFX_SCREEN_MASK_VISUAL, colorBack, 0, 0);
 
