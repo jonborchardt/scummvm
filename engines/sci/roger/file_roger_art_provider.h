@@ -102,6 +102,10 @@ private:
 	Common::Rect _lastGameRect;                      // gameRect used for the cached scene
 	void ensureUi();                                 // lazily build _uiLayer + _textRenderer
 	void presentWithUi();                            // compose _sceneCache + _uiLayer -> overlay
+	// roger_autoshot helper: dump <screenshotpath>/roger-<id><suffix>-overlay.png and
+	// -preview.png for the given composited scene (suffix "" = per-room scene, "-ui" =
+	// dialog re-present). Verification harness only; no-op unless roger_autoshot is set.
+	void dumpAutoshot(Graphics::ManagedSurface &scene, const Common::Rect &gameRect, const char *suffix);
 
 	Common::String picDir(GuiResourceId id) const;
 	Common::String visualPath(GuiResourceId id) const;

@@ -258,43 +258,52 @@ void FileRogerArtProvider::renderFrame(const Common::Array<Roger::Sprite> &sprit
 	_compositor->presentToOverlay(scene);
 
 	// roger_autoshot (verification harness): dump once per room. Deterministic — no
-	// keystrokes/focus needed. Output goes to the configured screenshotpath. Two PNGs:
-	//   roger-<id>-overlay.png — Roger's composited layer alone (letterbox + status
-	//                            strip are transparent, shown as black by a viewer)
-	//   roger-<id>-preview.png — the true on-screen result: the native 320x200 game
-	//                            scaled into gameRect with Roger's layer blended over
-	//                            it (mirrors the backend draw order), so plate/native
-	//                            alignment and the status bar showing through are visible.
+	// keystrokes/focus needed.
 	if (_autoshot && _autoshotPicId != _loadedPicId) {
-		Common::String dir;
-		if (ConfMan.hasKey("screenshotpath"))
-			dir = ConfMan.getPath("screenshotpath").toString('/');
-		if (!dir.empty() && dir.lastChar() != '/')
-			dir += '/';
-		const Common::String base = dir + Common::String::format("roger-%d", _loadedPicId);
-
-		if (Roger::dumpSurfacePng(*scene.surfacePtr(), base + "-overlay.png"))
-			warning("ROGER: autoshot wrote %s-overlay.png", base.c_str());
-
-		Graphics::Surface *nativeScreen = g_system->lockScreen();
-		if (nativeScreen) {
-			byte pal[256 * 3];
-			g_system->getPaletteManager()->grabPalette(pal, 0, 256);
-			Graphics::Surface *nativeRGBA = nativeScreen->convertTo(rgba, pal, 256);
-			g_system->unlockScreen();
-			if (nativeRGBA) {
-				Graphics::ManagedSurface preview(OW, OH, rgba);
-				preview.fillRect(Common::Rect(0, 0, OW, OH), rgba.ARGBToColor(255, 0, 0, 0));
-				preview.blitFrom(*nativeRGBA, Common::Rect(0, 0, nativeRGBA->w, nativeRGBA->h), gameRect);
-				preview.blendBlitFrom(*scene.surfacePtr(), Common::Rect(0, 0, scene.w, scene.h),
-				                      Common::Rect(0, 0, (int16)OW, (int16)OH));
-				if (Roger::dumpSurfacePng(*preview.surfacePtr(), base + "-preview.png"))
-					warning("ROGER: autoshot wrote %s-preview.png", base.c_str());
-				nativeRGBA->free();
-				delete nativeRGBA;
-			}
-		}
+		dumpAutoshot(scene, gameRect, "");
 		_autoshotPicId = _loadedPicId;
+	}
+}
+
+void FileRogerArtProvider::dumpAutoshot(Graphics::ManagedSurface &scene,
+                                        const Common::Rect &gameRect, const char *suffix) {
+	// Output goes to the configured screenshotpath. Two PNGs:
+	//   roger-<id><suffix>-overlay.png — Roger's composited layer alone (letterbox +
+	//                            status strip are transparent, shown as black by a viewer)
+	//   roger-<id><suffix>-preview.png — the true on-screen result: the native 320x200
+	//                            game scaled into gameRect with Roger's layer blended over
+	//                            it (mirrors the backend draw order), so plate/native
+	//                            alignment (and, for the "-ui" dump, native-vs-hires dialog
+	//                            alignment) and the status bar showing through are visible.
+	const Graphics::PixelFormat rgba(4, 8, 8, 8, 8, 24, 16, 8, 0);
+	const int OW = scene.w, OH = scene.h;
+	Common::String dir;
+	if (ConfMan.hasKey("screenshotpath"))
+		dir = ConfMan.getPath("screenshotpath").toString('/');
+	if (!dir.empty() && dir.lastChar() != '/')
+		dir += '/';
+	const Common::String base = dir + Common::String::format("roger-%d%s", _loadedPicId, suffix);
+
+	if (Roger::dumpSurfacePng(*scene.surfacePtr(), base + "-overlay.png"))
+		warning("ROGER: autoshot wrote %s-overlay.png", base.c_str());
+
+	Graphics::Surface *nativeScreen = g_system->lockScreen();
+	if (nativeScreen) {
+		byte pal[256 * 3];
+		g_system->getPaletteManager()->grabPalette(pal, 0, 256);
+		Graphics::Surface *nativeRGBA = nativeScreen->convertTo(rgba, pal, 256);
+		g_system->unlockScreen();
+		if (nativeRGBA) {
+			Graphics::ManagedSurface preview(OW, OH, rgba);
+			preview.fillRect(Common::Rect(0, 0, OW, OH), rgba.ARGBToColor(255, 0, 0, 0));
+			preview.blitFrom(*nativeRGBA, Common::Rect(0, 0, nativeRGBA->w, nativeRGBA->h), gameRect);
+			preview.blendBlitFrom(*scene.surfacePtr(), Common::Rect(0, 0, scene.w, scene.h),
+			                      Common::Rect(0, 0, (int16)OW, (int16)OH));
+			if (Roger::dumpSurfacePng(*preview.surfacePtr(), base + "-preview.png"))
+				warning("ROGER: autoshot wrote %s-preview.png", base.c_str());
+			nativeRGBA->free();
+			delete nativeRGBA;
+		}
 	}
 }
 
@@ -325,6 +334,12 @@ void FileRogerArtProvider::presentWithUi() {
 		_compositor->renderUiLayer(scene, _uiLayer->elements(), pal, _lastGameRect, _textRenderer);
 	}
 	_compositor->presentToOverlay(scene);
+
+	// Verification harness: when a dialog is composited, also dump a -ui snapshot
+	// (overwritten each present, so it reflects the latest dialog state). The -ui
+	// preview overlays the native dialog under the hires one — the alignment check.
+	if (_autoshot && _uiLayer && !_uiLayer->empty())
+		dumpAutoshot(scene, _lastGameRect, "-ui");
 }
 
 void FileRogerArtProvider::uiPushWindow(const Common::Rect &r, int backColor, int penColor,
