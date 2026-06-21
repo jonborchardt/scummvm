@@ -21,8 +21,6 @@
 #ifndef SCI_ROGER_SLICE_SET_H
 #define SCI_ROGER_SLICE_SET_H
 
-#include "common/str.h"
-
 namespace Sci {
 namespace Roger {
 
@@ -37,9 +35,6 @@ namespace Roger {
 // Nearest SCI0 EGA priority band (0..15) for an RGB triple. Used to decode an
 // EGA-color-encoded priority map (each pixel's color encodes its priority band).
 int bandForRGB(int r, int g, int b);
-
-// Map a CSS hex color (e.g. "#ffffff") to the nearest SCI0 EGA priority band (0..15).
-int bandForColor(const Common::String &hex);
 
 } // namespace Roger
 } // namespace Sci

@@ -65,14 +65,19 @@ public:
 	// Default no-op; FileRogerArtProvider overrides with the real compositor.
 	virtual void renderFromAnimateList(const AnimateList &list) {}
 
-	// Hides the OSystem overlay while a blocking SCI UI element (text box, menu)
-	// is on screen. The overlay re-shows automatically on the next frame hook.
-	// Default no-op; FileRogerArtProvider delegates to g_system->hideOverlay().
-	virtual void hideOverlayForUI() {}
-
 	// Called when a full-screen picture with NO replacement art is drawn: drop any
 	// hires overlay left over from a previous room so it does not bleed through.
 	virtual void onNativePicture() {}
+
+	// Called from the SCI event loop when the mouse has moved. Roger composites its
+	// cursor into the overlay, so it re-presents here to keep the cursor tracking the
+	// pointer (especially during blocking dialogs/menus that do not tick animate).
+	virtual void onMouseMoved() {}
+
+	// Standalone cel draw (kDrawCel) — e.g. an inventory item's "look at" close-up.
+	// If an upscaled cel exists (views/<id>/view.<id>.loop.<loop>.png), composite it
+	// into the overlay at globalRect (320x200 space); otherwise no-op (native shows).
+	virtual void onDrawCel(const Common::Rect &globalRect, int viewId, int loopNo, int celNo) {}
 
 	// UI display-list capture (Roger hires dialogs). SCI's high-level UI draw calls
 	// push resolution-independent elements (global 320x200 rects) here; the provider
@@ -80,9 +85,11 @@ public:
 	// provider (and null provider) are unaffected; FileRogerArtProvider overrides.
 	virtual void uiPushWindow(const Common::Rect &globalRect, int backColor, int penColor,
 	                          uint16 wndStyle, uint32 token) {}
+	// textRole: 0 = body (dialog/message/list text), 1 = heading (titles); see
+	// Roger::UiTextRole. useAltFont: render with the header/menu font.
 	virtual void uiPushText(const Common::Rect &globalRect, const char *text, int penColor,
 	                        int backColor, int fontId, int align, uint32 token,
-	                        int fontScalePct = 0, bool useAltFont = false) {}
+	                        int textRole = 0, bool useAltFont = false) {}
 	virtual void uiPushButton(const Common::Rect &globalRect, const char *text, int fontId,
 	                          int style, uint32 token) {}
 	virtual void uiPushTextEdit(const Common::Rect &globalRect, const char *text, int fontId,

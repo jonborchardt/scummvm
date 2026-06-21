@@ -44,7 +44,6 @@ class GfxCompare;
 #include "sci/graphics/view.h"
 #include "sci/graphics/palette16.h"
 #include "graphics/managed_surface.h"
-#include "graphics/cursorman.h"
 #include "graphics/paletteman.h"
 #include "graphics/pixelformat.h"
 #include "graphics/surface.h"
@@ -215,6 +214,12 @@ void FileRogerArtProvider::pushHiresBackground(GuiResourceId pictureId) {
 		_compositor->setPriorityMask(nullptr, 0, 0);
 	}
 	_loadedPicId = pictureId;
+
+	// Present the plate immediately so the hires overlay is on screen for this room
+	// before the first kAnimate frame — otherwise the native picture flashes first
+	// ("the load pop"). The ego/props fill in on the next real kAnimate.
+	renderFrame(Common::Array<Roger::Sprite>());
+	reapplyStatus(); // keep the score/title banner enhanced across the room change
 }
 
 void FileRogerArtProvider::renderFrame(const Common::Array<Roger::Sprite> &sprites) {
@@ -424,13 +429,16 @@ void FileRogerArtProvider::ensureUi() {
 		sizes.push_back(42); sizes.push_back(56); sizes.push_back(72);
 		sizes.push_back(96); sizes.push_back(120); sizes.push_back(160);
 		_textRenderer = new Roger::RogerTextRenderer(ttf, sizes);
-		// roger_ui_font_scale: enlarge dialog text beyond the literal native rect
-		// (percent). Default 250; set 100 for exact fit-to-box. Text word-wraps within
-		// the box, so a larger scale grows text and wraps rather than clipping.
-		int scale = 250;
+		// roger_ui_font_scale: global size multiplier (percent) on the role type scale.
+		// 100 = the role's baseline cell height; larger = bigger text everywhere. Text
+		// word-wraps and is capped to each box, so a larger scale grows text (and wraps)
+		// rather than clipping. Default 150 (readable hires dialogs).
+		int scale = 150;
 		if (ConfMan.hasKey("roger_ui_font_scale"))
 			scale = ConfMan.getInt("roger_ui_font_scale");
-		_textRenderer->setFitScale(scale);
+		_textRenderer->setGlobalScale(scale);
+		if (!_textRenderer->ttfLoaded())
+			warning("ROGER: dialog font '%s' did NOT load from fonts.dat — using bitmap fallback", ttf.c_str());
 	}
 	if (!_altTextRenderer) {
 		// Header (score/title banner) + menus use a distinct, more modern font.
@@ -442,9 +450,13 @@ void FileRogerArtProvider::ensureUi() {
 		sizes.push_back(42); sizes.push_back(56); sizes.push_back(72);
 		sizes.push_back(96); sizes.push_back(120); sizes.push_back(160);
 		_altTextRenderer = new Roger::RogerTextRenderer(headerTtf, sizes);
-		// Header/menu callers pass an explicit per-element scale, so the member
-		// default is unimportant; keep it at exact fit.
-		_altTextRenderer->setFitScale(100);
+		// Same global size multiplier so headings scale with the body text.
+		int scale = 150;
+		if (ConfMan.hasKey("roger_ui_font_scale"))
+			scale = ConfMan.getInt("roger_ui_font_scale");
+		_altTextRenderer->setGlobalScale(scale);
+		if (!_altTextRenderer->ttfLoaded())
+			warning("ROGER: header font '%s' did NOT load from fonts.dat — using bitmap fallback", headerTtf.c_str());
 	}
 }
 
@@ -452,6 +464,24 @@ void FileRogerArtProvider::presentWithUi() {
 	if (!_overlayActive || !_compositor || !_haveScene || !_sceneCache)
 		return;
 	const Graphics::PixelFormat rgba(4, 8, 8, 8, 8, 24, 16, 8, 0);
+	// The window may have been resized since the scene was cached. A blocking dialog/
+	// menu/inventory does NOT tick kernelAnimate, so renderFrame can't refresh the
+	// cache — and the OSystem overlay was reallocated to the new size on resize.
+	// Pushing the stale (now over-sized) cache to the smaller overlay asserts in the
+	// backend (copyRectToTexture bounds check) → crash. Rescale the cached scene to the
+	// current overlay size and recompute the placement so the present is always valid.
+	const int OW = g_system->getOverlayWidth();
+	const int OH = g_system->getOverlayHeight();
+	if (OW > 0 && OH > 0 && (_sceneCache->w != OW || _sceneCache->h != OH)) {
+		Graphics::ManagedSurface *resized = new Graphics::ManagedSurface(OW, OH, rgba);
+		resized->blitFrom(*_sceneCache->surfacePtr(),
+		                  Common::Rect(0, 0, _sceneCache->w, _sceneCache->h),
+		                  Common::Rect(0, 0, (int16)OW, (int16)OH));
+		delete _sceneCache;
+		_sceneCache = resized;
+		const bool aspect = g_system->getFeatureState(OSystem::kFeatureAspectRatioCorrection);
+		_lastGameRect = Roger::computeGameRect(OW, OH, aspect);
+	}
 	Graphics::ManagedSurface scene(_sceneCache->w, _sceneCache->h, rgba);
 	scene.copyFrom(*_sceneCache);
 	if (_uiLayer && !_uiLayer->empty() && _textRenderer) {
@@ -462,11 +492,26 @@ void FileRogerArtProvider::presentWithUi() {
 	compositeCursor(scene, _lastGameRect);
 	_compositor->presentToOverlay(scene);
 
-	// Verification harness: when a dialog is composited, also dump a -ui snapshot
-	// (overwritten each present, so it reflects the latest dialog state). The -ui
-	// preview overlays the native dialog under the hires one — the alignment check.
-	if (_autoshot && _uiLayer && !_uiLayer->empty())
-		dumpAutoshot(scene, _lastGameRect, "-ui");
+	// Verification harness: when a dialog is composited, also dump a -ui snapshot.
+	// Throttled to one dump per distinct UI state (a cheap signature over the layer)
+	// so a banner/dialog that re-presents every frame doesn't rewrite the PNG in a
+	// tight loop. The -ui preview overlays the native dialog under the hires one.
+	if (_autoshot && _uiLayer && !_uiLayer->empty()) {
+		uint32 sig = 2166136261u; // FNV-1a over the element fields that affect the image
+		const Common::Array<Roger::UiElement> &els = _uiLayer->elements();
+		for (uint i = 0; i < els.size(); i++) {
+			const Roger::UiElement &e = els[i];
+			sig = (sig ^ (uint32)e.token) * 16777619u;
+			sig = (sig ^ (uint32)(e.nativeRect.left * 31 + e.nativeRect.top)) * 16777619u;
+			sig = (sig ^ (uint32)(e.type * 7 + e.textRole)) * 16777619u;
+			for (uint c = 0; c < e.text.size(); c++)
+				sig = (sig ^ (byte)e.text[c]) * 16777619u;
+		}
+		if (sig != _lastUiSig) {
+			_lastUiSig = sig;
+			dumpAutoshot(scene, _lastGameRect, "-ui");
+		}
+	}
 }
 
 void FileRogerArtProvider::uiPushWindow(const Common::Rect &r, int backColor, int penColor,
@@ -485,14 +530,14 @@ void FileRogerArtProvider::uiPushWindow(const Common::Rect &r, int backColor, in
 
 void FileRogerArtProvider::uiPushText(const Common::Rect &r, const char *text, int penColor,
                                       int backColor, int fontId, int align, uint32 token,
-                                      int fontScalePct, bool useAltFont) {
+                                      int textRole, bool useAltFont) {
 	if (!_overlayActive || !_plate) return;
 	ensureUi();
 	Roger::UiElement e;
 	e.type = Roger::kUiText; e.nativeRect = r; e.text = text ? text : "";
 	e.penColor = penColor; e.backColor = backColor; e.fontId = fontId;
 	e.align = align; e.token = token;
-	e.fontScalePct = fontScalePct; e.useAltFont = useAltFont;
+	e.textRole = textRole; e.useAltFont = useAltFont;
 	_uiLayer->push(e);
 	presentWithUi();
 }
@@ -517,7 +562,8 @@ void FileRogerArtProvider::uiPushTextEdit(const Common::Rect &r, const char *tex
 	e.type = Roger::kUiTextEdit; e.nativeRect = r; e.text = text ? text : "";
 	e.fontId = fontId; e.style = style; e.cursorPos = cursorPos; e.align = 0;
 	e.backColor = 15 /*white*/; e.penColor = 0; e.hasFrame = true; e.token = token;
-	e.fontScalePct = 100; // input field: fit its line, not the enlarged dialog scale
+	e.textRole = Roger::kRoleBody; // body size, same as the dialog prompt above it
+	e.vAlignTop = true;            // SCI draws edit text at the top of the field, not centred
 	_uiLayer->push(e);
 	presentWithUi();
 }
@@ -528,24 +574,58 @@ void FileRogerArtProvider::uiPushIcon(const Common::Rect &r, int viewId, int loo
 	ensureUi();
 	Roger::UiElement e;
 	e.type = Roger::kUiIcon; e.nativeRect = r; e.token = token;
-	Graphics::Surface *cel = renderNativeCel(viewId, loopNo, celNo);
-	if (cel) { _uiIcons.push_back(cel); e.iconSurface = cel; }
+	// Prefer the upscaled cel (views/<id>/view.<id>.loop.<loop>.png) so inventory item
+	// images are hires; fall back to a rendered native cel. The hires cel is borrowed
+	// from the ViewCache (do NOT free it); native cels are owned via _uiIcons.
+	const Graphics::Surface *hi = _viewCache ? _viewCache->getCel(viewId, loopNo, celNo) : nullptr;
+	if (hi) {
+		e.iconSurface = hi;
+	} else {
+		Graphics::Surface *cel = renderNativeCel(viewId, loopNo, celNo);
+		if (cel) { _uiIcons.push_back(cel); e.iconSurface = cel; }
+	}
+	_uiLayer->push(e);
+	presentWithUi();
+}
+
+void FileRogerArtProvider::onDrawCel(const Common::Rect &r, int viewId, int loopNo, int celNo) {
+	if (!_overlayActive || !_plate || !_viewCache) return;
+	const Graphics::Surface *hi = _viewCache->getCel(viewId, loopNo, celNo);
+	if (!hi) return; // no upscaled art for this cel -> leave the native draw showing
+	ensureUi();
+	const uint32 tok = 0x50000000u; // standalone hires cel (e.g. inventory close-up)
+	_uiLayer->clearToken(tok);      // keep only the latest standalone cel
+	Roger::UiElement e;
+	e.type = Roger::kUiIcon; e.nativeRect = r; e.token = tok;
+	e.iconSurface = hi; // borrowed from the ViewCache
 	_uiLayer->push(e);
 	presentWithUi();
 }
 
 void FileRogerArtProvider::uiPushStatus(const Common::Rect &r, const char *text, int penColor,
                                         int backColor, uint32 token) {
+	// Remember the banner so it can be re-applied on room load / F10 enable, even if
+	// the overlay was not ready when the game first drew it.
+	_haveStatus = true; _statusRect = r; _statusText = text ? text : "";
+	_statusPen = penColor; _statusBack = backColor; _statusToken = token;
 	if (!_overlayActive || !_plate) return;
 	ensureUi();
+	// The score banner and the menu bar share this token (top strip); drop whatever
+	// is there (e.g. the menu bar's window + titles) before pushing the banner text.
+	_uiLayer->clearToken(token);
 	Roger::UiElement e;
 	e.type = Roger::kUiText; e.nativeRect = r; e.text = text ? text : "";
 	e.penColor = penColor; e.backColor = backColor; e.align = 0;
-	e.fontScalePct = 100; // exact fit to the strip; not the enlarged dialog scale
-	e.useAltFont = true;  // header uses the updated font
+	e.textRole = Roger::kRoleHeading; // banner is a heading; capped to the strip height
+	e.useAltFont = true;              // header uses the updated font
 	e.token = token;
 	_uiLayer->push(e);
 	presentWithUi();
+}
+
+void FileRogerArtProvider::reapplyStatus() {
+	if (_haveStatus)
+		uiPushStatus(_statusRect, _statusText.c_str(), _statusPen, _statusBack, _statusToken);
 }
 
 void FileRogerArtProvider::uiClearToken(uint32 token) {
@@ -660,15 +740,15 @@ void FileRogerArtProvider::renderFromAnimateList(const AnimateList &list) {
 	}
 }
 
-void FileRogerArtProvider::hideOverlayForUI() {
-	g_system->hideOverlay();
-}
-
 void FileRogerArtProvider::toggleOverlay() {
 	_overlayActive = !_overlayActive;
-	if (!_overlayActive)
+	if (!_overlayActive) {
 		g_system->hideOverlay(); // reveal the native 320x200 render underneath
-	// When re-enabled, the next kernelAnimate frame re-composites and re-shows it.
+	} else {
+		// Re-show immediately (do not wait for the next kAnimate) and restore the banner.
+		if (_haveScene) presentWithUi();
+		reapplyStatus();
+	}
 	warning("ROGER: overlay %s", _overlayActive ? "ENABLED (upscaled)" : "DISABLED (original)");
 }
 
@@ -687,6 +767,13 @@ void FileRogerArtProvider::onNativePicture() {
 	_haveScene = false;
 	_loadedPicId = -1;
 	g_system->hideOverlay();
+}
+
+void FileRogerArtProvider::onMouseMoved() {
+	// Re-present the cached scene (+ any UI) so the composited cursor follows the
+	// pointer. Cheap when idle (a memcpy + overlay push); only fires when the mouse
+	// actually moved. presentWithUi no-ops if there is no scene / overlay is off.
+	presentWithUi();
 }
 
 FileRogerArtProvider::~FileRogerArtProvider() {

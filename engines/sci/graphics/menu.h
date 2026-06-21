@@ -108,6 +108,10 @@ private:
 	// _rogerMenuHighlight) into the overlay; clear it when the menu closes.
 	void rogerPushMenuOverlay();
 	void rogerClearMenuOverlay();
+	// Roger: (re)push the menu BAR (File/Game/... titles) into the overlay's top
+	// strip as hires header-font text, so the bar matches the rest of the UI rather
+	// than showing through as the native bitmap font.
+	void rogerPushBarOverlay();
 	void interactiveStart(bool pauseSound);
 	void interactiveEnd(bool pauseSound);
 	GuiMenuItemEntry *interactiveWithKeyboard();
@@ -143,6 +147,8 @@ private:
 	Common::Array<RogerMenuRow> _rogerMenuRows;
 	Common::Rect _rogerMenuBox;
 	uint16 _rogerMenuHighlight = 0;
+	// Captured menu-bar titles (global coords) for the hires overlay header.
+	Common::Array<RogerMenuRow> _rogerBarTitles;
 };
 
 } // End of namespace Sci

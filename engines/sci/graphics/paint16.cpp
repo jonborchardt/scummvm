@@ -388,6 +388,9 @@ void GfxPaint16::bitsRestore(reg_t memoryHandle) {
 	if (g_sciRogerProvider && g_sciRogerProvider->enabled && !memoryHandle.isNull()) {
 		const uint32 tok = ((uint32)memoryHandle.getSegment() << 16) | memoryHandle.getOffset();
 		g_sciRogerProvider->uiClearToken(tok);
+		// Also drop any standalone hires cel (inventory close-up) when a window/region
+		// is restored — that is how the look-at screen is dismissed.
+		g_sciRogerProvider->uiClearToken(0x50000000u);
 	}
 
 	if (!memoryHandle.isNull()) {
@@ -436,6 +439,18 @@ void GfxPaint16::kernelDrawCel(GuiResourceId viewId, int16 loopNo, int16 celNo, 
 	// some calls are hiresMode even under kq6 DOS, that's why we check for hires caps here
 	if (!hiresMode || !_screen->gfxDriver()->supportsHiResGraphics()) {
 		drawCelAndShow(viewId, loopNo, celNo, leftPos, topPos, priority, paletteNo, scaleX, scaleY);
+		// Roger: a standalone cel (e.g. an inventory item's "look at" close-up). If an
+		// upscaled cel exists, composite it hires into the overlay over the native draw.
+		if (g_sciRogerProvider && g_sciRogerProvider->enabled) {
+			GfxView *celView = _cache->getView(viewId);
+			if (celView) {
+				Common::Rect g(leftPos, topPos,
+				               leftPos + celView->getWidth(loopNo, celNo),
+				               topPos + celView->getHeight(loopNo, celNo));
+				_ports->offsetRect(g);
+				g_sciRogerProvider->onDrawCel(g, viewId, loopNo, celNo);
+			}
+		}
 	} else {
 		drawHiresCelAndShow(viewId, loopNo, celNo, leftPos, topPos, priority, paletteNo, hiresHandle, true);
 	}

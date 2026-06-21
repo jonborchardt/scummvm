@@ -56,4 +56,12 @@ public:
 		Common::Array<const Graphics::Font *> fonts;
 		TS_ASSERT_EQUALS(fitFontIndex(fonts, "x", 100, 100), -1);
 	}
+
+	void test_edit_text_top_aligned_starts_near_top() {
+		// firstLineTop(top, boxH, lines, lineH, vAlignTop)
+		TS_ASSERT_EQUALS(firstLineTop(0, 100, 1, 20, /*top*/true), 0);
+		TS_ASSERT_EQUALS(firstLineTop(0, 100, 1, 20, /*centre*/false), 40);
+		// Block taller than the box clamps to the top in either mode.
+		TS_ASSERT_EQUALS(firstLineTop(10, 20, 3, 20, /*centre*/false), 10);
+	}
 };

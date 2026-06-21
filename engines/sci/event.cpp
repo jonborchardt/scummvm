@@ -203,9 +203,20 @@ SciEvent EventManager::getScummVMEvent() {
 	// current mouse position on every event, including non-mouse events), so
 	// skip past all mousemove events in the event queue
 	bool found;
+	bool sawMouseMove = false;
 	do {
 		found = em->pollEvent(ev);
+		if (found && ev.type == Common::EVENT_MOUSEMOVE)
+			sawMouseMove = true;
 	} while (found && ev.type == Common::EVENT_MOUSEMOVE);
+
+	// Roger draws its cursor INTO the hires overlay (the native cursor is not usable
+	// over it), so the overlay must be re-presented on mouse movement or the cursor
+	// freezes - badly during blocking dialogs/inventory/menus, which do not tick
+	// kernelAnimate. SCI discards mouse-move events above, so this is the one place
+	// that sees them. Re-present so the composited cursor tracks the real pointer.
+	if (sawMouseMove && g_sciRogerProvider && g_sciRogerProvider->enabled)
+		g_sciRogerProvider->onMouseMoved();
 
 	Common::Point mousePos;
 

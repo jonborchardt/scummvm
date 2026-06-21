@@ -32,6 +32,12 @@ namespace Roger {
 
 enum UiElementType { kUiWindow, kUiText, kUiButton, kUiTextEdit, kUiIcon };
 
+// Type-scale role: the compositor turns this into a target on-screen cell height
+// (one "body" size for dialog/message/input/list/button text, one larger "heading"
+// size for the score banner + menu titles), so sizes stay consistent across
+// elements instead of tracking each one's tiny native rect.
+enum UiTextRole { kRoleBody = 0, kRoleHeading = 1 };
+
 // Resolution-independent UI element. Rects are in global 320x200 screen space
 // (the same space sprite celRects use), so the compositor maps them through the
 // same game-rect placement as the plate. No SCI engine types here.
@@ -48,12 +54,13 @@ struct UiElement {
 	bool hasFrame;
 	const Graphics::Surface *iconSurface; // kUiIcon: borrowed RGBA cel, not owned
 	uint32 token;     // clear-token (window id or save-under handle)
-	int  fontScalePct; // per-element TTF fit-box scale (0 = renderer default)
+	int  textRole;    // UiTextRole: body vs heading target size
 	bool useAltFont;   // render with the header/menu font instead of the dialog font
+	bool vAlignTop;    // draw text from the top of the box (SCI native text-edit position)
 
 	UiElement() : type(kUiText), backColor(-1), penColor(0), fontId(0), style(0),
 		align(0), cursorPos(0), hasFrame(false), iconSurface(nullptr), token(0),
-		fontScalePct(0), useAltFont(false) {}
+		textRole(kRoleBody), useAltFont(false), vAlignTop(false) {}
 };
 
 class RogerUiLayer {

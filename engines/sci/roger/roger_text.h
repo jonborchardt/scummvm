@@ -35,29 +35,50 @@ namespace Roger {
 int fitFontIndex(const Common::Array<const Graphics::Font *> &fonts,
                  const Common::String &text, int boxW, int boxH);
 
+// Index of the largest font (ascending by size) no taller than maxH. 0 if none
+// fit (smallest); -1 if fonts is empty. Pure: unit-testable. This drives Roger's
+// role-based type scale — text is sized by a target on-screen cell HEIGHT, not by
+// the (wildly varying) width/height of each element's native rect, so a dialog
+// prompt and its input field render at one consistent size.
+int fitFontIndexByHeight(const Common::Array<const Graphics::Font *> &fonts, int maxH);
+
+// Y of the first text line inside a box. Centred vertically by default (matches
+// dialogs/buttons); when vAlignTop is set the text starts at the top of the box
+// (matches SCI's native top-aligned text-edit fields). Pure: unit-testable.
+int firstLineTop(int top, int boxH, int lineCount, int lineH, bool vAlignTop);
+
 class RogerTextRenderer {
 public:
-	// ttfName: a TTF inside ScummVM's fonts.dat (e.g. "FreeSans.ttf"); empty or
-	// load failure => built-in FontMan fonts. sizes: pixel sizes (ascending).
+	// ttfName: a TTF inside ScummVM's fonts.dat (e.g. "LiberationSans-Regular.ttf");
+	// empty or load failure => built-in FontMan fonts. sizes: pixel sizes (ascending).
 	RogerTextRenderer(const Common::String &ttfName, const Common::Array<int> &sizes);
 	~RogerTextRenderer();
 
 	bool ok() const { return !_fonts.empty(); }
-	// Scale the fit box by pct/100 before choosing a font, so text can be rendered
-	// larger than the literal native rect (Roger hires dialogs). 100 = exact fit.
-	void setFitScale(int pct) { _fitScalePct = pct > 0 ? pct : 100; }
-	// scalePct overrides the fit-box scale for this call (0 = use the member default).
-	const Graphics::Font *fitFont(const Common::String &text, int boxW, int boxH, int scalePct = 0) const;
-	// Draws word-wrapped, vertically-centred text in rect (multi-line when it does
-	// not fit on one line). scalePct overrides the fit scale for this call.
-	void draw(Graphics::ManagedSurface &dst, const Common::String &text,
-	          const Common::Rect &rect, uint32 color, int align, int scalePct = 0) const;
-	int caretX(const Common::String &text, int cursorPos, int boxW, int boxH, int scalePct = 0) const;
+	// True only if the requested TTF actually loaded (false => bitmap fallback).
+	bool ttfLoaded() const { return _ttfLoaded; }
+	// Global size multiplier (percent) applied to every target height — the user's
+	// roger_ui_font_scale knob. 100 = use the role's target height as-is.
+	void setGlobalScale(int pct) { _globalScalePct = pct > 0 ? pct : 100; }
+	// Draw word-wrapped, vertically-centred text. The font is chosen by `targetPx`
+	// (an on-screen cell height in dest pixels), scaled by the global multiplier and
+	// then capped to rect.height() so tight strips/rows shrink to fit rather than
+	// overlapping. targetPx <= 0 => fill the box height.
+	void drawPx(Graphics::ManagedSurface &dst, const Common::String &text,
+	            const Common::Rect &rect, uint32 color, int align, int targetPx,
+	            bool vAlignTop = false) const;
+	int caretPx(const Common::String &text, int cursorPos,
+	            const Common::Rect &rect, int targetPx) const;
 
 private:
+	// Pick the font for `rect` at the given target cell height (with global scale +
+	// box-height cap applied). nullptr only if no fonts at all.
+	const Graphics::Font *fontForBox(const Common::Rect &rect, int targetPx) const;
+
 	Common::Array<const Graphics::Font *> _fonts; // ascending by size
 	Common::Array<bool> _owned;                   // parallel: delete on dtor?
-	int _fitScalePct = 100;                        // fit-box scale (pct); >100 = larger text
+	bool _ttfLoaded = false;                       // requested TTF loaded (not bitmap fallback)?
+	int _globalScalePct = 100;                     // user size multiplier (roger_ui_font_scale)
 };
 
 } // namespace Roger

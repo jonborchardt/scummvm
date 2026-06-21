@@ -41,6 +41,24 @@ int fitFontIndex(const Common::Array<const Graphics::Font *> &fonts,
 	return best;
 }
 
+int fitFontIndexByHeight(const Common::Array<const Graphics::Font *> &fonts, int maxH) {
+	if (fonts.empty())
+		return -1;
+	int best = 0;
+	for (uint i = 0; i < fonts.size(); i++) {
+		if (fonts[i]->getFontHeight() <= maxH)
+			best = (int)i; // ascending -> last fitting is largest
+	}
+	return best;
+}
+
+int firstLineTop(int top, int boxH, int lineCount, int lineH, bool vAlignTop) {
+	if (vAlignTop)
+		return top;
+	int y = top + (boxH - lineCount * lineH) / 2;
+	return y < top ? top : y;
+}
+
 RogerTextRenderer::RogerTextRenderer(const Common::String &ttfName,
                                      const Common::Array<int> &sizes) {
 #ifdef USE_FREETYPE2
@@ -55,6 +73,7 @@ RogerTextRenderer::RogerTextRenderer(const Common::String &ttfName,
 			}
 		}
 	}
+	_ttfLoaded = !_fonts.empty();
 #endif
 	if (_fonts.empty()) {
 		// Fallback: built-in bitmap fonts (always present, no files/FreeType).
@@ -71,46 +90,46 @@ RogerTextRenderer::~RogerTextRenderer() {
 			delete _fonts[i];
 }
 
-const Graphics::Font *RogerTextRenderer::fitFont(const Common::String &text,
-                                                 int boxW, int boxH, int scalePct) const {
-	// Scale the fit box so text may be rendered larger than the literal native rect.
-	const int pct = scalePct > 0 ? scalePct : _fitScalePct;
-	const int w = boxW * pct / 100;
-	const int h = boxH * pct / 100;
-	int idx = fitFontIndex(_fonts, text, w, h);
+const Graphics::Font *RogerTextRenderer::fontForBox(const Common::Rect &rect, int targetPx) const {
+	// targetPx is the desired on-screen cell height; apply the user's global scale,
+	// then cap to the box height so a tight strip/row shrinks to fit instead of
+	// overlapping its neighbours. targetPx <= 0 => simply fill the box.
+	int h = targetPx > 0 ? targetPx * _globalScalePct / 100 : rect.height();
+	if (h > rect.height())
+		h = rect.height();
+	int idx = fitFontIndexByHeight(_fonts, h);
 	return idx < 0 ? nullptr : _fonts[idx];
 }
 
-void RogerTextRenderer::draw(Graphics::ManagedSurface &dst, const Common::String &text,
-                             const Common::Rect &rect, uint32 color, int align, int scalePct) const {
-	const Graphics::Font *f = fitFont(text, rect.width(), rect.height(), scalePct);
+void RogerTextRenderer::drawPx(Graphics::ManagedSurface &dst, const Common::String &text,
+                               const Common::Rect &rect, uint32 color, int align, int targetPx,
+                               bool vAlignTop) const {
+	const Graphics::Font *f = fontForBox(rect, targetPx);
 	if (!f)
 		return;
 	Graphics::TextAlign ta = Graphics::kTextAlignLeft;
 	if (align == 1) ta = Graphics::kTextAlignCenter;
 	else if (align == -1) ta = Graphics::kTextAlignRight;
 
-	// Word-wrap to the box width and draw the lines stacked, vertically centred.
-	// When the block is taller than the box (chosen font is large), start at the top
-	// so it grows downward rather than clipping the first lines.
+	// Word-wrap to the box width and draw the lines stacked. Centred vertically by
+	// default; vAlignTop draws from the top of the box (SCI's native text-edit
+	// position). When the block is taller than the box, firstLineTop clamps to the
+	// top so it grows downward rather than clipping the first lines.
 	Common::Array<Common::String> lines;
 	f->wordWrapText(text, rect.width(), lines);
 	if (lines.empty())
 		return;
 	const int lh = f->getFontHeight();
-	const int totalH = (int)lines.size() * lh;
-	int y = rect.top + (rect.height() - totalH) / 2;
-	if (y < rect.top)
-		y = rect.top;
+	int y = firstLineTop(rect.top, rect.height(), (int)lines.size(), lh, vAlignTop);
 	for (uint i = 0; i < lines.size(); i++) {
 		f->drawString(&dst, lines[i], rect.left, y, rect.width(), color, ta);
 		y += lh;
 	}
 }
 
-int RogerTextRenderer::caretX(const Common::String &text, int cursorPos,
-                              int boxW, int boxH, int scalePct) const {
-	const Graphics::Font *f = fitFont(text, boxW, boxH, scalePct);
+int RogerTextRenderer::caretPx(const Common::String &text, int cursorPos,
+                               const Common::Rect &rect, int targetPx) const {
+	const Graphics::Font *f = fontForBox(rect, targetPx);
 	if (!f)
 		return 0;
 	int n = cursorPos;

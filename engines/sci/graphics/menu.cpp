@@ -369,6 +369,11 @@ void GfxMenu::drawBar() {
 	else
 		_ports->moveTo(_screen->getWidth() - 8, 1);
 
+	// Roger: collect each bar title (global coords) so the bar can be composited
+	// into the overlay as hires header text (it would otherwise show through the
+	// reserved status strip as the native bitmap font).
+	_rogerBarTitles.clear();
+
 	listIterator = _list.begin();
 	while (listIterator != listEnd) {
 		GuiMenuEntry *listEntry = *listIterator;
@@ -380,10 +385,65 @@ void GfxMenu::drawBar() {
 		}
 		int16 origCurLeft = _ports->_curPort->curLeft;
 		_text16->DrawString(listEntry->textSplit.c_str());
+
+		// Capture this title spanning from its start x to wherever DrawString left
+		// the pen, across the full bar-strip height.
+		RogerMenuRow rr;
+		const int16 lo = origCurLeft < _ports->_curPort->curLeft ? origCurLeft : _ports->_curPort->curLeft;
+		const int16 hi = origCurLeft < _ports->_curPort->curLeft ? _ports->_curPort->curLeft : origCurLeft;
+		rr.rect = Common::Rect(lo, _ports->_menuBarRect.top, hi, _ports->_menuBarRect.bottom);
+		rr.text = listEntry->textSplit;
+		rr.id = 0;
+		_rogerBarTitles.push_back(rr);
+
 		if (g_sci->isLanguageRTL())
 			_ports->_curPort->curLeft = origCurLeft;
 
 		listIterator++;
+	}
+
+	rogerPushBarOverlay();
+}
+
+// A menu-bar title is plain text we can render with the TTF header font only if every
+// character is printable ASCII. The leftmost SQ3 menu's title is a graphical "Sierra"
+// glyph (a control/high-bit char) the TTF lacks, so it is left for the native bar.
+static bool rogerTitleIsText(const Common::String &s) {
+	if (s.empty())
+		return false;
+	for (uint i = 0; i < s.size(); i++) {
+		const byte c = (byte)s[i];
+		if (c < 0x20 || c >= 0x7f)
+			return false;
+	}
+	return true;
+}
+
+void GfxMenu::rogerPushBarOverlay() {
+	if (!g_sciRogerProvider || !g_sciRogerProvider->enabled)
+		return;
+	// The menu bar shares the top strip with the score/title banner and they are
+	// mutually exclusive in time, so they use the SAME clear-token: pushing the bar
+	// replaces the banner, and the next kernelDrawStatus replaces the bar back.
+	const uint32 tok = 0x10000000u;
+	g_sciRogerProvider->uiClearToken(tok);
+	// Opaque white bar (matches the native white menu bar), no frame. Start it to the
+	// RIGHT of any leading graphical-glyph title (the Sierra icon) so the overlay stays
+	// transparent there and the native icon shows through instead of a blank gap.
+	Common::Rect barRect = _ports->_menuBarRect;
+	for (uint i = 0; i < _rogerBarTitles.size(); i++) {
+		if (!rogerTitleIsText(_rogerBarTitles[i].text) &&
+		    _rogerBarTitles[i].rect.right > barRect.left)
+			barRect.left = _rogerBarTitles[i].rect.right;
+	}
+	g_sciRogerProvider->uiPushWindow(barRect, _screen->getColorWhite(), 0,
+	                                 2 /*SCI_WINDOWMGR_STYLE_NOFRAME*/, tok);
+	for (uint i = 0; i < _rogerBarTitles.size(); i++) {
+		const RogerMenuRow &t = _rogerBarTitles[i];
+		if (!rogerTitleIsText(t.text))
+			continue; // graphical glyph (Sierra icon) -> leave the native bar showing
+		g_sciRogerProvider->uiPushText(t.rect, t.text.c_str(), 0 /*black*/, -1 /*no fill*/, 0,
+		                               SCI_TEXT16_ALIGNMENT_LEFT, tok, 1 /*heading*/, true /*alt font*/);
 	}
 }
 
@@ -760,7 +820,7 @@ void GfxMenu::rogerPushMenuOverlay() {
 		const int pen = sel ? _screen->getColorWhite() : 0;
 		const int back = sel ? 0 : -1; // selected row drawn inverted (white on black)
 		g_sciRogerProvider->uiPushText(r.rect, r.text.c_str(), pen, back, 0,
-		                               SCI_TEXT16_ALIGNMENT_LEFT, tok, 100, true);
+		                               SCI_TEXT16_ALIGNMENT_LEFT, tok, 0 /*body*/, true);
 	}
 }
 

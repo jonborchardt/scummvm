@@ -30,6 +30,13 @@
 namespace Sci {
 namespace Roger {
 
+// Roger UI type scale: target on-screen cell heights expressed in native 320x200
+// rows (the compositor scales them to the overlay). One body size for dialog /
+// message / input / list / button text, one larger heading size for the score
+// banner and menu titles. The user's roger_ui_font_scale multiplies both.
+static const int kRoleBodyNativeH    = 9;
+static const int kRoleHeadingNativeH = 11;
+
 void RogerCompositor::setRoom(Graphics::Surface *cleanPlate, ViewCache *views) {
 	_plate = cleanPlate;
 	_views = views;
@@ -66,8 +73,9 @@ void RogerCompositor::renderScene(Graphics::ManagedSurface &dest, const Common::
 	// SCI0); the plate encodes that same picture, so both map into picRect.
 	const int PIC_W = _picW, PIC_H = _picH;
 
-	// 0) Clear so letterbox borders are clean (transparent in an alpha overlay).
-	dest.clear(0);
+	// 0) Opaque-black background so the letterbox is a solid blocker — the native
+	//    render (and its hardware cursor) must not show through the overlay edges.
+	dest.clear(dest.surfacePtr()->format.ARGBToColor(255, 0, 0, 0));
 
 	// 1) Clean plate, scaled into the game rect (aspect preserved).
 	if (_plate)
@@ -155,12 +163,24 @@ void RogerCompositor::presentToOverlay(Graphics::ManagedSurface &scene) {
 	// convert before handing the pixels to copyRectToOverlay.
 	const Graphics::Surface *s = scene.surfacePtr();
 	const Graphics::PixelFormat overlayFmt = g_system->getOverlayFormat();
+	// Never push more than the current overlay can hold: the backend's
+	// copyRectToOverlay asserts x+w <= overlayW / y+h <= overlayH (a hard crash if a
+	// stale, over-sized scene survives a resize). Clamp defensively as a backstop to
+	// the per-present rescale in the providers.
+	const int OW = g_system->getOverlayWidth();
+	const int OH = g_system->getOverlayHeight();
+	if (OW <= 0 || OH <= 0)
+		return;
 	if (s->format == overlayFmt) {
-		g_system->copyRectToOverlay(s->getPixels(), s->pitch, 0, 0, s->w, s->h);
+		const int w = s->w < OW ? s->w : OW;
+		const int h = s->h < OH ? s->h : OH;
+		g_system->copyRectToOverlay(s->getPixels(), s->pitch, 0, 0, w, h);
 	} else {
 		Graphics::Surface *conv = s->convertTo(overlayFmt);
 		if (conv) {
-			g_system->copyRectToOverlay(conv->getPixels(), conv->pitch, 0, 0, conv->w, conv->h);
+			const int w = conv->w < OW ? conv->w : OW;
+			const int h = conv->h < OH ? conv->h : OH;
+			g_system->copyRectToOverlay(conv->getPixels(), conv->pitch, 0, 0, w, h);
 			conv->free();
 			delete conv;
 		}
@@ -173,6 +193,12 @@ void RogerCompositor::renderUiLayer(Graphics::ManagedSurface &dest,
                                     const byte *palette, const Common::Rect &gameRect,
                                     const RogerTextRenderer *text, const RogerTextRenderer *altText) {
 	const Graphics::PixelFormat &fmt = dest.surfacePtr()->format;
+	// Role -> target on-screen cell height, in dest pixels. Expressed as a height in
+	// the native 320x200 space scaled up by the game-rect mapping, so it is the SAME
+	// physical size for every element regardless of its own (tiny, varying) rect, and
+	// it tracks the overlay resolution. One body size + one slightly larger heading.
+	const int bodyPx    = kRoleBodyNativeH    * gameRect.height() / 200;
+	const int headingPx = kRoleHeadingNativeH * gameRect.height() / 200;
 	for (uint i = 0; i < elems.size(); i++) {
 		const UiElement &e = elems[i];
 		const Common::Rect d = sciRectToDest(e.nativeRect, gameRect);
@@ -180,6 +206,7 @@ void RogerCompositor::renderUiLayer(Graphics::ManagedSurface &dest,
 			continue;
 		// Pick the font renderer for this element (header/menu use the alt font).
 		const RogerTextRenderer *tr = (e.useAltFont && altText) ? altText : text;
+		const int targetPx = (e.textRole == kRoleHeading) ? headingPx : bodyPx;
 
 		// Background fill (opaque) for windows / buttons / edit fields.
 		if (palette && e.backColor >= 0) {
@@ -198,9 +225,22 @@ void RogerCompositor::renderUiLayer(Graphics::ManagedSurface &dest,
 		                   (e.type == kUiText && (e.style & 0x8)) ||
 		                   e.type == kUiButton || e.type == kUiWindow;
 		if (palette && frame) {
-			const byte *pc = palette + (e.penColor >= 0 ? e.penColor : 0) * 3;
-			const uint32 col = fmt.ARGBToColor(255, pc[0], pc[1], pc[2]);
-			dest.frameRect(d, col);
+			const bool isWindow = (e.type == kUiWindow);
+			uint32 col;
+			if (isWindow) {
+				col = fmt.ARGBToColor(255, 0, 0, 0); // dialogs: always a black border like native SCI windows
+			} else {
+				const byte *pc = palette + (e.penColor >= 0 ? e.penColor : 0) * 3;
+				col = fmt.ARGBToColor(255, pc[0], pc[1], pc[2]);
+			}
+			// 1 native px scaled to the overlay (min 1) so the border is visible at hires.
+			int thick = isWindow ? (gameRect.height() / 200) : 1;
+			if (thick < 1) thick = 1;
+			for (int t = 0; t < thick; t++) {
+				Common::Rect fr = d; fr.grow(-t);
+				if (fr.isEmpty()) break;
+				dest.frameRect(fr, col);
+			}
 		}
 
 		// Text + caret.
@@ -209,10 +249,10 @@ void RogerCompositor::renderUiLayer(Graphics::ManagedSurface &dest,
 			const byte *pc = palette ? palette + (e.penColor >= 0 ? e.penColor : 0) * 3 : nullptr;
 			const uint32 col = pc ? fmt.ARGBToColor(255, pc[0], pc[1], pc[2])
 			                      : fmt.ARGBToColor(255, 255, 255, 255);
-			tr->draw(dest, e.text, d, col, e.align, e.fontScalePct);
+			tr->drawPx(dest, e.text, d, col, e.align, targetPx, e.vAlignTop);
 		}
 		if (tr && e.type == kUiTextEdit && (e.style & 0x8)) { // SELECTED -> caret
-			const int cx = d.left + tr->caretX(e.text, e.cursorPos, d.width(), d.height(), e.fontScalePct);
+			const int cx = d.left + tr->caretPx(e.text, e.cursorPos, d, targetPx);
 			const byte *pc = palette ? palette + (e.penColor >= 0 ? e.penColor : 0) * 3 : nullptr;
 			const uint32 col = pc ? fmt.ARGBToColor(255, pc[0], pc[1], pc[2])
 			                      : fmt.ARGBToColor(255, 255, 255, 255);

@@ -127,7 +127,7 @@ void GfxControls16::drawListControl(Common::Rect rect, reg_t obj, int16 maxChars
 				const int pen = sel ? 15 : (p ? p->penClr : 0);
 				const int back = sel ? 0 : -1;
 				g_sciRogerProvider->uiPushText(g, textString.c_str(), pen, back, fontId,
-				                               SCI_TEXT16_ALIGNMENT_LEFT, tok, 100, false);
+				                               SCI_TEXT16_ALIGNMENT_LEFT, tok, 0 /*body*/, false);
 			}
 		}
 		workerRect.translate(0, fontSize);

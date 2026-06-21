@@ -24,14 +24,6 @@
 // EGA priority-band helpers (the former SliceSet class was removed; see slice_set.h).
 class TestSliceSet : public CxxTest::TestSuite {
 public:
-	void test_band_for_white_is_15() {
-		TS_ASSERT_EQUALS(Sci::Roger::bandForColor("#ffffff"), 15);
-	}
-
-	void test_band_for_black_is_0() {
-		TS_ASSERT_EQUALS(Sci::Roger::bandForColor("#000000"), 0);
-	}
-
 	void test_band_for_rgb_nearest_match() {
 		// Near-white maps to band 15; near-black to band 0; pure-ish brown to band 6.
 		TS_ASSERT_EQUALS(Sci::Roger::bandForRGB(250, 250, 250), 15);

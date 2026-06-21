@@ -19,7 +19,7 @@
  */
 
 #include "sci/roger/slice_set.h"
-#include <cstdlib>
+#include "common/scummsys.h"
 
 namespace Sci {
 namespace Roger {
@@ -58,17 +58,6 @@ int bandForRGB(int r, int g, int b) {
 			best = i;
 		}
 	}
-	return best;
-}
-
-int bandForColor(const Common::String &hex) {
-	Common::String h = hex;
-	if (h.hasPrefix("#"))
-		h.deleteChar(0);
-	if (h.size() < 6)
-		return 0;
-	long v = strtol(h.c_str(), nullptr, 16);
-	int best = bandForRGB((v >> 16) & 0xff, (v >> 8) & 0xff, v & 0xff);
 	return best;
 }
 

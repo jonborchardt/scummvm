@@ -46,8 +46,9 @@ public:
 	bool loadBuffers(GuiResourceId pictureId, GfxScreen *screen) override;
 	void pushHiresBackground(GuiResourceId pictureId) override;
 	void renderFromAnimateList(const AnimateList &list) override;
-	void hideOverlayForUI() override;
 	void onNativePicture() override;
+	void onMouseMoved() override;
+	void onDrawCel(const Common::Rect &globalRect, int viewId, int loopNo, int celNo) override;
 	void toggleOverlay() override;   // Ctrl+Shift+U: upscaled overlay <-> original native
 	void toggleDebugLog() override;  // Ctrl+Shift+L: per-frame Roger diagnostic logging
 
@@ -56,7 +57,7 @@ public:
 	                  uint16 wndStyle, uint32 token) override;
 	void uiPushText(const Common::Rect &globalRect, const char *text, int penColor,
 	                int backColor, int fontId, int align, uint32 token,
-	                int fontScalePct = 0, bool useAltFont = false) override;
+	                int textRole = 0, bool useAltFont = false) override;
 	void uiPushButton(const Common::Rect &globalRect, const char *text, int fontId,
 	                  int style, uint32 token) override;
 	void uiPushTextEdit(const Common::Rect &globalRect, const char *text, int fontId,
@@ -93,6 +94,7 @@ private:
 	bool _debugLog = false;      // per-frame diagnostic logging
 	bool _autoshot = false;      // roger_autoshot: dump the composited scene to PNG on room load (verification harness)
 	int _autoshotPicId = -1;     // last pic id already auto-shot (so we dump once per room, not per frame)
+	uint32 _lastUiSig = 0;       // signature of the last -ui autoshot's UI layer (throttle: dump only on change)
 	int _statusBarH = 10;        // SCI0 status/menu bar height in screen rows (of 200); reserved at the top of the game rect (may change)
 	Common::Array<byte> _priorityMap; // screen-space SCI priority (from loadBuffers), for overlay occlusion
 
@@ -109,6 +111,15 @@ private:
 	Common::Rect _lastGameRect;                      // gameRect used for the cached scene
 	void ensureUi();                                 // lazily build _uiLayer + _textRenderer
 	void presentWithUi();                            // compose _sceneCache + _uiLayer -> overlay
+
+	// Last status/title banner so it can be re-applied on room load / F10 enable
+	// (the game only redraws it on score/text change).
+	bool _haveStatus = false;
+	Common::Rect _statusRect;
+	Common::String _statusText;
+	int _statusPen = 0, _statusBack = 0;
+	uint32 _statusToken = 0;
+	void reapplyStatus(); // re-push the cached banner (no-op if none)
 	// roger_autoshot helper: dump <screenshotpath>/roger-<id><suffix>-overlay.png and
 	// -preview.png for the given composited scene (suffix "" = per-room scene, "-ui" =
 	// dialog re-present). Verification harness only; no-op unless roger_autoshot is set.

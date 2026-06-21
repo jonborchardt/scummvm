@@ -77,4 +77,31 @@ public:
 		dest.surfacePtr()->format.colorToARGB(dest.surfacePtr()->getPixel(200, 150), a, r, g, b);
 		TS_ASSERT_EQUALS(b, 0); TS_ASSERT_EQUALS(r, 0); TS_ASSERT_EQUALS(g, 0);
 	}
+
+	void test_render_scene_fills_letterbox_opaque_black() {
+		const Graphics::PixelFormat rgba(4, 8, 8, 8, 8, 24, 16, 8, 0);
+		Graphics::ManagedSurface dest(320, 200, rgba);
+		RogerCompositor comp;
+		// Picture occupies only the centre; corners are letterbox.
+		comp.setPictureDest(Common::Rect(40, 0, 280, 200));
+		comp.renderScene(dest, Common::Array<Sprite>());
+		uint8 a, r, g, b;
+		dest.surfacePtr()->format.colorToARGB(dest.surfacePtr()->getPixel(5, 5), a, r, g, b);
+		TS_ASSERT_EQUALS(a, 255); // opaque, not transparent
+		TS_ASSERT_EQUALS(r, 0); TS_ASSERT_EQUALS(g, 0); TS_ASSERT_EQUALS(b, 0); // black
+	}
+
+	void test_render_window_has_black_border() {
+		const Graphics::PixelFormat rgba(4, 8, 8, 8, 8, 24, 16, 8, 0);
+		Graphics::ManagedSurface dest(320, 200, rgba);
+		byte pal[256 * 3]; for (int i = 0; i < 256 * 3; i++) pal[i] = 255; // all white
+		UiElement w; w.type = kUiWindow; w.nativeRect = Common::Rect(10, 10, 100, 60);
+		w.backColor = 15; w.penColor = 15; w.hasFrame = true; // white pen on purpose
+		Common::Array<UiElement> els; els.push_back(w);
+		RogerCompositor comp;
+		comp.renderUiLayer(dest, els, pal, Common::Rect(0, 0, 320, 200), nullptr);
+		uint8 a, r, g, b;
+		dest.surfacePtr()->format.colorToARGB(dest.surfacePtr()->getPixel(10, 35), a, r, g, b);
+		TS_ASSERT_EQUALS(r, 0); TS_ASSERT_EQUALS(g, 0); TS_ASSERT_EQUALS(b, 0); // black border
+	}
 };
