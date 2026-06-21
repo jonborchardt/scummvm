@@ -104,6 +104,10 @@ private:
 	Roger::RogerTextRenderer *_textRenderer = nullptr;     // dialog font
 	Roger::RogerTextRenderer *_altTextRenderer = nullptr;  // header/menu font
 	Graphics::ManagedSurface *_sceneCache = nullptr; // last composed room+sprites (no UI)
+	Graphics::ManagedSurface *_scratchScene = nullptr; // reused per-frame compose buffer (realloc only on size change)
+	// Return a persistent scratch surface of (w,h) in RGBA32, reallocated only when
+	// the overlay size changes — avoids a fresh ManagedSurface alloc/free every frame.
+	Graphics::ManagedSurface *scratchScene(int w, int h);
 	Common::Array<Graphics::Surface *> _uiIcons;     // owned native-cel surfaces for kUiIcon
 	bool _haveScene = false;                         // _sceneCache valid this room
 	Graphics::Surface *_cursorSurf = nullptr;        // smooth hires arrow cursor (RGBA, owned)

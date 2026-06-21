@@ -109,6 +109,15 @@ Common::String FileRogerArtProvider::visualPath(GuiResourceId id) const {
 	return picDir(id) + "pic." + _visualVariant + "." + idStr + ".png";
 }
 
+// Roger uses TWO priority maps per room, by design (not duplicates):
+//   priorityPath          pic.<id>_p.png            grayscale 8-bit, 320x200 — fills
+//                                                   SCI's NATIVE priority buffer
+//                                                   (loadBuffers) for walkability +
+//                                                   native occlusion.
+//   occlusionPriorityPath <variant>.<id>_p.png      EGA-color-encoded (band-per-pixel)
+//                         (default baseline-native) — the OVERLAY compositor's
+//                                                   per-pixel occlusion source.
+// controlPath (pic.<id>_c.png) is the grayscale control map for loadBuffers.
 Common::String FileRogerArtProvider::priorityPath(GuiResourceId id) const {
 	return picDir(id) + "pic." + Common::String::format("%d", id) + "_p.png";
 }
@@ -252,7 +261,9 @@ void FileRogerArtProvider::renderFrame(const Common::Array<Roger::Sprite> &sprit
 	const Common::Rect picRect = Roger::computePictureRect(gameRect, _statusBarH);
 	_compositor->setPictureDest(picRect);
 
-	Graphics::ManagedSurface scene(OW, OH, rgba);
+	// Reuse a persistent scratch buffer; renderScene clears + fully redraws it, so no
+	// stale pixels survive between frames.
+	Graphics::ManagedSurface &scene = *scratchScene(OW, OH);
 	_compositor->renderScene(scene, sprites);
 
 	// Cache the composed room+sprite scene so a UI-only change can be re-presented
@@ -471,6 +482,15 @@ void FileRogerArtProvider::ensureUi() {
 	}
 }
 
+Graphics::ManagedSurface *FileRogerArtProvider::scratchScene(int w, int h) {
+	const Graphics::PixelFormat rgba(4, 8, 8, 8, 8, 24, 16, 8, 0);
+	if (!_scratchScene || _scratchScene->w != w || _scratchScene->h != h) {
+		delete _scratchScene;
+		_scratchScene = new Graphics::ManagedSurface(w, h, rgba);
+	}
+	return _scratchScene;
+}
+
 void FileRogerArtProvider::presentWithUi() {
 	if (!_overlayActive || !_compositor || !_haveScene || !_sceneCache)
 		return;
@@ -493,8 +513,8 @@ void FileRogerArtProvider::presentWithUi() {
 		const bool aspect = g_system->getFeatureState(OSystem::kFeatureAspectRatioCorrection);
 		_lastGameRect = Roger::computeGameRect(OW, OH, aspect);
 	}
-	Graphics::ManagedSurface scene(_sceneCache->w, _sceneCache->h, rgba);
-	scene.copyFrom(*_sceneCache);
+	Graphics::ManagedSurface &scene = *scratchScene(_sceneCache->w, _sceneCache->h);
+	scene.copyFrom(*_sceneCache); // fully overwrites the scratch buffer
 	if (_uiLayer && !_uiLayer->empty() && _textRenderer) {
 		byte pal[256 * 3];
 		g_system->getPaletteManager()->grabPalette(pal, 0, 256);
@@ -800,6 +820,7 @@ FileRogerArtProvider::~FileRogerArtProvider() {
 	delete _textRenderer; _textRenderer = nullptr;
 	delete _altTextRenderer; _altTextRenderer = nullptr;
 	if (_sceneCache) { delete _sceneCache; _sceneCache = nullptr; }
+	if (_scratchScene) { delete _scratchScene; _scratchScene = nullptr; }
 	if (_cursorSurf) { _cursorSurf->free(); delete _cursorSurf; _cursorSurf = nullptr; }
 	for (uint i = 0; i < _uiIcons.size(); i++) { _uiIcons[i]->free(); delete _uiIcons[i]; }
 	_uiIcons.clear();
