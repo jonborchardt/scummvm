@@ -21,10 +21,10 @@
 #include <cxxtest/TestSuite.h>
 #include "sci/roger/roger_compositor.h"
 #include "sci/roger/view_cache.h"
-#include "sci/roger/slice_set.h"
 #include "sci/roger/png_loader.h"
 #include "graphics/managed_surface.h"
 #include "graphics/surface.h"
+#include "common/array.h"
 #include "../../system/null_osystem.h"
 
 // FIXTURE_DIR must be defined on the compiler command line, e.g.:
@@ -43,25 +43,32 @@ public:
 		Common::uninstall_null_g_system();
 	}
 
-	void test_plate_then_sprite_then_slice_occludes() {
-		// 8x8 gray plate; slice = white 4x4 at (4,0) band 15.
+	void test_plate_then_sprite_with_priority_occlusion() {
+		// 8x8 gray plate (64,64,64). One green sprite (view 900 loop 0 cel 1) of
+		// priority 1 covering the whole picture. An 8x8 priority map: left half
+		// band 0 (<= sprite -> sprite shows), right half band 15 (> sprite ->
+		// occluded, the plate's pixels are restored). picture == 8x8, no menu offset.
 		Graphics::Surface *plate = Sci::Roger::loadSurfaceRGBA(
 			Common::String(FIXTURE_DIR) + "/plate_8x8.png");
 		TS_ASSERT(plate != nullptr);
-		Sci::Roger::SliceSet slices(Common::String(FIXTURE_DIR), "slice_manifest.json");
-		TS_ASSERT(slices.load());
 		Sci::Roger::ViewCache views(Common::String(FIXTURE_DIR));
 
-		Sci::Roger::RogerCompositor comp;
-		comp.setRoom(plate, &slices, &views);
+		// Priority map: byte per pixel; cols 0..3 = band 0, cols 4..7 = band 15.
+		Common::Array<byte> prio;
+		prio.resize(8 * 8);
+		for (int y = 0; y < 8; y++)
+			for (int x = 0; x < 8; x++)
+				prio[y * 8 + x] = (x < 4) ? 0 : 15;
 
-		// One sprite: view 900 loop 0 cel 1 (green), priority band 1,
-		// celRect chosen so 6x mapping lands across x 0..8 in an 8x8 dest.
-		// Use dest 8x8 so overlay scale = 8/320; place celRect to cover (0..8,0..8).
+		Sci::Roger::RogerCompositor comp;
+		comp.setRoom(plate, nullptr, &views);
+		comp.setPicture(8, 8, 0);
+		comp.setPriorityMask(prio.begin(), 8, 8);
+
 		Sci::Roger::Sprite spr;
 		spr.viewId = 900; spr.loopNo = 0; spr.celNo = 1;
 		spr.priority = 1; spr.mirror = false;
-		spr.celRect = Common::Rect(0, 0, 320, 200);  // -> full 8x8 dest
+		spr.celRect = Common::Rect(0, 0, 8, 8);  // picture-space -> full 8x8 dest
 
 		Common::Array<Sci::Roger::Sprite> list;
 		list.push_back(spr);
@@ -69,13 +76,14 @@ public:
 		Graphics::ManagedSurface dest(8, 8, plate->format);
 		comp.renderScene(dest, list);
 
-		// Left half (x<4): sprite (green) shows over plate.
 		uint8 a, r, g, b;
+		// Left half (x<4): priority 0 <= sprite priority 1 -> sprite (green) shows.
 		dest.surfacePtr()->format.colorToARGB(dest.surfacePtr()->getPixel(1, 4), a, r, g, b);
 		TS_ASSERT_EQUALS(g, 255);
-		// Right half (x>=4): band-15 white slice occludes the band-1 sprite.
+		TS_ASSERT_EQUALS(r, 0);
+		// Right half (x>=4): priority 15 > 1 -> occluded, plate gray (64) restored.
 		dest.surfacePtr()->format.colorToARGB(dest.surfacePtr()->getPixel(6, 1), a, r, g, b);
-		TS_ASSERT_EQUALS(r, 255); TS_ASSERT_EQUALS(g, 255); TS_ASSERT_EQUALS(b, 255);
+		TS_ASSERT_EQUALS(r, 64); TS_ASSERT_EQUALS(g, 64); TS_ASSERT_EQUALS(b, 64);
 
 		plate->free(); delete plate;
 	}

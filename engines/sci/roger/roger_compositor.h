@@ -42,12 +42,26 @@ struct Sprite {
 
 class RogerCompositor {
 public:
-	RogerCompositor() : _plate(nullptr), _slices(nullptr), _views(nullptr) {}
+	RogerCompositor() : _plate(nullptr), _slices(nullptr), _views(nullptr),
+		_picW(320), _picH(190), _priority(nullptr), _priorityW(0), _priorityH(0), _picScreenTop(0) {}
 
 	// Borrowed pointers; lifetime managed by the caller (the provider).
+	// (slices is retained for API compatibility but no longer used — occlusion is
+	// now per-pixel via the priority mask, see setPriorityMask.)
 	void setRoom(Graphics::Surface *cleanPlate, SliceSet *slices, ViewCache *views);
 
-	// Compose dest = plate + sprites (assumed back-to-front) + occluding slices.
+	// Logical SCI picture dimensions (cel rects are in this space — 320x190 for
+	// SCI0) and the screen row where the picture begins (the menu-bar offset, used
+	// to index the screen-space priority map). The plate encodes this picture.
+	void setPicture(int picW, int picH, int picScreenTop);
+
+	// Per-pixel occlusion source: SCI's screen-space priority map (one byte per
+	// pixel = SCI priority band 0..15). Borrowed; lifetime managed by the caller.
+	// A sprite pixel is hidden (the plate's baked-in foreground shows) wherever the
+	// priority there exceeds the sprite's priority — exactly SCI's own occlusion.
+	void setPriorityMask(const byte *priority, int priW, int priH);
+
+	// Compose dest = plate + sprites (back-to-front) with per-pixel priority occlusion.
 	void renderScene(Graphics::ManagedSurface &dest, const Common::Array<Sprite> &sprites);
 
 	// Push scene to the OSystem overlay and make it visible.
@@ -57,6 +71,10 @@ private:
 	Graphics::Surface *_plate;
 	SliceSet *_slices;
 	ViewCache *_views;
+	int _picW, _picH;          // logical SCI picture size (cel-rect coordinate space)
+	const byte *_priority;     // screen-space priority map (borrowed), or nullptr
+	int _priorityW, _priorityH;
+	int _picScreenTop;         // screen row where the picture starts (menu-bar offset)
 };
 
 } // namespace Roger

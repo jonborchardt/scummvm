@@ -36,6 +36,18 @@ void RogerCompositor::setRoom(Graphics::Surface *cleanPlate, SliceSet *slices, V
 	_views = views;
 }
 
+void RogerCompositor::setPicture(int picW, int picH, int picScreenTop) {
+	_picW = picW;
+	_picH = picH;
+	_picScreenTop = picScreenTop;
+}
+
+void RogerCompositor::setPriorityMask(const byte *priority, int priW, int priH) {
+	_priority = priority;
+	_priorityW = priW;
+	_priorityH = priH;
+}
+
 // Compute the centered, aspect-preserving rectangle for a srcW x srcH image
 // fitted inside a W x H destination (letterbox/pillarbox). Keeps the hires art
 // from stretching when the overlay/window aspect differs from the art's.
@@ -63,13 +75,9 @@ void RogerCompositor::renderScene(Graphics::ManagedSurface &dest, const Common::
 		: Common::Rect(0, 0, (int16)W, (int16)H);
 	const int GW = gameRect.width(), GH = gameRect.height();
 
-	// SCI cel rects are in picture-window-local coordinates. SCI's script width is
-	// always 320; the picture HEIGHT is the screen height minus the menu bar (190
-	// for SCI0 SQ3/QFG1), which is exactly what the plate encodes. Derive it from
-	// the plate's aspect (plate->h * 320 / plate->w) rather than assuming 200, or
-	// sprites drift vertically against the background.
-	const int PIC_W = 320;
-	const int PIC_H = _plate ? (_plate->h * PIC_W / _plate->w) : 200;
+	// Cel rects are in SCI picture-window-local coords (_picW x _picH, 320x190 for
+	// SCI0); the plate encodes that same picture, so both map into gameRect.
+	const int PIC_W = _picW, PIC_H = _picH;
 
 	// 0) Clear so letterbox borders are clean (transparent in an alpha overlay).
 	dest.clear(0);
@@ -78,11 +86,12 @@ void RogerCompositor::renderScene(Graphics::ManagedSurface &dest, const Common::
 	if (_plate)
 		dest.blitFrom(*_plate, Common::Rect(0, 0, _plate->w, _plate->h), gameRect);
 
-	// Manifest piece space (authored at plate/320x200 res) -> game-rect scale.
-	const float msx = _plate ? (float)GW / _plate->w : 1.0f;
-	const float msy = _plate ? (float)GH / _plate->h : 1.0f;
+	Graphics::Surface *destSurf = dest.surfacePtr();
 
-	// 2) Sprites back-to-front, with slices above each sprite re-drawn for occlusion.
+	// 2) Sprites back-to-front. Each cel is drawn, then occluded per-pixel by the
+	//    priority map (SCI's own model): wherever the priority there is greater than
+	//    the sprite's priority, the plate's baked-in foreground is restored over the
+	//    cel, hiding the sprite. No slices, no flicker.
 	for (uint i = 0; i < sprites.size(); i++) {
 		const Sprite &s = sprites[i];
 		const Graphics::Surface *cel = _views ? _views->getCel(s.viewId, s.loopNo, s.celNo) : nullptr;
@@ -92,7 +101,9 @@ void RogerCompositor::renderScene(Graphics::ManagedSurface &dest, const Common::
 			warning("ROGER: missing hires cel view=%d loop=%d cel=%d (skipped)", s.viewId, s.loopNo, s.celNo);
 			continue;
 		}
-		// Map the picture-window-local cel rect (320 x PIC_H) into the game rect.
+		if (PIC_W <= 0 || PIC_H <= 0)
+			continue;
+		// Map the picture-window-local cel rect (PIC_W x PIC_H) into the game rect.
 		Common::Rect dst(
 			(int16)(gameRect.left + (int)s.celRect.left   * GW / PIC_W),
 			(int16)(gameRect.top  + (int)s.celRect.top    * GH / PIC_H),
@@ -103,21 +114,26 @@ void RogerCompositor::renderScene(Graphics::ManagedSurface &dest, const Common::
 		dest.blendBlitFrom(*cel, Common::Rect(0, 0, cel->w, cel->h), dst,
 		                   s.mirror ? Graphics::FLIP_H : Graphics::FLIP_NONE);
 
-		// Foreground occlusion: any slice whose band is strictly above this
-		// sprite's band, overlapping the sprite's dest rect, is re-drawn on top.
-		if (_slices) {
-			const Common::Array<SlicePiece> &ps = _slices->pieces();
-			for (uint j = 0; j < ps.size(); j++) {
-				if (ps[j].band <= s.priority || !ps[j].surface)
+		// Per-pixel priority occlusion against the plate.
+		if (_priority && _plate) {
+			const int x0 = MAX<int>(dst.left, gameRect.left);
+			const int y0 = MAX<int>(dst.top, gameRect.top);
+			const int x1 = MIN<int>(dst.right, gameRect.right);
+			const int y1 = MIN<int>(dst.bottom, gameRect.bottom);
+			for (int oy = y0; oy < y1; oy++) {
+				const int prY = (oy - gameRect.top) * PIC_H / GH + _picScreenTop;
+				if (prY < 0 || prY >= _priorityH)
 					continue;
-				Common::Rect sdst((int16)(gameRect.left + ps[j].x * msx),
-				                  (int16)(gameRect.top + ps[j].y * msy),
-				                  (int16)(gameRect.left + (ps[j].x + ps[j].surface->w) * msx),
-				                  (int16)(gameRect.top + (ps[j].y + ps[j].surface->h) * msy));
-				if (!sdst.intersects(dst))
-					continue;
-				dest.blendBlitFrom(*ps[j].surface,
-				                   Common::Rect(0, 0, ps[j].surface->w, ps[j].surface->h), sdst);
+				const int plY = (oy - gameRect.top) * _plate->h / GH;
+				for (int ox = x0; ox < x1; ox++) {
+					const int picX = (ox - gameRect.left) * PIC_W / GW;
+					if (picX < 0 || picX >= _priorityW)
+						continue;
+					if (_priority[prY * _priorityW + picX] > s.priority) {
+						const int plX = (ox - gameRect.left) * _plate->w / GW;
+						destSurf->setPixel(ox, oy, _plate->getPixel(plX, plY));
+					}
+				}
 			}
 		}
 	}

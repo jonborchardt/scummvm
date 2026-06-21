@@ -74,6 +74,7 @@ private:
 	int _loadedPicId = -1;
 	bool _overlayActive = true;  // false = show native 320x200 (A/B comparison toggle)
 	bool _debugLog = false;      // per-frame diagnostic logging
+	Common::Array<byte> _priorityMap; // screen-space SCI priority (from loadBuffers), for overlay occlusion
 
 	Common::String picDir(GuiResourceId id) const;
 	Common::String visualPath(GuiResourceId id) const;

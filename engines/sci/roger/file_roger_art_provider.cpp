@@ -115,6 +115,10 @@ bool FileRogerArtProvider::loadBuffers(GuiResourceId pictureId, GfxScreen *scree
 	if (priority.size() != (uint)(w * h) || control.size() != (uint)(w * h))
 		return false;
 
+	// Keep the screen-space priority map (320x200, values = SCI priority bands) so
+	// the overlay compositor can occlude hires sprites per-pixel exactly as SCI does.
+	_priorityMap = priority;
+
 	for (int16 y = 0; y < (int16)h; y++) {
 		for (int16 x = 0; x < (int16)w; x++) {
 			const byte p = priority[y * w + x];
@@ -153,6 +157,12 @@ void FileRogerArtProvider::pushHiresBackground(GuiResourceId pictureId) {
 	if (!_compositor)
 		_compositor = new Roger::RogerCompositor();
 	_compositor->setRoom(_plate, _slices, _viewCache);
+	// SCI0 picture window is 320x190, drawn below the 10px menu bar (screen rows
+	// 10..199). The priority map is the full 320x200 screen-space map captured in
+	// loadBuffers; the compositor offsets into it by picScreenTop for occlusion.
+	_compositor->setPicture(320, 190, 10);
+	if (!_priorityMap.empty())
+		_compositor->setPriorityMask(_priorityMap.begin(), 320, 200);
 	_loadedPicId = pictureId;
 }
 
