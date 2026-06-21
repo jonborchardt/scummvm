@@ -86,6 +86,15 @@ FileRogerArtProvider::FileRogerArtProvider(const Common::String &gameId,
 	// This is how the dev loop captures the hires overlay deterministically without
 	// keystrokes/focus — injected Alt+s/F10 never reach SDL (Win32 menu keys).
 	_autoshot = ConfMan.hasKey("roger_autoshot") && ConfMan.getBool("roger_autoshot");
+
+	// Cursor: prefer the native hardware cursor (CursorMan). The backend DOES draw it
+	// over the in-game OSystem overlay (scaled to the game draw rect), and SCI sets the
+	// correct arrow/wait/hand shapes itself — so it is smooth (no per-move recomposite)
+	// and shape-correct for free. Set roger_hw_cursor=false to fall back to Roger's
+	// composited arrow (see compositeCursor / onMouseMoved). Default true.
+	_useHwCursor = true;
+	if (ConfMan.hasKey("roger_hw_cursor"))
+		_useHwCursor = ConfMan.getBool("roger_hw_cursor");
 }
 
 Common::String FileRogerArtProvider::picDir(GuiResourceId id) const {
@@ -404,6 +413,8 @@ void FileRogerArtProvider::compositeCursor(Graphics::ManagedSurface &scene,
 	// (320x200) while the overlay is shown; map it into the on-screen game rect.
 	if (!enabled)
 		return;
+	if (_useHwCursor)
+		return; // native hardware cursor is shown over the overlay instead (preferred)
 	ensureCursor();
 	if (!_cursorSurf)
 		return;
@@ -770,9 +781,11 @@ void FileRogerArtProvider::onNativePicture() {
 }
 
 void FileRogerArtProvider::onMouseMoved() {
-	// Re-present the cached scene (+ any UI) so the composited cursor follows the
-	// pointer. Cheap when idle (a memcpy + overlay push); only fires when the mouse
-	// actually moved. presentWithUi no-ops if there is no scene / overlay is off.
+	if (_useHwCursor)
+		return; // the hardware cursor moves itself smoothly; no per-move recomposite
+	// Fallback path only: re-present the cached scene (+ any UI) so the composited
+	// cursor follows the pointer. Cheap when idle (a memcpy + overlay push); only
+	// fires when the mouse moved. presentWithUi no-ops if there is no scene/overlay.
 	presentWithUi();
 }
 

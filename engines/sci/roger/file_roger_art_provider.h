@@ -93,6 +93,7 @@ private:
 	bool _overlayActive = true;  // false = show native 320x200 (A/B comparison toggle)
 	bool _debugLog = false;      // per-frame diagnostic logging
 	bool _autoshot = false;      // roger_autoshot: dump the composited scene to PNG on room load (verification harness)
+	bool _useHwCursor = true;    // roger_hw_cursor: rely on the native HW cursor over the overlay (preferred); false = composited arrow
 	int _autoshotPicId = -1;     // last pic id already auto-shot (so we dump once per room, not per frame)
 	uint32 _lastUiSig = 0;       // signature of the last -ui autoshot's UI layer (throttle: dump only on change)
 	int _statusBarH = 10;        // SCI0 status/menu bar height in screen rows (of 200); reserved at the top of the game rect (may change)
