@@ -23,6 +23,7 @@
 
 #include "common/scummsys.h"
 #include "common/list.h"
+#include "common/rect.h"
 #include "sci/graphics/helpers.h"
 
 namespace Sci {
@@ -72,6 +73,23 @@ public:
 	// Called when a full-screen picture with NO replacement art is drawn: drop any
 	// hires overlay left over from a previous room so it does not bleed through.
 	virtual void onNativePicture() {}
+
+	// UI display-list capture (Roger hires dialogs). SCI's high-level UI draw calls
+	// push resolution-independent elements (global 320x200 rects) here; the provider
+	// composites them over the cached hires scene. All default to no-op so the base
+	// provider (and null provider) are unaffected; FileRogerArtProvider overrides.
+	virtual void uiPushWindow(const Common::Rect &globalRect, int backColor, int penColor,
+	                          uint16 wndStyle, uint32 token) {}
+	virtual void uiPushText(const Common::Rect &globalRect, const char *text, int penColor,
+	                        int backColor, int fontId, int align, uint32 token) {}
+	virtual void uiPushButton(const Common::Rect &globalRect, const char *text, int fontId,
+	                          int style, uint32 token) {}
+	virtual void uiPushTextEdit(const Common::Rect &globalRect, const char *text, int fontId,
+	                            int style, int cursorPos, uint32 token) {}
+	virtual void uiPushIcon(const Common::Rect &globalRect, int viewId, int loopNo, int celNo,
+	                        uint32 token) {}
+	virtual void uiClearToken(uint32 token) {}
+	virtual void uiClearAll() {}
 
 	// Debug/runtime toggles, invoked from the SCI event loop (see event.cpp):
 	// toggleOverlay flips between the upscaled overlay and the original native

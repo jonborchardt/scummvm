@@ -22,6 +22,8 @@
 #include "sci/roger/png_loader.h"
 #include "sci/roger/roger_compositor.h"
 #include "sci/roger/roger_coords.h"
+#include "sci/roger/roger_ui_layer.h"
+#include "sci/roger/roger_text.h"
 #include "sci/roger/view_cache.h"
 #include "sci/roger/slice_set.h"
 // animate.h references these SCI engine types in GfxAnimate's interface but does
@@ -170,6 +172,13 @@ void FileRogerArtProvider::pushHiresBackground(GuiResourceId pictureId) {
 	if (_loadedPicId == pictureId && _plate)
 		return; // already loaded for this room
 
+	// New room: drop any dialogs/icons left from the previous room so they do not
+	// bleed onto the new scene. _haveScene is rebuilt by the next renderFrame.
+	if (_uiLayer) _uiLayer->clearAll();
+	for (uint i = 0; i < _uiIcons.size(); i++) { _uiIcons[i]->free(); delete _uiIcons[i]; }
+	_uiIcons.clear();
+	_haveScene = false;
+
 	// Evict previous room.
 	if (_plate) { _plate->free(); delete _plate; _plate = nullptr; }
 
@@ -229,6 +238,23 @@ void FileRogerArtProvider::renderFrame(const Common::Array<Roger::Sprite> &sprit
 
 	Graphics::ManagedSurface scene(OW, OH, rgba);
 	_compositor->renderScene(scene, sprites);
+
+	// Cache the composed room+sprite scene so a UI-only change can be re-presented
+	// cheaply (blocking dialogs do not tick kernelAnimate).
+	if (!_sceneCache || _sceneCache->w != OW || _sceneCache->h != OH) {
+		delete _sceneCache;
+		_sceneCache = new Graphics::ManagedSurface(OW, OH, rgba);
+	}
+	_sceneCache->copyFrom(scene);
+	_haveScene = true;
+	_lastGameRect = gameRect;
+
+	// If a dialog is already up, re-blend it on top of the freshly composed scene.
+	if (_uiLayer && !_uiLayer->empty() && _textRenderer) {
+		byte pal[256 * 3];
+		g_system->getPaletteManager()->grabPalette(pal, 0, 256);
+		_compositor->renderUiLayer(scene, _uiLayer->elements(), pal, gameRect, _textRenderer);
+	}
 	_compositor->presentToOverlay(scene);
 
 	// roger_autoshot (verification harness): dump once per room. Deterministic — no
@@ -270,6 +296,109 @@ void FileRogerArtProvider::renderFrame(const Common::Array<Roger::Sprite> &sprit
 		}
 		_autoshotPicId = _loadedPicId;
 	}
+}
+
+void FileRogerArtProvider::ensureUi() {
+	if (!_uiLayer)
+		_uiLayer = new Roger::RogerUiLayer();
+	if (!_textRenderer) {
+		Common::String ttf = "FreeSans.ttf";
+		if (ConfMan.hasKey("roger_ui_font"))
+			ttf = ConfMan.get("roger_ui_font");
+		// A ladder of pixel sizes for fit-to-box selection (cell mode, hires).
+		Common::Array<int> sizes;
+		sizes.push_back(18); sizes.push_back(24); sizes.push_back(32);
+		sizes.push_back(42); sizes.push_back(56); sizes.push_back(72);
+		_textRenderer = new Roger::RogerTextRenderer(ttf, sizes);
+	}
+}
+
+void FileRogerArtProvider::presentWithUi() {
+	if (!_overlayActive || !_compositor || !_haveScene || !_sceneCache)
+		return;
+	const Graphics::PixelFormat rgba(4, 8, 8, 8, 8, 24, 16, 8, 0);
+	Graphics::ManagedSurface scene(_sceneCache->w, _sceneCache->h, rgba);
+	scene.copyFrom(*_sceneCache);
+	if (_uiLayer && !_uiLayer->empty() && _textRenderer) {
+		byte pal[256 * 3];
+		g_system->getPaletteManager()->grabPalette(pal, 0, 256);
+		_compositor->renderUiLayer(scene, _uiLayer->elements(), pal, _lastGameRect, _textRenderer);
+	}
+	_compositor->presentToOverlay(scene);
+}
+
+void FileRogerArtProvider::uiPushWindow(const Common::Rect &r, int backColor, int penColor,
+                                        uint16 wndStyle, uint32 token) {
+	if (!_overlayActive || !_plate) return; // no hires scene -> leave native UI visible
+	ensureUi();
+	Roger::UiElement e;
+	e.type = Roger::kUiWindow; e.nativeRect = r;
+	e.backColor = (wndStyle & 1 /*TRANSPARENT*/) ? -1 : backColor;
+	e.penColor = penColor;
+	e.hasFrame = !(wndStyle & 2 /*NOFRAME*/);
+	e.token = token;
+	_uiLayer->push(e);
+	presentWithUi();
+}
+
+void FileRogerArtProvider::uiPushText(const Common::Rect &r, const char *text, int penColor,
+                                      int backColor, int fontId, int align, uint32 token) {
+	if (!_overlayActive || !_plate) return;
+	ensureUi();
+	Roger::UiElement e;
+	e.type = Roger::kUiText; e.nativeRect = r; e.text = text ? text : "";
+	e.penColor = penColor; e.backColor = backColor; e.fontId = fontId;
+	e.align = align; e.token = token;
+	_uiLayer->push(e);
+	presentWithUi();
+}
+
+void FileRogerArtProvider::uiPushButton(const Common::Rect &r, const char *text, int fontId,
+                                        int style, uint32 token) {
+	if (!_overlayActive || !_plate) return;
+	ensureUi();
+	Roger::UiElement e;
+	e.type = Roger::kUiButton; e.nativeRect = r; e.text = text ? text : "";
+	e.fontId = fontId; e.style = style; e.align = 1 /*center*/;
+	e.backColor = 7 /*light gray*/; e.penColor = 0; e.hasFrame = true; e.token = token;
+	_uiLayer->push(e);
+	presentWithUi();
+}
+
+void FileRogerArtProvider::uiPushTextEdit(const Common::Rect &r, const char *text, int fontId,
+                                          int style, int cursorPos, uint32 token) {
+	if (!_overlayActive || !_plate) return;
+	ensureUi();
+	Roger::UiElement e;
+	e.type = Roger::kUiTextEdit; e.nativeRect = r; e.text = text ? text : "";
+	e.fontId = fontId; e.style = style; e.cursorPos = cursorPos; e.align = 0;
+	e.backColor = 15 /*white*/; e.penColor = 0; e.hasFrame = true; e.token = token;
+	_uiLayer->push(e);
+	presentWithUi();
+}
+
+void FileRogerArtProvider::uiPushIcon(const Common::Rect &r, int viewId, int loopNo, int celNo,
+                                      uint32 token) {
+	if (!_overlayActive || !_plate) return;
+	ensureUi();
+	Roger::UiElement e;
+	e.type = Roger::kUiIcon; e.nativeRect = r; e.token = token;
+	Graphics::Surface *cel = renderNativeCel(viewId, loopNo, celNo);
+	if (cel) { _uiIcons.push_back(cel); e.iconSurface = cel; }
+	_uiLayer->push(e);
+	presentWithUi();
+}
+
+void FileRogerArtProvider::uiClearToken(uint32 token) {
+	if (_uiLayer) _uiLayer->clearToken(token);
+	if (_overlayActive && _plate) presentWithUi();
+}
+
+void FileRogerArtProvider::uiClearAll() {
+	if (_uiLayer) _uiLayer->clearAll();
+	for (uint i = 0; i < _uiIcons.size(); i++) { _uiIcons[i]->free(); delete _uiIcons[i]; }
+	_uiIcons.clear();
+	if (_overlayActive && _plate) presentWithUi();
 }
 
 Graphics::Surface *FileRogerArtProvider::renderNativeCel(int viewId, int loopNo, int celNo) const {
@@ -393,6 +522,10 @@ void FileRogerArtProvider::onNativePicture() {
 	if (_compositor)
 		_compositor->setRoom(nullptr, nullptr);
 	if (_plate) { _plate->free(); delete _plate; _plate = nullptr; }
+	if (_uiLayer) _uiLayer->clearAll();
+	for (uint i = 0; i < _uiIcons.size(); i++) { _uiIcons[i]->free(); delete _uiIcons[i]; }
+	_uiIcons.clear();
+	_haveScene = false;
 	_loadedPicId = -1;
 	g_system->hideOverlay();
 }
@@ -401,6 +534,11 @@ FileRogerArtProvider::~FileRogerArtProvider() {
 	if (_plate) { _plate->free(); delete _plate; _plate = nullptr; }
 	delete _viewCache; _viewCache = nullptr;
 	delete _compositor; _compositor = nullptr;
+	delete _uiLayer; _uiLayer = nullptr;
+	delete _textRenderer; _textRenderer = nullptr;
+	if (_sceneCache) { delete _sceneCache; _sceneCache = nullptr; }
+	for (uint i = 0; i < _uiIcons.size(); i++) { _uiIcons[i]->free(); delete _uiIcons[i]; }
+	_uiIcons.clear();
 }
 
 } // namespace Sci

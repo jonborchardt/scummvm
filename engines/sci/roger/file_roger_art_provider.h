@@ -27,10 +27,10 @@
 #include "common/str.h"
 #include "common/path.h"
 
-namespace Graphics { struct Surface; }
+namespace Graphics { struct Surface; class ManagedSurface; }
 
 namespace Sci {
-namespace Roger { struct Sprite; class RogerCompositor; class ViewCache; }
+namespace Roger { struct Sprite; class RogerCompositor; class ViewCache; class RogerUiLayer; class RogerTextRenderer; }
 
 class FileRogerArtProvider : public RogerArtProvider {
 public:
@@ -50,6 +50,20 @@ public:
 	void onNativePicture() override;
 	void toggleOverlay() override;   // Ctrl+Shift+U: upscaled overlay <-> original native
 	void toggleDebugLog() override;  // Ctrl+Shift+L: per-frame Roger diagnostic logging
+
+	// UI display-list capture (Roger hires dialogs) — see roger_art_provider.h.
+	void uiPushWindow(const Common::Rect &globalRect, int backColor, int penColor,
+	                  uint16 wndStyle, uint32 token) override;
+	void uiPushText(const Common::Rect &globalRect, const char *text, int penColor,
+	                int backColor, int fontId, int align, uint32 token) override;
+	void uiPushButton(const Common::Rect &globalRect, const char *text, int fontId,
+	                  int style, uint32 token) override;
+	void uiPushTextEdit(const Common::Rect &globalRect, const char *text, int fontId,
+	                    int style, int cursorPos, uint32 token) override;
+	void uiPushIcon(const Common::Rect &globalRect, int viewId, int loopNo, int celNo,
+	                uint32 token) override;
+	void uiClearToken(uint32 token) override;
+	void uiClearAll() override;
 
 	// Compose and present the current room to the OSystem overlay.
 	// Called each frame by the GfxAnimate hook (Task 7).
@@ -78,6 +92,16 @@ private:
 	int _autoshotPicId = -1;     // last pic id already auto-shot (so we dump once per room, not per frame)
 	int _statusBarH = 10;        // SCI0 status/menu bar height in screen rows (of 200); reserved at the top of the game rect (may change)
 	Common::Array<byte> _priorityMap; // screen-space SCI priority (from loadBuffers), for overlay occlusion
+
+	// Roger hires UI/dialog compositing (see roger_ui_layer / roger_text).
+	Roger::RogerUiLayer *_uiLayer = nullptr;
+	Roger::RogerTextRenderer *_textRenderer = nullptr;
+	Graphics::ManagedSurface *_sceneCache = nullptr; // last composed room+sprites (no UI)
+	Common::Array<Graphics::Surface *> _uiIcons;     // owned native-cel surfaces for kUiIcon
+	bool _haveScene = false;                         // _sceneCache valid this room
+	Common::Rect _lastGameRect;                      // gameRect used for the cached scene
+	void ensureUi();                                 // lazily build _uiLayer + _textRenderer
+	void presentWithUi();                            // compose _sceneCache + _uiLayer -> overlay
 
 	Common::String picDir(GuiResourceId id) const;
 	Common::String visualPath(GuiResourceId id) const;
