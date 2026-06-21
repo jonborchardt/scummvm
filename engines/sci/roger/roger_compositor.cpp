@@ -106,19 +106,41 @@ void RogerCompositor::renderScene(Graphics::ManagedSurface &dest, const Common::
 			const int y0 = MAX<int>(dst.top, picRect.top);
 			const int x1 = MIN<int>(dst.right, picRect.right);
 			const int y1 = MIN<int>(dst.bottom, picRect.bottom);
+
+			// CRITICAL: sample the plate with the SAME integer scaler ScummVM's
+			// blitFrom used to draw the background plate above (see
+			// graphics/managed_surface.cpp::blitFromInner: scaleX = 256*srcW/dstW,
+			// then srcX = i*scaleX/256). A plain `i*srcW/dstW` resample uses a
+			// *different* rounding and drifts from the scaler by up to ~10px across a
+			// wide rect, so the splatted foreground pixels would not match the
+			// displayed background (the "off by a few pixels" bug). Matching the
+			// scaler makes a splatted pixel byte-identical to the background at (ox,oy).
+			const int SCALE = 0x100; // == SCALE_THRESHOLD in managed_surface.cpp
+			const int scaleX = SCALE * _plate->w / GW;
+			const int scaleY = SCALE * _plate->h / GH;
+
 			for (int oy = y0; oy < y1; oy++) {
-				const int prY = (oy - picRect.top) * PIC_H / GH + _picScreenTop;
+				// Plate row the background scaler drew at this overlay row.
+				const int plY = (oy - picRect.top) * scaleY / SCALE;
+				if (plY < 0 || plY >= _plate->h)
+					continue;
+				// Sample the priority at the SAME scene location the displayed plate
+				// occupies — map overlay -> plate (scaler) -> priority — so the occlusion
+				// boundary (which points get splatted) tracks the displayed plate instead
+				// of a separately, exactly-scaled grid that drifts from it (that drift was
+				// eating the sprite's edge). The priority>sprite rule is unchanged.
+				const int prY = plY * _priorityH / _plate->h + _picScreenTop;
 				if (prY < 0 || prY >= _priorityH)
 					continue;
-				const int plY = (oy - picRect.top) * _plate->h / GH;
 				for (int ox = x0; ox < x1; ox++) {
-					const int picX = (ox - picRect.left) * PIC_W / GW;
+					const int plX = (ox - picRect.left) * scaleX / SCALE;
+					if (plX < 0 || plX >= _plate->w)
+						continue;
+					const int picX = plX * _priorityW / _plate->w;
 					if (picX < 0 || picX >= _priorityW)
 						continue;
-					if (_priority[prY * _priorityW + picX] > s.priority) {
-						const int plX = (ox - picRect.left) * _plate->w / GW;
+					if (_priority[prY * _priorityW + picX] > s.priority)
 						destSurf->setPixel(ox, oy, _plate->getPixel(plX, plY));
-					}
 				}
 			}
 		}

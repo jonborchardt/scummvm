@@ -87,4 +87,57 @@ public:
 
 		plate->free(); delete plate;
 	}
+
+	void test_splat_matches_background_scaler_under_scaling() {
+		// REGRESSION for the "splatted pixels are off by a few px" bug. When the plate
+		// is scaled into the game rect (plate wider than picRect), the occlusion
+		// punch-back must sample the plate with the SAME integer scaler that blitFrom
+		// used to draw the background — otherwise the restored foreground pixels drift
+		// from the background. Here: a 10x2 gradient plate scaled into a 6x2 rect, a
+		// sprite covering it all, priority everywhere > sprite -> splat everywhere.
+		// The result must be pixel-identical to blitFrom(plate -> 6x2).
+		const Graphics::PixelFormat rgba(4, 8, 8, 8, 8, 24, 16, 8, 0);
+
+		Graphics::Surface plate;
+		plate.create(10, 2, rgba);
+		for (int y = 0; y < 2; y++)
+			for (int x = 0; x < 10; x++)
+				plate.setPixel(x, y, rgba.ARGBToColor(255, (byte)(x * 25), 0, 0)); // horiz gradient
+
+		Graphics::Surface cel;   // sprite content is irrelevant (fully splatted)
+		cel.create(6, 2, rgba);
+		cel.fillRect(Common::Rect(0, 0, 6, 2), rgba.ARGBToColor(255, 0, 255, 0));
+
+		Common::Array<byte> prio;
+		prio.resize(6 * 2);
+		for (uint i = 0; i < prio.size(); i++)
+			prio[i] = 15;  // everywhere foreground -> always occlude
+
+		Sci::Roger::Sprite spr;
+		spr.viewId = -1; spr.loopNo = 0; spr.celNo = 0;
+		spr.priority = 0; spr.mirror = false;
+		spr.celRect = Common::Rect(0, 0, 6, 2);
+		spr.celOverride = &cel;
+		Common::Array<Sci::Roger::Sprite> list;
+		list.push_back(spr);
+
+		Sci::Roger::RogerCompositor comp;
+		comp.setRoom(&plate, nullptr);       // no ViewCache -> uses celOverride
+		comp.setPicture(6, 2, 0);
+		comp.setPriorityMask(prio.begin(), 6, 2);
+
+		Graphics::ManagedSurface dest(6, 2, rgba);
+		comp.renderScene(dest, list);
+
+		// Reference: the background plate as ScummVM's own scaler draws it.
+		Graphics::ManagedSurface ref(6, 2, rgba);
+		ref.blitFrom(plate, Common::Rect(0, 0, 10, 2), Common::Rect(0, 0, 6, 2));
+
+		for (int y = 0; y < 2; y++)
+			for (int x = 0; x < 6; x++)
+				TS_ASSERT_EQUALS(dest.surfacePtr()->getPixel(x, y), ref.surfacePtr()->getPixel(x, y));
+
+		plate.free();
+		cel.free();
+	}
 };
