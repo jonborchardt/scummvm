@@ -34,6 +34,7 @@
 #include "sci/graphics/animate.h"
 #include "sci/graphics/text16.h"
 #include "sci/graphics/ports.h"
+#include "sci/roger/roger_art_provider.h"
 
 namespace Sci {
 
@@ -520,12 +521,21 @@ void GfxPorts::drawWindow(Window *pWnd) {
 		if (!(wndStyle & SCI_WINDOWMGR_STYLE_TRANSPARENT))
 			_paint16->fillRect(r, GFX_SCREEN_MASK_VISUAL, pWnd->backClr);
 
+		if (g_sciRogerProvider && g_sciRogerProvider->enabled) {
+			const uint32 tok = 0x40000000u | (uint32)pWnd->id;
+			g_sciRogerProvider->uiPushWindow(pWnd->dims, pWnd->backClr, pWnd->penClr,
+			                                 wndStyle, tok);
+		}
+
 		_paint16->bitsShow(pWnd->dims);
 	}
 	setPort(oldport);
 }
 
 void GfxPorts::removeWindow(Window *pWnd, bool reanimate) {
+	if (g_sciRogerProvider && g_sciRogerProvider->enabled)
+		g_sciRogerProvider->uiClearToken(0x40000000u | (uint32)pWnd->id);
+
 	setPort(_wmgrPort);
 	_paint16->bitsRestore(pWnd->hSaved1);
 	pWnd->hSaved1 = NULL_REG;

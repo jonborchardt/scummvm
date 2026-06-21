@@ -39,6 +39,7 @@
 #include "sci/graphics/screen.h"
 #include "sci/graphics/text16.h"
 #include "sci/graphics/controls16.h"
+#include "sci/roger/roger_art_provider.h"
 
 namespace Sci {
 
@@ -314,6 +315,14 @@ int GfxControls16::getPicNotValid() {
 void GfxControls16::kernelDrawButton(Common::Rect rect, reg_t obj, const char *text, uint16 languageSplitter, int16 fontId, int16 style, bool hilite) {
 	g_sci->_tts->button(text);
 
+	if (g_sciRogerProvider && g_sciRogerProvider->enabled) {
+		Common::Rect g = rect;
+		_ports->offsetRect(g);
+		const Port *p = _ports->getPort();
+		const uint32 tok = 0x40000000u | (uint32)(p ? p->id : 0);
+		g_sciRogerProvider->uiPushButton(g, text, fontId, style, tok);
+	}
+
 	if (!hilite) {
 		int16 sci0EarlyPen = 0, sci0EarlyBack = 0;
 		if (getSciVersion() == SCI_VERSION_0_EARLY) {
@@ -392,6 +401,15 @@ void GfxControls16::kernelDrawButton(Common::Rect rect, reg_t obj, const char *t
 void GfxControls16::kernelDrawText(Common::Rect rect, reg_t obj, const char *text, uint16 languageSplitter, int16 fontId, TextAlignment alignment, int16 style, bool hilite) {
 	g_sci->_tts->text(text);
 
+	if (g_sciRogerProvider && g_sciRogerProvider->enabled) {
+		Common::Rect g = rect;
+		_ports->offsetRect(g);
+		const Port *p = _ports->getPort();
+		const uint32 tok = 0x40000000u | (uint32)(p ? p->id : 0);
+		g_sciRogerProvider->uiPushText(g, text, p ? p->penClr : 0, p ? p->backClr : -1,
+		                               fontId, alignment, tok);
+	}
+
 	if (!hilite) {
 		rect.grow(1);
 		_paint16->eraseRect(rect);
@@ -428,6 +446,14 @@ void GfxControls16::kernelDrawText(Common::Rect rect, reg_t obj, const char *tex
 }
 
 void GfxControls16::kernelDrawTextEdit(Common::Rect rect, reg_t obj, const char *text, uint16 languageSplitter, int16 fontId, int16 mode, int16 style, int16 cursorPos, int16 maxChars, bool hilite) {
+	if (g_sciRogerProvider && g_sciRogerProvider->enabled) {
+		Common::Rect g = rect;
+		_ports->offsetRect(g);
+		const Port *p = _ports->getPort();
+		const uint32 tok = 0x40000000u | (uint32)(p ? p->id : 0);
+		g_sciRogerProvider->uiPushTextEdit(g, text, fontId, style, cursorPos, tok);
+	}
+
 	Common::Rect textRect = rect;
 	uint16 oldFontId = _text16->GetFontId();
 
@@ -455,6 +481,14 @@ void GfxControls16::kernelDrawTextEdit(Common::Rect rect, reg_t obj, const char 
 }
 
 void GfxControls16::kernelDrawIcon(Common::Rect rect, reg_t obj, GuiResourceId viewId, int16 loopNo, int16 celNo, int16 priority, int16 style, bool hilite) {
+	if (g_sciRogerProvider && g_sciRogerProvider->enabled) {
+		Common::Rect g = rect;
+		_ports->offsetRect(g);
+		const Port *p = _ports->getPort();
+		const uint32 tok = 0x40000000u | (uint32)(p ? p->id : 0);
+		g_sciRogerProvider->uiPushIcon(g, viewId, loopNo, celNo, tok);
+	}
+
 	if (!hilite) {
 		_paint16->drawCelAndShow(viewId, loopNo, celNo, rect.left, rect.top, priority, 0);
 		if (style & 0x20) {
