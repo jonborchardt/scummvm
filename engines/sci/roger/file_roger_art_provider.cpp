@@ -327,19 +327,20 @@ static bool rogerPointInPoly(const double *vx, const double *vy, int n, double x
 void FileRogerArtProvider::ensureCursor() {
 	if (_cursorSurf)
 		return;
-	// A classic arrow pointer: white fill, black anti-aliased outline. Drawn by
-	// supersampling a polygon (tip at design 0,0) and dilating for the outline, so
-	// the result is smooth at hires (the native 16px SCI cursor is invisible/tiny
-	// over the overlay). dontScale keeps it this pixel size in the window.
-	const Graphics::PixelFormat rgba(4, 8, 8, 8, 8, 24, 16, 8, 0);
+	// A classic arrow pointer (tip at design 0,0): white fill + black outline. Built
+	// by supersampling a polygon and dilating for the outline, drawn large so it is
+	// visible over the hires overlay (the native 16px SCI cursor is invisible there).
+	// CLUT8 (index 0 transparent, 1 black, 2 white) — the same proven cursor path the
+	// SCI driver uses; an RGBA cursor was invisible under the backend's premultiplied
+	// cursor blend. dontScale keeps it this pixel size in the window.
 	int side = 44;
 	if (ConfMan.hasKey("roger_cursor_size"))
 		side = ConfMan.getInt("roger_cursor_size");
 	const int S = side;
-	static const double vx[] = { 0, 0, 4, 7, 10, 6.5, 12 };
-	static const double vy[] = { 0, 18, 14, 21, 19.5, 13, 13 };
+	static const double vx[] = { 0, 0, 4.2, 6.8, 9.0, 5.3, 10.5 };
+	static const double vy[] = { 0, 15, 11.5, 17.5, 16.3, 11.0, 11.0 };
 	const int N = 7;
-	const double scale = (double)S / 24.0; // design box ~24 tall
+	const double scale = (double)S / 20.0; // design box ~20 tall
 
 	Common::Array<double> cov;
 	cov.resize(S * S);
@@ -360,7 +361,7 @@ void FileRogerArtProvider::ensureCursor() {
 	}
 
 	_cursorSurf = new Graphics::Surface();
-	_cursorSurf->create(S, S, rgba);
+	_cursorSurf->create(S, S, Graphics::PixelFormat::createFormatCLUT8());
 	const int R = 2; // outline radius (px)
 	for (int y = 0; y < S; y++) {
 		for (int x = 0; x < S; x++) {
@@ -376,18 +377,14 @@ void FileRogerArtProvider::ensureCursor() {
 					dil = MAX(dil, cov[ny * S + nx]);
 				}
 			}
-			const double outA = fillA + dil * (1.0 - fillA);
-			uint32 px;
-			if (outA <= 0.0) {
-				px = 0; // transparent (keycolor 0)
-			} else {
-				// white over black: luminance is white's weight over the combined alpha
-				// (black contributes 0), giving a white arrow with a black AA outline.
-				const int lum = (int)((255.0 * fillA) / outA + 0.5);
-				const int a = (int)(outA * 255.0 + 0.5);
-				px = rgba.ARGBToColor((byte)a, (byte)lum, (byte)lum, (byte)lum);
-			}
-			_cursorSurf->setPixel(x, y, px);
+			byte idx;
+			if (dil < 0.5)
+				idx = 0;             // transparent (outside the arrow + outline)
+			else if (fillA >= 0.5)
+				idx = 2;             // white fill
+			else
+				idx = 1;             // black outline
+			_cursorSurf->setPixel(x, y, idx);
 		}
 	}
 }
@@ -398,11 +395,13 @@ void FileRogerArtProvider::applyHiresCursor() {
 	ensureCursor();
 	if (!_cursorSurf)
 		return;
-	const Graphics::PixelFormat rgba(4, 8, 8, 8, 8, 24, 16, 8, 0);
 	// OSystem's setMouseCursor/showMouse are protected; the public API is CursorMan.
-	// Hotspot at the arrow tip (a hair inside, past the 2px outline).
+	// CLUT8 cursor + a 3-entry cursor palette (0 keyed, 1 black, 2 white).
+	static const byte pal[3 * 3] = { 0, 0, 0,  0, 0, 0,  255, 255, 255 };
 	CursorMan.replaceCursor(_cursorSurf->getPixels(), _cursorSurf->w, _cursorSurf->h,
-	                        2, 2, 0 /*keycolor=transparent*/, true /*dontScale*/, &rgba);
+	                        2, 2, 0 /*keycolor index*/, true /*dontScale*/);
+	CursorMan.replaceCursorPalette(pal, 0, 3);
+	CursorMan.disableCursorPalette(false); // use our palette, not the game's
 	CursorMan.showMouse(true);
 	_cursorApplied = true;
 }
