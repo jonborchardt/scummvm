@@ -44,6 +44,7 @@ class GfxCompare;
 #include "sci/graphics/view.h"
 #include "sci/graphics/palette16.h"
 #include "graphics/managed_surface.h"
+#include "graphics/cursorman.h"
 #include "graphics/paletteman.h"
 #include "graphics/pixelformat.h"
 #include "graphics/surface.h"
@@ -257,6 +258,11 @@ void FileRogerArtProvider::renderFrame(const Common::Array<Roger::Sprite> &sprit
 	}
 	_compositor->presentToOverlay(scene);
 
+	// Ensure the hires cursor is applied at least once (covers a cursor shown before
+	// the provider existed). Subsequent SCI cursor changes re-apply it via kernelShow.
+	if (!_cursorApplied)
+		applyHiresCursor();
+
 	// roger_autoshot (verification harness): dump once per room. Deterministic — no
 	// keystrokes/focus needed.
 	if (_autoshot && _autoshotPicId != _loadedPicId) {
@@ -305,6 +311,100 @@ void FileRogerArtProvider::dumpAutoshot(Graphics::ManagedSurface &scene,
 			delete nativeRGBA;
 		}
 	}
+}
+
+// Ray-casting point-in-polygon test (design-space coords).
+static bool rogerPointInPoly(const double *vx, const double *vy, int n, double x, double y) {
+	bool in = false;
+	for (int i = 0, j = n - 1; i < n; j = i++) {
+		if (((vy[i] > y) != (vy[j] > y)) &&
+		    (x < (vx[j] - vx[i]) * (y - vy[i]) / (vy[j] - vy[i]) + vx[i]))
+			in = !in;
+	}
+	return in;
+}
+
+void FileRogerArtProvider::ensureCursor() {
+	if (_cursorSurf)
+		return;
+	// A classic arrow pointer: white fill, black anti-aliased outline. Drawn by
+	// supersampling a polygon (tip at design 0,0) and dilating for the outline, so
+	// the result is smooth at hires (the native 16px SCI cursor is invisible/tiny
+	// over the overlay). dontScale keeps it this pixel size in the window.
+	const Graphics::PixelFormat rgba(4, 8, 8, 8, 8, 24, 16, 8, 0);
+	int side = 44;
+	if (ConfMan.hasKey("roger_cursor_size"))
+		side = ConfMan.getInt("roger_cursor_size");
+	const int S = side;
+	static const double vx[] = { 0, 0, 4, 7, 10, 6.5, 12 };
+	static const double vy[] = { 0, 18, 14, 21, 19.5, 13, 13 };
+	const int N = 7;
+	const double scale = (double)S / 24.0; // design box ~24 tall
+
+	Common::Array<double> cov;
+	cov.resize(S * S);
+	const int SS = 4;
+	for (int y = 0; y < S; y++) {
+		for (int x = 0; x < S; x++) {
+			int inside = 0;
+			for (int i = 0; i < SS; i++) {
+				for (int j = 0; j < SS; j++) {
+					const double fx = (x + (i + 0.5) / SS) / scale;
+					const double fy = (y + (j + 0.5) / SS) / scale;
+					if (rogerPointInPoly(vx, vy, N, fx, fy))
+						inside++;
+				}
+			}
+			cov[y * S + x] = (double)inside / (SS * SS);
+		}
+	}
+
+	_cursorSurf = new Graphics::Surface();
+	_cursorSurf->create(S, S, rgba);
+	const int R = 2; // outline radius (px)
+	for (int y = 0; y < S; y++) {
+		for (int x = 0; x < S; x++) {
+			const double fillA = cov[y * S + x];
+			double dil = 0.0; // dilated coverage -> black outline reaches R px out
+			for (int dy = -R; dy <= R && dil < 1.0; dy++) {
+				for (int dx = -R; dx <= R; dx++) {
+					const int nx = x + dx, ny = y + dy;
+					if (nx < 0 || ny < 0 || nx >= S || ny >= S)
+						continue;
+					if (dx * dx + dy * dy > R * R)
+						continue;
+					dil = MAX(dil, cov[ny * S + nx]);
+				}
+			}
+			const double outA = fillA + dil * (1.0 - fillA);
+			uint32 px;
+			if (outA <= 0.0) {
+				px = 0; // transparent (keycolor 0)
+			} else {
+				// white over black: luminance is white's weight over the combined alpha
+				// (black contributes 0), giving a white arrow with a black AA outline.
+				const int lum = (int)((255.0 * fillA) / outA + 0.5);
+				const int a = (int)(outA * 255.0 + 0.5);
+				px = rgba.ARGBToColor((byte)a, (byte)lum, (byte)lum, (byte)lum);
+			}
+			_cursorSurf->setPixel(x, y, px);
+		}
+	}
+}
+
+void FileRogerArtProvider::applyHiresCursor() {
+	if (!enabled)
+		return;
+	ensureCursor();
+	if (!_cursorSurf)
+		return;
+	const Graphics::PixelFormat rgba(4, 8, 8, 8, 8, 24, 16, 8, 0);
+	// OSystem's setMouseCursor/showMouse are protected; the public API is CursorMan.
+	// Hotspot at the arrow tip (a hair inside, past the 2px outline).
+	CursorMan.replaceCursor(_cursorSurf->getPixels(), _cursorSurf->w, _cursorSurf->h,
+	                        2, 2, 0 /*keycolor=transparent*/, true /*dontScale*/, &rgba);
+	CursorMan.showMouse(true);
+	_cursorApplied = true;
 }
 
 void FileRogerArtProvider::ensureUi() {
@@ -594,6 +694,7 @@ FileRogerArtProvider::~FileRogerArtProvider() {
 	delete _textRenderer; _textRenderer = nullptr;
 	delete _altTextRenderer; _altTextRenderer = nullptr;
 	if (_sceneCache) { delete _sceneCache; _sceneCache = nullptr; }
+	if (_cursorSurf) { _cursorSurf->free(); delete _cursorSurf; _cursorSurf = nullptr; }
 	for (uint i = 0; i < _uiIcons.size(); i++) { _uiIcons[i]->free(); delete _uiIcons[i]; }
 	_uiIcons.clear();
 }

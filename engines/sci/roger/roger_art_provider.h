@@ -96,6 +96,11 @@ public:
 	virtual void uiClearToken(uint32 token) {}
 	virtual void uiClearAll() {}
 
+	// Replace the SCI mouse cursor with Roger's smooth hires cursor. Called from
+	// GfxCursor whenever SCI sets/shows a cursor (the native cursor is invisible/tiny
+	// over the hires overlay). Default no-op.
+	virtual void applyHiresCursor() {}
+
 	// Debug/runtime toggles, invoked from the SCI event loop (see event.cpp):
 	// toggleOverlay flips between the upscaled overlay and the original native
 	// 320x200 render (A/B comparison); toggleDebugLog flips per-frame logging.

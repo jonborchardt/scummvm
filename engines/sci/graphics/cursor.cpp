@@ -37,6 +37,7 @@
 #include "sci/graphics/view.h"
 #include "sci/graphics/cursor.h"
 #include "sci/graphics/maciconbar.h"
+#include "sci/roger/roger_art_provider.h"
 
 namespace Sci {
 
@@ -82,6 +83,10 @@ GfxCursor::~GfxCursor() {
 void GfxCursor::kernelShow() {
 	CursorMan.showMouse(true);
 	_isVisible = true;
+	// Roger: the native cursor is invisible/tiny over the hires overlay; substitute
+	// the smooth hires cursor (the backend then tracks the mouse natively).
+	if (g_sciRogerProvider && g_sciRogerProvider->enabled)
+		g_sciRogerProvider->applyHiresCursor();
 }
 
 void GfxCursor::kernelHide() {
