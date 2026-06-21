@@ -21,6 +21,7 @@
 #include "sci/roger/file_roger_art_provider.h"
 #include "sci/roger/png_loader.h"
 #include "sci/roger/roger_compositor.h"
+#include "sci/roger/roger_coords.h"
 #include "sci/roger/view_cache.h"
 #include "sci/roger/slice_set.h"
 // animate.h references these SCI engine types in GfxAnimate's interface but does
@@ -41,6 +42,7 @@ class GfxCompare;
 #include "sci/graphics/view.h"
 #include "sci/graphics/palette16.h"
 #include "graphics/managed_surface.h"
+#include "graphics/paletteman.h"
 #include "graphics/pixelformat.h"
 #include "graphics/surface.h"
 #include "common/array.h"
@@ -226,25 +228,61 @@ void FileRogerArtProvider::renderFrame(const Common::Array<Roger::Sprite> &sprit
 		        ofmt.bytesPerPixel, ofmt.rBits(), ofmt.gBits(), ofmt.bBits(), ofmt.aBits(),
 		        _plate->w, _plate->h);
 	}
-	Graphics::ManagedSurface scene(g_system->getOverlayWidth(),
-	                               g_system->getOverlayHeight(), rgba);
+	const int OW = g_system->getOverlayWidth();
+	const int OH = g_system->getOverlayHeight();
+
+	// H4 geometry: place the picture (plate + sprites) where the native game is
+	// actually drawn on screen. The overlay fills the whole window but is alpha-
+	// blended over the still-rendered native game, which the backend draws into a
+	// centered, aspect-preserving sub-rect. Replicate that placement so the overlay
+	// lines up 1:1 (no shift when toggled), reserving the top status-bar strip so the
+	// native "Score:" bar shows through the (transparent) overlay there.
+	const bool aspectCorrected = g_system->getFeatureState(OSystem::kFeatureAspectRatioCorrection);
+	const Common::Rect gameRect = Roger::computeGameRect(OW, OH, aspectCorrected);
+	const Common::Rect picRect = Roger::computePictureRect(gameRect, _statusBarH);
+	_compositor->setPictureDest(picRect);
+
+	Graphics::ManagedSurface scene(OW, OH, rgba);
 	_compositor->renderScene(scene, sprites);
 	_compositor->presentToOverlay(scene);
 
-	// roger_autoshot (verification harness): dump the composited overlay scene to a
-	// PNG once per room. Deterministic — no keystrokes/focus needed. Output goes to
-	// the configured screenshotpath (else the current directory).
+	// roger_autoshot (verification harness): dump once per room. Deterministic — no
+	// keystrokes/focus needed. Output goes to the configured screenshotpath. Two PNGs:
+	//   roger-<id>-overlay.png — Roger's composited layer alone (letterbox + status
+	//                            strip are transparent, shown as black by a viewer)
+	//   roger-<id>-preview.png — the true on-screen result: the native 320x200 game
+	//                            scaled into gameRect with Roger's layer blended over
+	//                            it (mirrors the backend draw order), so plate/native
+	//                            alignment and the status bar showing through are visible.
 	if (_autoshot && _autoshotPicId != _loadedPicId) {
 		Common::String dir;
 		if (ConfMan.hasKey("screenshotpath"))
 			dir = ConfMan.getPath("screenshotpath").toString('/');
 		if (!dir.empty() && dir.lastChar() != '/')
 			dir += '/';
-		const Common::String path = dir + Common::String::format("roger-%d-overlay.png", _loadedPicId);
-		if (Roger::dumpSurfacePng(*scene.surfacePtr(), path))
-			warning("ROGER: autoshot wrote %s", path.c_str());
-		else
-			warning("ROGER: autoshot FAILED to write %s", path.c_str());
+		const Common::String base = dir + Common::String::format("roger-%d", _loadedPicId);
+
+		if (Roger::dumpSurfacePng(*scene.surfacePtr(), base + "-overlay.png"))
+			warning("ROGER: autoshot wrote %s-overlay.png", base.c_str());
+
+		Graphics::Surface *nativeScreen = g_system->lockScreen();
+		if (nativeScreen) {
+			byte pal[256 * 3];
+			g_system->getPaletteManager()->grabPalette(pal, 0, 256);
+			Graphics::Surface *nativeRGBA = nativeScreen->convertTo(rgba, pal, 256);
+			g_system->unlockScreen();
+			if (nativeRGBA) {
+				Graphics::ManagedSurface preview(OW, OH, rgba);
+				preview.fillRect(Common::Rect(0, 0, OW, OH), rgba.ARGBToColor(255, 0, 0, 0));
+				preview.blitFrom(*nativeRGBA, Common::Rect(0, 0, nativeRGBA->w, nativeRGBA->h), gameRect);
+				preview.blendBlitFrom(*scene.surfacePtr(), Common::Rect(0, 0, scene.w, scene.h),
+				                      Common::Rect(0, 0, (int16)OW, (int16)OH));
+				if (Roger::dumpSurfacePng(*preview.surfacePtr(), base + "-preview.png"))
+					warning("ROGER: autoshot wrote %s-preview.png", base.c_str());
+				nativeRGBA->free();
+				delete nativeRGBA;
+			}
+		}
 		_autoshotPicId = _loadedPicId;
 	}
 }

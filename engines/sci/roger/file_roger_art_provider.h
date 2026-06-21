@@ -77,6 +77,7 @@ private:
 	bool _debugLog = false;      // per-frame diagnostic logging
 	bool _autoshot = false;      // roger_autoshot: dump the composited scene to PNG on room load (verification harness)
 	int _autoshotPicId = -1;     // last pic id already auto-shot (so we dump once per room, not per frame)
+	int _statusBarH = 10;        // SCI0 status/menu bar height in screen rows (of 200); reserved at the top of the game rect (may change)
 	Common::Array<byte> _priorityMap; // screen-space SCI priority (from loadBuffers), for overlay occlusion
 
 	Common::String picDir(GuiResourceId id) const;

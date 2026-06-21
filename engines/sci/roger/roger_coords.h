@@ -28,6 +28,52 @@ namespace Sci {
 namespace Roger {
 
 /**
+ * Fit a srcW x srcH box into a W x H area, preserving aspect, centered
+ * (letterbox / pillarbox). Returns the centered destination rect in W x H space.
+ */
+inline Common::Rect fitCentered(int srcW, int srcH, int W, int H) {
+	if (srcW <= 0 || srcH <= 0)
+		return Common::Rect(0, 0, (int16)W, (int16)H);
+	// scale = min(W/srcW, H/srcH), computed without floats crossing the branch.
+	const float scaleW = (float)W / srcW;
+	const float scaleH = (float)H / srcH;
+	const float scale = (scaleW < scaleH) ? scaleW : scaleH;
+	const int fitW = (int)(srcW * scale);
+	const int fitH = (int)(srcH * scale);
+	const int x = (W - fitW) / 2;
+	const int y = (H - fitH) / 2;
+	return Common::Rect((int16)x, (int16)y, (int16)(x + fitW), (int16)(y + fitH));
+}
+
+/**
+ * The on-screen rect (in overlay pixels) where the native 320x200 SCI game is
+ * displayed: a centered, aspect-preserving box. This MUST match the backend's own
+ * game placement so the overlay (drawn full-window, alpha-blended over the game)
+ * lines up 1:1 — toggling the overlay then produces no positional shift.
+ *
+ * With aspect-ratio correction the 200 game lines are shown at 4:3 (as if
+ * 320x240); otherwise at the native 320x200. Assumes the backend's default
+ * centered/fit stretch mode (not integer-scaling).
+ */
+inline Common::Rect computeGameRect(int overlayW, int overlayH, bool aspectCorrected) {
+	return fitCentered(320, aspectCorrected ? 240 : 200, overlayW, overlayH);
+}
+
+/**
+ * The picture sub-rect within the game rect. SCI0 reserves the top `statusBarH`
+ * screen rows (of `screenLines`, normally 200) for the status/menu bar; the
+ * upscaled picture plate occupies the rest. Leaving the reserved strip
+ * untouched (transparent) lets the native status bar show through the overlay.
+ */
+inline Common::Rect computePictureRect(const Common::Rect &gameRect, int statusBarH, int screenLines = 200) {
+	if (screenLines <= 0 || statusBarH <= 0)
+		return gameRect;
+	const int stripPx = gameRect.height() * statusBarH / screenLines;
+	return Common::Rect(gameRect.left, (int16)(gameRect.top + stripPx),
+	                    gameRect.right, gameRect.bottom);
+}
+
+/**
  * Scale a 320x200 SCI cel rect into hires overlay pixel coordinates.
  *
  * scaleX = overlayW / 320.0, scaleY = overlayH / 200.0

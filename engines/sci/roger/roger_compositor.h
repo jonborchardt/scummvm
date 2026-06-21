@@ -61,6 +61,13 @@ public:
 	// priority there exceeds the sprite's priority — exactly SCI's own occlusion.
 	void setPriorityMask(const byte *priority, int priW, int priH);
 
+	// Overlay-space rect where the picture (plate + sprites) is drawn. The caller
+	// computes this (roger_coords::computeGameRect → computePictureRect) so it
+	// coincides with the native game's on-screen picture region (below the status
+	// bar), keeping the alpha-blended overlay aligned with the native game. When
+	// left unset (empty), renderScene falls back to the full destination surface.
+	void setPictureDest(const Common::Rect &r) { _pictureDest = r; }
+
 	// Compose dest = plate + sprites (back-to-front) with per-pixel priority occlusion.
 	void renderScene(Graphics::ManagedSurface &dest, const Common::Array<Sprite> &sprites);
 
@@ -75,6 +82,7 @@ private:
 	const byte *_priority;     // screen-space priority map (borrowed), or nullptr
 	int _priorityW, _priorityH;
 	int _picScreenTop;         // screen row where the picture starts (menu-bar offset)
+	Common::Rect _pictureDest; // overlay-space picture rect (set by the caller; empty => full surface)
 };
 
 } // namespace Roger

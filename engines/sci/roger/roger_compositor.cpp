@@ -48,35 +48,23 @@ void RogerCompositor::setPriorityMask(const byte *priority, int priW, int priH) 
 	_priorityH = priH;
 }
 
-// Compute the centered, aspect-preserving rectangle for a srcW x srcH image
-// fitted inside a W x H destination (letterbox/pillarbox). Keeps the hires art
-// from stretching when the overlay/window aspect differs from the art's.
-static Common::Rect aspectFitRect(int srcW, int srcH, int W, int H) {
-	if (srcW <= 0 || srcH <= 0)
-		return Common::Rect(0, 0, (int16)W, (int16)H);
-	// Scale to fit (min of the two ratios), preserving aspect.
-	const float scale = MIN((float)W / srcW, (float)H / srcH);
-	const int fitW = (int)(srcW * scale);
-	const int fitH = (int)(srcH * scale);
-	const int x = (W - fitW) / 2;
-	const int y = (H - fitH) / 2;
-	return Common::Rect((int16)x, (int16)y, (int16)(x + fitW), (int16)(y + fitH));
-}
-
 void RogerCompositor::renderScene(Graphics::ManagedSurface &dest, const Common::Array<Sprite> &sprites) {
 	const int W = dest.w, H = dest.h;
 
-	// The hires content occupies an aspect-preserving rect centered in the overlay
-	// (the overlay/window may be a different shape than the 320x200 game art). All
-	// of plate, sprites and slices map into this same "game rect" so they stay
-	// aligned; the surrounding letterbox stays as cleared background.
-	const Common::Rect gameRect = _plate
-		? aspectFitRect(_plate->w, _plate->h, W, H)
-		: Common::Rect(0, 0, (int16)W, (int16)H);
-	const int GW = gameRect.width(), GH = gameRect.height();
+	// The picture (plate + sprites) is drawn into _pictureDest — the overlay-space
+	// rect the caller computed (via roger_coords::computeGameRect/computePictureRect)
+	// to coincide with the native game's on-screen PICTURE region, i.e. below the
+	// status bar. The overlay is alpha-blended over the still-rendered native game,
+	// so everything outside this rect (letterbox + the reserved status-bar strip) is
+	// left transparent and the native pixels show through there. Falls back to the
+	// full surface when unset (unit tests, or no caller geometry).
+	const Common::Rect picRect = _pictureDest.isEmpty()
+		? Common::Rect(0, 0, (int16)W, (int16)H)
+		: _pictureDest;
+	const int GW = picRect.width(), GH = picRect.height();
 
 	// Cel rects are in SCI picture-window-local coords (_picW x _picH, 320x190 for
-	// SCI0); the plate encodes that same picture, so both map into gameRect.
+	// SCI0); the plate encodes that same picture, so both map into picRect.
 	const int PIC_W = _picW, PIC_H = _picH;
 
 	// 0) Clear so letterbox borders are clean (transparent in an alpha overlay).
@@ -84,7 +72,7 @@ void RogerCompositor::renderScene(Graphics::ManagedSurface &dest, const Common::
 
 	// 1) Clean plate, scaled into the game rect (aspect preserved).
 	if (_plate)
-		dest.blitFrom(*_plate, Common::Rect(0, 0, _plate->w, _plate->h), gameRect);
+		dest.blitFrom(*_plate, Common::Rect(0, 0, _plate->w, _plate->h), picRect);
 
 	Graphics::Surface *destSurf = dest.surfacePtr();
 
@@ -105,10 +93,10 @@ void RogerCompositor::renderScene(Graphics::ManagedSurface &dest, const Common::
 			continue;
 		// Map the picture-window-local cel rect (PIC_W x PIC_H) into the game rect.
 		Common::Rect dst(
-			(int16)(gameRect.left + (int)s.celRect.left   * GW / PIC_W),
-			(int16)(gameRect.top  + (int)s.celRect.top    * GH / PIC_H),
-			(int16)(gameRect.left + (int)s.celRect.right  * GW / PIC_W),
-			(int16)(gameRect.top  + (int)s.celRect.bottom * GH / PIC_H));
+			(int16)(picRect.left + (int)s.celRect.left   * GW / PIC_W),
+			(int16)(picRect.top  + (int)s.celRect.top    * GH / PIC_H),
+			(int16)(picRect.left + (int)s.celRect.right  * GW / PIC_W),
+			(int16)(picRect.top  + (int)s.celRect.bottom * GH / PIC_H));
 		// Alpha-aware blit: respects each pixel's alpha so transparent non-black
 		// pixels (common in exported spritesheets) do not render opaque (halos).
 		dest.blendBlitFrom(*cel, Common::Rect(0, 0, cel->w, cel->h), dst,
@@ -116,21 +104,21 @@ void RogerCompositor::renderScene(Graphics::ManagedSurface &dest, const Common::
 
 		// Per-pixel priority occlusion against the plate.
 		if (_priority && _plate) {
-			const int x0 = MAX<int>(dst.left, gameRect.left);
-			const int y0 = MAX<int>(dst.top, gameRect.top);
-			const int x1 = MIN<int>(dst.right, gameRect.right);
-			const int y1 = MIN<int>(dst.bottom, gameRect.bottom);
+			const int x0 = MAX<int>(dst.left, picRect.left);
+			const int y0 = MAX<int>(dst.top, picRect.top);
+			const int x1 = MIN<int>(dst.right, picRect.right);
+			const int y1 = MIN<int>(dst.bottom, picRect.bottom);
 			for (int oy = y0; oy < y1; oy++) {
-				const int prY = (oy - gameRect.top) * PIC_H / GH + _picScreenTop;
+				const int prY = (oy - picRect.top) * PIC_H / GH + _picScreenTop;
 				if (prY < 0 || prY >= _priorityH)
 					continue;
-				const int plY = (oy - gameRect.top) * _plate->h / GH;
+				const int plY = (oy - picRect.top) * _plate->h / GH;
 				for (int ox = x0; ox < x1; ox++) {
-					const int picX = (ox - gameRect.left) * PIC_W / GW;
+					const int picX = (ox - picRect.left) * PIC_W / GW;
 					if (picX < 0 || picX >= _priorityW)
 						continue;
 					if (_priority[prY * _priorityW + picX] > s.priority) {
-						const int plX = (ox - gameRect.left) * _plate->w / GW;
+						const int plX = (ox - picRect.left) * _plate->w / GW;
 						destSurf->setPixel(ox, oy, _plate->getPixel(plX, plY));
 					}
 				}
