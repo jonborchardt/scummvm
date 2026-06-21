@@ -89,23 +89,20 @@ void GfxPaint16::debugSetEGAdrawingVisualize(bool state) {
 }
 
 void GfxPaint16::drawPicture(GuiResourceId pictureId, bool mirroredFlag, bool addToFlag, GuiResourceId paletteId) {
-	// Roger art replacement hook
-	if (g_sciRogerProvider && g_sciRogerProvider->enabled
-			&& g_sciRogerProvider->hasBackground(pictureId)) {
+	// Roger art replacement. We still render the NATIVE (original low-res) picture
+	// below, so the real room exists in the game surface as a fallback whenever the
+	// hires overlay is hidden (toggled off, or behind a text box / menu). After the
+	// native draw we overwrite priority/control with Roger's maps (so game logic +
+	// occlusion use them) and cache the hires plate for the overlay compositor.
+	const bool rogerReplace = g_sciRogerProvider && g_sciRogerProvider->enabled
+			&& g_sciRogerProvider->hasBackground(pictureId);
+	if (rogerReplace) {
 		g_sciRogerProvider->prefetch(pictureId);
-		if (g_sciRogerProvider->loadBuffers(pictureId, _screen)) {
-			g_sciRogerProvider->pushHiresBackground(pictureId);
-			_screen->setCurPaletteMapValue(0);
-			return;
-		}
-	}
-
-	// Reaching here means this picture is drawn natively (no replacement, or
-	// buffer load failed). For a full-screen room background, drop any stale hires
-	// overlay from a previous room (Hard Constraint 6). addToPic overlays must not
-	// evict the current room's plate.
-	if (!addToFlag && g_sciRogerProvider && g_sciRogerProvider->enabled)
+	} else if (!addToFlag && g_sciRogerProvider && g_sciRogerProvider->enabled) {
+		// Full-screen room with no replacement: drop any stale overlay from the
+		// previous room (Hard Constraint 6). addToPic overlays must not evict it.
 		g_sciRogerProvider->onNativePicture();
+	}
 
 	// Set up custom per-picture palette mod
 	doCustomPicPalette(_screen, pictureId);
@@ -125,6 +122,15 @@ void GfxPaint16::drawPicture(GuiResourceId pictureId, bool mirroredFlag, bool ad
 
 	// Reset custom per-picture palette mod
 	_screen->setCurPaletteMapValue(0);
+
+	// Roger: cache the hires plate (and the overlay's own occlusion priority map)
+	// for the OSystem overlay compositor. We deliberately do NOT overwrite SCI's
+	// priority/control buffers here - the native picture just filled them with the
+	// game's ORIGINAL maps, which are correct for walkability and native occlusion.
+	// (The overlay's per-pixel occlusion uses its own priority map, loaded inside
+	// pushHiresBackground.)
+	if (rogerReplace)
+		g_sciRogerProvider->pushHiresBackground(pictureId);
 }
 
 // This one is the only one that updates screen!

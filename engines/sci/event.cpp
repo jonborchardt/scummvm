@@ -252,16 +252,19 @@ SciEvent EventManager::getScummVMEvent() {
 		return input;
 	}
 
-	// Roger debug hotkeys (consumed, not passed to the game):
-	//   Ctrl+Shift+U - toggle the upscaled hires overlay vs the original 320x200
-	//   Ctrl+Shift+L - toggle per-frame Roger diagnostic logging
-	if (ev.type == Common::EVENT_KEYDOWN && g_sciRogerProvider &&
-	    (ev.kbd.flags & Common::KBD_CTRL) && (ev.kbd.flags & Common::KBD_SHIFT)) {
-		if (ev.kbd.keycode == Common::KEYCODE_u) {
+	// Roger debug hotkeys (consumed, not passed to the game). Bound to plain
+	// F-keys (most likely to reach the engine - Ctrl+Shift+* was being eaten
+	// before SCI saw it) plus the Ctrl+Shift variants as a fallback:
+	//   F10 / Ctrl+Shift+U - toggle the upscaled hires overlay vs the original
+	//   F11 / Ctrl+Shift+L - toggle per-frame Roger diagnostic logging
+	if (ev.type == Common::EVENT_KEYDOWN && g_sciRogerProvider) {
+		const Common::KeyCode kc = ev.kbd.keycode;
+		const bool ctrlShift = (ev.kbd.flags & Common::KBD_CTRL) && (ev.kbd.flags & Common::KBD_SHIFT);
+		if (kc == Common::KEYCODE_F10 || (ctrlShift && kc == Common::KEYCODE_u)) {
 			g_sciRogerProvider->toggleOverlay();
 			return noEvent;
 		}
-		if (ev.kbd.keycode == Common::KEYCODE_l) {
+		if (kc == Common::KEYCODE_F11 || (ctrlShift && kc == Common::KEYCODE_l)) {
 			g_sciRogerProvider->toggleDebugLog();
 			return noEvent;
 		}

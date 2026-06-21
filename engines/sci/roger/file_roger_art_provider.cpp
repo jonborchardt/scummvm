@@ -213,6 +213,13 @@ void FileRogerArtProvider::renderFrame(const Common::Array<Roger::Sprite> &sprit
 	// slices) works - it requires an RGBA32 destination. presentToOverlay converts
 	// the finished scene to the actual overlay format before pushing it.
 	const Graphics::PixelFormat rgba(4, 8, 8, 8, 8, 24, 16, 8, 0);
+	if (_debugLog) {
+		const Graphics::PixelFormat ofmt = g_system->getOverlayFormat();
+		warning("ROGER DBG renderFrame: overlay=%dx%d ofmt=bpp%d(R%d G%d B%d A%d) plate=%dx%d",
+		        g_system->getOverlayWidth(), g_system->getOverlayHeight(),
+		        ofmt.bytesPerPixel, ofmt.rBits(), ofmt.gBits(), ofmt.bBits(), ofmt.aBits(),
+		        _plate->w, _plate->h);
+	}
 	Graphics::ManagedSurface scene(g_system->getOverlayWidth(),
 	                               g_system->getOverlayHeight(), rgba);
 	_compositor->renderScene(scene, sprites);
@@ -285,8 +292,10 @@ void FileRogerArtProvider::renderFromAnimateList(const AnimateList &list) {
 	if (dbg) {
 		uint listLen = 0;
 		for (AnimateList::const_iterator it = list.begin(); it != list.end(); ++it) listLen++;
-		warning("ROGER DBG: animate-list entries=%u, pic=%d plate=%p compositor=%p overlay=%s",
-		        listLen, _loadedPicId, (void *)_plate, (void *)_compositor, _overlayActive ? "on" : "off");
+		warning("ROGER DBG: entries=%u pic=%d plate=%p plateSize=%dx%d compositor=%p overlay=%s prioBytes=%u",
+		        listLen, _loadedPicId, (void *)_plate,
+		        _plate ? _plate->w : -1, _plate ? _plate->h : -1,
+		        (void *)_compositor, _overlayActive ? "on" : "off", _priorityMap.size());
 	}
 
 	for (AnimateList::const_iterator it = list.begin(); it != list.end(); ++it) {
