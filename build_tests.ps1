@@ -54,7 +54,9 @@ $RogerSources = @(
     "..\..\engines\sci\roger\png_loader.cpp",
     "..\..\engines\sci\roger\view_cache.cpp",
     "..\..\engines\sci\roger\slice_set.cpp",
-    "..\..\engines\sci\roger\roger_compositor.cpp"
+    "..\..\engines\sci\roger\roger_compositor.cpp",
+    "..\..\engines\sci\roger\roger_ui_layer.cpp",
+    "..\..\engines\sci\roger\roger_text.cpp"
 )
 
 # The Roger test-suite headers to feed cxxtestgen, listed explicitly rather than via
@@ -68,7 +70,10 @@ $RogerTestHeaders = @(
     "test_roger_coords.h",
     "test_view_cache.h",
     "test_slice_set.h",
-    "test_compositor.h"
+    "test_compositor.h",
+    "test_ui_layer.h",
+    "test_roger_text.h",
+    "test_ui_render.h"
 )
 
 # ── Locate MSBuild via vswhere ────────────────────────────────────────────────
