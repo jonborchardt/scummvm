@@ -22,57 +22,24 @@
 #define SCI_ROGER_SLICE_SET_H
 
 #include "common/str.h"
-#include "common/array.h"
-
-namespace Graphics { struct Surface; }
 
 namespace Sci {
 namespace Roger {
 
-// Map a CSS hex color (e.g. "#ffffff") to the nearest SCI0 EGA priority band (0..15).
-int bandForColor(const Common::String &hex);
+// SCI0 EGA priority-band helpers.
+//
+// (This file formerly also held a SliceSet class that loaded foreground "slice"
+// PNGs + a manifest for occlusion. That approach was replaced by per-pixel
+// priority occlusion against the real EGA-color priority map and has been removed;
+// only the band-decode helpers remain. The filename is kept to avoid regenerating
+// the MSVC solution / module lists.)
 
 // Nearest SCI0 EGA priority band (0..15) for an RGB triple. Used to decode an
-// EGA-color-encoded priority map (each pixel's color = its priority band).
+// EGA-color-encoded priority map (each pixel's color encodes its priority band).
 int bandForRGB(int r, int g, int b);
 
-// One foreground slice piece: a surface loaded from a color_*.png, its hires
-// position within the manifest's coordinate space, and the SCI priority band
-// derived from its assigned color.
-struct SlicePiece {
-	Graphics::Surface *surface; // owned by SliceSet — do NOT free externally
-	int x, y;                   // top-left in hires manifest space
-	int band;                   // SCI priority 0..15
-};
-
-// Loads a sliced overlay manifest (manifest.json by default) together with all
-// its color_*.png piece images. Constructed with the directory that contains
-// both the manifest and the piece PNGs.
-//
-// Ownership: SliceSet owns all Graphics::Surface* in pieces(); they are freed
-// in the destructor. SliceSet is non-copyable to prevent double-free.
-class SliceSet {
-public:
-	// dir  — path to the "sliced/" directory containing the manifest + PNGs.
-	// manifestName — filename of the JSON manifest within dir (default "manifest.json").
-	SliceSet(const Common::String &dir, const Common::String &manifestName = "manifest.json");
-	~SliceSet();
-
-	// Non-copyable: owns raw Surface pointers.
-	SliceSet(const SliceSet &) = delete;
-	SliceSet &operator=(const SliceSet &) = delete;
-
-	// Parse the manifest and load each piece surface.
-	// Returns false if the manifest file cannot be found, read, or parsed.
-	// Malformed individual pieces are silently skipped (no crash).
-	bool load();
-
-	const Common::Array<SlicePiece> &pieces() const { return _pieces; }
-
-private:
-	Common::String _dir, _manifest;
-	Common::Array<SlicePiece> _pieces;
-};
+// Map a CSS hex color (e.g. "#ffffff") to the nearest SCI0 EGA priority band (0..15).
+int bandForColor(const Common::String &hex);
 
 } // namespace Roger
 } // namespace Sci

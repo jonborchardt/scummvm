@@ -61,7 +61,7 @@ public:
 				prio[y * 8 + x] = (x < 4) ? 0 : 15;
 
 		Sci::Roger::RogerCompositor comp;
-		comp.setRoom(plate, nullptr, &views);
+		comp.setRoom(plate, &views);
 		comp.setPicture(8, 8, 0);
 		comp.setPriorityMask(prio.begin(), 8, 8);
 

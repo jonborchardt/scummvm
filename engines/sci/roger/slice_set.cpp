@@ -19,11 +19,6 @@
  */
 
 #include "sci/roger/slice_set.h"
-#include "sci/roger/png_loader.h"
-#include "common/fs.h"
-#include "common/stream.h"
-#include "common/formats/json.h"
-#include "graphics/surface.h"
 #include <cstdlib>
 
 namespace Sci {
@@ -75,72 +70,6 @@ int bandForColor(const Common::String &hex) {
 	long v = strtol(h.c_str(), nullptr, 16);
 	int best = bandForRGB((v >> 16) & 0xff, (v >> 8) & 0xff, v & 0xff);
 	return best;
-}
-
-SliceSet::SliceSet(const Common::String &dir, const Common::String &manifestName)
-	: _dir(dir), _manifest(manifestName) {}
-
-SliceSet::~SliceSet() {
-	for (uint i = 0; i < _pieces.size(); i++) {
-		if (_pieces[i].surface) {
-			_pieces[i].surface->free();
-			delete _pieces[i].surface;
-		}
-	}
-}
-
-bool SliceSet::load() {
-	Common::FSNode node(Common::Path(_dir + "/" + _manifest));
-	if (!node.exists())
-		return false;
-	Common::SeekableReadStream *s = node.createReadStream();
-	if (!s)
-		return false;
-	Common::String txt;
-	while (!s->eos()) {
-		char c = s->readByte();
-		if (s->eos())
-			break;
-		txt += c;
-	}
-	delete s;
-
-	Common::JSONValue *root = Common::JSON::parse(txt.c_str());
-	if (!root || !root->isObject()) {
-		delete root;
-		return false;
-	}
-	Common::JSONObject obj = root->asObject();
-	if (!obj.contains("pieces") || !obj["pieces"]->isArray()) {
-		delete root;
-		return false;
-	}
-	Common::JSONArray arr = obj["pieces"]->asArray();
-	for (uint i = 0; i < arr.size(); i++) {
-		if (!arr[i] || !arr[i]->isObject())
-			continue;
-		Common::JSONObject p = arr[i]->asObject();
-
-		// Guard each required field — skip malformed pieces rather than crashing.
-		if (!p.contains("x") || !p["x"]->isIntegerNumber())
-			continue;
-		if (!p.contains("y") || !p["y"]->isIntegerNumber())
-			continue;
-		if (!p.contains("color") || !p["color"]->isString())
-			continue;
-		if (!p.contains("filename") || !p["filename"]->isString())
-			continue;
-
-		SlicePiece piece;
-		piece.x = (int)p["x"]->asIntegerNumber();
-		piece.y = (int)p["y"]->asIntegerNumber();
-		piece.band = bandForColor(p["color"]->asString());
-		piece.surface = loadSurfaceRGBA(_dir + "/" + p["filename"]->asString());
-		if (piece.surface)
-			_pieces.push_back(piece);
-	}
-	delete root;
-	return true;
 }
 
 } // namespace Roger

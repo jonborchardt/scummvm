@@ -30,7 +30,7 @@
 namespace Graphics { struct Surface; }
 
 namespace Sci {
-namespace Roger { struct Sprite; class RogerCompositor; class ViewCache; class SliceSet; }
+namespace Roger { struct Sprite; class RogerCompositor; class ViewCache; }
 
 class FileRogerArtProvider : public RogerArtProvider {
 public:
@@ -70,7 +70,6 @@ private:
 
 	Roger::RogerCompositor *_compositor = nullptr;
 	Roger::ViewCache *_viewCache = nullptr;
-	Roger::SliceSet *_slices = nullptr;
 	Graphics::Surface *_plate = nullptr;
 	int _loadedPicId = -1;
 	bool _overlayActive = true;  // false = show native 320x200 (A/B comparison toggle)
@@ -84,7 +83,6 @@ private:
 	Common::String visualPath(GuiResourceId id) const;
 	Common::String priorityPath(GuiResourceId id) const;
 	Common::String controlPath(GuiResourceId id) const;
-	Common::String slicedDir(GuiResourceId id) const; // <roger>/pics/<id>/sliced
 	Common::String occlusionPriorityPath(GuiResourceId id) const; // EGA-color priority map for overlay occlusion
 	// Load an EGA-color-encoded priority PNG into a band-per-pixel buffer (0..15).
 	// Returns true and fills outBands/outW/outH on success.

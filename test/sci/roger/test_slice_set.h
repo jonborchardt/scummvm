@@ -20,24 +20,10 @@
 
 #include <cxxtest/TestSuite.h>
 #include "sci/roger/slice_set.h"
-#include "../../system/null_osystem.h"
 
-// FIXTURE_DIR must be defined on the compiler command line, e.g.:
-//   -DFIXTURE_DIR=\"/abs/path/to/test/sci/roger/fixtures\"
-// The Makefile (and build_tests.ps1 for MSVC) sets this automatically.
-
+// EGA priority-band helpers (the former SliceSet class was removed; see slice_set.h).
 class TestSliceSet : public CxxTest::TestSuite {
 public:
-	// SliceSet::load() reads files via Common::FSNode, which dereferences
-	// the global OSystem (g_system). Install the null backend for each test.
-	void setUp() {
-		Common::install_null_g_system();
-	}
-
-	void tearDown() {
-		Common::uninstall_null_g_system();
-	}
-
 	void test_band_for_white_is_15() {
 		TS_ASSERT_EQUALS(Sci::Roger::bandForColor("#ffffff"), 15);
 	}
@@ -46,13 +32,10 @@ public:
 		TS_ASSERT_EQUALS(Sci::Roger::bandForColor("#000000"), 0);
 	}
 
-	void test_manifest_loads_one_piece() {
-		// fixtures/slice_manifest.json references color_ffffff.png at (4,0)
-		Sci::Roger::SliceSet set(Common::String(FIXTURE_DIR), "slice_manifest.json");
-		TS_ASSERT(set.load());
-		TS_ASSERT_EQUALS(set.pieces().size(), 1u);
-		TS_ASSERT_EQUALS(set.pieces()[0].x, 4);
-		TS_ASSERT_EQUALS(set.pieces()[0].band, 15);  // white
-		TS_ASSERT(set.pieces()[0].surface != nullptr);
+	void test_band_for_rgb_nearest_match() {
+		// Near-white maps to band 15; near-black to band 0; pure-ish brown to band 6.
+		TS_ASSERT_EQUALS(Sci::Roger::bandForRGB(250, 250, 250), 15);
+		TS_ASSERT_EQUALS(Sci::Roger::bandForRGB(5, 5, 5), 0);
+		TS_ASSERT_EQUALS(Sci::Roger::bandForRGB(0xaa, 0x55, 0x00), 6); // brown
 	}
 };

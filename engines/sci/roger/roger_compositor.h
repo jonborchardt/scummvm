@@ -30,7 +30,6 @@ namespace Sci {
 namespace Roger {
 
 class ViewCache;
-class SliceSet;
 
 struct Sprite {
 	int viewId, loopNo, celNo;
@@ -42,13 +41,11 @@ struct Sprite {
 
 class RogerCompositor {
 public:
-	RogerCompositor() : _plate(nullptr), _slices(nullptr), _views(nullptr),
+	RogerCompositor() : _plate(nullptr), _views(nullptr),
 		_picW(320), _picH(190), _priority(nullptr), _priorityW(0), _priorityH(0), _picScreenTop(0) {}
 
 	// Borrowed pointers; lifetime managed by the caller (the provider).
-	// (slices is retained for API compatibility but no longer used — occlusion is
-	// now per-pixel via the priority mask, see setPriorityMask.)
-	void setRoom(Graphics::Surface *cleanPlate, SliceSet *slices, ViewCache *views);
+	void setRoom(Graphics::Surface *cleanPlate, ViewCache *views);
 
 	// Logical SCI picture dimensions (cel rects are in this space — 320x190 for
 	// SCI0) and the screen row where the picture begins (the menu-bar offset, used
@@ -76,7 +73,6 @@ public:
 
 private:
 	Graphics::Surface *_plate;
-	SliceSet *_slices;
 	ViewCache *_views;
 	int _picW, _picH;          // logical SCI picture size (cel-rect coordinate space)
 	const byte *_priority;     // screen-space priority map (borrowed), or nullptr

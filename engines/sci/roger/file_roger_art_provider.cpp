@@ -105,10 +105,6 @@ Common::String FileRogerArtProvider::controlPath(GuiResourceId id) const {
 	return picDir(id) + "pic." + Common::String::format("%d", id) + "_c.png";
 }
 
-Common::String FileRogerArtProvider::slicedDir(GuiResourceId id) const {
-	return _basePath + "/pics/" + Common::String::format("%d", id) + "/sliced";
-}
-
 Common::String FileRogerArtProvider::occlusionPriorityPath(GuiResourceId id) const {
 	const Common::String idStr = Common::String::format("%d", id);
 	if (_priorityVariant.empty())
@@ -176,26 +172,22 @@ void FileRogerArtProvider::pushHiresBackground(GuiResourceId pictureId) {
 
 	// Evict previous room.
 	if (_plate) { _plate->free(); delete _plate; _plate = nullptr; }
-	delete _slices; _slices = nullptr;
 
 	_plate = Roger::loadSurfaceRGBA(visualPath(pictureId));
 	if (!_plate) {
-		// No hires bg -> native shows. Clear the compositor's borrowed pointers so
-		// it does not retain the slice/plate we just deleted above.
+		// No hires bg -> native shows. Clear the compositor's borrowed plate pointer
+		// so it does not retain the plate we just deleted above.
 		if (_compositor)
-			_compositor->setRoom(nullptr, nullptr, nullptr);
+			_compositor->setRoom(nullptr, nullptr);
 		_loadedPicId = -1;
 		return;
 	}
-
-	_slices = new Roger::SliceSet(slicedDir(pictureId));
-	_slices->load(); // ok if it returns false (no slices -> no occlusion)
 
 	if (!_viewCache)
 		_viewCache = new Roger::ViewCache(_basePath + "/views");
 	if (!_compositor)
 		_compositor = new Roger::RogerCompositor();
-	_compositor->setRoom(_plate, _slices, _viewCache);
+	_compositor->setRoom(_plate, _viewCache);
 
 	// Load the real EGA-color priority map for per-pixel overlay occlusion and
 	// decode it to a band-per-pixel buffer. It is authored in picture space
@@ -217,17 +209,10 @@ void FileRogerArtProvider::pushHiresBackground(GuiResourceId pictureId) {
 void FileRogerArtProvider::renderFrame(const Common::Array<Roger::Sprite> &sprites) {
 	if (!_overlayActive || !_compositor || !_plate)
 		return;
-	// Composite in RGBA32 so the alpha-aware blendBlitFrom (used for view cels and
-	// slices) works - it requires an RGBA32 destination. presentToOverlay converts
-	// the finished scene to the actual overlay format before pushing it.
+	// Composite in RGBA32 so the alpha-aware blendBlitFrom (used for view cels) works
+	// - it requires an RGBA32 destination. presentToOverlay converts the finished
+	// scene to the actual overlay format before pushing it.
 	const Graphics::PixelFormat rgba(4, 8, 8, 8, 8, 24, 16, 8, 0);
-	if (_debugLog) {
-		const Graphics::PixelFormat ofmt = g_system->getOverlayFormat();
-		warning("ROGER DBG renderFrame: overlay=%dx%d ofmt=bpp%d(R%d G%d B%d A%d) plate=%dx%d",
-		        g_system->getOverlayWidth(), g_system->getOverlayHeight(),
-		        ofmt.bytesPerPixel, ofmt.rBits(), ofmt.gBits(), ofmt.bBits(), ofmt.aBits(),
-		        _plate->w, _plate->h);
-	}
 	const int OW = g_system->getOverlayWidth();
 	const int OH = g_system->getOverlayHeight();
 
@@ -348,23 +333,11 @@ void FileRogerArtProvider::renderFromAnimateList(const AnimateList &list) {
 	Common::Array<Roger::Sprite> sprites;
 	Common::Array<Graphics::Surface *> nativeSurfaces;
 
-	// Toggleable diagnostic log (Ctrl+Shift+L in-game, or roger_debug=true in config).
 	const bool dbg = _debugLog;
-	if (dbg) {
-		uint listLen = 0;
-		for (AnimateList::const_iterator it = list.begin(); it != list.end(); ++it) listLen++;
-		warning("ROGER DBG: entries=%u pic=%d plate=%p plateSize=%dx%d compositor=%p overlay=%s prioBytes=%u",
-		        listLen, _loadedPicId, (void *)_plate,
-		        _plate ? _plate->w : -1, _plate ? _plate->h : -1,
-		        (void *)_compositor, _overlayActive ? "on" : "off", _priorityMap.size());
-	}
 
 	for (AnimateList::const_iterator it = list.begin(); it != list.end(); ++it) {
-		if (it->signal & kSignalHidden) {
-			if (dbg)
-				warning("ROGER DBG   sprite view=%d hidden (signal=0x%x) skipped", it->viewId, it->signal);
+		if (it->signal & kSignalHidden)
 			continue;
-		}
 		Roger::Sprite s;
 		s.viewId   = it->viewId;
 		s.loopNo   = it->loopNo;
@@ -380,14 +353,15 @@ void FileRogerArtProvider::renderFromAnimateList(const AnimateList &list) {
 		if (nativeSurf)
 			nativeSurfaces.push_back(nativeSurf);
 
-		if (dbg)
-			warning("ROGER DBG   sprite view=%d loop=%d cel=%d rect=(%d,%d,%d,%d) prio=%d nativeCel=%s",
-			        s.viewId, s.loopNo, s.celNo, s.celRect.left, s.celRect.top, s.celRect.right,
-			        s.celRect.bottom, s.priority,
-			        nativeSurf ? Common::String::format("%dx%d", nativeSurf->w, nativeSurf->h).c_str() : "NULL");
-
 		sprites.push_back(s);
 	}
+
+	// One concise per-frame line when diagnostics are on (Ctrl+Shift+L, or
+	// roger_debug=true). Per-sprite spam was removed; this is the heartbeat.
+	if (dbg)
+		warning("ROGER: pic=%d sprites=%u plate=%dx%d overlay=%s prioBytes=%u",
+		        _loadedPicId, (unsigned)sprites.size(), _plate ? _plate->w : -1,
+		        _plate ? _plate->h : -1, _overlayActive ? "on" : "off", _priorityMap.size());
 
 	// renderFrame composites synchronously; free native surfaces after it returns.
 	renderFrame(sprites);
@@ -417,16 +391,14 @@ void FileRogerArtProvider::toggleDebugLog() {
 
 void FileRogerArtProvider::onNativePicture() {
 	if (_compositor)
-		_compositor->setRoom(nullptr, nullptr, nullptr);
+		_compositor->setRoom(nullptr, nullptr);
 	if (_plate) { _plate->free(); delete _plate; _plate = nullptr; }
-	delete _slices; _slices = nullptr;
 	_loadedPicId = -1;
 	g_system->hideOverlay();
 }
 
 FileRogerArtProvider::~FileRogerArtProvider() {
 	if (_plate) { _plate->free(); delete _plate; _plate = nullptr; }
-	delete _slices; _slices = nullptr;
 	delete _viewCache; _viewCache = nullptr;
 	delete _compositor; _compositor = nullptr;
 }

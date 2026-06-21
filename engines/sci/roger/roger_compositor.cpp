@@ -20,7 +20,6 @@
 
 #include "sci/roger/roger_compositor.h"
 #include "sci/roger/view_cache.h"
-#include "sci/roger/slice_set.h"
 #include "sci/roger/roger_coords.h"
 #include "graphics/managed_surface.h"
 #include "graphics/surface.h"
@@ -30,9 +29,8 @@
 namespace Sci {
 namespace Roger {
 
-void RogerCompositor::setRoom(Graphics::Surface *cleanPlate, SliceSet *slices, ViewCache *views) {
+void RogerCompositor::setRoom(Graphics::Surface *cleanPlate, ViewCache *views) {
 	_plate = cleanPlate;
-	_slices = slices;
 	_views = views;
 }
 
