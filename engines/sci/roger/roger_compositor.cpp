@@ -63,6 +63,14 @@ void RogerCompositor::renderScene(Graphics::ManagedSurface &dest, const Common::
 		: Common::Rect(0, 0, (int16)W, (int16)H);
 	const int GW = gameRect.width(), GH = gameRect.height();
 
+	// SCI cel rects are in picture-window-local coordinates. SCI's script width is
+	// always 320; the picture HEIGHT is the screen height minus the menu bar (190
+	// for SCI0 SQ3/QFG1), which is exactly what the plate encodes. Derive it from
+	// the plate's aspect (plate->h * 320 / plate->w) rather than assuming 200, or
+	// sprites drift vertically against the background.
+	const int PIC_W = 320;
+	const int PIC_H = _plate ? (_plate->h * PIC_W / _plate->w) : 200;
+
 	// 0) Clear so letterbox borders are clean (transparent in an alpha overlay).
 	dest.clear(0);
 
@@ -84,9 +92,12 @@ void RogerCompositor::renderScene(Graphics::ManagedSurface &dest, const Common::
 			warning("ROGER: missing hires cel view=%d loop=%d cel=%d (skipped)", s.viewId, s.loopNo, s.celNo);
 			continue;
 		}
-		// Map the 320x200 cel rect into the game rect (scaled + offset).
-		Common::Rect dst = sciCelRectToOverlay(s.celRect, GW, GH);
-		dst.translate(gameRect.left, gameRect.top);
+		// Map the picture-window-local cel rect (320 x PIC_H) into the game rect.
+		Common::Rect dst(
+			(int16)(gameRect.left + (int)s.celRect.left   * GW / PIC_W),
+			(int16)(gameRect.top  + (int)s.celRect.top    * GH / PIC_H),
+			(int16)(gameRect.left + (int)s.celRect.right  * GW / PIC_W),
+			(int16)(gameRect.top  + (int)s.celRect.bottom * GH / PIC_H));
 		// Alpha-aware blit: respects each pixel's alpha so transparent non-black
 		// pixels (common in exported spritesheets) do not render opaque (halos).
 		dest.blendBlitFrom(*cel, Common::Rect(0, 0, cel->w, cel->h), dst,
