@@ -48,9 +48,11 @@ struct UiElement {
 	bool hasFrame;
 	const Graphics::Surface *iconSurface; // kUiIcon: borrowed RGBA cel, not owned
 	uint32 token;     // clear-token (window id or save-under handle)
+	int  fontScalePct; // per-element TTF fit-box scale (0 = renderer default)
 
 	UiElement() : type(kUiText), backColor(-1), penColor(0), fontId(0), style(0),
-		align(0), cursorPos(0), hasFrame(false), iconSurface(nullptr), token(0) {}
+		align(0), cursorPos(0), hasFrame(false), iconSurface(nullptr), token(0),
+		fontScalePct(0) {}
 };
 
 class RogerUiLayer {

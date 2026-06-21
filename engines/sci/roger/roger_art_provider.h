@@ -88,6 +88,10 @@ public:
 	                            int style, int cursorPos, uint32 token) {}
 	virtual void uiPushIcon(const Common::Rect &globalRect, int viewId, int loopNo, int celNo,
 	                        uint32 token) {}
+	// Score/title status banner (top strip): rendered hires (exact fit, opaque) so it
+	// occludes the native low-res bar instead of showing through the overlay strip.
+	virtual void uiPushStatus(const Common::Rect &globalRect, const char *text, int penColor,
+	                          int backColor, uint32 token) {}
 	virtual void uiClearToken(uint32 token) {}
 	virtual void uiClearAll() {}
 

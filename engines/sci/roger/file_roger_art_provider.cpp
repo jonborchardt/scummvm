@@ -323,8 +323,9 @@ void FileRogerArtProvider::ensureUi() {
 		sizes.push_back(96); sizes.push_back(120); sizes.push_back(160);
 		_textRenderer = new Roger::RogerTextRenderer(ttf, sizes);
 		// roger_ui_font_scale: enlarge dialog text beyond the literal native rect
-		// (percent). Default 500 (= "5x for now"); set 100 for exact fit-to-box.
-		int scale = 500;
+		// (percent). Default 250; set 100 for exact fit-to-box. Text word-wraps within
+		// the box, so a larger scale grows text and wraps rather than clipping.
+		int scale = 250;
 		if (ConfMan.hasKey("roger_ui_font_scale"))
 			scale = ConfMan.getInt("roger_ui_font_scale");
 		_textRenderer->setFitScale(scale);
@@ -409,6 +410,19 @@ void FileRogerArtProvider::uiPushIcon(const Common::Rect &r, int viewId, int loo
 	e.type = Roger::kUiIcon; e.nativeRect = r; e.token = token;
 	Graphics::Surface *cel = renderNativeCel(viewId, loopNo, celNo);
 	if (cel) { _uiIcons.push_back(cel); e.iconSurface = cel; }
+	_uiLayer->push(e);
+	presentWithUi();
+}
+
+void FileRogerArtProvider::uiPushStatus(const Common::Rect &r, const char *text, int penColor,
+                                        int backColor, uint32 token) {
+	if (!_overlayActive || !_plate) return;
+	ensureUi();
+	Roger::UiElement e;
+	e.type = Roger::kUiText; e.nativeRect = r; e.text = text ? text : "";
+	e.penColor = penColor; e.backColor = backColor; e.align = 0;
+	e.fontScalePct = 100; // exact fit to the strip; not the enlarged dialog scale
+	e.token = token;
 	_uiLayer->push(e);
 	presentWithUi();
 }

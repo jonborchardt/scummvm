@@ -72,29 +72,45 @@ RogerTextRenderer::~RogerTextRenderer() {
 }
 
 const Graphics::Font *RogerTextRenderer::fitFont(const Common::String &text,
-                                                 int boxW, int boxH) const {
+                                                 int boxW, int boxH, int scalePct) const {
 	// Scale the fit box so text may be rendered larger than the literal native rect.
-	const int w = boxW * _fitScalePct / 100;
-	const int h = boxH * _fitScalePct / 100;
+	const int pct = scalePct > 0 ? scalePct : _fitScalePct;
+	const int w = boxW * pct / 100;
+	const int h = boxH * pct / 100;
 	int idx = fitFontIndex(_fonts, text, w, h);
 	return idx < 0 ? nullptr : _fonts[idx];
 }
 
 void RogerTextRenderer::draw(Graphics::ManagedSurface &dst, const Common::String &text,
-                             const Common::Rect &rect, uint32 color, int align) const {
-	const Graphics::Font *f = fitFont(text, rect.width(), rect.height());
+                             const Common::Rect &rect, uint32 color, int align, int scalePct) const {
+	const Graphics::Font *f = fitFont(text, rect.width(), rect.height(), scalePct);
 	if (!f)
 		return;
 	Graphics::TextAlign ta = Graphics::kTextAlignLeft;
 	if (align == 1) ta = Graphics::kTextAlignCenter;
 	else if (align == -1) ta = Graphics::kTextAlignRight;
-	const int y = rect.top + (rect.height() - f->getFontHeight()) / 2;
-	f->drawString(&dst, text, rect.left, y, rect.width(), color, ta);
+
+	// Word-wrap to the box width and draw the lines stacked, vertically centred.
+	// When the block is taller than the box (chosen font is large), start at the top
+	// so it grows downward rather than clipping the first lines.
+	Common::Array<Common::String> lines;
+	f->wordWrapText(text, rect.width(), lines);
+	if (lines.empty())
+		return;
+	const int lh = f->getFontHeight();
+	const int totalH = (int)lines.size() * lh;
+	int y = rect.top + (rect.height() - totalH) / 2;
+	if (y < rect.top)
+		y = rect.top;
+	for (uint i = 0; i < lines.size(); i++) {
+		f->drawString(&dst, lines[i], rect.left, y, rect.width(), color, ta);
+		y += lh;
+	}
 }
 
 int RogerTextRenderer::caretX(const Common::String &text, int cursorPos,
-                              int boxW, int boxH) const {
-	const Graphics::Font *f = fitFont(text, boxW, boxH);
+                              int boxW, int boxH, int scalePct) const {
+	const Graphics::Font *f = fitFont(text, boxW, boxH, scalePct);
 	if (!f)
 		return 0;
 	int n = cursorPos;

@@ -1097,6 +1097,14 @@ void GfxMenu::kernelDrawStatus(const char *text, int16 colorPen, int16 colorBack
 	// achieving the same effect.
 	_paint16->fillRect(_ports->_menuLine, 1, 0);
 	_paint16->bitsShow(_ports->_menuLine);
+
+	// Roger hires dialogs: render the score/title banner into the overlay's top strip
+	// (opaque, exact-fit) so it appears hires instead of the native bar showing through.
+	if (g_sciRogerProvider && g_sciRogerProvider->enabled) {
+		g_sciRogerProvider->uiPushStatus(_ports->_menuBarRect, text, colorPen, colorBack,
+		                                 0x10000000u);
+	}
+
 	_ports->setPort(oldPort);
 }
 

@@ -46,10 +46,13 @@ public:
 	// Scale the fit box by pct/100 before choosing a font, so text can be rendered
 	// larger than the literal native rect (Roger hires dialogs). 100 = exact fit.
 	void setFitScale(int pct) { _fitScalePct = pct > 0 ? pct : 100; }
-	const Graphics::Font *fitFont(const Common::String &text, int boxW, int boxH) const;
+	// scalePct overrides the fit-box scale for this call (0 = use the member default).
+	const Graphics::Font *fitFont(const Common::String &text, int boxW, int boxH, int scalePct = 0) const;
+	// Draws word-wrapped, vertically-centred text in rect (multi-line when it does
+	// not fit on one line). scalePct overrides the fit scale for this call.
 	void draw(Graphics::ManagedSurface &dst, const Common::String &text,
-	          const Common::Rect &rect, uint32 color, int align) const;
-	int caretX(const Common::String &text, int cursorPos, int boxW, int boxH) const;
+	          const Common::Rect &rect, uint32 color, int align, int scalePct = 0) const;
+	int caretX(const Common::String &text, int cursorPos, int boxW, int boxH, int scalePct = 0) const;
 
 private:
 	Common::Array<const Graphics::Font *> _fonts; // ascending by size
