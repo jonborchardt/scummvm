@@ -75,6 +75,12 @@ FileRogerArtProvider::FileRogerArtProvider(const Common::String &gameId,
 	_priorityVariant = "baseline-native";
 	if (ConfMan.hasKey("roger_priority_variant"))
 		_priorityVariant = ConfMan.get("roger_priority_variant");
+
+	// roger_autoshot: a verification-harness flag (off by default). When set, the
+	// first composited frame of each room is dumped to a PNG (see renderFrame).
+	// This is how the dev loop captures the hires overlay deterministically without
+	// keystrokes/focus — injected Alt+s/F10 never reach SDL (Win32 menu keys).
+	_autoshot = ConfMan.hasKey("roger_autoshot") && ConfMan.getBool("roger_autoshot");
 }
 
 Common::String FileRogerArtProvider::picDir(GuiResourceId id) const {
@@ -224,6 +230,23 @@ void FileRogerArtProvider::renderFrame(const Common::Array<Roger::Sprite> &sprit
 	                               g_system->getOverlayHeight(), rgba);
 	_compositor->renderScene(scene, sprites);
 	_compositor->presentToOverlay(scene);
+
+	// roger_autoshot (verification harness): dump the composited overlay scene to a
+	// PNG once per room. Deterministic — no keystrokes/focus needed. Output goes to
+	// the configured screenshotpath (else the current directory).
+	if (_autoshot && _autoshotPicId != _loadedPicId) {
+		Common::String dir;
+		if (ConfMan.hasKey("screenshotpath"))
+			dir = ConfMan.getPath("screenshotpath").toString('/');
+		if (!dir.empty() && dir.lastChar() != '/')
+			dir += '/';
+		const Common::String path = dir + Common::String::format("roger-%d-overlay.png", _loadedPicId);
+		if (Roger::dumpSurfacePng(*scene.surfacePtr(), path))
+			warning("ROGER: autoshot wrote %s", path.c_str());
+		else
+			warning("ROGER: autoshot FAILED to write %s", path.c_str());
+		_autoshotPicId = _loadedPicId;
+	}
 }
 
 Graphics::Surface *FileRogerArtProvider::renderNativeCel(int viewId, int loopNo, int celNo) const {

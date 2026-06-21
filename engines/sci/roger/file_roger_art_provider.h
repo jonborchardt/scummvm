@@ -75,6 +75,8 @@ private:
 	int _loadedPicId = -1;
 	bool _overlayActive = true;  // false = show native 320x200 (A/B comparison toggle)
 	bool _debugLog = false;      // per-frame diagnostic logging
+	bool _autoshot = false;      // roger_autoshot: dump the composited scene to PNG on room load (verification harness)
+	int _autoshotPicId = -1;     // last pic id already auto-shot (so we dump once per room, not per frame)
 	Common::Array<byte> _priorityMap; // screen-space SCI priority (from loadBuffers), for overlay occlusion
 
 	Common::String picDir(GuiResourceId id) const;

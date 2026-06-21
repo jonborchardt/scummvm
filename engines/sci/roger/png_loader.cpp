@@ -21,6 +21,7 @@
 #include "sci/roger/png_loader.h"
 #include "image/png.h"
 #include "common/fs.h"
+#include "common/file.h"
 #include "common/stream.h"
 #include "graphics/surface.h"
 #include "graphics/pixelformat.h"
@@ -92,6 +93,17 @@ Graphics::Surface *loadSurfaceRGBA(const Common::String &path) {
 	// Use the no-palette overload: test fixtures and hires art are truecolor PNGs.
 	Graphics::Surface *out = decoder.getSurface()->convertTo(rgba);
 	return out;  // may be nullptr if conversion failed
+}
+
+bool dumpSurfacePng(const Graphics::Surface &surf, const Common::String &path) {
+	Common::DumpFile out;
+	if (!out.open(Common::Path(path)))
+		return false;
+	// Image::writePNG handles RGBA32/RGB24/CLUT8 directly and converts other
+	// formats itself, so the composited RGBA scene can be passed straight through.
+	const bool ok = Image::writePNG(out, surf);
+	out.close();
+	return ok;
 }
 
 } // namespace Roger
