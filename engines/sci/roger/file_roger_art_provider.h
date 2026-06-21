@@ -67,7 +67,6 @@ public:
 	                  int backColor, uint32 token) override;
 	void uiClearToken(uint32 token) override;
 	void uiClearAll() override;
-	void applyHiresCursor() override;
 
 	// Compose and present the current room to the OSystem overlay.
 	// Called each frame by the GfxAnimate hook (Task 7).
@@ -105,8 +104,8 @@ private:
 	Common::Array<Graphics::Surface *> _uiIcons;     // owned native-cel surfaces for kUiIcon
 	bool _haveScene = false;                         // _sceneCache valid this room
 	Graphics::Surface *_cursorSurf = nullptr;        // smooth hires arrow cursor (RGBA, owned)
-	bool _cursorApplied = false;                     // hires cursor handed to the backend
 	void ensureCursor();                             // build _cursorSurf once
+	void compositeCursor(Graphics::ManagedSurface &scene, const Common::Rect &gameRect);
 	Common::Rect _lastGameRect;                      // gameRect used for the cached scene
 	void ensureUi();                                 // lazily build _uiLayer + _textRenderer
 	void presentWithUi();                            // compose _sceneCache + _uiLayer -> overlay

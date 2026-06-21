@@ -52,6 +52,7 @@ class GfxCompare;
 #include "common/path.h"
 #include "common/fs.h"
 #include "common/config-manager.h"
+#include "common/events.h"
 #include "common/system.h"
 #include "common/textconsole.h"
 
@@ -256,12 +257,8 @@ void FileRogerArtProvider::renderFrame(const Common::Array<Roger::Sprite> &sprit
 		g_system->getPaletteManager()->grabPalette(pal, 0, 256);
 		_compositor->renderUiLayer(scene, _uiLayer->elements(), pal, gameRect, _textRenderer, _altTextRenderer);
 	}
+	compositeCursor(scene, gameRect);
 	_compositor->presentToOverlay(scene);
-
-	// Ensure the hires cursor is applied at least once (covers a cursor shown before
-	// the provider existed). Subsequent SCI cursor changes re-apply it via kernelShow.
-	if (!_cursorApplied)
-		applyHiresCursor();
 
 	// roger_autoshot (verification harness): dump once per room. Deterministic — no
 	// keystrokes/focus needed.
@@ -360,8 +357,11 @@ void FileRogerArtProvider::ensureCursor() {
 		}
 	}
 
+	// RGBA with straight alpha — Roger composites this into its own overlay scene
+	// (its alpha-aware blit honours partial alpha), so the edges are anti-aliased.
+	const Graphics::PixelFormat rgba(4, 8, 8, 8, 8, 24, 16, 8, 0);
 	_cursorSurf = new Graphics::Surface();
-	_cursorSurf->create(S, S, Graphics::PixelFormat::createFormatCLUT8());
+	_cursorSurf->create(S, S, rgba);
 	const int R = 2; // outline radius (px)
 	for (int y = 0; y < S; y++) {
 		for (int x = 0; x < S; x++) {
@@ -377,33 +377,36 @@ void FileRogerArtProvider::ensureCursor() {
 					dil = MAX(dil, cov[ny * S + nx]);
 				}
 			}
-			byte idx;
-			if (dil < 0.5)
-				idx = 0;             // transparent (outside the arrow + outline)
-			else if (fillA >= 0.5)
-				idx = 2;             // white fill
-			else
-				idx = 1;             // black outline
-			_cursorSurf->setPixel(x, y, idx);
+			const double outA = fillA + dil * (1.0 - fillA);
+			uint32 px;
+			if (outA <= 0.0) {
+				px = rgba.ARGBToColor(0, 0, 0, 0); // transparent
+			} else {
+				// white fill over black outline; luminance = white's weight (black=0).
+				const int lum = (int)((255.0 * fillA) / outA + 0.5);
+				const int a = (int)(outA * 255.0 + 0.5);
+				px = rgba.ARGBToColor((byte)a, (byte)lum, (byte)lum, (byte)lum);
+			}
+			_cursorSurf->setPixel(x, y, px);
 		}
 	}
 }
 
-void FileRogerArtProvider::applyHiresCursor() {
+void FileRogerArtProvider::compositeCursor(Graphics::ManagedSurface &scene,
+                                           const Common::Rect &gameRect) {
+	// The native OS cursor is invisible over the OSystem overlay, so draw our own
+	// arrow into the overlay scene at the mouse position. The mouse is in game space
+	// (320x200) while the overlay is shown; map it into the on-screen game rect.
 	if (!enabled)
 		return;
 	ensureCursor();
 	if (!_cursorSurf)
 		return;
-	// OSystem's setMouseCursor/showMouse are protected; the public API is CursorMan.
-	// CLUT8 cursor + a 3-entry cursor palette (0 keyed, 1 black, 2 white).
-	static const byte pal[3 * 3] = { 0, 0, 0,  0, 0, 0,  255, 255, 255 };
-	CursorMan.replaceCursor(_cursorSurf->getPixels(), _cursorSurf->w, _cursorSurf->h,
-	                        2, 2, 0 /*keycolor index*/, true /*dontScale*/);
-	CursorMan.replaceCursorPalette(pal, 0, 3);
-	CursorMan.disableCursorPalette(false); // use our palette, not the game's
-	CursorMan.showMouse(true);
-	_cursorApplied = true;
+	const Common::Point mp = g_system->getEventManager()->getMousePos();
+	const int ox = gameRect.left + mp.x * gameRect.width() / 320;
+	const int oy = gameRect.top + mp.y * gameRect.height() / 200;
+	const Common::Rect dst(ox - 2, oy - 2, ox - 2 + _cursorSurf->w, oy - 2 + _cursorSurf->h);
+	scene.blendBlitFrom(*_cursorSurf, Common::Rect(0, 0, _cursorSurf->w, _cursorSurf->h), dst);
 }
 
 void FileRogerArtProvider::ensureUi() {
@@ -456,6 +459,7 @@ void FileRogerArtProvider::presentWithUi() {
 		g_system->getPaletteManager()->grabPalette(pal, 0, 256);
 		_compositor->renderUiLayer(scene, _uiLayer->elements(), pal, _lastGameRect, _textRenderer, _altTextRenderer);
 	}
+	compositeCursor(scene, _lastGameRect);
 	_compositor->presentToOverlay(scene);
 
 	// Verification harness: when a dialog is composited, also dump a -ui snapshot
