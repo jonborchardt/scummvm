@@ -535,6 +535,8 @@ reg_t GfxMenu::kernelSelect(reg_t eventObject, bool pauseSound) {
 		_paint16->bitsShow(_ports->_menuRect);
 		_barSaveHandle = NULL_REG;
 	}
+	// Roger: the menu has closed — drop the composited dropdown from the overlay.
+	rogerClearMenuOverlay();
 	if (_oldPort) {
 		_ports->setPort(_oldPort);
 		_oldPort = nullptr;
@@ -667,6 +669,13 @@ void GfxMenu::drawMenu(uint16 oldMenuId, uint16 newMenuId) {
 	// Save background
 	_menuSaveHandle = _paint16->bitsSave(_menuRect, GFX_SCREEN_MASK_VISUAL);
 
+	// Roger hires dialogs: remember the full dropdown box (global coords, before the
+	// draw-time inset mutations) and collect each row below, so the dropdown can be
+	// composited into the overlay (it is drawn straight to the screen, not via a
+	// window, so it would otherwise be hidden behind the hires overlay).
+	_rogerMenuBox = _menuRect;
+	_rogerMenuRows.clear();
+
 	// Do the drawing
 	_paint16->fillRect(_menuRect, GFX_SCREEN_MASK_VISUAL, 0);
 	_menuRect.left++; _menuRect.right--; _menuRect.bottom--;
@@ -694,6 +703,13 @@ void GfxMenu::drawMenu(uint16 oldMenuId, uint16 newMenuId) {
 					_ports->moveTo(_menuRect.right - listItemEntry->textWidth, topPos);
 					_text16->DrawString(listItemEntry->textSplit.c_str());
 				}
+				// Roger: capture this menu row (global coords) for the overlay.
+				RogerMenuRow rr;
+				rr.rect = Common::Rect(_menuRect.left, topPos,
+				                       _menuRect.right, topPos + _ports->_curPort->fontHeight);
+				rr.text = listItemEntry->textSplit;
+				rr.id = listItemEntry->id;
+				_rogerMenuRows.push_back(rr);
 			} else {
 				// We dont 100% follow sierra here, we draw the line from left to right. Looks better
 				// BTW. SCI1.1 seems to put 2 pixels and then skip one, we don't do this at all (lsl6)
@@ -724,10 +740,45 @@ void GfxMenu::drawMenu(uint16 oldMenuId, uint16 newMenuId) {
 	}
 	_menuRect.bottom++;
 	_paint16->bitsShow(_menuRect);
+
+	// Roger: composite the freshly drawn dropdown into the overlay (no highlight yet;
+	// the caller follows up with invertMenuSelection to set the active row).
+	_rogerMenuHighlight = 0;
+	rogerPushMenuOverlay();
+}
+
+void GfxMenu::rogerPushMenuOverlay() {
+	if (!g_sciRogerProvider || !g_sciRogerProvider->enabled)
+		return;
+	const uint32 tok = 0x20000000u; // single open dropdown at a time
+	g_sciRogerProvider->uiClearToken(tok);
+	// Opaque white box with a frame (matches SCI's black-bordered white dropdown).
+	g_sciRogerProvider->uiPushWindow(_rogerMenuBox, _screen->getColorWhite(), 0, 0, tok);
+	for (uint i = 0; i < _rogerMenuRows.size(); i++) {
+		const RogerMenuRow &r = _rogerMenuRows[i];
+		const bool sel = (r.id == _rogerMenuHighlight);
+		const int pen = sel ? _screen->getColorWhite() : 0;
+		const int back = sel ? 0 : -1; // selected row drawn inverted (white on black)
+		g_sciRogerProvider->uiPushText(r.rect, r.text.c_str(), pen, back, 0,
+		                               SCI_TEXT16_ALIGNMENT_LEFT, tok);
+	}
+}
+
+void GfxMenu::rogerClearMenuOverlay() {
+	if (g_sciRogerProvider && g_sciRogerProvider->enabled)
+		g_sciRogerProvider->uiClearToken(0x20000000u);
+	_rogerMenuRows.clear();
 }
 
 void GfxMenu::invertMenuSelection(uint16 itemId) {
 	Common::Rect itemRect = _menuRect;
+
+	// Roger: track the highlighted row and re-push the dropdown so the overlay's
+	// selection follows the cursor (the native invert is hidden under the overlay).
+	if (itemId != 0) {
+		_rogerMenuHighlight = itemId;
+		rogerPushMenuOverlay();
+	}
 
 	if (itemId == 0)
 		return;
@@ -745,10 +796,9 @@ void GfxMenu::interactiveStart(bool pauseSound) {
 	_cursor->kernelShow();
 	if (pauseSound)
 		g_sci->_soundCmd->pauseAll(true);
-	// Roger UI gate: hide the hires overlay while the menu is interactive.
-	// The overlay re-shows automatically on the next kernelAnimate frame.
-	if (g_sciRogerProvider && g_sciRogerProvider->enabled)
-		g_sciRogerProvider->hideOverlayForUI();
+	// Roger hires dialogs: the overlay stays up; the menu bar shows through the
+	// reserved status strip and the dropdown is composited via rogerPushMenuOverlay
+	// (drawMenu / invertMenuSelection). No longer hide the overlay here.
 }
 
 void GfxMenu::interactiveEnd(bool pauseSound) {

@@ -113,6 +113,22 @@ void GfxControls16::drawListControl(Common::Rect rect, reg_t obj, int16 maxChars
 			if ((!isAlias) && (i == cursorPos)) {
 				_paint16->invertRect(workerRect);
 			}
+
+			// Roger hires dialogs: capture this list row as text on top of the list
+			// window (already captured by drawWindow). The selected row is rendered
+			// inverted (white on black). Token = active window id, so disposing the
+			// inventory window clears the rows too.
+			if (g_sciRogerProvider && g_sciRogerProvider->enabled) {
+				Common::Rect g = workerRect;
+				_ports->offsetRect(g);
+				const Port *p = _ports->getPort();
+				const uint32 tok = 0x40000000u | (uint32)(p ? p->id : 0);
+				const bool sel = (!isAlias) && (i == cursorPos);
+				const int pen = sel ? 15 : (p ? p->penClr : 0);
+				const int back = sel ? 0 : -1;
+				g_sciRogerProvider->uiPushText(g, textString.c_str(), pen, back, fontId,
+				                               SCI_TEXT16_ALIGNMENT_LEFT, tok);
+			}
 		}
 		workerRect.translate(0, fontSize);
 		if (workerRect.bottom > lastYpos)
@@ -273,8 +289,12 @@ void GfxControls16::kernelTexteditChange(reg_t controlObject, reg_t eventObject)
 				textWidth += _text16->_font->getCharWidth((byte)*textPtr++);
 			textWidth += _text16->_font->getCharWidth(eventKey);
 
-			// Does it fit?
-			if (textWidth >= rect.width()) {
+			// Does it fit? SCI caps input at the native nsRect pixel width. With the
+			// Roger hires overlay the field is rendered far wider, so this native cap
+			// would stop typing after only a few characters (the buffer is still bound
+			// by maxChars, checked above). Relax it while Roger is active.
+			const bool rogerActive = g_sciRogerProvider && g_sciRogerProvider->enabled;
+			if (!rogerActive && textWidth >= rect.width()) {
 				_text16->SetFont(oldFontId);
 				return;
 			}
@@ -294,6 +314,18 @@ void GfxControls16::kernelTexteditChange(reg_t controlObject, reg_t eventObject)
 		_text16->SetFont(oldFontId);
 		// Write back string
 		_segMan->strcpy_(textReference, text.c_str());
+
+		// Roger hires dialogs: live typing redraws here (not via kernelDrawTextEdit),
+		// so push the updated buffer + caret so the hires field tracks each keystroke.
+		// Same token+rect as kernelDrawTextEdit => replaces that element in place.
+		if (g_sciRogerProvider && g_sciRogerProvider->enabled) {
+			Common::Rect g = rect;
+			_ports->offsetRect(g);
+			const Port *p = _ports->getPort();
+			const uint32 tok = 0x40000000u | (uint32)(p ? p->id : 0);
+			const int16 editStyle = readSelectorValue(_segMan, controlObject, SELECTOR(state));
+			g_sciRogerProvider->uiPushTextEdit(g, text.c_str(), fontId, editStyle, cursorPos, tok);
+		}
 	} else {
 		if (g_system->getMillis() >= _texteditBlinkTime) {
 			_paint16->invertRect(_texteditCursorRect);

@@ -22,6 +22,11 @@
 #ifndef SCI_GRAPHICS_MENU_H
 #define SCI_GRAPHICS_MENU_H
 
+#include "common/array.h"
+#include "common/list.h"
+#include "common/rect.h"
+#include "common/str.h"
+
 namespace Sci {
 
 enum {
@@ -99,6 +104,10 @@ private:
 	void calculateMenuAndItemWidth();
 	void drawMenu(uint16 oldMenuId, uint16 newMenuId);
 	void invertMenuSelection(uint16 itemId);
+	// Roger hires dialogs: (re)push the open dropdown (box + rows, highlight =
+	// _rogerMenuHighlight) into the overlay; clear it when the menu closes.
+	void rogerPushMenuOverlay();
+	void rogerClearMenuOverlay();
 	void interactiveStart(bool pauseSound);
 	void interactiveEnd(bool pauseSound);
 	GuiMenuItemEntry *interactiveWithKeyboard();
@@ -127,6 +136,13 @@ private:
 	Common::Rect _menuRect;
 
 	bool _mouseOldState;
+
+	// Roger hires dialogs: captured open-dropdown state (box + rows) so the dropdown
+	// can be (re)composited into the overlay as the highlight moves.
+	struct RogerMenuRow { Common::Rect rect; Common::String text; uint16 id; };
+	Common::Array<RogerMenuRow> _rogerMenuRows;
+	Common::Rect _rogerMenuBox;
+	uint16 _rogerMenuHighlight = 0;
 };
 
 } // End of namespace Sci
