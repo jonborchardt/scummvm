@@ -66,6 +66,7 @@ public:
 private:
 	Common::String _basePath;       // absolute path to <gameid>-roger/ directory
 	Common::String _visualVariant;  // hires visual variant, e.g. "omyac-upscaler" ("" = plain pic.<id>.png)
+	Common::String _priorityVariant; // EGA-color priority map variant for overlay occlusion (default "baseline-native")
 
 	Roger::RogerCompositor *_compositor = nullptr;
 	Roger::ViewCache *_viewCache = nullptr;
@@ -81,6 +82,10 @@ private:
 	Common::String priorityPath(GuiResourceId id) const;
 	Common::String controlPath(GuiResourceId id) const;
 	Common::String slicedDir(GuiResourceId id) const; // <roger>/pics/<id>/sliced
+	Common::String occlusionPriorityPath(GuiResourceId id) const; // EGA-color priority map for overlay occlusion
+	// Load an EGA-color-encoded priority PNG into a band-per-pixel buffer (0..15).
+	// Returns true and fills outBands/outW/outH on success.
+	bool loadPriorityBands(const Common::String &path, Common::Array<byte> &outBands, int &outW, int &outH) const;
 
 	// Render a native SCI cel to a new RGBA surface. Caller owns and must free.
 	// Returns nullptr on any failure (guard: sprite will be skipped).

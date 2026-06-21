@@ -50,16 +50,7 @@ static const uint8 kEgaBandRGB[16][3] = {
 	{0xff, 0xff, 0xff}  // 15 white
 };
 
-int bandForColor(const Common::String &hex) {
-	Common::String h = hex;
-	if (h.hasPrefix("#"))
-		h.deleteChar(0);
-	if (h.size() < 6)
-		return 0;
-	long v = strtol(h.c_str(), nullptr, 16);
-	int r = (v >> 16) & 0xff;
-	int g = (v >> 8) & 0xff;
-	int b = v & 0xff;
+int bandForRGB(int r, int g, int b) {
 	int best = 0;
 	long bestDist = 0x7fffffff;
 	for (int i = 0; i < 16; i++) {
@@ -72,6 +63,17 @@ int bandForColor(const Common::String &hex) {
 			best = i;
 		}
 	}
+	return best;
+}
+
+int bandForColor(const Common::String &hex) {
+	Common::String h = hex;
+	if (h.hasPrefix("#"))
+		h.deleteChar(0);
+	if (h.size() < 6)
+		return 0;
+	long v = strtol(h.c_str(), nullptr, 16);
+	int best = bandForRGB((v >> 16) & 0xff, (v >> 8) & 0xff, v & 0xff);
 	return best;
 }
 

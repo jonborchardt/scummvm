@@ -32,6 +32,10 @@ namespace Roger {
 // Map a CSS hex color (e.g. "#ffffff") to the nearest SCI0 EGA priority band (0..15).
 int bandForColor(const Common::String &hex);
 
+// Nearest SCI0 EGA priority band (0..15) for an RGB triple. Used to decode an
+// EGA-color-encoded priority map (each pixel's color = its priority band).
+int bandForRGB(int r, int g, int b);
+
 // One foreground slice piece: a surface loaded from a color_*.png, its hires
 // position within the manifest's coordinate space, and the SCI priority band
 // derived from its assigned color.

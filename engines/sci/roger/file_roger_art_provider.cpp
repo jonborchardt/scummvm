@@ -67,6 +67,14 @@ FileRogerArtProvider::FileRogerArtProvider(const Common::String &gameId,
 	_visualVariant = "omyac-upscaler";
 	if (ConfMan.hasKey("roger_visual_variant"))
 		_visualVariant = ConfMan.get("roger_visual_variant");
+
+	// Overlay occlusion samples a real EGA-color-encoded priority map (each pixel's
+	// color = its SCI priority band). The pipeline emits it as
+	// "<variant>.<id>_p.png"; default to the native-resolution one. (pic.<id>_p.png,
+	// used by loadBuffers for SCI's own buffer, may be a placeholder.)
+	_priorityVariant = "baseline-native";
+	if (ConfMan.hasKey("roger_priority_variant"))
+		_priorityVariant = ConfMan.get("roger_priority_variant");
 }
 
 Common::String FileRogerArtProvider::picDir(GuiResourceId id) const {
@@ -93,6 +101,33 @@ Common::String FileRogerArtProvider::slicedDir(GuiResourceId id) const {
 	return _basePath + "/pics/" + Common::String::format("%d", id) + "/sliced";
 }
 
+Common::String FileRogerArtProvider::occlusionPriorityPath(GuiResourceId id) const {
+	const Common::String idStr = Common::String::format("%d", id);
+	if (_priorityVariant.empty())
+		return priorityPath(id);
+	return picDir(id) + _priorityVariant + "." + idStr + "_p.png";
+}
+
+bool FileRogerArtProvider::loadPriorityBands(const Common::String &path,
+                                             Common::Array<byte> &outBands, int &outW, int &outH) const {
+	Graphics::Surface *s = Roger::loadSurfaceRGBA(path);
+	if (!s)
+		return false;
+	outW = s->w;
+	outH = s->h;
+	outBands.resize(outW * outH);
+	for (int y = 0; y < outH; y++) {
+		for (int x = 0; x < outW; x++) {
+			uint8 a, r, g, b;
+			s->format.colorToARGB(s->getPixel(x, y), a, r, g, b);
+			outBands[y * outW + x] = (byte)Roger::bandForRGB(r, g, b);
+		}
+	}
+	s->free();
+	delete s;
+	return true;
+}
+
 bool FileRogerArtProvider::hasBackground(GuiResourceId pictureId) const {
 	if (!enabled)
 		return false;
@@ -114,10 +149,6 @@ bool FileRogerArtProvider::loadBuffers(GuiResourceId pictureId, GfxScreen *scree
 
 	if (priority.size() != (uint)(w * h) || control.size() != (uint)(w * h))
 		return false;
-
-	// Keep the screen-space priority map (320x200, values = SCI priority bands) so
-	// the overlay compositor can occlude hires sprites per-pixel exactly as SCI does.
-	_priorityMap = priority;
 
 	for (int16 y = 0; y < (int16)h; y++) {
 		for (int16 x = 0; x < (int16)w; x++) {
@@ -157,12 +188,21 @@ void FileRogerArtProvider::pushHiresBackground(GuiResourceId pictureId) {
 	if (!_compositor)
 		_compositor = new Roger::RogerCompositor();
 	_compositor->setRoom(_plate, _slices, _viewCache);
-	// SCI0 picture window is 320x190, drawn below the 10px menu bar (screen rows
-	// 10..199). The priority map is the full 320x200 screen-space map captured in
-	// loadBuffers; the compositor offsets into it by picScreenTop for occlusion.
-	_compositor->setPicture(320, 190, 10);
-	if (!_priorityMap.empty())
-		_compositor->setPriorityMask(_priorityMap.begin(), 320, 200);
+
+	// Load the real EGA-color priority map for per-pixel overlay occlusion and
+	// decode it to a band-per-pixel buffer. It is authored in picture space
+	// (320x190 for SCI0) aligned with the plate, so picScreenTop = 0.
+	int prW = 0, prH = 0;
+	_priorityMap.clear();
+	if (loadPriorityBands(occlusionPriorityPath(pictureId), _priorityMap, prW, prH)) {
+		_compositor->setPicture(320, prH, 0);
+		_compositor->setPriorityMask(_priorityMap.begin(), prW, prH);
+	} else {
+		// No occlusion map -> sprites still draw, just without occlusion.
+		warning("ROGER: no occlusion priority map at %s", occlusionPriorityPath(pictureId).c_str());
+		_compositor->setPicture(320, 190, 0);
+		_compositor->setPriorityMask(nullptr, 0, 0);
+	}
 	_loadedPicId = pictureId;
 }
 
