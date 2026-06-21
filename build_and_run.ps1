@@ -174,6 +174,29 @@ if (-not $Exe) {
     Write-Error "scummvm.exe not found. Searched:`n$($candidates -join "`n")"
 }
 
+# ── Deploy ScummVM data files next to the exe ─────────────────────────────────
+# create_project's MSVC project deploys the vcpkg DLLs (applocal) but NOT ScummVM's
+# own data files. fonts.dat is required for TTF text (Roger hires dialogs); without
+# it loadTTFFontFromArchive fails and text falls back to a tiny bitmap font. Copy
+# the engine-data .dat files and the GUI theme .dat files next to the exe so they
+# are on the runtime search path.
+$ExeDir = Split-Path $Exe
+$dataSrc = @(
+    "$Root\dists\engine-data\fonts.dat",
+    "$Root\gui\themes\gui-icons.dat",
+    "$Root\gui\themes\translations.dat",
+    "$Root\gui\themes\shaders.dat"
+)
+foreach ($d in $dataSrc) {
+    if (Test-Path $d) {
+        $dest = Join-Path $ExeDir (Split-Path $d -Leaf)
+        if (-not (Test-Path $dest) -or (Get-Item $d).LastWriteTime -gt (Get-Item $dest).LastWriteTime) {
+            Copy-Item $d $dest -Force
+            Write-Host "  deployed $(Split-Path $d -Leaf)" -ForegroundColor DarkGray
+        }
+    }
+}
+
 # ── Launch SQ3 ────────────────────────────────────────────────────────────────
 Write-Host "`nBuild OK  : $Exe" -ForegroundColor Green
 Write-Host "Game      : $GameDir"

@@ -311,14 +311,23 @@ void FileRogerArtProvider::ensureUi() {
 	if (!_uiLayer)
 		_uiLayer = new Roger::RogerUiLayer();
 	if (!_textRenderer) {
-		Common::String ttf = "FreeSans.ttf";
+		// Default to a TTF that actually ships in ScummVM's fonts.dat (FreeSans was
+		// replaced by the Liberation family). Override with roger_ui_font.
+		Common::String ttf = "LiberationSans-Regular.ttf";
 		if (ConfMan.hasKey("roger_ui_font"))
 			ttf = ConfMan.get("roger_ui_font");
 		// A ladder of pixel sizes for fit-to-box selection (cell mode, hires).
 		Common::Array<int> sizes;
 		sizes.push_back(18); sizes.push_back(24); sizes.push_back(32);
 		sizes.push_back(42); sizes.push_back(56); sizes.push_back(72);
+		sizes.push_back(96); sizes.push_back(120); sizes.push_back(160);
 		_textRenderer = new Roger::RogerTextRenderer(ttf, sizes);
+		// roger_ui_font_scale: enlarge dialog text beyond the literal native rect
+		// (percent). Default 500 (= "5x for now"); set 100 for exact fit-to-box.
+		int scale = 500;
+		if (ConfMan.hasKey("roger_ui_font_scale"))
+			scale = ConfMan.getInt("roger_ui_font_scale");
+		_textRenderer->setFitScale(scale);
 	}
 }
 

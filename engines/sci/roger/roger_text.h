@@ -43,6 +43,9 @@ public:
 	~RogerTextRenderer();
 
 	bool ok() const { return !_fonts.empty(); }
+	// Scale the fit box by pct/100 before choosing a font, so text can be rendered
+	// larger than the literal native rect (Roger hires dialogs). 100 = exact fit.
+	void setFitScale(int pct) { _fitScalePct = pct > 0 ? pct : 100; }
 	const Graphics::Font *fitFont(const Common::String &text, int boxW, int boxH) const;
 	void draw(Graphics::ManagedSurface &dst, const Common::String &text,
 	          const Common::Rect &rect, uint32 color, int align) const;
@@ -51,6 +54,7 @@ public:
 private:
 	Common::Array<const Graphics::Font *> _fonts; // ascending by size
 	Common::Array<bool> _owned;                   // parallel: delete on dtor?
+	int _fitScalePct = 100;                        // fit-box scale (pct); >100 = larger text
 };
 
 } // namespace Roger

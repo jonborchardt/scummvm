@@ -73,7 +73,10 @@ RogerTextRenderer::~RogerTextRenderer() {
 
 const Graphics::Font *RogerTextRenderer::fitFont(const Common::String &text,
                                                  int boxW, int boxH) const {
-	int idx = fitFontIndex(_fonts, text, boxW, boxH);
+	// Scale the fit box so text may be rendered larger than the literal native rect.
+	const int w = boxW * _fitScalePct / 100;
+	const int h = boxH * _fitScalePct / 100;
+	int idx = fitFontIndex(_fonts, text, w, h);
 	return idx < 0 ? nullptr : _fonts[idx];
 }
 
