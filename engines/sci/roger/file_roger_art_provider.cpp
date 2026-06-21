@@ -625,7 +625,10 @@ void FileRogerArtProvider::uiPushStatus(const Common::Rect &r, const char *text,
 	// is there (e.g. the menu bar's window + titles) before pushing the banner text.
 	_uiLayer->clearToken(token);
 	Roger::UiElement e;
-	e.type = Roger::kUiText; e.nativeRect = r; e.text = text ? text : "";
+	e.type = Roger::kUiText; e.nativeRect = r;
+	// Strip SCI's stylized/high-bit glyphs the TTF lacks (e.g. a "III" title glyph)
+	// so they do not render as tofu on the opaque status strip; ASCII is unchanged.
+	e.text = Roger::stripUnrenderable(text ? text : "");
 	e.penColor = penColor; e.backColor = backColor; e.align = 0;
 	e.textRole = Roger::kRoleHeading; // banner is a heading; capped to the strip height
 	e.useAltFont = true;              // header uses the updated font
