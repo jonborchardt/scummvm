@@ -76,9 +76,10 @@ public:
 	// Render the UI display-list on top of an already-composed scene. palette is
 	// 256*3 RGB (may be null -> fills skipped). gameRect is the 320x200 on-screen
 	// placement (computeGameRect). text may be null (text/caret skipped) for tests.
+	// altText renders elements flagged useAltFont (header/menu font); null => use text.
 	void renderUiLayer(Graphics::ManagedSurface &dest, const Common::Array<UiElement> &elems,
 	                   const byte *palette, const Common::Rect &gameRect,
-	                   const RogerTextRenderer *text);
+	                   const RogerTextRenderer *text, const RogerTextRenderer *altText = nullptr);
 
 private:
 	Graphics::Surface *_plate;

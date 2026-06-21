@@ -171,13 +171,15 @@ void RogerCompositor::presentToOverlay(Graphics::ManagedSurface &scene) {
 void RogerCompositor::renderUiLayer(Graphics::ManagedSurface &dest,
                                     const Common::Array<UiElement> &elems,
                                     const byte *palette, const Common::Rect &gameRect,
-                                    const RogerTextRenderer *text) {
+                                    const RogerTextRenderer *text, const RogerTextRenderer *altText) {
 	const Graphics::PixelFormat &fmt = dest.surfacePtr()->format;
 	for (uint i = 0; i < elems.size(); i++) {
 		const UiElement &e = elems[i];
 		const Common::Rect d = sciRectToDest(e.nativeRect, gameRect);
 		if (d.isEmpty())
 			continue;
+		// Pick the font renderer for this element (header/menu use the alt font).
+		const RogerTextRenderer *tr = (e.useAltFont && altText) ? altText : text;
 
 		// Background fill (opaque) for windows / buttons / edit fields.
 		if (palette && e.backColor >= 0) {
@@ -202,15 +204,15 @@ void RogerCompositor::renderUiLayer(Graphics::ManagedSurface &dest,
 		}
 
 		// Text + caret.
-		if (text && (e.type == kUiText || e.type == kUiButton || e.type == kUiTextEdit)
+		if (tr && (e.type == kUiText || e.type == kUiButton || e.type == kUiTextEdit)
 		    && !e.text.empty()) {
 			const byte *pc = palette ? palette + (e.penColor >= 0 ? e.penColor : 0) * 3 : nullptr;
 			const uint32 col = pc ? fmt.ARGBToColor(255, pc[0], pc[1], pc[2])
 			                      : fmt.ARGBToColor(255, 255, 255, 255);
-			text->draw(dest, e.text, d, col, e.align, e.fontScalePct);
+			tr->draw(dest, e.text, d, col, e.align, e.fontScalePct);
 		}
-		if (text && e.type == kUiTextEdit && (e.style & 0x8)) { // SELECTED -> caret
-			const int cx = d.left + text->caretX(e.text, e.cursorPos, d.width(), d.height(), e.fontScalePct);
+		if (tr && e.type == kUiTextEdit && (e.style & 0x8)) { // SELECTED -> caret
+			const int cx = d.left + tr->caretX(e.text, e.cursorPos, d.width(), d.height(), e.fontScalePct);
 			const byte *pc = palette ? palette + (e.penColor >= 0 ? e.penColor : 0) * 3 : nullptr;
 			const uint32 col = pc ? fmt.ARGBToColor(255, pc[0], pc[1], pc[2])
 			                      : fmt.ARGBToColor(255, 255, 255, 255);

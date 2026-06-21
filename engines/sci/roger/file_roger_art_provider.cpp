@@ -253,7 +253,7 @@ void FileRogerArtProvider::renderFrame(const Common::Array<Roger::Sprite> &sprit
 	if (_uiLayer && !_uiLayer->empty() && _textRenderer) {
 		byte pal[256 * 3];
 		g_system->getPaletteManager()->grabPalette(pal, 0, 256);
-		_compositor->renderUiLayer(scene, _uiLayer->elements(), pal, gameRect, _textRenderer);
+		_compositor->renderUiLayer(scene, _uiLayer->elements(), pal, gameRect, _textRenderer, _altTextRenderer);
 	}
 	_compositor->presentToOverlay(scene);
 
@@ -330,6 +330,20 @@ void FileRogerArtProvider::ensureUi() {
 			scale = ConfMan.getInt("roger_ui_font_scale");
 		_textRenderer->setFitScale(scale);
 	}
+	if (!_altTextRenderer) {
+		// Header (score/title banner) + menus use a distinct, more modern font.
+		Common::String headerTtf = "NotoSans-Regular.ttf";
+		if (ConfMan.hasKey("roger_ui_header_font"))
+			headerTtf = ConfMan.get("roger_ui_header_font");
+		Common::Array<int> sizes;
+		sizes.push_back(18); sizes.push_back(24); sizes.push_back(32);
+		sizes.push_back(42); sizes.push_back(56); sizes.push_back(72);
+		sizes.push_back(96); sizes.push_back(120); sizes.push_back(160);
+		_altTextRenderer = new Roger::RogerTextRenderer(headerTtf, sizes);
+		// Header/menu callers pass an explicit per-element scale, so the member
+		// default is unimportant; keep it at exact fit.
+		_altTextRenderer->setFitScale(100);
+	}
 }
 
 void FileRogerArtProvider::presentWithUi() {
@@ -341,7 +355,7 @@ void FileRogerArtProvider::presentWithUi() {
 	if (_uiLayer && !_uiLayer->empty() && _textRenderer) {
 		byte pal[256 * 3];
 		g_system->getPaletteManager()->grabPalette(pal, 0, 256);
-		_compositor->renderUiLayer(scene, _uiLayer->elements(), pal, _lastGameRect, _textRenderer);
+		_compositor->renderUiLayer(scene, _uiLayer->elements(), pal, _lastGameRect, _textRenderer, _altTextRenderer);
 	}
 	_compositor->presentToOverlay(scene);
 
@@ -367,13 +381,15 @@ void FileRogerArtProvider::uiPushWindow(const Common::Rect &r, int backColor, in
 }
 
 void FileRogerArtProvider::uiPushText(const Common::Rect &r, const char *text, int penColor,
-                                      int backColor, int fontId, int align, uint32 token) {
+                                      int backColor, int fontId, int align, uint32 token,
+                                      int fontScalePct, bool useAltFont) {
 	if (!_overlayActive || !_plate) return;
 	ensureUi();
 	Roger::UiElement e;
 	e.type = Roger::kUiText; e.nativeRect = r; e.text = text ? text : "";
 	e.penColor = penColor; e.backColor = backColor; e.fontId = fontId;
 	e.align = align; e.token = token;
+	e.fontScalePct = fontScalePct; e.useAltFont = useAltFont;
 	_uiLayer->push(e);
 	presentWithUi();
 }
@@ -398,6 +414,7 @@ void FileRogerArtProvider::uiPushTextEdit(const Common::Rect &r, const char *tex
 	e.type = Roger::kUiTextEdit; e.nativeRect = r; e.text = text ? text : "";
 	e.fontId = fontId; e.style = style; e.cursorPos = cursorPos; e.align = 0;
 	e.backColor = 15 /*white*/; e.penColor = 0; e.hasFrame = true; e.token = token;
+	e.fontScalePct = 100; // input field: fit its line, not the enlarged dialog scale
 	_uiLayer->push(e);
 	presentWithUi();
 }
@@ -422,6 +439,7 @@ void FileRogerArtProvider::uiPushStatus(const Common::Rect &r, const char *text,
 	e.type = Roger::kUiText; e.nativeRect = r; e.text = text ? text : "";
 	e.penColor = penColor; e.backColor = backColor; e.align = 0;
 	e.fontScalePct = 100; // exact fit to the strip; not the enlarged dialog scale
+	e.useAltFont = true;  // header uses the updated font
 	e.token = token;
 	_uiLayer->push(e);
 	presentWithUi();
@@ -574,6 +592,7 @@ FileRogerArtProvider::~FileRogerArtProvider() {
 	delete _compositor; _compositor = nullptr;
 	delete _uiLayer; _uiLayer = nullptr;
 	delete _textRenderer; _textRenderer = nullptr;
+	delete _altTextRenderer; _altTextRenderer = nullptr;
 	if (_sceneCache) { delete _sceneCache; _sceneCache = nullptr; }
 	for (uint i = 0; i < _uiIcons.size(); i++) { _uiIcons[i]->free(); delete _uiIcons[i]; }
 	_uiIcons.clear();

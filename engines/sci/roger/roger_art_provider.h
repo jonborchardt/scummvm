@@ -81,7 +81,8 @@ public:
 	virtual void uiPushWindow(const Common::Rect &globalRect, int backColor, int penColor,
 	                          uint16 wndStyle, uint32 token) {}
 	virtual void uiPushText(const Common::Rect &globalRect, const char *text, int penColor,
-	                        int backColor, int fontId, int align, uint32 token) {}
+	                        int backColor, int fontId, int align, uint32 token,
+	                        int fontScalePct = 0, bool useAltFont = false) {}
 	virtual void uiPushButton(const Common::Rect &globalRect, const char *text, int fontId,
 	                          int style, uint32 token) {}
 	virtual void uiPushTextEdit(const Common::Rect &globalRect, const char *text, int fontId,

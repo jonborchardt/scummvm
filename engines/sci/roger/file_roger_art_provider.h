@@ -55,7 +55,8 @@ public:
 	void uiPushWindow(const Common::Rect &globalRect, int backColor, int penColor,
 	                  uint16 wndStyle, uint32 token) override;
 	void uiPushText(const Common::Rect &globalRect, const char *text, int penColor,
-	                int backColor, int fontId, int align, uint32 token) override;
+	                int backColor, int fontId, int align, uint32 token,
+	                int fontScalePct = 0, bool useAltFont = false) override;
 	void uiPushButton(const Common::Rect &globalRect, const char *text, int fontId,
 	                  int style, uint32 token) override;
 	void uiPushTextEdit(const Common::Rect &globalRect, const char *text, int fontId,
@@ -97,7 +98,8 @@ private:
 
 	// Roger hires UI/dialog compositing (see roger_ui_layer / roger_text).
 	Roger::RogerUiLayer *_uiLayer = nullptr;
-	Roger::RogerTextRenderer *_textRenderer = nullptr;
+	Roger::RogerTextRenderer *_textRenderer = nullptr;     // dialog font
+	Roger::RogerTextRenderer *_altTextRenderer = nullptr;  // header/menu font
 	Graphics::ManagedSurface *_sceneCache = nullptr; // last composed room+sprites (no UI)
 	Common::Array<Graphics::Surface *> _uiIcons;     // owned native-cel surfaces for kUiIcon
 	bool _haveScene = false;                         // _sceneCache valid this room

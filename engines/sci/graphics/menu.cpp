@@ -760,7 +760,7 @@ void GfxMenu::rogerPushMenuOverlay() {
 		const int pen = sel ? _screen->getColorWhite() : 0;
 		const int back = sel ? 0 : -1; // selected row drawn inverted (white on black)
 		g_sciRogerProvider->uiPushText(r.rect, r.text.c_str(), pen, back, 0,
-		                               SCI_TEXT16_ALIGNMENT_LEFT, tok);
+		                               SCI_TEXT16_ALIGNMENT_LEFT, tok, 100, true);
 	}
 }
 
