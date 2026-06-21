@@ -91,6 +91,25 @@ public:
 		TS_ASSERT_EQUALS(r, 0); TS_ASSERT_EQUALS(g, 0); TS_ASSERT_EQUALS(b, 0); // black
 	}
 
+	void test_render_scene_letterbox_black_status_strip_transparent() {
+		const Graphics::PixelFormat rgba(4, 8, 8, 8, 8, 24, 16, 8, 0);
+		Graphics::ManagedSurface dest(320, 200, rgba);
+		RogerCompositor comp;
+		// Game rect inset on the sides (letterbox at x<20 and x>=300); the picture
+		// sits below a 10px status strip at the top of the game rect.
+		Common::Rect gameRect(20, 0, 300, 200);
+		comp.setPictureDest(Common::Rect(20, 10, 300, 200));
+		comp.renderScene(dest, Common::Array<Sprite>(), gameRect);
+		uint8 a, r, g, b;
+		// Letterbox (x=5, outside the game rect) -> opaque black blocker.
+		dest.surfacePtr()->format.colorToARGB(dest.surfacePtr()->getPixel(5, 100), a, r, g, b);
+		TS_ASSERT_EQUALS(a, 255); TS_ASSERT_EQUALS(r, 0); TS_ASSERT_EQUALS(g, 0); TS_ASSERT_EQUALS(b, 0);
+		// Status strip (x=160, y=5: inside the game rect, above the picture) -> transparent
+		// so the native Sierra menu icon shows through.
+		dest.surfacePtr()->format.colorToARGB(dest.surfacePtr()->getPixel(160, 5), a, r, g, b);
+		TS_ASSERT_EQUALS(a, 0);
+	}
+
 	void test_render_window_has_black_border() {
 		const Graphics::PixelFormat rgba(4, 8, 8, 8, 8, 24, 16, 8, 0);
 		Graphics::ManagedSurface dest(320, 200, rgba);

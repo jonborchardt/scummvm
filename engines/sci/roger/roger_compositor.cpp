@@ -54,7 +54,8 @@ void RogerCompositor::setPriorityMask(const byte *priority, int priW, int priH) 
 	_priorityH = priH;
 }
 
-void RogerCompositor::renderScene(Graphics::ManagedSurface &dest, const Common::Array<Sprite> &sprites) {
+void RogerCompositor::renderScene(Graphics::ManagedSurface &dest, const Common::Array<Sprite> &sprites,
+                                  const Common::Rect &gameRect) {
 	const int W = dest.w, H = dest.h;
 
 	// The picture (plate + sprites) is drawn into _pictureDest — the overlay-space
@@ -73,9 +74,25 @@ void RogerCompositor::renderScene(Graphics::ManagedSurface &dest, const Common::
 	// SCI0); the plate encodes that same picture, so both map into picRect.
 	const int PIC_W = _picW, PIC_H = _picH;
 
-	// 0) Opaque-black background so the letterbox is a solid blocker — the native
-	//    render (and its hardware cursor) must not show through the overlay edges.
-	dest.clear(dest.surfacePtr()->format.ARGBToColor(255, 0, 0, 0));
+	// 0) The overlay is alpha-blended over the still-rendered native game. Fill the
+	//    letterbox — everything OUTSIDE the game rect — opaque black so the native render
+	//    and its hardware cursor cannot leak through there. The reserved status strip
+	//    (inside the game rect, above the picture) stays transparent so native UI Roger
+	//    intentionally leaves alone — e.g. the graphical Sierra menu icon — shows through.
+	const uint32 black = dest.surfacePtr()->format.ARGBToColor(255, 0, 0, 0);
+	if (gameRect.isEmpty()) {
+		dest.clear(black); // no geometry (unit tests): whole surface is a solid blocker
+	} else {
+		dest.clear(0); // transparent base; status strip + (later) plate keep/overwrite it
+		const int16 gt = (int16)MAX<int>(0, gameRect.top);
+		const int16 gb = (int16)MIN<int>(H, gameRect.bottom);
+		const int16 gl = (int16)MAX<int>(0, gameRect.left);
+		const int16 gr = (int16)MIN<int>(W, gameRect.right);
+		if (gt > 0) dest.fillRect(Common::Rect(0, 0, (int16)W, gt), black);
+		if (gb < H) dest.fillRect(Common::Rect(0, gb, (int16)W, (int16)H), black);
+		if (gl > 0) dest.fillRect(Common::Rect(0, gt, gl, gb), black);
+		if (gr < W) dest.fillRect(Common::Rect(gr, gt, (int16)W, gb), black);
+	}
 
 	// 1) Clean plate, scaled into the game rect (aspect preserved).
 	if (_plate)

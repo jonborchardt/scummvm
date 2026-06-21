@@ -68,7 +68,12 @@ public:
 	void setPictureDest(const Common::Rect &r) { _pictureDest = r; }
 
 	// Compose dest = plate + sprites (back-to-front) with per-pixel priority occlusion.
-	void renderScene(Graphics::ManagedSurface &dest, const Common::Array<Sprite> &sprites);
+	// gameRect (overlay-space, from computeGameRect) bounds the displayed game: the area
+	// OUTSIDE it (the letterbox) is filled opaque black so the native render/cursor cannot
+	// leak through, while the reserved status strip inside it stays transparent (native
+	// Sierra menu icon shows through). Empty gameRect (tests) => whole surface opaque black.
+	void renderScene(Graphics::ManagedSurface &dest, const Common::Array<Sprite> &sprites,
+	                 const Common::Rect &gameRect = Common::Rect());
 
 	// Push scene to the OSystem overlay and make it visible.
 	void presentToOverlay(Graphics::ManagedSurface &scene);

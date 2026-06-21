@@ -87,12 +87,12 @@ FileRogerArtProvider::FileRogerArtProvider(const Common::String &gameId,
 	// keystrokes/focus — injected Alt+s/F10 never reach SDL (Win32 menu keys).
 	_autoshot = ConfMan.hasKey("roger_autoshot") && ConfMan.getBool("roger_autoshot");
 
-	// Cursor: prefer the native hardware cursor (CursorMan). The backend DOES draw it
-	// over the in-game OSystem overlay (scaled to the game draw rect), and SCI sets the
-	// correct arrow/wait/hand shapes itself — so it is smooth (no per-move recomposite)
-	// and shape-correct for free. Set roger_hw_cursor=false to fall back to Roger's
-	// composited arrow (see compositeCursor / onMouseMoved). Default true.
-	_useHwCursor = true;
+	// Cursor: the native hardware cursor is NOT usefully visible over the in-game
+	// OSystem overlay (verified in live play — it disappears), which is the original
+	// reason Roger composites its own arrow into the overlay scene. So default to the
+	// composited cursor. roger_hw_cursor=true opts back into the (currently invisible)
+	// hardware cursor for experimentation. Default false.
+	_useHwCursor = false;
 	if (ConfMan.hasKey("roger_hw_cursor"))
 		_useHwCursor = ConfMan.getBool("roger_hw_cursor");
 }
@@ -233,11 +233,12 @@ void FileRogerArtProvider::pushHiresBackground(GuiResourceId pictureId) {
 	}
 	_loadedPicId = pictureId;
 
-	// Present the plate immediately so the hires overlay is on screen for this room
-	// before the first kAnimate frame — otherwise the native picture flashes first
-	// ("the load pop"). The ego/props fill in on the next real kAnimate.
-	renderFrame(Common::Array<Roger::Sprite>());
-	reapplyStatus(); // keep the score/title banner enhanced across the room change
+	// Re-push the cached score/title banner into the UI layer so it is enhanced again
+	// after the room change (the game only redraws status on score/text change). The
+	// present is deferred to the first kAnimate frame (presentWithUi no-ops until the
+	// scene is composited) — presenting the sprite-less plate here flashed a wrong
+	// frame over in-progress animations (e.g. the intro pod door open/shut/open).
+	reapplyStatus();
 }
 
 void FileRogerArtProvider::renderFrame(const Common::Array<Roger::Sprite> &sprites) {
@@ -264,7 +265,7 @@ void FileRogerArtProvider::renderFrame(const Common::Array<Roger::Sprite> &sprit
 	// Reuse a persistent scratch buffer; renderScene clears + fully redraws it, so no
 	// stale pixels survive between frames.
 	Graphics::ManagedSurface &scene = *scratchScene(OW, OH);
-	_compositor->renderScene(scene, sprites);
+	_compositor->renderScene(scene, sprites, gameRect);
 
 	// Cache the composed room+sprite scene so a UI-only change can be re-presented
 	// cheaply (blocking dialogs do not tick kernelAnimate).
