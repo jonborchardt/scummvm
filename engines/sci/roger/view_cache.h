@@ -24,7 +24,6 @@
 #include "common/str.h"
 #include "common/hashmap.h"
 #include "common/hash-str.h"
-#include "common/array.h"
 
 namespace Graphics { struct Surface; }
 
@@ -39,22 +38,15 @@ public:
 	ViewCache(const ViewCache &) = delete;
 	ViewCache &operator=(const ViewCache &) = delete;
 
-	// Borrowed pointer owned by the cache; nullptr if asset missing.
+	// Borrowed pointer owned by the cache; nullptr if generation is unavailable
+	// (no generator / prebuilt mode) or the cel could not be generated.
 	const Graphics::Surface *getCel(int viewId, int loopNo, int celNo);
 
-	// Optional generator fallback: when set and mode != kGenPrebuilt,
-	// getCel falls back to generating a cel if the prebuilt spritesheet is absent.
+	// Generator source: when set and mode != kGenPrebuilt, getCel generates each
+	// cel on first use and caches it. This is the only cel source.
 	void setGenerator(RogerAssetGen *g) { _gen = g; }
 
 private:
-	struct Loop {
-		Graphics::Surface *sheet;            // full spritesheet (owned)
-		Common::Array<Graphics::Surface *> cels; // sub-surfaces (owned)
-	};
-	Common::String _base;
-	Common::HashMap<Common::String, Loop> _loops;  // key "viewId/loopNo"
-	Loop *loadLoop(int viewId, int loopNo);
-
 	RogerAssetGen *_gen = nullptr;
 	// Generated cels (owned). Key "viewId/loopNo/celNo". nullptr entries are
 	// cached to avoid re-attempting a known-missing cel.

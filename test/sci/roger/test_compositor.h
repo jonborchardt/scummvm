@@ -44,14 +44,19 @@ public:
 	}
 
 	void test_plate_then_sprite_with_priority_occlusion() {
-		// 8x8 gray plate (64,64,64). One green sprite (view 900 loop 0 cel 1) of
-		// priority 1 covering the whole picture. An 8x8 priority map: left half
-		// band 0 (<= sprite -> sprite shows), right half band 15 (> sprite ->
-		// occluded, the plate's pixels are restored). picture == 8x8, no menu offset.
+		// 8x8 gray plate (64,64,64). One green sprite of priority 1 covering the whole
+		// picture, supplied via celOverride (the cel source after spritesheet loading
+		// was removed — cels now come from the generator or a pre-rendered override).
+		// An 8x8 priority map: left half band 0 (<= sprite -> sprite shows), right half
+		// band 15 (> sprite -> occluded, the plate's pixels are restored). picture ==
+		// 8x8, no menu offset.
 		Graphics::Surface *plate = Sci::Roger::loadSurfaceRGBA(
 			Common::String(FIXTURE_DIR) + "/plate_8x8.png");
 		TS_ASSERT(plate != nullptr);
-		Sci::Roger::ViewCache views(Common::String(FIXTURE_DIR));
+
+		Graphics::Surface cel; // green sprite content, supplied as celOverride
+		cel.create(8, 8, plate->format);
+		cel.fillRect(Common::Rect(0, 0, 8, 8), plate->format.ARGBToColor(255, 0, 255, 0));
 
 		// Priority map: byte per pixel; cols 0..3 = band 0, cols 4..7 = band 15.
 		Common::Array<byte> prio;
@@ -61,7 +66,7 @@ public:
 				prio[y * 8 + x] = (x < 4) ? 0 : 15;
 
 		Sci::Roger::RogerCompositor comp;
-		comp.setRoom(plate, &views);
+		comp.setRoom(plate, nullptr);            // no ViewCache -> uses celOverride
 		comp.setPicture(8, 8, 0);
 		comp.setPriorityMask(prio.begin(), 8, 8);
 
@@ -69,6 +74,7 @@ public:
 		spr.viewId = 900; spr.loopNo = 0; spr.celNo = 1;
 		spr.priority = 1; spr.mirror = false;
 		spr.celRect = Common::Rect(0, 0, 8, 8);  // picture-space -> full 8x8 dest
+		spr.celOverride = &cel;
 
 		Common::Array<Sci::Roger::Sprite> list;
 		list.push_back(spr);
@@ -85,6 +91,7 @@ public:
 		dest.surfacePtr()->format.colorToARGB(dest.surfacePtr()->getPixel(6, 1), a, r, g, b);
 		TS_ASSERT_EQUALS(r, 64); TS_ASSERT_EQUALS(g, 64); TS_ASSERT_EQUALS(b, 64);
 
+		cel.free();
 		plate->free(); delete plate;
 	}
 
