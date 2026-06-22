@@ -45,8 +45,7 @@ Tests use the CxxTest framework located in `test/cxxtest/`. Test source files ar
 
 This fork adds the **Roger** art replacement system for SCI0 games (SQ3, QFG1 EGA). It renders high-resolution backgrounds and VIEW cels **generated in-engine** from the SCI resources (the omyac upscaler pipeline), presented through ScummVM's OSystem overlay, while leaving all game logic intact. In-engine generation is the default and only art path — no pre-generated PNGs are consumed.
 
-- Design spec: `docs/superpowers/specs/2026-06-19-roger-art-replacement-design.md`
-- Latest plan: `docs/superpowers/plans/2026-06-21-roger-fully-in-engine-art-generation.md` (in-engine generation is the only art path)
+- Design spec (single living doc): `docs/superpowers/specs/2026-06-19-roger-art-replacement-design.md` — done/partial/future are stratified there; the superseded per-phase plans were removed (git history is the record of what shipped)
 - User-facing docs: `docs/roger.md`
 - All Roger code lives in `engines/sci/roger/`
 
