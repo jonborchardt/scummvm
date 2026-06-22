@@ -275,6 +275,8 @@ void FileRogerArtProvider::pushHiresBackground(GuiResourceId pictureId) {
 	if (_loadedPicId == pictureId && _plate)
 		return; // already loaded for this room
 
+	uint32 tEnter = g_system->getMillis();
+
 	// New room: drop any dialogs/icons left from the previous room so they do not
 	// bleed onto the new scene. _haveScene is rebuilt by the next renderFrame.
 	if (_uiLayer) _uiLayer->clearAll();
@@ -287,12 +289,16 @@ void FileRogerArtProvider::pushHiresBackground(GuiResourceId pictureId) {
 
 	uint32 genMs = 0;
 	_plate = nullptr;
-	if (_assetGen && _assetGen->mode() != Roger::kGenPrebuilt)
+	const char *plateSrc = "prebuilt-load";
+	uint32 tAcq0 = g_system->getMillis();
+	if (_assetGen && _assetGen->mode() != Roger::kGenPrebuilt) {
 		_plate = _assetGen->generatePlate(pictureId, genMs);
+		if (_plate)
+			plateSrc = genMs ? "generated(miss)" : "cache-hit";
+	}
 	if (!_plate)                                   // prebuilt mode, or generation failed
 		_plate = Roger::loadSurfaceRGBA(visualPath(pictureId));   // unchanged fallback
-	if (_debugLog && genMs)
-		debug("Roger: omyac plate %d generated in %u ms", pictureId, genMs);
+	uint32 plateMs = g_system->getMillis() - tAcq0;
 	if (!_plate) {
 		// No hires bg -> native shows. Clear the compositor's borrowed plate pointer
 		// so it does not retain the plate we just deleted above.
@@ -315,7 +321,10 @@ void FileRogerArtProvider::pushHiresBackground(GuiResourceId pictureId) {
 	// (320x190 for SCI0) aligned with the plate, so picScreenTop = 0.
 	int prW = 0, prH = 0;
 	_priorityMap.clear();
-	if (loadPriorityBands(occlusionPriorityPath(pictureId), _priorityMap, prW, prH)) {
+	uint32 tOcc0 = g_system->getMillis();
+	bool haveOcc = loadPriorityBands(occlusionPriorityPath(pictureId), _priorityMap, prW, prH);
+	uint32 occMs = g_system->getMillis() - tOcc0;
+	if (haveOcc) {
 		_compositor->setPicture(320, prH, 0);
 		_compositor->setPriorityMask(_priorityMap.begin(), prW, prH);
 	} else {
@@ -332,6 +341,16 @@ void FileRogerArtProvider::pushHiresBackground(GuiResourceId pictureId) {
 	// scene is composited) — presenting the sprite-less plate here flashed a wrong
 	// frame over in-progress animations (e.g. the intro pod door open/shut/open).
 	reapplyStatus();
+
+	// Per-room-entry timing breakdown so cache benefit is measurable: plate is the
+	// cost of acquiring the visual (full omyac generation on a miss, PNG decode on a
+	// cache-hit, or prebuilt-PNG load); occlusion-map is the EGA priority-band decode;
+	// rest is compositor/UI setup. Compare "generated(miss)" vs "cache-hit" plate ms.
+	if (_debugLog) {
+		uint32 totalMs = g_system->getMillis() - tEnter;
+		debug("Roger: enter room %d in %u ms  [plate %u ms (%s), occlusion-map %u ms, rest %u ms]",
+		      pictureId, totalMs, plateMs, plateSrc, occMs, totalMs - plateMs - occMs);
+	}
 }
 
 void FileRogerArtProvider::renderFrame(const Common::Array<Roger::Sprite> &sprites) {
