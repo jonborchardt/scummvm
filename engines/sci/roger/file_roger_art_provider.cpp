@@ -189,21 +189,10 @@ bool FileRogerArtProvider::loadPriorityBands(const Common::String &path,
 bool FileRogerArtProvider::hasBackground(GuiResourceId pictureId) const {
 	if (!enabled)
 		return false;
-	// Priority + control maps are always required: the drawPicture hook skips
-	// SCI's native render and fills the 320x200 priority/control buffers from
-	// these (walkability + occlusion). They are kept prebuilt by design.
-	Common::FSNode p(Common::Path(priorityPath(pictureId)));
-	Common::FSNode c(Common::Path(controlPath(pictureId)));
-	if (!p.exists() || !c.exists())
-		return false;
-	// In a generating mode the hires visual is produced in-engine, so the
-	// prebuilt visual PNG is NOT required (requiring it would needlessly cap
-	// coverage to pre-authored rooms). In prebuilt mode the PNG is the plate
-	// source, so it must exist.
-	if (_assetGen && _assetGen->mode() != Roger::kGenPrebuilt)
-		return true;
-	Common::FSNode v(Common::Path(visualPath(pictureId)));
-	return v.exists();
+	// Generation is the art path. Activate for any pic when a generating mode is
+	// set; no prebuilt file is required (the visual + occlusion are generated, and
+	// SCI's own native render still fills priority/control for walkability).
+	return _assetGen && _assetGen->mode() != Roger::kGenPrebuilt;
 }
 
 void FileRogerArtProvider::precacheAll() {
@@ -289,15 +278,15 @@ void FileRogerArtProvider::pushHiresBackground(GuiResourceId pictureId) {
 
 	uint32 genMs = 0;
 	_plate = nullptr;
-	const char *plateSrc = "prebuilt-load";
+	const char *plateSrc = "none";
 	uint32 tAcq0 = g_system->getMillis();
 	if (_assetGen && _assetGen->mode() != Roger::kGenPrebuilt) {
 		_plate = _assetGen->generatePlate(pictureId, genMs);
 		if (_plate)
 			plateSrc = genMs ? "generated(miss)" : "cache-hit";
 	}
-	if (!_plate)                                   // prebuilt mode, or generation failed
-		_plate = Roger::loadSurfaceRGBA(visualPath(pictureId));   // unchanged fallback
+	// NOTE: no prebuilt-visual fallback. If generation yields nothing, the native
+	// render shows (handled by the !_plate block below).
 	uint32 plateMs = g_system->getMillis() - tAcq0;
 	if (!_plate) {
 		// No hires bg -> native shows. Clear the compositor's borrowed plate pointer
@@ -316,20 +305,20 @@ void FileRogerArtProvider::pushHiresBackground(GuiResourceId pictureId) {
 		_compositor = new Roger::RogerCompositor();
 	_compositor->setRoom(_plate, _viewCache);
 
-	// Load the real EGA-color priority map for per-pixel overlay occlusion and
-	// decode it to a band-per-pixel buffer. It is authored in picture space
-	// (320x190 for SCI0) aligned with the plate, so picScreenTop = 0.
+	// Derive the per-pixel overlay occlusion in-engine from the native pre-render's
+	// priority buffer (320x190, one SCI band per pixel), aligned with the plate, so
+	// picScreenTop = 0. No prebuilt occlusion map is consumed.
 	int prW = 0, prH = 0;
 	_priorityMap.clear();
 	uint32 tOcc0 = g_system->getMillis();
-	bool haveOcc = loadPriorityBands(occlusionPriorityPath(pictureId), _priorityMap, prW, prH);
+	bool haveOcc = (_assetGen && _assetGen->mode() != Roger::kGenPrebuilt &&
+	                _assetGen->priorityBands(pictureId, _priorityMap, prW, prH));
 	uint32 occMs = g_system->getMillis() - tOcc0;
 	if (haveOcc) {
 		_compositor->setPicture(320, prH, 0);
 		_compositor->setPriorityMask(_priorityMap.begin(), prW, prH);
 	} else {
-		// No occlusion map -> sprites still draw, just without occlusion.
-		warning("ROGER: no occlusion priority map at %s", occlusionPriorityPath(pictureId).c_str());
+		// No occlusion bands -> sprites still draw, just without occlusion.
 		_compositor->setPicture(320, 190, 0);
 		_compositor->setPriorityMask(nullptr, 0, 0);
 	}
