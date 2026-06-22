@@ -171,16 +171,27 @@ void FileRogerArtProvider::precacheAll() {
 		warning("ROGER precache: %d pic plates warmed", done);
 	}
 
-	if (doViews) {
+	if (doViews && g_sci->_gfxCache) {
 		Common::List<ResourceId> views = resMan->listResources(kResourceTypeView);
 		int warmed = 0;
 		for (Common::List<ResourceId>::const_iterator it = views.begin(); it != views.end(); ++it) {
 			const int viewId = it->getNumber();
-			GfxView *view = g_sci->_gfxCache ? g_sci->_gfxCache->getView((GuiResourceId)viewId) : nullptr;
+			GfxView *view = g_sci->_gfxCache->getView((GuiResourceId)viewId);
 			if (!view)
 				continue; // missing/malformed view -> skip (Hard Constraint 6)
-			for (int lp = 0; lp < (int)view->getLoopCount(); ++lp) {
-				for (int cl = 0; cl < (int)view->getCelCount((int16)lp); ++cl) {
+			// Snapshot loop/cel counts NOW, while 'view' is valid. generateViewCel()
+			// below calls GfxCache::getView(), which purges the WHOLE view cache when
+			// it is full (cache.cpp) — that frees this 'view' pointer. Dereferencing
+			// view->getCelCount() after a generate call would read freed memory and
+			// trip the assert in GfxView::getCelCount. So never touch 'view' again
+			// once generation starts (Hard Constraint 6).
+			const int loopCount = (int)view->getLoopCount();
+			Common::Array<int> celCounts;
+			for (int lp = 0; lp < loopCount; ++lp)
+				celCounts.push_back((int)view->getCelCount((int16)lp));
+			view = nullptr; // pointer may be invalidated by generateViewCel below
+			for (int lp = 0; lp < loopCount; ++lp) {
+				for (int cl = 0; cl < celCounts[lp]; ++cl) {
 					uint32 ms = 0;
 					Graphics::Surface *s = _assetGen->generateViewCel(viewId, lp, cl, ms);
 					if (s) { s->free(); delete s; } // cache mode wrote it; discard the surface
