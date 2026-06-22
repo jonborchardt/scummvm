@@ -189,10 +189,21 @@ bool FileRogerArtProvider::loadPriorityBands(const Common::String &path,
 bool FileRogerArtProvider::hasBackground(GuiResourceId pictureId) const {
 	if (!enabled)
 		return false;
-	Common::FSNode v(Common::Path(visualPath(pictureId)));
+	// Priority + control maps are always required: the drawPicture hook skips
+	// SCI's native render and fills the 320x200 priority/control buffers from
+	// these (walkability + occlusion). They are kept prebuilt by design.
 	Common::FSNode p(Common::Path(priorityPath(pictureId)));
 	Common::FSNode c(Common::Path(controlPath(pictureId)));
-	return v.exists() && p.exists() && c.exists();
+	if (!p.exists() || !c.exists())
+		return false;
+	// In a generating mode the hires visual is produced in-engine, so the
+	// prebuilt visual PNG is NOT required (requiring it would needlessly cap
+	// coverage to pre-authored rooms). In prebuilt mode the PNG is the plate
+	// source, so it must exist.
+	if (_assetGen && _assetGen->mode() != Roger::kGenPrebuilt)
+		return true;
+	Common::FSNode v(Common::Path(visualPath(pictureId)));
+	return v.exists();
 }
 
 void FileRogerArtProvider::precacheAll() {
