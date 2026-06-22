@@ -123,32 +123,10 @@ FileRogerArtProvider::FileRogerArtProvider(const Common::String &gameId,
 	//   unset           => default sequence (defaultPasses())
 	//   set to ""       => wireframe (empty array = zero passes)
 	//   set to tokens   => parsed list (fill/f=2, line/l=1, all/a=0)
-	if (!ConfMan.hasKey("roger_omyac_passes")) {
-		_assetGen->setEnhancePasses(Roger::defaultPasses());
-	} else {
-		const Common::String passStr = ConfMan.get("roger_omyac_passes");
-		Common::Array<int> passes;
-		// Tokenize on spaces and commas.
-		Common::String tok;
-		for (uint i = 0; i <= passStr.size(); ++i) {
-			const char c = (i < passStr.size()) ? passStr[i] : '\0';
-			if (c == ',' || c == ' ' || c == '\t' || c == '\0') {
-				if (!tok.empty()) {
-					if (tok == "fill" || tok == "f")
-						passes.push_back(2);
-					else if (tok == "line" || tok == "l")
-						passes.push_back(1);
-					else if (tok == "all" || tok == "a")
-						passes.push_back(0);
-					// unrecognized tokens are silently skipped
-					tok.clear();
-				}
-			} else {
-				tok += c;
-			}
-		}
-		_assetGen->setEnhancePasses(passes);
-	}
+	_assetGen->setEnhancePasses(
+		parseOmyacPasses(ConfMan.hasKey("roger_omyac_passes"),
+		                 ConfMan.hasKey("roger_omyac_passes") ? ConfMan.get("roger_omyac_passes") : "")
+	);
 }
 
 Common::String FileRogerArtProvider::picDir(GuiResourceId id) const {
@@ -866,6 +844,109 @@ void FileRogerArtProvider::toggleOverlay() {
 void FileRogerArtProvider::toggleDebugLog() {
 	_debugLog = !_debugLog;
 	warning("ROGER: debug logging %s", _debugLog ? "ON" : "OFF");
+}
+
+// ---------------------------------------------------------------------------
+// Live enhance-pass tuning helpers
+// ---------------------------------------------------------------------------
+
+Common::Array<int> FileRogerArtProvider::parseOmyacPasses(bool hasKey, const Common::String &passStr) const {
+	if (!hasKey)
+		return Roger::defaultPasses();
+	// hasKey + empty string = wireframe (zero passes).
+	Common::Array<int> passes;
+	Common::String tok;
+	for (uint i = 0; i <= passStr.size(); ++i) {
+		const char c = (i < passStr.size()) ? passStr[i] : '\0';
+		if (c == ',' || c == ' ' || c == '\t' || c == '\0') {
+			if (!tok.empty()) {
+				if (tok == "fill" || tok == "f")
+					passes.push_back(2);
+				else if (tok == "line" || tok == "l")
+					passes.push_back(1);
+				else if (tok == "all" || tok == "a")
+					passes.push_back(0);
+				// unrecognized tokens silently skipped
+				tok.clear();
+			}
+		} else {
+			tok += c;
+		}
+	}
+	return passes;
+}
+
+void FileRogerArtProvider::regenInPlace() {
+	if (!_assetGen || _loadedPicId < 0)
+		return;
+	const int saved = _loadedPicId;
+	_loadedPicId = -1; // invalidate early-return guard in pushHiresBackground
+	pushHiresBackground(saved);
+	presentWithUi();
+}
+
+void FileRogerArtProvider::tuneEnhancePasses(int delta, int which) {
+	if (!_assetGen)
+		return;
+
+	// Map which → pass int: 0(fill)→2, 1(line)→1, 2(all)→0
+	const int passType = (which == 0) ? 2 : (which == 1) ? 1 : 0;
+
+	// Count current passes by type.
+	const Common::Array<int> &cur = _assetGen->enhancePasses();
+	int fillCount = 0, lineCount = 0, allCount = 0;
+	for (uint i = 0; i < cur.size(); ++i) {
+		if (cur[i] == 2) fillCount++;
+		else if (cur[i] == 1) lineCount++;
+		else if (cur[i] == 0) allCount++;
+	}
+
+	// Apply delta to the targeted type, clamped to >= 0.
+	if (passType == 2) fillCount = MAX(0, fillCount + delta);
+	else if (passType == 1) lineCount = MAX(0, lineCount + delta);
+	else if (passType == 0) allCount  = MAX(0, allCount  + delta);
+
+	// Rebuild in canonical grouped order: fill (2), line (1), all (0).
+	Common::Array<int> newPasses;
+	for (int i = 0; i < fillCount; ++i) newPasses.push_back(2);
+	for (int i = 0; i < lineCount; ++i) newPasses.push_back(1);
+	for (int i = 0; i < allCount;  ++i) newPasses.push_back(0);
+	_assetGen->setEnhancePasses(newPasses);
+
+	// Tuning must generate in memory — avoid disk-cache churn. Switch out of
+	// prebuilt/cache mode if needed (the user can re-set roger_gen_mode to
+	// restore their preferred mode or call reloadGenConfig() to persist the
+	// chosen sequence).
+	if (_assetGen->mode() == Roger::kGenPrebuilt || _assetGen->mode() == Roger::kGenCache)
+		_assetGen->setMode(Roger::kGenMemory);
+
+	// Log the active sequence unconditionally so tuning feedback is always visible
+	// (not gated on _debugLog).
+	debug("ROGER tuneEnhancePasses: fill=%d line=%d all=%d  (fill=pass2, line=pass1, all=pass0)",
+	      fillCount, lineCount, allCount);
+
+	regenInPlace();
+}
+
+void FileRogerArtProvider::reloadGenConfig() {
+	if (!_assetGen)
+		return;
+
+	// Re-parse roger_omyac_passes from ConfMan using the same three-state logic
+	// as the constructor. The user edits the config file and presses Ctrl+Shift+R.
+	_assetGen->setEnhancePasses(
+		parseOmyacPasses(ConfMan.hasKey("roger_omyac_passes"),
+		                 ConfMan.hasKey("roger_omyac_passes") ? ConfMan.get("roger_omyac_passes") : "")
+	);
+
+	// Keep in a generating mode so the reload actually produces a new plate.
+	if (_assetGen->mode() == Roger::kGenPrebuilt || _assetGen->mode() == Roger::kGenCache)
+		_assetGen->setMode(Roger::kGenMemory);
+
+	debug("ROGER reloadGenConfig: roger_omyac_passes re-read; passes count=%u",
+	      (unsigned)_assetGen->enhancePasses().size());
+
+	regenInPlace();
 }
 
 void FileRogerArtProvider::onNativePicture() {

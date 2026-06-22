@@ -67,6 +67,7 @@ public:
 	void setEnhancePasses(const Common::Array<int> &passes);
 	const Common::Array<int> &enhancePasses() const { return _passes; }
 	GenMode mode() const { return _mode; }
+	void setMode(GenMode m) { _mode = m; }
 
 	/**
 	 * Generate (or load from cache) the omyac RGBA plate for pictureId.

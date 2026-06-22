@@ -109,6 +109,11 @@ public:
 	virtual void toggleOverlay() {}
 	virtual void toggleDebugLog() {}
 
+	// Live enhance-pass tuning (roger_omyac generation): adjust the count of a
+	// pass type (which: 0=fill, 1=line, 2=all) by delta and regenerate in place.
+	virtual void tuneEnhancePasses(int delta, int which) {}
+	virtual void reloadGenConfig() {}
+
 	// Set to false to disable Roger without destroying the provider.
 	// ScummVM native rendering is used when false.
 	bool enabled;

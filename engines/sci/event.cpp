@@ -268,6 +268,11 @@ SciEvent EventManager::getScummVMEvent() {
 	// before SCI saw it) plus the Ctrl+Shift variants as a fallback:
 	//   F10 / Ctrl+Shift+U - toggle the upscaled hires overlay vs the original
 	//   F11 / Ctrl+Shift+L - toggle per-frame Roger diagnostic logging
+	//   Ctrl+Shift+] - add a fill pass (omyac enhance-pass live tuning)
+	//   Ctrl+Shift+[ - remove a fill pass
+	//   Ctrl+Shift+' - add an all pass
+	//   Ctrl+Shift+; - remove an all pass
+	//   Ctrl+Shift+R - reload roger_omyac_passes from ConfMan and regenerate
 	if (ev.type == Common::EVENT_KEYDOWN && g_sciRogerProvider) {
 		const Common::KeyCode kc = ev.kbd.keycode;
 		const bool ctrlShift = (ev.kbd.flags & Common::KBD_CTRL) && (ev.kbd.flags & Common::KBD_SHIFT);
@@ -277,6 +282,26 @@ SciEvent EventManager::getScummVMEvent() {
 		}
 		if (kc == Common::KEYCODE_F11 || (ctrlShift && kc == Common::KEYCODE_l)) {
 			g_sciRogerProvider->toggleDebugLog();
+			return noEvent;
+		}
+		if (ctrlShift && kc == Common::KEYCODE_RIGHTBRACKET) {
+			g_sciRogerProvider->tuneEnhancePasses(+1, 0); // add fill
+			return noEvent;
+		}
+		if (ctrlShift && kc == Common::KEYCODE_LEFTBRACKET) {
+			g_sciRogerProvider->tuneEnhancePasses(-1, 0); // remove fill
+			return noEvent;
+		}
+		if (ctrlShift && kc == Common::KEYCODE_QUOTE) {
+			g_sciRogerProvider->tuneEnhancePasses(+1, 2); // add all
+			return noEvent;
+		}
+		if (ctrlShift && kc == Common::KEYCODE_SEMICOLON) {
+			g_sciRogerProvider->tuneEnhancePasses(-1, 2); // remove all
+			return noEvent;
+		}
+		if (ctrlShift && kc == Common::KEYCODE_r) {
+			g_sciRogerProvider->reloadGenConfig();
 			return noEvent;
 		}
 	}

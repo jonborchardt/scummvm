@@ -52,6 +52,8 @@ public:
 	void onDrawCel(const Common::Rect &globalRect, int viewId, int loopNo, int celNo) override;
 	void toggleOverlay() override;   // Ctrl+Shift+U: upscaled overlay <-> original native
 	void toggleDebugLog() override;  // Ctrl+Shift+L: per-frame Roger diagnostic logging
+	void tuneEnhancePasses(int delta, int which) override; // Ctrl+Shift+]/[ add/remove fill; '/; add/remove all
+	void reloadGenConfig() override; // Ctrl+Shift+R: re-read roger_omyac_passes from ConfMan
 
 	// UI display-list capture (Roger hires dialogs) — see roger_art_provider.h.
 	void uiPushWindow(const Common::Rect &globalRect, int backColor, int penColor,
@@ -131,6 +133,16 @@ private:
 	// -preview.png for the given composited scene (suffix "" = per-room scene, "-ui" =
 	// dialog re-present). Verification harness only; no-op unless roger_autoshot is set.
 	void dumpAutoshot(Graphics::ManagedSurface &scene, const Common::Rect &gameRect, const char *suffix);
+
+	// Parse a roger_omyac_passes string (or the three-state unset/empty/tokens
+	// logic) into an enhance-pass array. Call with hasKey=false for the "unset"
+	// case (returns defaultPasses); hasKey=true with an empty string for wireframe
+	// (returns empty); hasKey=true with tokens for a parsed list.
+	Common::Array<int> parseOmyacPasses(bool hasKey, const Common::String &passStr) const;
+
+	// Regenerate the current room's plate in place and re-push the overlay.
+	// No-op if no room is loaded (_loadedPicId < 0) or _assetGen is null.
+	void regenInPlace();
 
 	Common::String picDir(GuiResourceId id) const;
 	Common::String visualPath(GuiResourceId id) const;
