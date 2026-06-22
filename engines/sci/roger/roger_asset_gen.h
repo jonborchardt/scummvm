@@ -85,6 +85,10 @@ public:
 	 */
 	Graphics::Surface *generateViewCel(int viewId, int loopNo, int celNo, uint32 &outMs);
 
+	// Native priority bands (320x190, one SCI band per pixel) for overlay occlusion,
+	// derived from the in-engine native pre-render. Returns false on any miss.
+	bool priorityBands(int picId, Common::Array<byte> &outBands, int &outW, int &outH);
+
 	// White-box test shim: exposes the private cacheKey() for unit tests.
 	Common::String testKey(const char *transform, uint32 resourceHash) const {
 		return cacheKey(transform, resourceHash);

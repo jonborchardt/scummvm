@@ -200,6 +200,29 @@ Graphics::Surface *RogerAssetGen::generatePlate(int id, uint32 &outMs) {
 }
 
 // -------------------------------------------------------------------------
+// priorityBands — native priority bands for overlay occlusion
+// -------------------------------------------------------------------------
+
+bool RogerAssetGen::priorityBands(int picId, Common::Array<byte> &outBands, int &outW, int &outH) {
+	outBands.clear(); outW = 0; outH = 0;
+#ifdef ENABLE_SCI
+	if (!g_sci) return false;
+	ResourceManager *resMan = g_sci->getResMan();
+	if (!resMan) return false;
+	Resource *res = resMan->findResource(ResourceId(kResourceTypePic, (uint16)picId), false);
+	if (!res || res->size() == 0) return false;
+	Common::Array<DrawCommand> cmds = parsePic(res->data(), (uint32)res->size());
+	NativeRef ref = nativePreRender(cmds);
+	if (ref.priority.empty()) return false;
+	outBands = ref.priority;
+	outW = OMYAC_NATIVE_W; outH = OMYAC_NATIVE_H;
+	return true;
+#else
+	(void)picId; return false;
+#endif
+}
+
+// -------------------------------------------------------------------------
 // generateViewCel
 // -------------------------------------------------------------------------
 
