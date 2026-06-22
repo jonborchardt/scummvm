@@ -188,43 +188,66 @@ bool FileRogerArtProvider::hasBackground(GuiResourceId pictureId) const {
 }
 
 void FileRogerArtProvider::precacheAll() {
-	// One-time startup warm-up. Only runs when roger_precache is set AND a
-	// generating mode is active (prebuilt mode has nothing to cache).
+	// One-time startup warm-up. Only runs in a generating mode (prebuilt mode has
+	// nothing to cache). roger_precache selects the scope: all|pics|views|off
+	// (default all when the key is unset). Generic: no per-game table — we ask the
+	// live engine for its pic/view resources.
 	if (!_assetGen || _assetGen->mode() == Roger::kGenPrebuilt)
 		return;
-	if (!ConfMan.hasKey("roger_precache") || !ConfMan.getBool("roger_precache"))
+	Common::String scope = "all";
+	if (ConfMan.hasKey("roger_precache"))
+		scope = ConfMan.get("roger_precache");
+	if (scope == "off")
 		return;
+	const bool doPics  = (scope == "all" || scope == "pics");
+	const bool doViews = (scope == "all" || scope == "views");
+	if (!doPics && !doViews)
+		return; // unrecognized value -> nothing to do
 	if (!g_sci)
 		return;
 	ResourceManager *resMan = g_sci->getResMan();
 	if (!resMan)
 		return;
 
-	// Enumerate every pic resource the game has; precache the ones that have a
-	// full prebuilt art set (visual+priority+control), since only those activate
-	// the overlay. Generic: no per-game table — we ask the live engine for its pics.
-	Common::List<ResourceId> pics = resMan->listResources(kResourceTypePic);
-	int total = 0;
-	for (Common::List<ResourceId>::const_iterator it = pics.begin(); it != pics.end(); ++it)
-		if (hasBackground((GuiResourceId)it->getNumber()))
-			++total;
-	if (total == 0)
-		return;
-
-	warning("ROGER precache: warming cache for %d art-backed pics (mode=%d)...", total, (int)_assetGen->mode());
 	uint32 t0 = g_system->getMillis();
-	int done = 0;
-	for (Common::List<ResourceId>::const_iterator it = pics.begin(); it != pics.end(); ++it) {
-		GuiResourceId id = (GuiResourceId)it->getNumber();
-		if (!hasBackground(id))
-			continue;
-		uint32 ms = 0;
-		Graphics::Surface *s = _assetGen->generatePlate(id, ms); // cache mode writes the PNG
-		if (s) { s->free(); delete s; }                          // we only wanted it on disk
-		++done;
-		warning("ROGER precache: pic %d (%d/%d) %u ms", id, done, total, ms);
+
+	if (doPics) {
+		Common::List<ResourceId> pics = resMan->listResources(kResourceTypePic);
+		const int total = (int)pics.size();
+		int done = 0;
+		warning("ROGER precache: warming %d pic plates (mode=%d)...", total, (int)_assetGen->mode());
+		for (Common::List<ResourceId>::const_iterator it = pics.begin(); it != pics.end(); ++it) {
+			GuiResourceId id = (GuiResourceId)it->getNumber();
+			uint32 ms = 0;
+			Graphics::Surface *s = _assetGen->generatePlate(id, ms); // cache mode writes the PNG
+			if (s) { s->free(); delete s; }                          // we only wanted it on disk
+			++done;
+			warning("ROGER precache: pic %d (%d/%d) %u ms", id, done, total, ms);
+		}
+		warning("ROGER precache: %d pic plates warmed", done);
 	}
-	warning("ROGER precache: %d plates warmed in %u ms total", done, g_system->getMillis() - t0);
+
+	if (doViews) {
+		Common::List<ResourceId> views = resMan->listResources(kResourceTypeView);
+		int warmed = 0;
+		for (Common::List<ResourceId>::const_iterator it = views.begin(); it != views.end(); ++it) {
+			const int viewId = it->getNumber();
+			GfxView *view = g_sci->_gfxCache ? g_sci->_gfxCache->getView((GuiResourceId)viewId) : nullptr;
+			if (!view)
+				continue; // missing/malformed view -> skip (Hard Constraint 6)
+			for (int lp = 0; lp < (int)view->getLoopCount(); ++lp) {
+				for (int cl = 0; cl < (int)view->getCelCount((int16)lp); ++cl) {
+					uint32 ms = 0;
+					Graphics::Surface *s = _assetGen->generateViewCel(viewId, lp, cl, ms);
+					if (s) { s->free(); delete s; } // cache mode wrote it; discard the surface
+					++warmed;
+				}
+			}
+		}
+		warning("ROGER precache: %d view cels warmed", warmed);
+	}
+
+	warning("ROGER precache: done in %u ms total", g_system->getMillis() - t0);
 }
 
 bool FileRogerArtProvider::loadBuffers(GuiResourceId pictureId, GfxScreen *screen) {
