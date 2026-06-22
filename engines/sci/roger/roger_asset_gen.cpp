@@ -60,7 +60,12 @@ namespace Roger {
 //       overlay occlusion derived from the native priority bands). Pipeline
 //       outputs are unchanged, but bumping forces a clean cache to avoid mixing
 //       files written by the superseded prebuilt-era pipeline.
-static const int kTransformVersion = 2;
+//   v3: view cels de-undither EGA bytes (egaDeUndither) so dithered cels keep
+//       saturated EGA colours instead of ScummVM's washed-out blend palette.
+//   v4: view cels pack pixels via PixelFormat::ARGBToColor (was a hand-rolled
+//       0xAARRGGBB pack that mismatched the 0xRRGGBBAA format -> alpha in the
+//       wrong byte -> semi-transparent / washed-out sprites).
+static const int kTransformVersion = 4;
 
 // -------------------------------------------------------------------------
 // FNV-1a 32-bit hash over an arbitrary byte span.
@@ -287,9 +292,10 @@ Graphics::Surface *RogerAssetGen::generateViewCel(int viewId, int loopNo, int ce
 	idx.w = w;
 	idx.h = h;
 	idx.pixels.resize((uint32)(w * h), celInfo->clearKey);
+	const byte clearKeyIdx = celInfo->clearKey;
 	for (int row = 0; row < h; ++row) {
 		for (int col = 0; col < w; ++col) {
-			idx.pixels[(uint32)(row * w + col)] = bmp[row * w + col];
+			idx.pixels[(uint32)(row * w + col)] = egaDeUndither(bmp[row * w + col], col, row, clearKeyIdx);
 		}
 	}
 
@@ -304,9 +310,12 @@ Graphics::Surface *RogerAssetGen::generateViewCel(int viewId, int loopNo, int ce
 	if (sw <= 0 || sh <= 0)
 		return nullptr;
 
-	// Match the exact format returned by loadSurfaceRGBA (png_loader.cpp line 92):
-	// PixelFormat(4, 8,8,8,8, aShift=24, rShift=16, gShift=8, bShift=0).
-	// In a uint32: bits [31:24]=A, [23:16]=R, [15:8]=G, [7:0]=B (ARGB32 / 0xAARRGGBB).
+	// Same format as loadSurfaceRGBA / the compositor. NOTE: the PixelFormat ctor is
+	// (bpp, Rbits,Gbits,Bbits,Abits, Rshift,Gshift,Bshift,Ashift), so this is
+	// rShift=24,gShift=16,bShift=8,aShift=0 (in-memory 0xRRGGBBAA, alpha in the LOW
+	// byte). Pack via ARGBToColor so the channels land correctly regardless of layout
+	// — a hand-rolled (0xff<<24|r<<16|g<<8|b) pack put alpha in the wrong byte, which
+	// made every generated cel semi-transparent (washed-out pink/orange).
 	const Graphics::PixelFormat fmt(4, 8, 8, 8, 8, 24, 16, 8, 0);
 	Graphics::Surface *surf = new Graphics::Surface();
 	surf->create((uint16)sw, (uint16)sh, fmt);
@@ -323,14 +332,10 @@ Graphics::Surface *RogerAssetGen::generateViewCel(int viewId, int loopNo, int ce
 		for (int col = 0; col < sw; ++col) {
 			byte idx_val = scaled.pixels[(uint32)(row * sw + col)];
 			if (idx_val == clearKey) {
-				dst[col] = 0x00000000u; // fully transparent (A=0)
+				dst[col] = fmt.ARGBToColor(0, 0, 0, 0); // fully transparent
 			} else {
 				const Color &c = pal.colors[idx_val];
-				// 0xAARRGGBB
-				dst[col] = (0xffu << 24)
-				         | ((uint32)c.r << 16)
-				         | ((uint32)c.g << 8)
-				         | ((uint32)c.b);
+				dst[col] = fmt.ARGBToColor(255, c.r, c.g, c.b);
 			}
 		}
 	}

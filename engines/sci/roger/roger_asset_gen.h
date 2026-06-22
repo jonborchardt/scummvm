@@ -32,6 +32,22 @@ namespace Graphics { struct Surface; }
 namespace Sci {
 namespace Roger {
 
+// EGA cel de-undither. ScummVM's GfxView::getBitmap() undithers EGA cels by
+// collapsing a two-colour dither checkerboard into a single combined byte
+// (high<<4 | low, value 16..254), which then resolves to a washed-out *blended*
+// palette entry (the pink/orange look). The reference pipeline (sci.js) never
+// undithers — it keeps the original dither. Re-expand a combined byte back into
+// the two-colour checkerboard at pixel (x,y) so upscaled cels keep saturated EGA
+// colours (consistent with how pic backgrounds preserve dither). Bytes <= 0x0f
+// (true palette indices, including the clearKey) pass through unchanged.
+inline byte egaDeUndither(byte b, int x, int y, byte clearKey) {
+	if (b <= 0x0f || b == clearKey)
+		return b;
+	const byte lo = b & 0x0f;
+	const byte hi = b >> 4;
+	return ((x ^ y) & 1) ? hi : lo;
+}
+
 enum GenMode {
 	kGenPrebuilt, // Default: return nullptr, let provider load prebuilt PNG.
 	kGenCache,    // Load from disk cache on hit; generate + write on miss.

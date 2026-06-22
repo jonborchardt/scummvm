@@ -765,11 +765,13 @@ Graphics::Surface *FileRogerArtProvider::renderNativeCel(int viewId, int loopNo,
 
 	for (int16 y = 0; y < h; y++) {
 		for (int16 x = 0; x < w; x++) {
-			byte idx = bitmap[y * w + x];
+			const byte raw = bitmap[y * w + x];
 			uint32 px;
-			if (idx == clearKey) {
+			if (raw == clearKey) {
 				px = rgba.ARGBToColor(0, 0, 0, 0);
 			} else {
+				// Re-expand ScummVM's undithered EGA cel bytes (see egaDeUndither).
+				const byte idx = Roger::egaDeUndither(raw, x, y, clearKey);
 				const Color &c = pal.colors[idx];
 				px = rgba.ARGBToColor(255, c.r, c.g, c.b);
 			}
