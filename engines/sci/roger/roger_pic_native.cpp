@@ -313,10 +313,16 @@ static void drawBrush(Buffers &b, int cx, int cy, int drawMode, const int *drawC
 	// mirror that effective behavior safely rather than over-read (Hard Constraint 6).
 	int noiseIdx = (textureCode >= 0 && textureCode < 120) ? NOISE_OFFSETS[textureCode] : 0;
 
+	// SCI0 brushes use size 0..7; guard the CIRCLE_BITMAPS[8] lookup against a
+	// malformed patternSize (Hard Constraint 6).
+	const uint16 *circleSprite = (!isRect && size >= 0 && size < 8) ? CIRCLE_BITMAPS[size] : nullptr;
+
 	for (int py = top; py < bottom; py += 1)
 		for (int px = left; px < right; px += 1) {
 			if (!isRect) {
-				const uint16 *sprite = CIRCLE_BITMAPS[size];
+				if (!circleSprite)
+					continue;
+				const uint16 *sprite = circleSprite;
 				uint16 row = sprite[py - top];
 				int shift = width - (px - left) - 1;
 				if (((row >> shift) & 0x1) == 0)
@@ -359,6 +365,11 @@ static void blitCel(Buffers &b, int x0, int y0, int drawMode, const EmbeddedCel 
 static void picStep(Buffers &b, const DrawCommand &cmd) {
 	switch (cmd.kind) {
 	case kCmdSetPalette: {
+		// Valid SCI0 pics use palIdx 0..3; guard the write so a malformed
+		// resource cannot smash past pal[4][40] (Hard Constraint 6). TS would
+		// index undefined here and silently no-op via .set().
+		if (cmd.palIdx >= 4)
+			break;
 		for (uint i = 0; i < cmd.paletteColors.size() && i < 40; i++)
 			b.pal[cmd.palIdx][i] = cmd.paletteColors[i];
 		break;
@@ -368,6 +379,8 @@ static void picStep(Buffers &b, const DrawCommand &cmd) {
 			int pal = cmd.paletteEntries[e];
 			int idx = cmd.paletteEntries[e + 1];
 			int color = cmd.paletteEntries[e + 2];
+			if (pal < 0 || pal >= 4 || idx < 0 || idx >= 40)
+				continue; // ignore malformed entries (Hard Constraint 6)
 			b.pal[pal][idx] = (byte)color;
 		}
 		break;
