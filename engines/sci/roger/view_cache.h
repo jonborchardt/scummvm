@@ -30,6 +30,7 @@ namespace Graphics { struct Surface; }
 
 namespace Sci {
 namespace Roger {
+class RogerAssetGen;
 
 class ViewCache {
 public:
@@ -41,6 +42,10 @@ public:
 	// Borrowed pointer owned by the cache; nullptr if asset missing.
 	const Graphics::Surface *getCel(int viewId, int loopNo, int celNo);
 
+	// Optional generator fallback: when set and mode != kGenPrebuilt,
+	// getCel falls back to generating a cel if the prebuilt spritesheet is absent.
+	void setGenerator(RogerAssetGen *g) { _gen = g; }
+
 private:
 	struct Loop {
 		Graphics::Surface *sheet;            // full spritesheet (owned)
@@ -49,6 +54,11 @@ private:
 	Common::String _base;
 	Common::HashMap<Common::String, Loop> _loops;  // key "viewId/loopNo"
 	Loop *loadLoop(int viewId, int loopNo);
+
+	RogerAssetGen *_gen = nullptr;
+	// Generated cels (owned). Key "viewId/loopNo/celNo". nullptr entries are
+	// cached to avoid re-attempting a known-missing cel.
+	Common::HashMap<Common::String, Graphics::Surface *> _genCels;
 };
 
 } // namespace Roger

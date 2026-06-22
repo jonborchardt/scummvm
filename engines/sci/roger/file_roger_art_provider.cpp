@@ -272,8 +272,10 @@ void FileRogerArtProvider::pushHiresBackground(GuiResourceId pictureId) {
 		return;
 	}
 
-	if (!_viewCache)
+	if (!_viewCache) {
 		_viewCache = new Roger::ViewCache(_basePath + "/views");
+		_viewCache->setGenerator(_assetGen);
+	}
 	if (!_compositor)
 		_compositor = new Roger::RogerCompositor();
 	_compositor->setRoom(_plate, _viewCache);

@@ -24,6 +24,7 @@
 #include "common/textconsole.h"
 #include "graphics/surface.h"
 #include "sci/roger/view_cache.h"
+#include "sci/roger/roger_asset_gen.h"
 #include "sci/roger/png_loader.h"
 
 namespace Sci {
@@ -42,6 +43,13 @@ ViewCache::~ViewCache() {
 			delete it->_value.sheet;
 		}
 	}
+	for (Common::HashMap<Common::String, Graphics::Surface *>::iterator it = _genCels.begin(); it != _genCels.end(); ++it) {
+		if (it->_value) {
+			it->_value->free();
+			delete it->_value;
+		}
+	}
+	_genCels.clear();
 }
 
 static Common::String readFile(const Common::String &path) {
@@ -132,8 +140,19 @@ ViewCache::Loop *ViewCache::loadLoop(int viewId, int loopNo) {
 
 const Graphics::Surface *ViewCache::getCel(int viewId, int loopNo, int celNo) {
 	Loop *loop = loadLoop(viewId, loopNo);
-	if (!loop || celNo < 0 || (uint)celNo >= loop->cels.size())
+	if (!loop || celNo < 0 || (uint)celNo >= loop->cels.size()) {
+		// Prebuilt spritesheet absent: try generator fallback.
+		if (_gen && _gen->mode() != Roger::kGenPrebuilt) {
+			Common::String key = Common::String::format("%d/%d/%d", viewId, loopNo, celNo);
+			if (_genCels.contains(key))
+				return _genCels[key]; // may be nullptr (known-missing)
+			uint32 ms = 0;
+			Graphics::Surface *gen = _gen->generateViewCel(viewId, loopNo, celNo, ms);
+			_genCels[key] = gen;
+			return gen;
+		}
 		return nullptr;
+	}
 	return loop->cels[celNo];
 }
 
