@@ -112,7 +112,8 @@ MODULE_OBJS += \
 	roger/slice_set.o \
 	roger/roger_compositor.o \
 	roger/roger_ui_layer.o \
-	roger/roger_text.o
+	roger/roger_text.o \
+	roger/roger_pic_parser.o
 
 
 ifdef ENABLE_SCI32
