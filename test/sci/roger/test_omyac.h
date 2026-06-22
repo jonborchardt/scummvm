@@ -40,4 +40,16 @@ public:
 		for (uint i = 0; i < out.cmdType.size(); i++) if (out.cmdType[i] == CMD_NONE) { anyNone = true; break; }
 		TS_ASSERT(!anyNone); // fillNullPixels leaves nothing unfilled
 	}
+
+	void test_native_exposes_priority_band() {
+		// A FILL in priority mode (drawMode=Priority) with priority code 5 over a
+		// region; the exposed band buffer must carry 5 where the fill landed.
+		Common::Array<DrawCommand> cmds;
+		DrawCommand c; c.kind = kCmdFill; c.drawMode = kDrawPriority; c.drawCodes[1] = 5;
+		Point pos = {10, 10}; c.points.push_back(pos);
+		cmds.push_back(c);
+		NativeRef ref = nativePreRender(cmds);
+		TS_ASSERT_EQUALS(ref.priority.size(), (uint)(OMYAC_NATIVE_W * OMYAC_NATIVE_H));
+		TS_ASSERT_EQUALS(ref.priority[10 * OMYAC_NATIVE_W + 10], (byte)5);
+	}
 };

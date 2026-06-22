@@ -40,6 +40,7 @@ struct NativeRef {
 	Common::Array<byte> refPixel;  // 320*190 doubled-nibble bytes (init 0xff)
 	Common::Array<int16> refCmd;   // 320*190 owning command index (init -1)
 	Common::Array<byte> cmdType;   // 320*190 CMD_NONE/LINE/FILL
+	Common::Array<byte> priority;  // 320*190 SCI priority band per pixel (0..15), init 0
 	// segments[cmdIdx] = flat [x0,y0,x1,y1,...] for PLINE commands; empty otherwise.
 	Common::Array<Common::Array<int> > segments;
 };

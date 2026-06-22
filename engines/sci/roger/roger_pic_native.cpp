@@ -472,6 +472,8 @@ NativeRef nativePreRender(const Common::Array<DrawCommand> &cmds) {
 		ref.refPixel[i] = b.visible[i];
 	}
 
+	ref.priority = b.priority;   // expose the native priority bands for overlay occlusion
+
 	return ref;
 }
 
