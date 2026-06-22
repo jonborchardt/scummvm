@@ -44,6 +44,7 @@ public:
 	~FileRogerArtProvider();
 
 	bool hasBackground(GuiResourceId pictureId) const override;
+	void precacheAll() override;
 	bool loadBuffers(GuiResourceId pictureId, GfxScreen *screen) override;
 	void pushHiresBackground(GuiResourceId pictureId) override;
 	void renderFromAnimateList(const AnimateList &list) override;

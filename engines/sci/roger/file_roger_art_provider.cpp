@@ -42,6 +42,7 @@ class GfxCompare;
 #include "sci/graphics/animate.h"
 #include "sci/graphics/screen.h"
 #include "sci/sci.h"
+#include "sci/resource/resource.h"
 #include "sci/graphics/cache.h"
 #include "sci/graphics/view.h"
 #include "sci/graphics/palette16.h"
@@ -192,6 +193,46 @@ bool FileRogerArtProvider::hasBackground(GuiResourceId pictureId) const {
 	Common::FSNode p(Common::Path(priorityPath(pictureId)));
 	Common::FSNode c(Common::Path(controlPath(pictureId)));
 	return v.exists() && p.exists() && c.exists();
+}
+
+void FileRogerArtProvider::precacheAll() {
+	// One-time startup warm-up. Only runs when roger_precache is set AND a
+	// generating mode is active (prebuilt mode has nothing to cache).
+	if (!_assetGen || _assetGen->mode() == Roger::kGenPrebuilt)
+		return;
+	if (!ConfMan.hasKey("roger_precache") || !ConfMan.getBool("roger_precache"))
+		return;
+	if (!g_sci)
+		return;
+	ResourceManager *resMan = g_sci->getResMan();
+	if (!resMan)
+		return;
+
+	// Enumerate every pic resource the game has; precache the ones that have a
+	// full prebuilt art set (visual+priority+control), since only those activate
+	// the overlay. Generic: no per-game table — we ask the live engine for its pics.
+	Common::List<ResourceId> pics = resMan->listResources(kResourceTypePic);
+	int total = 0;
+	for (Common::List<ResourceId>::const_iterator it = pics.begin(); it != pics.end(); ++it)
+		if (hasBackground((GuiResourceId)it->getNumber()))
+			++total;
+	if (total == 0)
+		return;
+
+	warning("ROGER precache: warming cache for %d art-backed pics (mode=%d)...", total, (int)_assetGen->mode());
+	uint32 t0 = g_system->getMillis();
+	int done = 0;
+	for (Common::List<ResourceId>::const_iterator it = pics.begin(); it != pics.end(); ++it) {
+		GuiResourceId id = (GuiResourceId)it->getNumber();
+		if (!hasBackground(id))
+			continue;
+		uint32 ms = 0;
+		Graphics::Surface *s = _assetGen->generatePlate(id, ms); // cache mode writes the PNG
+		if (s) { s->free(); delete s; }                          // we only wanted it on disk
+		++done;
+		warning("ROGER precache: pic %d (%d/%d) %u ms", id, done, total, ms);
+	}
+	warning("ROGER precache: %d plates warmed in %u ms total", done, g_system->getMillis() - t0);
 }
 
 bool FileRogerArtProvider::loadBuffers(GuiResourceId pictureId, GfxScreen *screen) {

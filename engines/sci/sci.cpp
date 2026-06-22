@@ -390,6 +390,10 @@ Common::Error SciEngine::run() {
 	// Initialize all graphics related subsystems
 	initGraphics();
 	g_sciRogerProvider = new FileRogerArtProvider(getGameIdStr(), ConfMan.getPath("path"));
+	// Optional: warm the content cache up front (roger_precache) so in-game room
+	// entry is all cache hits. No-op unless roger_precache is set and a generating
+	// roger_gen_mode is active.
+	g_sciRogerProvider->precacheAll();
 
 	// Sound must be initialized after graphics because SysEx transfers at the
 	// start of the game must pump the event loop to avoid making the OS think

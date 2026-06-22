@@ -45,6 +45,12 @@ public:
 	// No-op for the filesystem provider (reads are synchronous).
 	virtual void prefetch(GuiResourceId pictureId) {}
 
+	// Optional one-time startup warm-up: when roger_precache is set (and a
+	// generating roger_gen_mode is active), generate every art-backed pic's
+	// plate into the content cache up front, so in-game room entry is all hits
+	// (no first-visit generation stall). No-op otherwise.
+	virtual void precacheAll() {}
+
 	// Returns true if replacement assets exist for this picture resource.
 	virtual bool hasBackground(GuiResourceId pictureId) const = 0;
 

@@ -272,6 +272,8 @@ SciEvent EventManager::getScummVMEvent() {
 	//   Ctrl+Shift+[ - remove a fill pass
 	//   Ctrl+Shift+' - add an all pass
 	//   Ctrl+Shift+; - remove an all pass
+	//   Ctrl+Shift+. - add a line pass
+	//   Ctrl+Shift+, - remove a line pass
 	//   Ctrl+Shift+R - reload roger_omyac_passes from ConfMan and regenerate
 	if (ev.type == Common::EVENT_KEYDOWN && g_sciRogerProvider) {
 		const Common::KeyCode kc = ev.kbd.keycode;
@@ -298,6 +300,14 @@ SciEvent EventManager::getScummVMEvent() {
 		}
 		if (ctrlShift && kc == Common::KEYCODE_SEMICOLON) {
 			g_sciRogerProvider->tuneEnhancePasses(-1, 2); // remove all
+			return noEvent;
+		}
+		if (ctrlShift && kc == Common::KEYCODE_PERIOD) {
+			g_sciRogerProvider->tuneEnhancePasses(+1, 1); // add line
+			return noEvent;
+		}
+		if (ctrlShift && kc == Common::KEYCODE_COMMA) {
+			g_sciRogerProvider->tuneEnhancePasses(-1, 1); // remove line
 			return noEvent;
 		}
 		if (ctrlShift && kc == Common::KEYCODE_r) {
