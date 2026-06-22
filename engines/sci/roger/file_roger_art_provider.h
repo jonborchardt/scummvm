@@ -23,6 +23,7 @@
 
 #include "sci/roger/roger_art_provider.h"
 #include "sci/roger/null_roger_art_provider.h"
+#include "sci/roger/roger_asset_gen.h"
 #include "common/array.h"
 #include "common/str.h"
 #include "common/path.h"
@@ -86,6 +87,7 @@ private:
 	Common::String _visualVariant;  // hires visual variant, e.g. "omyac-upscaler" ("" = plain pic.<id>.png)
 	Common::String _priorityVariant; // EGA-color priority map variant for overlay occlusion (default "baseline-native")
 
+	Roger::RogerAssetGen *_assetGen = nullptr;
 	Roger::RogerCompositor *_compositor = nullptr;
 	Roger::ViewCache *_viewCache = nullptr;
 	Graphics::Surface *_plate = nullptr;

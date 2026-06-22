@@ -20,8 +20,10 @@
 
 #include "sci/roger/file_roger_art_provider.h"
 #include "sci/roger/png_loader.h"
+#include "sci/roger/roger_asset_gen.h"
 #include "sci/roger/roger_compositor.h"
 #include "sci/roger/roger_coords.h"
+#include "sci/roger/roger_omyac.h"
 #include "sci/roger/roger_ui_layer.h"
 #include "sci/roger/roger_text.h"
 #include "sci/roger/view_cache.h"
@@ -98,6 +100,55 @@ FileRogerArtProvider::FileRogerArtProvider(const Common::String &gameId,
 	_useHwCursor = false;
 	if (ConfMan.hasKey("roger_hw_cursor"))
 		_useHwCursor = ConfMan.getBool("roger_hw_cursor");
+
+	// roger_gen_mode: controls on-the-fly plate generation. Default "prebuilt" =>
+	// _assetGen->generatePlate returns nullptr => existing loadSurfaceRGBA path.
+	// Other modes: "cache", "memory", "always".
+	Roger::GenMode genMode = Roger::kGenPrebuilt;
+	if (ConfMan.hasKey("roger_gen_mode")) {
+		const Common::String modeStr = ConfMan.get("roger_gen_mode");
+		if (modeStr == "cache")
+			genMode = Roger::kGenCache;
+		else if (modeStr == "memory")
+			genMode = Roger::kGenMemory;
+		else if (modeStr == "always")
+			genMode = Roger::kGenAlways;
+		// else: unrecognized => keep kGenPrebuilt (safe default)
+	}
+
+	const Common::String cacheDir = _basePath + "/cache";
+	_assetGen = new Roger::RogerAssetGen(gameId, cacheDir, genMode);
+
+	// roger_omyac_passes: three-state semantics —
+	//   unset           => default sequence (defaultPasses())
+	//   set to ""       => wireframe (empty array = zero passes)
+	//   set to tokens   => parsed list (fill/f=2, line/l=1, all/a=0)
+	if (!ConfMan.hasKey("roger_omyac_passes")) {
+		_assetGen->setEnhancePasses(Roger::defaultPasses());
+	} else {
+		const Common::String passStr = ConfMan.get("roger_omyac_passes");
+		Common::Array<int> passes;
+		// Tokenize on spaces and commas.
+		Common::String tok;
+		for (uint i = 0; i <= passStr.size(); ++i) {
+			const char c = (i < passStr.size()) ? passStr[i] : '\0';
+			if (c == ',' || c == ' ' || c == '\t' || c == '\0') {
+				if (!tok.empty()) {
+					if (tok == "fill" || tok == "f")
+						passes.push_back(2);
+					else if (tok == "line" || tok == "l")
+						passes.push_back(1);
+					else if (tok == "all" || tok == "a")
+						passes.push_back(0);
+					// unrecognized tokens are silently skipped
+					tok.clear();
+				}
+			} else {
+				tok += c;
+			}
+		}
+		_assetGen->setEnhancePasses(passes);
+	}
 }
 
 Common::String FileRogerArtProvider::picDir(GuiResourceId id) const {
@@ -204,7 +255,14 @@ void FileRogerArtProvider::pushHiresBackground(GuiResourceId pictureId) {
 	// Evict previous room.
 	if (_plate) { _plate->free(); delete _plate; _plate = nullptr; }
 
-	_plate = Roger::loadSurfaceRGBA(visualPath(pictureId));
+	uint32 genMs = 0;
+	_plate = nullptr;
+	if (_assetGen && _assetGen->mode() != Roger::kGenPrebuilt)
+		_plate = _assetGen->generatePlate(pictureId, genMs);
+	if (!_plate)                                   // prebuilt mode, or generation failed
+		_plate = Roger::loadSurfaceRGBA(visualPath(pictureId));   // unchanged fallback
+	if (_debugLog && genMs)
+		debug("Roger: omyac plate %d generated in %u ms", pictureId, genMs);
 	if (!_plate) {
 		// No hires bg -> native shows. Clear the compositor's borrowed plate pointer
 		// so it does not retain the plate we just deleted above.
@@ -831,6 +889,7 @@ void FileRogerArtProvider::onMouseMoved() {
 
 FileRogerArtProvider::~FileRogerArtProvider() {
 	if (_plate) { _plate->free(); delete _plate; _plate = nullptr; }
+	delete _assetGen; _assetGen = nullptr;
 	delete _viewCache; _viewCache = nullptr;
 	delete _compositor; _compositor = nullptr;
 	delete _uiLayer; _uiLayer = nullptr;

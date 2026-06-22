@@ -88,10 +88,14 @@ void RogerAssetGen::setEnhancePasses(const Common::Array<int> &passes) {
 }
 
 Common::String RogerAssetGen::cacheKey(const char *transform, uint32 resourceHash) const {
-	// Build passes string: "p0p2p1..." or "default" when empty.
+	// Build passes string: "p0p2p1..." or "none" when empty (empty = wireframe, not default).
+	// The provider always sets a concrete pass list before calling generatePlate:
+	//   unset config => defaultPasses() (non-empty)
+	//   empty config => empty array (wireframe)
+	// So "none" is the correct semantic label — it will never collide with a default run.
 	Common::String passesStr;
 	if (_passes.empty()) {
-		passesStr = "default";
+		passesStr = "none";
 	} else {
 		for (uint i = 0; i < _passes.size(); ++i) {
 			passesStr += Common::String::format("p%d", _passes[i]);
@@ -151,7 +155,9 @@ Graphics::Surface *RogerAssetGen::generatePlate(int id, uint32 &outMs) {
 	Common::Array<DrawCommand> cmds = parsePic(res->data(), (uint32)res->size());
 	NativeRef ref = nativePreRender(cmds);
 
-	const Common::Array<int> &passes = _passes.empty() ? defaultPasses() : _passes;
+	// _passes is always concrete: provider sets defaultPasses() when config is unset,
+	// empty array when config is "" (wireframe). Never substitute defaultPasses() here.
+	const Common::Array<int> &passes = _passes;
 	OmyacResult omyac = renderOmyac(ref, passes);
 
 	Graphics::Surface *plate = blendToSurface(omyac.pixels, OMYAC_HYBRID_W, OMYAC_HYBRID_H);
