@@ -82,17 +82,24 @@ static uint32 fnv1a32u(uint32 v) {
 #ifdef ENABLE_SCI
 // Ensure the content cache directory exists before a cache write. Without this,
 // dumpSurfacePng's DumpFile::open fails silently and kGenCache never persists
-// (every load is a miss -> regenerate). The parent (<gameid>-roger/) already
-// exists, so this only needs to create the "cache" leaf. Best-effort: if it
-// cannot be created the write simply fails and we fall back to regeneration
-// (Hard Constraint 6 — never crash). Only used by the generation paths below.
+// (every load is a miss -> regenerate). FSNode::createDirectory only creates a
+// SINGLE level, so we create the parent (<gameid>-roger/) first when it is
+// missing — under in-engine generation there is no prebuilt art, so that parent
+// dir may not exist at all (creating only the "cache" leaf would then fail and
+// nothing would ever persist). Best-effort: if it cannot be created the write
+// simply fails and we fall back to regeneration (Hard Constraint 6 — never
+// crash). Only used by the generation paths below.
 static void ensureCacheDir(const Common::String &dir) {
 	if (dir.empty())
 		return;
 	Common::Path path(dir);
 	Common::FSNode node(path);
-	if (!node.exists())
-		node.createDirectory();
+	if (node.exists())
+		return;
+	Common::FSNode parent(path.getParent());
+	if (!parent.exists())
+		parent.createDirectory();
+	node.createDirectory();
 }
 #endif
 
