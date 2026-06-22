@@ -68,21 +68,10 @@ FileRogerArtProvider::FileRogerArtProvider(const Common::String &gameId,
 	Common::Path rogerPath = gamePath.getParent().appendComponent(gameId + "-roger");
 	_basePath = rogerPath.toString('/');
 
-	// The art pipeline emits the low-res original as "pic.<id>.png" and the
-	// upscaled hires visual as "pic.<variant>.<id>.png". Default to the
-	// upscaler; override with the config key "roger_visual_variant" (empty
-	// string selects the plain "pic.<id>.png").
-	_visualVariant = "omyac-upscaler";
-	if (ConfMan.hasKey("roger_visual_variant"))
-		_visualVariant = ConfMan.get("roger_visual_variant");
-
-	// Overlay occlusion samples a real EGA-color-encoded priority map (each pixel's
-	// color = its SCI priority band). The pipeline emits it as
-	// "<variant>.<id>_p.png"; default to the native-resolution one. (pic.<id>_p.png,
-	// used by loadBuffers for SCI's own buffer, may be a placeholder.)
-	_priorityVariant = "baseline-native";
-	if (ConfMan.hasKey("roger_priority_variant"))
-		_priorityVariant = ConfMan.get("roger_priority_variant");
+	// roger_visual_variant / roger_priority_variant selected prebuilt PNG files (the
+	// hires visual and the EGA-color overlay-occlusion map). Under in-engine
+	// generation both the visual and the occlusion bands are produced from the SCI
+	// resource, so these knobs are obsolete and are no longer read.
 
 	// roger_autoshot: a verification-harness flag (off by default). When set, the
 	// first composited frame of each room is dumped to a PNG (see renderFrame).
@@ -102,19 +91,22 @@ FileRogerArtProvider::FileRogerArtProvider(const Common::String &gameId,
 	if (ConfMan.hasKey("roger_hw_cursor"))
 		_useHwCursor = ConfMan.getBool("roger_hw_cursor");
 
-	// roger_gen_mode: controls on-the-fly plate generation. Default "prebuilt" =>
-	// _assetGen->generatePlate returns nullptr => existing loadSurfaceRGBA path.
-	// Other modes: "cache", "memory", "always".
-	Roger::GenMode genMode = Roger::kGenPrebuilt;
+	// roger_gen_mode: controls on-the-fly art generation. Default "cache" =>
+	// generate on a miss, load from the content cache on a hit (in-engine generation
+	// is the art path). "prebuilt" is the off-switch (native-only render). Other
+	// modes: "memory" (generate, never write), "always" (regenerate + overwrite).
+	Roger::GenMode genMode = Roger::kGenCache;
 	if (ConfMan.hasKey("roger_gen_mode")) {
 		const Common::String modeStr = ConfMan.get("roger_gen_mode");
-		if (modeStr == "cache")
+		if (modeStr == "prebuilt")
+			genMode = Roger::kGenPrebuilt;
+		else if (modeStr == "cache")
 			genMode = Roger::kGenCache;
 		else if (modeStr == "memory")
 			genMode = Roger::kGenMemory;
 		else if (modeStr == "always")
 			genMode = Roger::kGenAlways;
-		// else: unrecognized => keep kGenPrebuilt (safe default)
+		// else: unrecognized => keep the default kGenCache
 	}
 
 	const Common::String cacheDir = _basePath + "/cache";
