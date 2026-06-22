@@ -525,6 +525,18 @@ void GfxPorts::drawWindow(Window *pWnd) {
 			const uint32 tok = 0x40000000u | (uint32)pWnd->id;
 			g_sciRogerProvider->uiPushWindow(pWnd->dims, pWnd->backClr, pWnd->penClr,
 			                                 wndStyle, tok);
+			// A titled window (e.g. the inventory's "You are carrying:") draws its title in
+			// a titlebar strip that uiPushWindow does not reproduce. Capture it so the hires
+			// overlay shows the title too: a dark titlebar (grey for SCI0, black later) with
+			// centered white text, matching the native bar.
+			if ((wndStyle & SCI_WINDOWMGR_STYLE_TITLE) && !pWnd->title.empty()) {
+				Common::Rect titleRect(pWnd->dims.left, pWnd->dims.top,
+				                       pWnd->dims.right, (int16)(pWnd->dims.top + 10));
+				const int titleBack = (getSciVersion() <= SCI_VERSION_0_LATE) ? 8 : 0;
+				g_sciRogerProvider->uiPushText(titleRect, pWnd->title.c_str(),
+				                               _screen->getColorWhite(), titleBack, 0,
+				                               SCI_TEXT16_ALIGNMENT_CENTER, tok);
+			}
 		}
 
 		_paint16->bitsShow(pWnd->dims);
