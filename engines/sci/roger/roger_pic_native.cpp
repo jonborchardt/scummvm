@@ -46,7 +46,7 @@ static const uint16 CIRCLE_BITMAPS[8][15] = {
 	{ 0x3e0, 0xff8, 0x1ffc, 0x3ffe, 0x3ffe, 0x7fff, 0x7fff, 0x7fff, 0x7fff, 0x7fff, 0x3ffe, 0x3ffe, 0x1ffc, 0xff8, 0x3e0 }
 };
 
-// ─── noise.ts: 256-entry boolean table + 117 offsets (verbatim) ─────────────
+// ─── noise.ts: 256-entry boolean table + 120 offsets (verbatim) ─────────────
 // The 32 source bytes are expanded MSB-first into 256 booleans.
 static const byte NOISE_SRC[32] = {
 	0x20, 0x94, 0x02, 0x24, 0x90, 0x82, 0xa4, 0xa2, 0x82, 0x09, 0x0a, 0x22, 0x12,
@@ -54,7 +54,7 @@ static const byte NOISE_SRC[32] = {
 	0x14, 0x24, 0x00, 0x50, 0x24, 0x04
 };
 
-static const int NOISE_OFFSETS[117] = {
+static const int NOISE_OFFSETS[120] = {
 	0x00, 0x18, 0x30, 0xc4, 0xdc, 0x65, 0xeb, 0x48, 0x60, 0xbd, 0x89, 0x04, 0x0a,
 	0xf4, 0x7d, 0x6d, 0x85, 0xb0, 0x8e, 0x95, 0x1f, 0x22, 0x0d, 0xdf, 0x2a, 0x78,
 	0xd5, 0x73, 0x1c, 0xb4, 0x40, 0xa1, 0xb9, 0x3c, 0xca, 0x58, 0x92, 0x34, 0xcc,
@@ -308,7 +308,10 @@ static void drawBrush(Buffers &b, int cx, int cy, int drawMode, const int *drawC
 	if (bottom >= stageHeight)
 		top = stageHeight - height;
 
-	int noiseIdx = NOISE_OFFSETS[textureCode];
+	// textureCode is (read8()>>1) so it can reach 127, but NOISE_OFFSETS has only
+	// 120 entries. JS reads undefined here (-> NaN -> 0 after &0xff in the loop);
+	// mirror that effective behavior safely rather than over-read (Hard Constraint 6).
+	int noiseIdx = (textureCode >= 0 && textureCode < 120) ? NOISE_OFFSETS[textureCode] : 0;
 
 	for (int py = top; py < bottom; py += 1)
 		for (int px = left; px < right; px += 1) {
