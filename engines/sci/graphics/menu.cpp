@@ -427,15 +427,13 @@ void GfxMenu::rogerPushBarOverlay() {
 	// replaces the banner, and the next kernelDrawStatus replaces the bar back.
 	const uint32 tok = 0x10000000u;
 	g_sciRogerProvider->uiClearToken(tok);
-	// Opaque white bar (matches the native white menu bar), no frame. Start it to the
-	// RIGHT of any leading graphical-glyph title (the Sierra icon) so the overlay stays
-	// transparent there and the native icon shows through instead of a blank gap.
+	// Opaque white bar (matches the native white menu bar), no frame, spanning the FULL
+	// bar width. Earlier this started to the right of a leading graphical-glyph title so
+	// the native icon could show through the transparent gap — but that gap also let the
+	// native bar (e.g. the leftmost "Score:" text) bleed through and overlap the hires
+	// titles. Covering the whole bar keeps it clean; the leftmost graphical menu is still
+	// clickable, it just renders as the white bar rather than its native glyph.
 	Common::Rect barRect = _ports->_menuBarRect;
-	for (uint i = 0; i < _rogerBarTitles.size(); i++) {
-		if (!rogerTitleIsText(_rogerBarTitles[i].text) &&
-		    _rogerBarTitles[i].rect.right > barRect.left)
-			barRect.left = _rogerBarTitles[i].rect.right;
-	}
 	g_sciRogerProvider->uiPushWindow(barRect, _screen->getColorWhite(), 0,
 	                                 2 /*SCI_WINDOWMGR_STYLE_NOFRAME*/, tok);
 	for (uint i = 0; i < _rogerBarTitles.size(); i++) {
