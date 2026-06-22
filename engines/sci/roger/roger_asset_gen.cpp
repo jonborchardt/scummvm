@@ -26,6 +26,7 @@
 #include "sci/roger/roger_asset_gen.h"
 #include "sci/roger/png_loader.h"
 
+#include "common/fs.h"
 #include "common/str.h"
 #include "common/system.h"
 #include "graphics/surface.h"
@@ -72,6 +73,23 @@ static uint32 fnv1a32(const byte *data, uint32 size) {
 static uint32 fnv1a32u(uint32 v) {
 	return fnv1a32(reinterpret_cast<const byte *>(&v), sizeof(v));
 }
+
+#ifdef ENABLE_SCI
+// Ensure the content cache directory exists before a cache write. Without this,
+// dumpSurfacePng's DumpFile::open fails silently and kGenCache never persists
+// (every load is a miss -> regenerate). The parent (<gameid>-roger/) already
+// exists, so this only needs to create the "cache" leaf. Best-effort: if it
+// cannot be created the write simply fails and we fall back to regeneration
+// (Hard Constraint 6 — never crash). Only used by the generation paths below.
+static void ensureCacheDir(const Common::String &dir) {
+	if (dir.empty())
+		return;
+	Common::Path path(dir);
+	Common::FSNode node(path);
+	if (!node.exists())
+		node.createDirectory();
+}
+#endif
 
 // -------------------------------------------------------------------------
 // RogerAssetGen — always-compiled methods
@@ -170,6 +188,7 @@ Graphics::Surface *RogerAssetGen::generatePlate(int id, uint32 &outMs) {
 
 	// Write to cache for kGenCache and kGenAlways.
 	if (_mode == kGenCache || _mode == kGenAlways) {
+		ensureCacheDir(_cacheDir);
 		dumpSurfacePng(*plate, cachePath);
 	}
 
@@ -226,7 +245,7 @@ Graphics::Surface *RogerAssetGen::generateViewCel(int viewId, int loopNo, int ce
 
 	// Build IndexImage from the native cel bitmap.
 	const SciSpan<const byte> &bmp = view->getBitmap((int16)loopNo, (int16)celNo);
-	if (bmp.size() == 0)
+	if (bmp.size() < (uint)(w * h)) // need a full w*h row-major cel; else bail (Hard Constraint 6)
 		return nullptr;
 
 	IndexImage idx;
@@ -282,6 +301,7 @@ Graphics::Surface *RogerAssetGen::generateViewCel(int viewId, int loopNo, int ce
 	}
 
 	if (_mode == kGenCache || _mode == kGenAlways) {
+		ensureCacheDir(_cacheDir);
 		dumpSurfacePng(*surf, cachePath);
 	}
 
