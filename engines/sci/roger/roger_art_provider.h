@@ -42,7 +42,14 @@ public:
 	virtual ~RogerArtProvider() {}
 
 	// Called when a room transition begins — provider may prefetch assets.
-	// No-op for the filesystem provider (reads are synchronous).
+	// Currently a no-op for the filesystem provider (room entry generates the plate
+	// synchronously in pushHiresBackground, and roger_precache warms the cache up
+	// front so entry is normally all hits).
+	//
+	// Transition seam (parent spec roadmap B5): when the room-transition feature
+	// lands, prefetch should generate the *next* room's plate ahead of the
+	// transition — ideally asynchronously — so the ~1.8 s/pic cold-generation cost
+	// never blocks the transition itself. Until then, precache covers it.
 	virtual void prefetch(GuiResourceId pictureId) {}
 
 	// Optional one-time startup warm-up: when roger_precache is set (and a

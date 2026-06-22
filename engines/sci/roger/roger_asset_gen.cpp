@@ -55,7 +55,12 @@ namespace Roger {
 // Bump this whenever the generation pipeline changes in a way that invalidates
 // previously cached files. Cache files whose key contains a different version
 // will simply not be found and will be regenerated.
-static const int kTransformVersion = 1;
+//   v1: initial omyac plate + scale6x view-cel pipeline.
+//   v2: in-engine art path (prebuilt visual/occlusion consumption removed;
+//       overlay occlusion derived from the native priority bands). Pipeline
+//       outputs are unchanged, but bumping forces a clean cache to avoid mixing
+//       files written by the superseded prebuilt-era pipeline.
+static const int kTransformVersion = 2;
 
 // -------------------------------------------------------------------------
 // FNV-1a 32-bit hash over an arbitrary byte span.
