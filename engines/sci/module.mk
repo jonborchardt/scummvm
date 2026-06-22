@@ -117,7 +117,8 @@ MODULE_OBJS += \
 	roger/roger_pic_native.o \
 	roger/roger_ega_blend.o \
 	roger/roger_omyac.o \
-	roger/roger_scale.o
+	roger/roger_scale.o \
+	roger/roger_asset_gen.o
 
 
 ifdef ENABLE_SCI32
