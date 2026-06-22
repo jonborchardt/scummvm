@@ -86,6 +86,9 @@ FileRogerArtProvider::FileRogerArtProvider(const Common::String &gameId,
 	// This is how the dev loop captures the hires overlay deterministically without
 	// keystrokes/focus — injected Alt+s/F10 never reach SDL (Win32 menu keys).
 	_autoshot = ConfMan.hasKey("roger_autoshot") && ConfMan.getBool("roger_autoshot");
+	// roger_debug: per-frame + per-UI-element diagnostic logging (also toggled in-game
+	// with Ctrl+Shift+L). Read it here so the documented config knob actually works.
+	_debugLog = ConfMan.hasKey("roger_debug") && ConfMan.getBool("roger_debug");
 
 	// Cursor: the native hardware cursor is NOT usefully visible over the in-game
 	// OSystem overlay (verified in live play — it disappears), which is the original
@@ -519,6 +522,19 @@ void FileRogerArtProvider::presentWithUi() {
 	if (_uiLayer && !_uiLayer->empty() && _textRenderer) {
 		byte pal[256 * 3];
 		g_system->getPaletteManager()->grabPalette(pal, 0, 256);
+		if (_debugLog) {
+			const Common::Array<Roger::UiElement> &els = _uiLayer->elements();
+			warning("ROGER-UI: gameRect=(%d,%d,%d,%d)", _lastGameRect.left, _lastGameRect.top,
+			        _lastGameRect.right, _lastGameRect.bottom);
+			for (uint i = 0; i < els.size(); i++) {
+				const Roger::UiElement &e = els[i];
+				const Common::Rect d = Roger::sciRectToDest(e.nativeRect, _lastGameRect);
+				warning("ROGER-UI: [%u] type=%d tok=%08x native=(%d,%d,%d,%d) dest=(%d,%d,%d,%d) text='%.24s'",
+				        i, (int)e.type, e.token, e.nativeRect.left, e.nativeRect.top,
+				        e.nativeRect.right, e.nativeRect.bottom, d.left, d.top, d.right, d.bottom,
+				        e.text.c_str());
+			}
+		}
 		_compositor->renderUiLayer(scene, _uiLayer->elements(), pal, _lastGameRect, _textRenderer, _altTextRenderer);
 	}
 	compositeCursor(scene, _lastGameRect);

@@ -114,21 +114,38 @@ const Graphics::Font *RogerTextRenderer::fontForBox(const Common::Rect &rect, in
 void RogerTextRenderer::drawPx(Graphics::ManagedSurface &dst, const Common::String &text,
                                const Common::Rect &rect, uint32 color, int align, int targetPx,
                                bool vAlignTop) const {
-	const Graphics::Font *f = fontForBox(rect, targetPx);
-	if (!f)
+	if (_fonts.empty())
 		return;
+	// Target on-screen cell height (role scale * global multiplier), capped to the box.
+	int h = targetPx > 0 ? targetPx * _globalScalePct / 100 : rect.height();
+	if (h > rect.height())
+		h = rect.height();
+	int idx = fitFontIndexByHeight(_fonts, h);
+	if (idx < 0)
+		return;
+
 	Graphics::TextAlign ta = Graphics::kTextAlignLeft;
 	if (align == 1) ta = Graphics::kTextAlignCenter;
 	else if (align == -1) ta = Graphics::kTextAlignRight;
 
-	// Word-wrap to the box width and draw the lines stacked. Centred vertically by
-	// default; vAlignTop draws from the top of the box (SCI's native text-edit
-	// position). When the block is taller than the box, firstLineTop clamps to the
-	// top so it grows downward rather than clipping the first lines.
+	// Pick the largest font (at or below the target) whose word-wrapped block also
+	// FITS the box height. SCI sizes its dialog boxes for the text, so the hires text
+	// must not spill past the box bottom (which the bold window border makes obvious).
 	Common::Array<Common::String> lines;
-	f->wordWrapText(text, rect.width(), lines);
+	const Graphics::Font *f = _fonts[idx];
+	for (;;) {
+		f = _fonts[idx];
+		lines.clear();
+		f->wordWrapText(text, rect.width(), lines);
+		const int totalH = (int)lines.size() * f->getFontHeight();
+		if (totalH <= rect.height() || idx == 0)
+			break;
+		idx--;
+	}
 	if (lines.empty())
 		return;
+	// Centred vertically by default; vAlignTop draws from the top of the box (SCI's
+	// native text-edit position). firstLineTop clamps to the top if still too tall.
 	const int lh = f->getFontHeight();
 	int y = firstLineTop(rect.top, rect.height(), (int)lines.size(), lh, vAlignTop);
 	for (uint i = 0; i < lines.size(); i++) {

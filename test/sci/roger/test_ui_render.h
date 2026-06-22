@@ -120,7 +120,9 @@ public:
 		RogerCompositor comp;
 		comp.renderUiLayer(dest, els, pal, Common::Rect(0, 0, 320, 200), nullptr);
 		uint8 a, r, g, b;
-		dest.surfacePtr()->format.colorToARGB(dest.surfacePtr()->getPixel(10, 35), a, r, g, b);
+		// A framed window is expanded by 2px (union-with-controls + padding), so its
+		// left border sits at x=8 (10 - 2) for this lone window.
+		dest.surfacePtr()->format.colorToARGB(dest.surfacePtr()->getPixel(8, 35), a, r, g, b);
 		TS_ASSERT_EQUALS(r, 0); TS_ASSERT_EQUALS(g, 0); TS_ASSERT_EQUALS(b, 0); // black border
 	}
 };

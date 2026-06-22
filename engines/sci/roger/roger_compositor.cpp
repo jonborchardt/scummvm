@@ -218,7 +218,19 @@ void RogerCompositor::renderUiLayer(Graphics::ManagedSurface &dest,
 	const int headingPx = kRoleHeadingNativeH * gameRect.height() / 200;
 	for (uint i = 0; i < elems.size(); i++) {
 		const UiElement &e = elems[i];
-		const Common::Rect d = sciRectToDest(e.nativeRect, gameRect);
+		Common::Rect nr = e.nativeRect;
+		if (e.type == kUiWindow && e.hasFrame) {
+			// SCI often positions a dialog's controls (buttons, edit fields, message
+			// text) flush with — or a few rows past — the window's own dims rect. Expand
+			// the drawn window to the union of every element sharing its token so the box
+			// and its bold border actually contain them.
+			for (uint j = 0; j < elems.size(); j++) {
+				if (j != i && elems[j].token == e.token)
+					nr.extend(elems[j].nativeRect);
+			}
+			nr.grow(2); // a little padding so controls are not flush against the border
+		}
+		const Common::Rect d = sciRectToDest(nr, gameRect);
 		if (d.isEmpty())
 			continue;
 		// Pick the font renderer for this element (header/menu use the alt font).
