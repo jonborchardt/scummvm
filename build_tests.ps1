@@ -51,6 +51,12 @@ $FixtureDir = ("$Root\test\sci\roger\fixtures" -replace '\\','/')
 # form create_project emits for every other ClCompile entry. Absolute paths break
 # MSBuild's per-file intermediate-dir computation.
 $RogerSources = @(
+    "..\..\engines\sci\roger\roger_pic_parser.cpp",
+    "..\..\engines\sci\roger\roger_pic_native.cpp",
+    "..\..\engines\sci\roger\roger_ega_blend.cpp",
+    "..\..\engines\sci\roger\roger_omyac.cpp",
+    "..\..\engines\sci\roger\roger_scale.cpp",
+    "..\..\engines\sci\roger\roger_asset_gen.cpp",
     "..\..\engines\sci\roger\png_loader.cpp",
     "..\..\engines\sci\roger\view_cache.cpp",
     "..\..\engines\sci\roger\slice_set.cpp",
@@ -65,6 +71,12 @@ $RogerSources = @(
 # creates it (test_load_surface.h, test_roger_coords.h, test_view_cache.h,
 # test_slice_set.h, test_compositor.h).
 $RogerTestHeaders = @(
+    "test_byte_reader.h",
+    "test_pic_parser.h",
+    "test_omyac.h",
+    "test_ega_blend.h",
+    "test_scale.h",
+    "test_asset_cache.h",
     "test_png_loader.h",
     "test_load_surface.h",
     "test_roger_coords.h",
