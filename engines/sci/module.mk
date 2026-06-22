@@ -115,7 +115,8 @@ MODULE_OBJS += \
 	roger/roger_text.o \
 	roger/roger_pic_parser.o \
 	roger/roger_pic_native.o \
-	roger/roger_ega_blend.o
+	roger/roger_ega_blend.o \
+	roger/roger_omyac.o
 
 
 ifdef ENABLE_SCI32

@@ -1,5 +1,6 @@
 #include <cxxtest/TestSuite.h>
 #include "sci/roger/roger_pic_native.h"
+#include "sci/roger/roger_omyac.h"
 using namespace Sci::Roger;
 
 class RogerOmyacTestSuite : public CxxTest::TestSuite {
@@ -19,5 +20,24 @@ public:
 		int far = 100 * OMYAC_NATIVE_W + 100;
 		TS_ASSERT_EQUALS(ref.cmdType[far], (byte)CMD_FILL);
 		TS_ASSERT_EQUALS(ref.refPixel[far], 0xff);
+	}
+
+	void test_omyac_fills_no_cmd_none_remains() {
+		// A short diagonal line + default white background; after full pipeline,
+		// every output pixel must be non-CMD_NONE (null-fill guarantees it).
+		Common::Array<DrawCommand> cmds;
+		DrawCommand c; c.kind = kCmdPline; c.drawMode = kDrawVisual; c.drawCodes[0] = 4; // red-ish
+		Point a = {2,2}, b = {8,6}; c.points.push_back(a); c.points.push_back(b);
+		cmds.push_back(c);
+		NativeRef ref = nativePreRender(cmds);
+		Common::Array<int> passes; // empty -> wireframe; then we also test default
+		OmyacResult wire = renderOmyac(ref, passes);
+		TS_ASSERT_EQUALS(wire.pixels.size(), (uint)(OMYAC_HYBRID_W * OMYAC_HYBRID_H));
+
+		Common::Array<int> def = defaultPasses();
+		OmyacResult out = renderOmyac(ref, def);
+		bool anyNone = false;
+		for (uint i = 0; i < out.cmdType.size(); i++) if (out.cmdType[i] == CMD_NONE) { anyNone = true; break; }
+		TS_ASSERT(!anyNone); // fillNullPixels leaves nothing unfilled
 	}
 };
