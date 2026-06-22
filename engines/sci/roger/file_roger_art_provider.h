@@ -45,7 +45,6 @@ public:
 
 	bool hasBackground(GuiResourceId pictureId) const override;
 	void precacheAll() override;
-	bool loadBuffers(GuiResourceId pictureId, GfxScreen *screen) override;
 	void pushHiresBackground(GuiResourceId pictureId) override;
 	void renderFromAnimateList(const AnimateList &list) override;
 	void onNativePicture() override;
@@ -80,15 +79,8 @@ public:
 	// Accessor used by the GfxAnimate hook to translate AnimateEntry → Sprite.
 	Roger::ViewCache *viewCache() { return _viewCache; }
 
-	// Test-only accessors — expose private path helpers for white-box testing
-	Common::String testVisualPath(GuiResourceId id) const { return visualPath(id); }
-	Common::String testPriorityPath(GuiResourceId id) const { return priorityPath(id); }
-	Common::String testControlPath(GuiResourceId id) const { return controlPath(id); }
-
 private:
 	Common::String _basePath;       // absolute path to <gameid>-roger/ directory
-	Common::String _visualVariant;  // hires visual variant, e.g. "omyac-upscaler" ("" = plain pic.<id>.png)
-	Common::String _priorityVariant; // EGA-color priority map variant for overlay occlusion (default "baseline-native")
 
 	Roger::RogerAssetGen *_assetGen = nullptr;
 	Roger::RogerCompositor *_compositor = nullptr;
@@ -102,7 +94,7 @@ private:
 	int _autoshotPicId = -1;     // last pic id already auto-shot (so we dump once per room, not per frame)
 	uint32 _lastUiSig = 0;       // signature of the last -ui autoshot's UI layer (throttle: dump only on change)
 	int _statusBarH = 10;        // SCI0 status/menu bar height in screen rows (of 200); reserved at the top of the game rect (may change)
-	Common::Array<byte> _priorityMap; // screen-space SCI priority (from loadBuffers), for overlay occlusion
+	Common::Array<byte> _priorityMap; // 320x190 SCI priority bands (from RogerAssetGen::priorityBands), for overlay occlusion
 
 	// Roger hires UI/dialog compositing (see roger_ui_layer / roger_text).
 	Roger::RogerUiLayer *_uiLayer = nullptr;
@@ -144,15 +136,6 @@ private:
 	// Regenerate the current room's plate in place and re-push the overlay.
 	// No-op if no room is loaded (_loadedPicId < 0) or _assetGen is null.
 	void regenInPlace();
-
-	Common::String picDir(GuiResourceId id) const;
-	Common::String visualPath(GuiResourceId id) const;
-	Common::String priorityPath(GuiResourceId id) const;
-	Common::String controlPath(GuiResourceId id) const;
-	Common::String occlusionPriorityPath(GuiResourceId id) const; // EGA-color priority map for overlay occlusion
-	// Load an EGA-color-encoded priority PNG into a band-per-pixel buffer (0..15).
-	// Returns true and fills outBands/outW/outH on success.
-	bool loadPriorityBands(const Common::String &path, Common::Array<byte> &outBands, int &outW, int &outH) const;
 
 	// Render a native SCI cel to a new RGBA surface. Caller owns and must free.
 	// Returns nullptr on any failure (guard: sprite will be skipped).

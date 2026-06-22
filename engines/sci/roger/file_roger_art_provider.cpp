@@ -122,62 +122,6 @@ FileRogerArtProvider::FileRogerArtProvider(const Common::String &gameId,
 	);
 }
 
-Common::String FileRogerArtProvider::picDir(GuiResourceId id) const {
-	return _basePath + "/pics/" + Common::String::format("%d", id) + "/source/";
-}
-
-Common::String FileRogerArtProvider::visualPath(GuiResourceId id) const {
-	// "pic.<variant>.<id>.png" (hires), or "pic.<id>.png" when variant is empty.
-	const Common::String idStr = Common::String::format("%d", id);
-	if (_visualVariant.empty())
-		return picDir(id) + "pic." + idStr + ".png";
-	return picDir(id) + "pic." + _visualVariant + "." + idStr + ".png";
-}
-
-// Roger uses TWO priority maps per room, by design (not duplicates):
-//   priorityPath          pic.<id>_p.png            grayscale 8-bit, 320x200 — fills
-//                                                   SCI's NATIVE priority buffer
-//                                                   (loadBuffers) for walkability +
-//                                                   native occlusion.
-//   occlusionPriorityPath <variant>.<id>_p.png      EGA-color-encoded (band-per-pixel)
-//                         (default baseline-native) — the OVERLAY compositor's
-//                                                   per-pixel occlusion source.
-// controlPath (pic.<id>_c.png) is the grayscale control map for loadBuffers.
-Common::String FileRogerArtProvider::priorityPath(GuiResourceId id) const {
-	return picDir(id) + "pic." + Common::String::format("%d", id) + "_p.png";
-}
-
-Common::String FileRogerArtProvider::controlPath(GuiResourceId id) const {
-	return picDir(id) + "pic." + Common::String::format("%d", id) + "_c.png";
-}
-
-Common::String FileRogerArtProvider::occlusionPriorityPath(GuiResourceId id) const {
-	const Common::String idStr = Common::String::format("%d", id);
-	if (_priorityVariant.empty())
-		return priorityPath(id);
-	return picDir(id) + _priorityVariant + "." + idStr + "_p.png";
-}
-
-bool FileRogerArtProvider::loadPriorityBands(const Common::String &path,
-                                             Common::Array<byte> &outBands, int &outW, int &outH) const {
-	Graphics::Surface *s = Roger::loadSurfaceRGBA(path);
-	if (!s)
-		return false;
-	outW = s->w;
-	outH = s->h;
-	outBands.resize(outW * outH);
-	for (int y = 0; y < outH; y++) {
-		for (int x = 0; x < outW; x++) {
-			uint8 a, r, g, b;
-			s->format.colorToARGB(s->getPixel(x, y), a, r, g, b);
-			outBands[y * outW + x] = (byte)Roger::bandForRGB(r, g, b);
-		}
-	}
-	s->free();
-	delete s;
-	return true;
-}
-
 bool FileRogerArtProvider::hasBackground(GuiResourceId pictureId) const {
 	if (!enabled)
 		return false;
@@ -248,31 +192,6 @@ void FileRogerArtProvider::precacheAll() {
 	}
 
 	warning("ROGER precache: done in %u ms total", g_system->getMillis() - t0);
-}
-
-bool FileRogerArtProvider::loadBuffers(GuiResourceId pictureId, GfxScreen *screen) {
-	Common::Array<byte> priority = Roger::loadGrayscale8(priorityPath(pictureId));
-	Common::Array<byte> control  = Roger::loadGrayscale8(controlPath(pictureId));
-
-	if (priority.empty() || control.empty())
-		return false;
-
-	const uint16 w = screen->getWidth();
-	const uint16 h = screen->getHeight();
-
-	if (priority.size() != (uint)(w * h) || control.size() != (uint)(w * h))
-		return false;
-
-	for (int16 y = 0; y < (int16)h; y++) {
-		for (int16 x = 0; x < (int16)w; x++) {
-			const byte p = priority[y * w + x];
-			const byte c = control[y * w + x];
-			screen->putPixel(x, y,
-				GFX_SCREEN_MASK_PRIORITY | GFX_SCREEN_MASK_CONTROL,
-				0, p, c);
-		}
-	}
-	return true;
 }
 
 void FileRogerArtProvider::pushHiresBackground(GuiResourceId pictureId) {

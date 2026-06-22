@@ -54,12 +54,12 @@ public:
 	// Returns true if replacement assets exist for this picture resource.
 	virtual bool hasBackground(GuiResourceId pictureId) const = 0;
 
-	// Fills GfxScreen's priority and control buffers from pre-generated 320x200
-	// PNGs so game logic (pathfinding, occlusion) honors the replacement art.
-	// The visual buffer is left untouched; the hires visual is shown via the
-	// OSystem overlay in pushHiresBackground(). Returns false and writes nothing
-	// if assets are missing or wrong size.
-	virtual bool loadBuffers(GuiResourceId pictureId, GfxScreen *screen) = 0;
+	// Obsolete: under in-engine generation the priority/control buffers are filled
+	// by SCI's own native render (the hybrid drawPicture hook still draws the native
+	// picture), so the provider no longer replaces them from prebuilt PNGs. Kept as a
+	// documented no-op for source/ABI stability. Walkability + native occlusion ride
+	// SCI's native buffers; overlay sprite occlusion is derived in-engine (priorityBands).
+	virtual bool loadBuffers(GuiResourceId /*pictureId*/, GfxScreen * /*screen*/) { return false; }
 
 	// Shows the hires visual for this picture in ScummVM's OSystem overlay
 	// (a higher-resolution layer composited above the 320x200 game surface).
