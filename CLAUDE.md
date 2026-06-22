@@ -43,10 +43,10 @@ Tests use the CxxTest framework located in `test/cxxtest/`. Test source files ar
 
 ## Roger Project
 
-This fork adds the **Roger** art replacement system for SCI0 games (SQ3, QFG1 EGA). It substitutes pre-generated high-resolution PNG backgrounds, priority maps, and control maps for SCI's native vector/cel rendering, while leaving all game logic intact.
+This fork adds the **Roger** art replacement system for SCI0 games (SQ3, QFG1 EGA). It renders high-resolution backgrounds and VIEW cels **generated in-engine** from the SCI resources (the omyac upscaler pipeline), presented through ScummVM's OSystem overlay, while leaving all game logic intact. In-engine generation is the default and only art path — no pre-generated PNGs are consumed.
 
 - Design spec: `docs/superpowers/specs/2026-06-19-roger-art-replacement-design.md`
-- Latest plan: `docs/superpowers/plans/2026-06-21-roger-remaining-polish.md` (cursor quality, load-pop)
+- Latest plan: `docs/superpowers/plans/2026-06-21-roger-fully-in-engine-art-generation.md` (in-engine generation is the only art path)
 - User-facing docs: `docs/roger.md`
 - All Roger code lives in `engines/sci/roger/`
 
@@ -58,45 +58,38 @@ This fork adds the **Roger** art replacement system for SCI0 games (SQ3, QFG1 EG
 
 ### Stage 1: Background replacement
 
-Hook at top of `GfxPaint16::drawPicture()` checks `g_sciRogerProvider`. When non-null and `hasBackground()` returns true, it fills the **320×200 priority + control buffers** from PNG (so SCI pathfinding/occlusion honor the replacement) and returns early (skipping SCI vector rendering). The hires visual is then shown via the OSystem overlay (`pushHiresBackground()`).
+Hook at top of `GfxPaint16::drawPicture()` checks `g_sciRogerProvider`. When non-null and `hasBackground()` returns true (i.e. a generating `roger_gen_mode` is active), it lets SCI's **native picture render run** — which fills SCI's own 320×200 priority + control buffers, so walkability and native occlusion stay correct — then calls `pushHiresBackground()`. That generates (or loads from the content cache) the hires plate for the pic and presents it to the OSystem overlay. The overlay's per-pixel sprite occlusion is derived **in-engine** from the native pre-render's priority bands (`RogerAssetGen::priorityBands`), not from any prebuilt map.
 
-**Status: implemented + verified.** The hook + priority/control buffer replacement work natively (ego walkability and sprite occlusion respond to swapped maps), and `pushHiresBackground()` loads the hires plate and presents it to the OSystem overlay immediately on room load (no native→hires "pop").
+**Status: implemented + verified.** Generation activates with zero prebuilt files; `pushHiresBackground()` presents the generated plate to the overlay immediately on room load (no native→hires "pop"). Walkability/native occlusion ride SCI's native buffers; overlay sprite occlusion uses the in-engine priority bands.
 
 **Key files:**
 
 | File | Role |
 |------|------|
 | `engines/sci/roger/roger_art_provider.h` | Abstract interface + `g_sciRogerProvider` global |
-| `engines/sci/roger/file_roger_art_provider.h/cpp` | File-based provider: path construction, visual-variant selection, `hasBackground()`, `loadBuffers()`, `pushHiresBackground()` (presents the plate), scene/UI capture, status-banner cache, cursor policy |
+| `engines/sci/roger/roger_asset_gen.h/cpp` | In-engine generation: `generatePlate()` (omyac plate), `generateViewCel()` (scale6x cel), `priorityBands()` (native occlusion bands), backed by a content-hash disk cache (`kTransformVersion`-keyed) |
+| `engines/sci/roger/roger_pic_native.{h,cpp}` + `roger_pic_parser` / `roger_omyac` / `roger_scale` / `roger_ega_blend` | The omyac pipeline: parse pic → native pre-render (exposes `NativeRef::priority`) → enhance passes → RGBA plate; scale6x for VIEW cels |
+| `engines/sci/roger/file_roger_art_provider.h/cpp` | Provider: `hasBackground()` (generating-mode gate), `pushHiresBackground()` (generates+presents the plate, routes occlusion through `priorityBands`), `precacheAll()`, scene/UI capture, status-banner cache, cursor policy |
 | `engines/sci/roger/roger_compositor.h/cpp` | Composites plate + sprites (priority-masked) and the UI display-list (dialogs/banner/buttons/edit/icons) into the overlay; opaque-black letterbox; black dialog borders |
 | `engines/sci/roger/roger_text.h/cpp` | TTF text fit/draw (role-based type scale), `firstLineTop`/`vAlignTop`, `stripUnrenderable` glyph fallback |
 | `engines/sci/roger/roger_ui_layer.h` | Resolution-independent `UiElement` display-list |
-| `engines/sci/roger/view_cache.h/cpp` | Loads upscaled hires VIEW cels (`views/<id>/view.<id>.loop.<n>.png`) for ego/props/inventory cel substitution |
+| `engines/sci/roger/view_cache.h/cpp` | Serves upscaled hires VIEW cels for ego/props/inventory by generating them on first use via `RogerAssetGen::generateViewCel` and caching them (owned). No prebuilt spritesheets. |
 | `engines/sci/roger/png_loader.h/cpp` | `loadGrayscale8()` / `loadSurfaceRGBA()` via `Image::PNGDecoder` |
 | `engines/sci/graphics/{paint16,controls16,menu,event}.cpp` | Hook sites: picture replace, dialog/control capture, status/menu bar, F10 toggle |
 | `engines/sci/sci.cpp` | Provider instantiated after `initGraphics()` (with `ConfMan.getPath("path")`), destroyed in destructor |
 
-**Asset layout** (`sq3-roger` is a sibling of the `sq3` game directory):
+**Asset layout** (`sq3-roger` is a sibling of the `sq3` game directory). Nothing is *consumed* from disk anymore — the only on-disk artifacts are the content-hash generation cache:
 ```
 sq3-roger/
-  pics/
-    <id>/
-      source/
-        pic.<id>.png                 ← low-res original visual
-        pic.<variant>.<id>.png       ← hires visual, e.g. pic.omyac-upscaler.<id>.png
-        pic.<id>_p.png               ← SCI native priority map (320×200, grayscale; loadBuffers)
-        pic.<id>_c.png               ← SCI native control  map (320×200, grayscale; loadBuffers)
-        <pvar>.<id>_p.png            ← overlay-occlusion priority map (EGA-color band-per-pixel),
-                                        default variant baseline-native; selected by roger_priority_variant
-  views/
-    <id>/
-      view.<id>.loop.<n>.png         ← upscaled hires VIEW cels for ego/props/inventory (ViewCache)
+  cache/
+    <gameid>.omyac.v<ver>.<hash>.<passes>.png    ← generated hires plate (per pic, content-keyed)
+    <gameid>.scale6x.v<ver>.<hash>.<passes>.png  ← generated hires VIEW cel (per view/loop/cel)
 ```
-There are **two** priority maps by design: `pic.<id>_p.png` (grayscale) fills SCI's native priority buffer for walkability/native occlusion, while `<variant>.<id>_p.png` (EGA-color encoded) is the overlay compositor's per-pixel occlusion source. The hires visual variant is selected by `roger_visual_variant` (default `omyac-upscaler`; empty = plain `pic.<id>.png`).
+Plates and VIEW cels are generated in-engine from the SCI resources and written here on a cache miss (modes `cache`/`always`); `memory` generates without writing. The cache key embeds `kTransformVersion`, so a pipeline change invalidates stale files automatically.
 
-**Config knobs** (all `ConfMan.hasKey(...)`-gated; see `docs/roger.md` for the full table): `roger_visual_variant`, `roger_priority_variant`, `roger_ui_font_scale` (default 150), `roger_ui_font`, `roger_ui_header_font`, `roger_hw_cursor` (default true — native hardware cursor over the overlay; false = composited arrow fallback), `roger_cursor_size`, `roger_occ_dx`/`roger_occ_dy`, `roger_autoshot`, `roger_debug`. F10 A/B toggles the overlay on/off live.
+**Config knobs** (all `ConfMan.hasKey(...)`-gated; see `docs/roger.md` for the full table): `roger_gen_mode` (default `cache`; `prebuilt` = native-only off-switch, `memory`, `always`), `roger_precache` (default `all`; `pics`|`views`|`off`), `roger_omyac_passes`, `roger_ui_font_scale` (default 150), `roger_ui_font`, `roger_ui_header_font`, `roger_hw_cursor`, `roger_cursor_size`, `roger_occ_dx`/`roger_occ_dy`, `roger_autoshot`, `roger_debug`. The `roger_visual_variant`/`roger_priority_variant` knobs are retired (they selected prebuilt files). F10 A/B toggles the overlay on/off live; Ctrl+Shift+[ ] / ; ' tune enhance passes live.
 
-**Integration test:** Room 2 (pic resource 2), art at `sq3-roger/pics/2/source/`. To verify the buffers are honored, swap in deliberately-wrong uniform priority/control maps and observe ego occlusion/walkability change.
+**Integration test:** Room 2 (pic resource 2). Walkability/native occlusion ride SCI's native render; overlay sprite occlusion uses the in-engine priority bands derived from the same native pre-render.
 
 **Tests:** `test/sci/roger/` (CxxTest) — require a `make`-based build to run (SCI as a static plugin).
 
