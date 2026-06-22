@@ -917,8 +917,8 @@ void FileRogerArtProvider::tuneEnhancePasses(int delta, int which) {
 	// prebuilt/cache mode if needed (the user can re-set roger_gen_mode to
 	// restore their preferred mode or call reloadGenConfig() to persist the
 	// chosen sequence).
-	if (_assetGen->mode() == Roger::kGenPrebuilt || _assetGen->mode() == Roger::kGenCache)
-		_assetGen->setMode(Roger::kGenMemory);
+	if (_assetGen->mode() != Roger::kGenMemory)
+		_assetGen->setMode(Roger::kGenMemory); // tune in memory; never churn the disk cache (incl. kGenAlways)
 
 	// Log the active sequence unconditionally so tuning feedback is always visible
 	// (not gated on _debugLog).
@@ -940,8 +940,8 @@ void FileRogerArtProvider::reloadGenConfig() {
 	);
 
 	// Keep in a generating mode so the reload actually produces a new plate.
-	if (_assetGen->mode() == Roger::kGenPrebuilt || _assetGen->mode() == Roger::kGenCache)
-		_assetGen->setMode(Roger::kGenMemory);
+	if (_assetGen->mode() != Roger::kGenMemory)
+		_assetGen->setMode(Roger::kGenMemory); // tune in memory; never churn the disk cache (incl. kGenAlways)
 
 	debug("ROGER reloadGenConfig: roger_omyac_passes re-read; passes count=%u",
 	      (unsigned)_assetGen->enhancePasses().size());
