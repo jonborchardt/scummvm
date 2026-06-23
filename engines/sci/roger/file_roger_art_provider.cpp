@@ -82,6 +82,11 @@ FileRogerArtProvider::FileRogerArtProvider(const Common::String &gameId,
 	// with Ctrl+Shift+L). Read it here so the documented config knob actually works.
 	_debugLog = ConfMan.hasKey("roger_debug") && ConfMan.getBool("roger_debug");
 
+	// roger_ui_native_font (default false): EXPERIMENT — draw dialog/control text with
+	// the game's own SCI font upscaled 6x (via RogerAssetGen::generateTextBlock) instead
+	// of the TTF dialog font. Set to true to A/B the look; flip back to revert.
+	_uiNativeFont = ConfMan.hasKey("roger_ui_native_font") && ConfMan.getBool("roger_ui_native_font");
+
 	// Cursor: the native hardware cursor is NOT usefully visible over the in-game
 	// OSystem overlay (verified in live play — it disappears), which is the original
 	// reason Roger composites its own arrow into the overlay scene. So default to the
@@ -612,6 +617,36 @@ void FileRogerArtProvider::presentWithUi() {
 	}
 }
 
+bool FileRogerArtProvider::pushNativeText(const Common::Rect &r, const char *text, int fontId,
+                                          int penColor, int backColor, int align, uint32 token,
+                                          bool frame) {
+	if (!_assetGen)
+		return false;
+	Graphics::Surface *s = _assetGen->generateTextBlock(text ? text : "", fontId,
+	                                                     (byte)(penColor >= 0 ? penColor : 0),
+	                                                     r.width(), align);
+	if (!s)
+		return false;
+	_uiIcons.push_back(s); // owned; freed on room change / uiClearAll
+	// If the control has a fill or frame, keep a window underneath so the look matches
+	// the TTF path (the compositor fills backColor and frames kUiWindow).
+	if (backColor >= 0 || frame) {
+		Roger::UiElement bg;
+		bg.type = Roger::kUiWindow; bg.nativeRect = r; bg.backColor = backColor;
+		bg.penColor = penColor; bg.hasFrame = frame; bg.token = token;
+		_uiLayer->push(bg);
+	}
+	const int nativeW = s->w / 6, nativeH = s->h / 6;
+	Roger::UiElement e;
+	e.type = Roger::kUiIcon;
+	e.nativeRect = Common::Rect(r.left, r.top,
+	                            r.left + (nativeW > 0 ? nativeW : r.width()),
+	                            r.top + (nativeH > 0 ? nativeH : r.height()));
+	e.iconSurface = s; e.token = token;
+	_uiLayer->push(e);
+	return true;
+}
+
 void FileRogerArtProvider::uiPushWindow(const Common::Rect &r, int backColor, int penColor,
                                         uint16 wndStyle, uint32 token) {
 	if (!_overlayActive || !_plate) return; // no hires scene -> leave native UI visible
@@ -631,6 +666,10 @@ void FileRogerArtProvider::uiPushText(const Common::Rect &r, const char *text, i
                                       int textRole, bool useAltFont) {
 	if (!_overlayActive || !_plate) return;
 	ensureUi();
+	if (_uiNativeFont && pushNativeText(r, text, fontId, penColor, backColor, align, token, false)) {
+		presentWithUi();
+		return;
+	}
 	Roger::UiElement e;
 	e.type = Roger::kUiText; e.nativeRect = r; e.text = text ? text : "";
 	e.penColor = penColor; e.backColor = backColor; e.fontId = fontId;
@@ -644,6 +683,10 @@ void FileRogerArtProvider::uiPushButton(const Common::Rect &r, const char *text,
                                         int style, uint32 token) {
 	if (!_overlayActive || !_plate) return;
 	ensureUi();
+	if (_uiNativeFont && pushNativeText(r, text, fontId, /*pen*/0, /*back*/7, /*align*/1, token, true)) {
+		presentWithUi();
+		return;
+	}
 	Roger::UiElement e;
 	e.type = Roger::kUiButton; e.nativeRect = r; e.text = text ? text : "";
 	e.fontId = fontId; e.style = style; e.align = 1 /*center*/;
@@ -656,6 +699,10 @@ void FileRogerArtProvider::uiPushTextEdit(const Common::Rect &r, const char *tex
                                           int style, int cursorPos, uint32 token) {
 	if (!_overlayActive || !_plate) return;
 	ensureUi();
+	if (_uiNativeFont && pushNativeText(r, text, fontId, /*pen*/0, /*back*/15, /*align*/0, token, true)) {
+		presentWithUi();
+		return;
+	}
 	Roger::UiElement e;
 	e.type = Roger::kUiTextEdit; e.nativeRect = r; e.text = text ? text : "";
 	e.fontId = fontId; e.style = style; e.cursorPos = cursorPos; e.align = 0;
