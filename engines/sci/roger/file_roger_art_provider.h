@@ -94,7 +94,7 @@ private:
 	int _autoshotPicId = -1;     // last pic id already auto-shot (so we dump once per room, not per frame)
 	uint32 _lastUiSig = 0;       // signature of the last -ui autoshot's UI layer (throttle: dump only on change)
 	int _statusBarH = 10;        // SCI0 status/menu bar height in screen rows (of 200); reserved at the top of the game rect (may change)
-	Common::Array<byte> _priorityMap; // 320x190 SCI priority bands (from RogerAssetGen::priorityBands), for overlay occlusion
+	Common::Array<byte> _priorityMap; // 1920x1140 omyac-aligned priority bands (from RogerAssetGen::generatePriorityMap), for overlay occlusion
 
 	// Roger hires UI/dialog compositing (see roger_ui_layer / roger_text).
 	Roger::RogerUiLayer *_uiLayer = nullptr;
