@@ -57,9 +57,9 @@ This fork adds the **Roger** art replacement system for SCI0 games (SQ3, QFG1 EG
 
 ### Stage 1: Background replacement
 
-Hook at top of `GfxPaint16::drawPicture()` checks `g_sciRogerProvider`. When non-null and `hasBackground()` returns true (i.e. a generating `roger_gen_mode` is active), it lets SCI's **native picture render run** — which fills SCI's own 320×200 priority + control buffers, so walkability and native occlusion stay correct — then calls `pushHiresBackground()`. That generates (or loads from the content cache) the hires plate for the pic and presents it to the OSystem overlay. The overlay's per-pixel sprite occlusion is derived **in-engine** from the native pre-render's priority bands (`RogerAssetGen::priorityBands`), not from any prebuilt map.
+Hook at top of `GfxPaint16::drawPicture()` checks `g_sciRogerProvider`. When non-null and `hasBackground()` returns true (i.e. a generating `roger_gen_mode` is active), it lets SCI's **native picture render run** — which fills SCI's own 320×200 priority + control buffers, so walkability and native occlusion stay correct — then calls `pushHiresBackground()`. That generates (or loads from the content cache) the hires plate for the pic and presents it to the OSystem overlay. The overlay's per-pixel sprite occlusion is derived **in-engine** from a hires omyac-aligned priority map (`RogerAssetGen::generatePriorityMap()`, the `omyacprio` cache) whose band edges track the displayed plate, not from any prebuilt map.
 
-**Status: implemented + verified.** Generation activates with zero prebuilt files; `pushHiresBackground()` presents the generated plate to the overlay immediately on room load (no native→hires "pop"). Walkability/native occlusion ride SCI's native buffers; overlay sprite occlusion uses the in-engine priority bands.
+**Status: implemented + verified.** Generation activates with zero prebuilt files; `pushHiresBackground()` presents the generated plate to the overlay immediately on room load (no native→hires "pop"). Walkability/native occlusion ride SCI's native buffers; overlay sprite occlusion uses the hires omyac-aligned priority map (`omyacprio`).
 
 **Key files:**
 
@@ -68,7 +68,7 @@ Hook at top of `GfxPaint16::drawPicture()` checks `g_sciRogerProvider`. When non
 | `engines/sci/roger/roger_art_provider.h` | Abstract interface + `g_sciRogerProvider` global |
 | `engines/sci/roger/roger_asset_gen.h/cpp` | In-engine generation: `generatePlate()` (omyac plate), `generateViewCel()` (scale6x cel), `generatePriorityMap()` (hires omyac-aligned priority bands for overlay occlusion), `priorityBands()` (legacy native occlusion bands), backed by a content-hash disk cache (`kTransformVersion`-keyed) |
 | `engines/sci/roger/roger_pic_native.{h,cpp}` + `roger_pic_parser` / `roger_omyac` / `roger_scale` / `roger_ega_blend` | The omyac pipeline: parse pic → native pre-render (exposes `NativeRef::priority`) → enhance passes → RGBA plate; scale6x for VIEW cels |
-| `engines/sci/roger/file_roger_art_provider.h/cpp` | Provider: `hasBackground()` (generating-mode gate), `pushHiresBackground()` (generates+presents the plate, routes occlusion through `priorityBands`), `precacheAll()`, scene/UI capture, status-banner cache, cursor policy |
+| `engines/sci/roger/file_roger_art_provider.h/cpp` | Provider: `hasBackground()` (generating-mode gate), `pushHiresBackground()` (generates+presents the plate, routes occlusion through `generatePriorityMap()` — hires omyac-aligned), `precacheAll()`, scene/UI capture, status-banner cache, cursor policy |
 | `engines/sci/roger/roger_compositor.h/cpp` | Composites plate + sprites (priority-masked) and the UI display-list (dialogs/banner/buttons/edit/icons) into the overlay; opaque-black letterbox; black dialog borders |
 | `engines/sci/roger/roger_text.h/cpp` | TTF text fit/draw (role-based type scale), `firstLineTop`/`vAlignTop`, `stripUnrenderable` glyph fallback |
 | `engines/sci/roger/roger_ui_layer.h` | Resolution-independent `UiElement` display-list |
@@ -87,9 +87,9 @@ sq3-roger/
 ```
 Plates and VIEW cels are generated in-engine from the SCI resources and written here on a cache miss (modes `cache`/`always`); `memory` generates without writing. The cache key embeds `kTransformVersion`, so a pipeline change invalidates stale files automatically.
 
-**Config knobs** (all `ConfMan.hasKey(...)`-gated; see `docs/roger.md` for the full table): `roger_gen_mode` (default `cache`; `prebuilt` = native-only off-switch, `memory`, `always`), `roger_precache` (default `all`; `pics`|`views`|`off`), `roger_omyac_passes`, `roger_ui_font_scale` (default 150), `roger_ui_font`, `roger_ui_header_font`, `roger_hw_cursor`, `roger_cursor_size`, `roger_occ_dx`/`roger_occ_dy`, `roger_autoshot`, `roger_debug`. The `roger_visual_variant`/`roger_priority_variant` knobs are retired (they selected prebuilt files). F10 A/B toggles the overlay on/off live; Ctrl+Shift+[ ] / ; ' tune enhance passes live.
+**Config knobs** (all `ConfMan.hasKey(...)`-gated; see `docs/roger.md` for the full table): `roger_gen_mode` (default `cache`; `prebuilt` = native-only off-switch, `memory`, `always`), `roger_precache` (default `all`; `pics`|`views`|`off`), `roger_omyac_passes`, `roger_ui_font_scale` (default 150), `roger_ui_font`, `roger_ui_header_font`, `roger_hw_cursor`, `roger_cursor_size`, `roger_autoshot`, `roger_debug`. The `roger_visual_variant`/`roger_priority_variant` knobs are retired (they selected prebuilt files). F10 A/B toggles the overlay on/off live; Ctrl+Shift+[ ] / ; ' tune enhance passes live.
 
-**Integration test:** Room 2 (pic resource 2). Walkability/native occlusion ride SCI's native render; overlay sprite occlusion uses the in-engine priority bands derived from the same native pre-render.
+**Integration test:** Room 2 (pic resource 2). Walkability/native occlusion ride SCI's native render; overlay sprite occlusion uses the hires omyac-aligned priority map (`omyacprio`), so occlusion edges track the displayed plate.
 
 **Tests:** `test/sci/roger/` (CxxTest) — require a `make`-based build to run (SCI as a static plugin).
 
