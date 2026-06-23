@@ -33,8 +33,13 @@ namespace Roger {
 // (CMD_NONE/CMD_LINE/CMD_FILL). Port of render-omyac-upscaler.ts
 // OmyacUpscalerResult (without the optional wireframe capture).
 struct OmyacResult {
-	Common::Array<byte> pixels;  // OMYAC_HYBRID_W * OMYAC_HYBRID_H
-	Common::Array<byte> cmdType; // OMYAC_HYBRID_W * OMYAC_HYBRID_H
+	Common::Array<byte> pixels;        // OMYAC_HYBRID_W * OMYAC_HYBRID_H
+	Common::Array<byte> cmdType;       // OMYAC_HYBRID_W * OMYAC_HYBRID_H
+	// For each hires pixel, the native cell (y*OMYAC_NATIVE_W + x) whose color it
+	// shows, or -1 if untouched. Rides the SAME anchors/lines/enhance geometry as
+	// `pixels`, so a parallel channel (e.g. priority bands) can be upscaled with
+	// edges identical to the visual plate. Additive: does not affect color/type.
+	Common::Array<int32> srcNativeIdx; // OMYAC_HYBRID_W * OMYAC_HYBRID_H
 };
 
 // Default enhance pass sequence: 3x fill, 1x line, 2x fill, 4x all.
