@@ -66,7 +66,7 @@ Hook at top of `GfxPaint16::drawPicture()` checks `g_sciRogerProvider`. When non
 | File | Role |
 |------|------|
 | `engines/sci/roger/roger_art_provider.h` | Abstract interface + `g_sciRogerProvider` global |
-| `engines/sci/roger/roger_asset_gen.h/cpp` | In-engine generation: `generatePlate()` (omyac plate), `generateViewCel()` (scale6x cel), `priorityBands()` (native occlusion bands), backed by a content-hash disk cache (`kTransformVersion`-keyed) |
+| `engines/sci/roger/roger_asset_gen.h/cpp` | In-engine generation: `generatePlate()` (omyac plate), `generateViewCel()` (scale6x cel), `generatePriorityMap()` (hires omyac-aligned priority bands for overlay occlusion), `priorityBands()` (legacy native occlusion bands), backed by a content-hash disk cache (`kTransformVersion`-keyed) |
 | `engines/sci/roger/roger_pic_native.{h,cpp}` + `roger_pic_parser` / `roger_omyac` / `roger_scale` / `roger_ega_blend` | The omyac pipeline: parse pic → native pre-render (exposes `NativeRef::priority`) → enhance passes → RGBA plate; scale6x for VIEW cels |
 | `engines/sci/roger/file_roger_art_provider.h/cpp` | Provider: `hasBackground()` (generating-mode gate), `pushHiresBackground()` (generates+presents the plate, routes occlusion through `priorityBands`), `precacheAll()`, scene/UI capture, status-banner cache, cursor policy |
 | `engines/sci/roger/roger_compositor.h/cpp` | Composites plate + sprites (priority-masked) and the UI display-list (dialogs/banner/buttons/edit/icons) into the overlay; opaque-black letterbox; black dialog borders |
@@ -83,6 +83,7 @@ sq3-roger/
   cache/
     <gameid>.omyac.v<ver>.<hash>.<passes>.png    ← generated hires plate (per pic, content-keyed)
     <gameid>.scale6x.v<ver>.<hash>.<passes>.png  ← generated hires VIEW cel (per view/loop/cel)
+    <gameid>.omyacprio.v<ver>.<hash>.<passes>.png ← generated hires priority map (per pic, content-keyed)
 ```
 Plates and VIEW cels are generated in-engine from the SCI resources and written here on a cache miss (modes `cache`/`always`); `memory` generates without writing. The cache key embeds `kTransformVersion`, so a pipeline change invalidates stale files automatically.
 
@@ -96,7 +97,7 @@ Plates and VIEW cels are generated in-engine from the SCI resources and written 
 
 The compositor draws the ego/props into the OSystem overlay at hires (upscaled native cels via the ViewCache, or rendered native cels as fallback) with SCI priority-band masking against the replacement art, and composites the SCI UI that would otherwise be hidden under the overlay: dialog windows (black border), the score/title banner (cached + re-applied on room load and F10 enable), buttons, top-aligned text-edit fields with a live caret, and inventory icons / look-at close-ups. The letterbox is filled opaque black so the native render (and its hardware cursor) cannot leak at the edges, and the cursor itself is the native hardware cursor (SCI sets arrow/wait/hand; smooth, correct over the overlay). All game logic stays at 320×200; only the display layer is hires.
 
-Remaining art-side (out of engine scope): authoring *better* hires backgrounds, new hires VIEW art for room sprites, and a hires priority map for sub-pixel occlusion alignment (the `roger_occ_dx/dy` stopgap covers the native-res map's few-px drift).
+The hires priority map for sub-pixel occlusion alignment is now generated in-engine (omyac-aligned `omyacprio` cache), so overlay occlusion tracks the displayed plate. Remaining art-side work: authoring better hires backgrounds and new hires VIEW art for room sprites.
 
 ### Stage 3: Plugin migration (future)
 
