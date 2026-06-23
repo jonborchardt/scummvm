@@ -141,6 +141,10 @@ void RogerCompositor::renderScene(Graphics::ManagedSurface &dest, const Common::
 			// wide rect, so the splatted foreground pixels would not match the
 			// displayed background (the "off by a few pixels" bug). Matching the
 			// scaler makes a splatted pixel byte-identical to the background at (ox,oy).
+			// With the hires priority map, _priorityW/_priorityH == _plate->w/h, so
+			// the overlay->plate->priority mapping below collapses to a 1:1 lookup at
+			// the displayed plate pixel — the few-px drift of the old native-res map
+			// (320x190 sampled /6) is gone. The math still generalises if they differ.
 			const int SCALE = 0x100; // == SCALE_THRESHOLD in managed_surface.cpp
 			const int scaleX = SCALE * _plate->w / GW;
 			const int scaleY = SCALE * _plate->h / GH;

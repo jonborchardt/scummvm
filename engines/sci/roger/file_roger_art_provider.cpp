@@ -165,8 +165,11 @@ void FileRogerArtProvider::precacheAll() {
 			uint32 ms = 0;
 			Graphics::Surface *s = _assetGen->generatePlate(id, ms); // cache mode writes the PNG
 			if (s) { s->free(); delete s; }                          // we only wanted it on disk
+			// Warm the hires priority cache too (same content hash + passes).
+			Common::Array<byte> bands; int bw = 0, bh = 0; uint32 pms = 0;
+			_assetGen->generatePriorityMap(id, bands, bw, bh, pms);
 			++done;
-			warning("ROGER precache: pic %d (%d/%d) %u ms", id, done, total, ms);
+			warning("ROGER precache: pic %d (%d/%d) plate %u ms, prio %u ms", id, done, total, ms, pms);
 		}
 		warning("ROGER precache: %d pic plates warmed", done);
 	}
@@ -250,23 +253,27 @@ void FileRogerArtProvider::pushHiresBackground(GuiResourceId pictureId) {
 		_compositor = new Roger::RogerCompositor();
 	_compositor->setRoom(_plate, _viewCache);
 
-	// Derive the per-pixel overlay occlusion in-engine from the native pre-render's
-	// priority buffer (320x190, one SCI band per pixel), aligned with the plate, so
-	// picScreenTop = 0. No prebuilt occlusion map is consumed.
+	// Derive the per-pixel overlay occlusion in-engine from the omyac-enhanced HIRES
+	// priority map (1920x1140) whose band edges ride the SAME geometry as the plate,
+	// so occlusion tracks the displayed background instead of a clean 6x grid (the old
+	// native-res priorityBands drift). Cached as the "omyacprio" transform. No prebuilt
+	// occlusion map is consumed.
 	int prW = 0, prH = 0;
 	_priorityMap.clear();
+	uint32 occGenMs = 0;
 	uint32 tOcc0 = g_system->getMillis();
 	bool haveOcc = (_assetGen && _assetGen->mode() != Roger::kGenPrebuilt &&
-	                _assetGen->priorityBands(pictureId, _priorityMap, prW, prH));
+	                _assetGen->generatePriorityMap(pictureId, _priorityMap, prW, prH, occGenMs));
 	uint32 occMs = g_system->getMillis() - tOcc0;
-	if (haveOcc) {
-		_compositor->setPicture(320, prH, 0);
-		_compositor->setPriorityMask(_priorityMap.begin(), prW, prH);
-	} else {
-		// No occlusion bands -> sprites still draw, just without occlusion.
-		_compositor->setPicture(320, 190, 0);
-		_compositor->setPriorityMask(nullptr, 0, 0);
-	}
+
+	// _picW x _picH is the SCI picture window (320x190); sprite cel rects live in that
+	// space, so picH stays 190 regardless of the priority map's hires resolution. (The
+	// old code passed prH here only because native priorityBands also returned 190.)
+	_compositor->setPicture(320, 190, 0);
+	if (haveOcc)
+		_compositor->setPriorityMask(_priorityMap.begin(), prW, prH); // hires bands (1920x1140)
+	else
+		_compositor->setPriorityMask(nullptr, 0, 0); // no bands -> sprites draw without occlusion
 	_loadedPicId = pictureId;
 
 	// Re-push the cached score/title banner into the UI layer so it is enhanced again
