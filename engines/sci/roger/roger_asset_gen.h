@@ -101,6 +101,15 @@ public:
 	 */
 	Graphics::Surface *generateViewCel(int viewId, int loopNo, int celNo, uint32 &outMs);
 
+	/**
+	 * Render `text` with the game's native SCI font `fontId` (pen colour `penColor`,
+	 * transparent background) and upscale 6x. Game-agnostic: glyphs come from the
+	 * engine's font resource, so custom glyphs (e.g. a stylized title glyph) render
+	 * faithfully. Returns a new Graphics::Surface (caller owns: ->free() then delete),
+	 * or nullptr on failure / in builds without ENABLE_SCI. Not disk-cached.
+	 */
+	Graphics::Surface *generateTextSurface(const Common::String &text, int fontId, byte penColor);
+
 	// Native priority bands (320x190, one SCI band per pixel) for overlay occlusion,
 	// derived from the in-engine native pre-render. Returns false on any miss.
 	bool priorityBands(int picId, Common::Array<byte> &outBands, int &outW, int &outH);

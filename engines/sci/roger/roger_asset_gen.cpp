@@ -41,6 +41,7 @@
 #include "sci/graphics/cache.h"
 #include "sci/graphics/view.h"
 #include "sci/graphics/palette16.h"
+#include "sci/graphics/scifont.h"
 
 #include "sci/roger/roger_pic_parser.h"
 #include "sci/roger/roger_pic_native.h"
@@ -349,6 +350,81 @@ Graphics::Surface *RogerAssetGen::generateViewCel(int viewId, int loopNo, int ce
 #else
 	return nullptr;
 #endif // ENABLE_SCI
+}
+
+// ---------------------------------------------------------------------------
+// generateTextSurface
+// ---------------------------------------------------------------------------
+Graphics::Surface *RogerAssetGen::generateTextSurface(const Common::String &text, int fontId, byte penColor) {
+	if (text.empty())
+		return nullptr;
+
+#ifdef ENABLE_SCI
+	if (!g_sci)
+		return nullptr;
+	GfxCache *gfxCache = g_sci->_gfxCache;
+	if (!gfxCache)
+		return nullptr;
+	GfxFont *font = gfxCache->getFont((GuiResourceId)fontId);
+	if (!font)
+		return nullptr;
+
+	const int h = font->getHeight();
+	int w = 0;
+	for (uint i = 0; i < text.size(); i++)
+		w += font->getCharWidth((byte)text[i]);
+	if (w <= 0 || h <= 0)
+		return nullptr;
+
+	// Clear-key sentinel index for the transparent background (must differ from the
+	// pen so glyph pixels are never treated as transparent). scale6x only copies
+	// existing indices, so the sentinel survives scaling and no new index appears.
+	const byte ck = (penColor != 0xFF) ? 0xFF : 0xFE;
+
+	IndexImage idx;
+	idx.w = w;
+	idx.h = h;
+	idx.pixels.resize((uint32)(w * h), ck);
+
+	int x = 0;
+	for (uint i = 0; i < text.size(); i++) {
+		const uint16 c = (byte)text[i];
+		font->drawToBuffer(c, 0, (int16)x, penColor, false, idx.pixels.begin(), (int16)w, (int16)h);
+		x += font->getCharWidth(c);
+	}
+
+	IndexImage scaled = scale6x(idx);
+	const int sw = scaled.w, sh = scaled.h;
+	if (sw <= 0 || sh <= 0)
+		return nullptr;
+
+	// 0xRRGGBBAA in memory, alpha in the low byte (same as generateViewCel / the compositor).
+	const Graphics::PixelFormat fmt(4, 8, 8, 8, 8, 24, 16, 8, 0);
+	Graphics::Surface *surf = new Graphics::Surface();
+	surf->create((uint16)sw, (uint16)sh, fmt);
+	if (!surf->getPixels()) {
+		delete surf;
+		return nullptr;
+	}
+
+	const Palette &pal = g_sci->_gfxPalette16->_sysPalette;
+	for (int row = 0; row < sh; ++row) {
+		uint32 *dst = (uint32 *)surf->getBasePtr(0, row);
+		for (int col = 0; col < sw; ++col) {
+			const byte v = scaled.pixels[(uint32)(row * sw + col)];
+			if (v == ck) {
+				dst[col] = fmt.ARGBToColor(0, 0, 0, 0); // transparent background
+			} else {
+				const Color &cc = pal.colors[v];
+				dst[col] = fmt.ARGBToColor(255, cc.r, cc.g, cc.b);
+			}
+		}
+	}
+	return surf;
+#else
+	(void)fontId; (void)penColor;
+	return nullptr;
+#endif
 }
 
 } // namespace Roger
