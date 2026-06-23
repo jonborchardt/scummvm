@@ -110,6 +110,16 @@ public:
 	 */
 	Graphics::Surface *generateTextSurface(const Common::String &text, int fontId, byte penColor);
 
+	/**
+	 * Like generateTextSurface but multi-line: word-wraps `text` to `wrapWidthNative`
+	 * native pixels (<=0 = single line) using the native font's per-char widths, stacks
+	 * the lines, aligns each line within the block (`align`: -1 right / 0 left / 1 center),
+	 * and upscales 6x. Honours existing '\n' as hard breaks. Caller owns the surface
+	 * (->free() then delete); nullptr on failure or in builds without ENABLE_SCI.
+	 */
+	Graphics::Surface *generateTextBlock(const Common::String &text, int fontId, byte penColor,
+	                                     int wrapWidthNative, int align);
+
 	// Native priority bands (320x190, one SCI band per pixel) for overlay occlusion,
 	// derived from the in-engine native pre-render. Returns false on any miss.
 	bool priorityBands(int picId, Common::Array<byte> &outBands, int &outW, int &outH);

@@ -514,5 +514,131 @@ Graphics::Surface *RogerAssetGen::generateTextSurface(const Common::String &text
 #endif
 }
 
+// ---------------------------------------------------------------------------
+// generateTextBlock — multi-line, word-wrapped native-font render, upscaled 6x.
+// ---------------------------------------------------------------------------
+Graphics::Surface *RogerAssetGen::generateTextBlock(const Common::String &text, int fontId,
+                                                    byte penColor, int wrapWidthNative, int align) {
+	if (text.empty())
+		return nullptr;
+
+#ifdef ENABLE_SCI
+	if (!g_sci)
+		return nullptr;
+	GfxCache *gfxCache = g_sci->_gfxCache;
+	if (!gfxCache)
+		return nullptr;
+	GfxFont *font = gfxCache->getFont((GuiResourceId)fontId);
+	if (!font)
+		return nullptr;
+
+	const int fh = font->getHeight();
+	if (fh <= 0)
+		return nullptr;
+
+	// --- Wrap into lines. Hard-break on '\n'; greedy word-wrap to wrapWidthNative. ---
+	Common::Array<Common::String> lines;
+	const int spaceW = font->getCharWidth((uint16)' ');
+	Common::String paragraph;
+	for (uint p = 0; p <= text.size(); p++) {
+		const bool end = (p == text.size());
+		const char ch = end ? '\n' : text[p];
+		if (ch != '\n') { paragraph += ch; continue; }
+
+		// Wrap this paragraph.
+		Common::String line;
+		int lineW = 0;
+		uint i = 0;
+		while (i < paragraph.size()) {
+			// Skip leading spaces of a word run but remember count.
+			uint ws = 0;
+			while (i < paragraph.size() && paragraph[i] == ' ') { ws++; i++; }
+			Common::String word;
+			int wordW = 0;
+			while (i < paragraph.size() && paragraph[i] != ' ') {
+				wordW += font->getCharWidth((uint16)(byte)paragraph[i]);
+				word += paragraph[i];
+				i++;
+			}
+			if (word.empty())
+				break;
+			const int sepW = line.empty() ? 0 : (int)ws * spaceW;
+			if (wrapWidthNative > 0 && !line.empty() && lineW + sepW + wordW > wrapWidthNative) {
+				lines.push_back(line);
+				line = word; lineW = wordW;
+			} else {
+				if (!line.empty()) { for (uint s = 0; s < ws; s++) line += ' '; }
+				line += word; lineW += sepW + wordW;
+			}
+		}
+		lines.push_back(line); // even if empty (preserves blank lines)
+		paragraph.clear();
+	}
+	if (lines.empty())
+		return nullptr;
+
+	// --- Measure block. ---
+	int blockW = 0;
+	Common::Array<int> lineW(lines.size(), 0);
+	for (uint l = 0; l < lines.size(); l++) {
+		int w = 0;
+		for (uint c = 0; c < lines[l].size(); c++)
+			w += font->getCharWidth((uint16)(byte)lines[l][c]);
+		lineW[l] = w;
+		if (w > blockW) blockW = w;
+	}
+	const int blockH = (int)lines.size() * fh;
+	if (blockW <= 0 || blockH <= 0)
+		return nullptr;
+
+	const byte ck = (penColor != 0xFF) ? 0xFF : 0xFE;
+	IndexImage idx;
+	idx.w = blockW; idx.h = blockH;
+	idx.pixels.resize((uint32)(blockW * blockH), ck);
+
+	// --- Draw each line, aligned within the block. ---
+	for (uint l = 0; l < lines.size(); l++) {
+		int startX = 0;
+		if (align == 1)       startX = (blockW - lineW[l]) / 2;        // center
+		else if (align == -1) startX = (blockW - lineW[l]);           // right
+		if (startX < 0) startX = 0;
+		int x = startX;
+		const int topY = (int)l * fh;
+		for (uint c = 0; c < lines[l].size(); c++) {
+			const uint16 ch = (byte)lines[l][c];
+			font->drawToBuffer(ch, (int16)topY, (int16)x, penColor, false,
+			                   idx.pixels.begin(), (int16)blockW, (int16)blockH);
+			x += font->getCharWidth(ch);
+		}
+	}
+
+	IndexImage scaled = scale6x(idx);
+	const int sw = scaled.w, sh = scaled.h;
+	if (sw <= 0 || sh <= 0)
+		return nullptr;
+
+	const Graphics::PixelFormat fmt(4, 8, 8, 8, 8, 24, 16, 8, 0);
+	Graphics::Surface *surf = new Graphics::Surface();
+	surf->create((uint16)sw, (uint16)sh, fmt);
+	if (!surf->getPixels()) {
+		delete surf;
+		return nullptr;
+	}
+	const Palette &pal = g_sci->_gfxPalette16->_sysPalette;
+	for (int row = 0; row < sh; ++row) {
+		uint32 *dst = (uint32 *)surf->getBasePtr(0, row);
+		for (int col = 0; col < sw; ++col) {
+			const byte v = scaled.pixels[(uint32)(row * sw + col)];
+			if (v == ck) dst[col] = fmt.ARGBToColor(0, 0, 0, 0);
+			else { const Color &cc = pal.colors[v]; dst[col] = fmt.ARGBToColor(255, cc.r, cc.g, cc.b); }
+		}
+	}
+	return surf;
+#else
+	(void)fontId; (void)penColor; (void)wrapWidthNative; (void)align;
+	return nullptr;
+#endif
+}
+
 } // namespace Roger
 } // namespace Sci
