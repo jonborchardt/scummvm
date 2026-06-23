@@ -48,6 +48,16 @@ inline byte egaDeUndither(byte b, int x, int y, byte clearKey) {
 	return ((x ^ y) & 1) ? hi : lo;
 }
 
+// Priority band (0..15) <-> grayscale byte (0..255) for the on-disk omyacprio map.
+// Storing a band directly (0..15) makes the cached PNG near-black and impossible to
+// inspect by eye (a correct varied map and an all-zero broken one look identical).
+// Scaling by 17 spreads the 16 bands across the full 0..255 range (0->0, 15->255) so
+// the map is a readable grayscale priority visualization, and round-trips losslessly:
+// only multiples of 17 are ever stored, and (band*17)/17 == band exactly.
+static const int kPriorityGrayScale = 17;
+inline byte priorityBandToGray(byte band) { return (byte)(band * kPriorityGrayScale); }
+inline byte grayToPriorityBand(byte gray) { return (byte)(gray / kPriorityGrayScale); }
+
 enum GenMode {
 	kGenPrebuilt, // Default: return nullptr, let provider load prebuilt PNG.
 	kGenCache,    // Load from disk cache on hit; generate + write on miss.

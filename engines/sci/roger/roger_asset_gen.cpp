@@ -379,11 +379,14 @@ bool RogerAssetGen::generatePriorityMap(int picId, Common::Array<byte> &outBands
 
 	const uint32 hiresCount = (uint32)(OMYAC_HYBRID_W * OMYAC_HYBRID_H);
 
-	// kGenCache: a grayscale PNG (R=G=B=band) re-decodes to one band byte per pixel.
+	// kGenCache: the PNG stores band*kPriorityGrayScale per pixel (R=G=B); unscale
+	// each byte back to a 0..15 band on load.
 	if (_mode == kGenCache) {
 		Common::Array<byte> cached = loadGrayscale8(cachePath);
 		if (cached.size() == hiresCount) {
-			outBands = cached;
+			outBands.resize(hiresCount);
+			for (uint32 i = 0; i < hiresCount; ++i)
+				outBands[i] = grayToPriorityBand(cached[i]);
 			outW = OMYAC_HYBRID_W; outH = OMYAC_HYBRID_H;
 			return true; // cache hit, outMs stays 0
 		}
@@ -412,8 +415,9 @@ bool RogerAssetGen::generatePriorityMap(int picId, Common::Array<byte> &outBands
 	uint32 t1 = g_system->getMillis();
 	outMs = t1 - t0;
 
-	// Persist as a grayscale RGBA PNG (R=G=B=band, A=255). loadGrayscale8 reads any
-	// channel back as the band (R==G==B), so no palette is needed. (kGenMemory: skip.)
+	// Persist as a grayscale RGBA PNG: store band*kPriorityGrayScale (R=G=B, A=255) so
+	// the file is a readable priority visualization (not a near-black 0..15 smear) and
+	// loadGrayscale8 reads any channel back, unscaled on load. No palette. (kGenMemory: skip.)
 	if (_mode == kGenCache || _mode == kGenAlways) {
 		ensureCacheDir(_cacheDir);
 		const Graphics::PixelFormat fmt(4, 8, 8, 8, 8, 24, 16, 8, 0);
@@ -423,8 +427,8 @@ bool RogerAssetGen::generatePriorityMap(int picId, Common::Array<byte> &outBands
 			for (int y = 0; y < OMYAC_HYBRID_H; ++y) {
 				uint32 *dst = (uint32 *)surf.getBasePtr(0, y);
 				for (int x = 0; x < OMYAC_HYBRID_W; ++x) {
-					byte b = outBands[(uint32)(y * OMYAC_HYBRID_W + x)];
-					dst[x] = fmt.ARGBToColor(255, b, b, b);
+					byte g = priorityBandToGray(outBands[(uint32)(y * OMYAC_HYBRID_W + x)]);
+					dst[x] = fmt.ARGBToColor(255, g, g, g);
 				}
 			}
 			dumpSurfacePng(surf, cachePath);
