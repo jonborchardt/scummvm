@@ -467,6 +467,80 @@ bool RogerAssetGen::generatePriorityMap(int picId, Common::Array<byte> &outBands
 }
 
 // ---------------------------------------------------------------------------
+// finishGlyphSurface — scale (by mode) + palette->RGBA + optional smooth blur.
+// ---------------------------------------------------------------------------
+Graphics::Surface *RogerAssetGen::finishGlyphSurface(const IndexImage &idx, int penColor, byte ck) {
+#ifdef ENABLE_SCI
+	if (!g_sci || idx.w <= 0 || idx.h <= 0)
+		return nullptr;
+
+	IndexImage scaled = (_fontEnhance == kFontEnhEpx) ? scale6x(idx) : scaleNearest(idx, 6);
+	const int sw = scaled.w, sh = scaled.h;
+	if (sw <= 0 || sh <= 0)
+		return nullptr;
+
+	const Graphics::PixelFormat fmt(4, 8, 8, 8, 8, 24, 16, 8, 0);
+	Graphics::Surface *surf = new Graphics::Surface();
+	surf->create((uint16)sw, (uint16)sh, fmt);
+	if (!surf->getPixels()) { delete surf; return nullptr; }
+
+	const Palette &pal = g_sci->_gfxPalette16->_sysPalette;
+
+	if (_fontEnhance == kFontEnhSmooth) {
+		// Pen colour everywhere; alpha = coverage (opaque on glyph, 0 on clear-key),
+		// then box-blur alpha so edges anti-alias to pen colour (not black).
+		const Color &pc = pal.colors[(byte)penColor];
+		Common::Array<byte> a((uint32)(sw * sh), 0);
+		for (int i = 0; i < sw * sh; i++)
+			a[i] = (scaled.pixels[i] == ck) ? 0 : 255;
+		Common::Array<byte> b = a; // blurred copy
+		const int r = 2; // blur radius (in 6x px)
+		// separable box blur
+		for (int y = 0; y < sh; y++) {
+			for (int x = 0; x < sw; x++) {
+				int sum = 0, n = 0;
+				for (int dx = -r; dx <= r; dx++) {
+					int xx = x + dx; if (xx < 0 || xx >= sw) continue;
+					sum += a[y * sw + xx]; n++;
+				}
+				b[y * sw + x] = (byte)(sum / n);
+			}
+		}
+		for (int y = 0; y < sh; y++) {
+			for (int x = 0; x < sw; x++) {
+				int sum = 0, n = 0;
+				for (int dy = -r; dy <= r; dy++) {
+					int yy = y + dy; if (yy < 0 || yy >= sh) continue;
+					sum += b[yy * sw + x]; n++;
+				}
+				a[y * sw + x] = (byte)(sum / n);
+			}
+		}
+		for (int y = 0; y < sh; y++) {
+			uint32 *dst = (uint32 *)surf->getBasePtr(0, y);
+			for (int x = 0; x < sw; x++)
+				dst[x] = fmt.ARGBToColor(a[y * sw + x], pc.r, pc.g, pc.b);
+		}
+		return surf;
+	}
+
+	// EPX / Nearest: hard edges, index -> palette RGBA (ck -> transparent).
+	for (int y = 0; y < sh; y++) {
+		uint32 *dst = (uint32 *)surf->getBasePtr(0, y);
+		for (int x = 0; x < sw; x++) {
+			const byte v = scaled.pixels[(uint32)(y * sw + x)];
+			if (v == ck) dst[x] = fmt.ARGBToColor(0, 0, 0, 0);
+			else { const Color &c = pal.colors[v]; dst[x] = fmt.ARGBToColor(255, c.r, c.g, c.b); }
+		}
+	}
+	return surf;
+#else
+	(void)idx; (void)penColor; (void)ck;
+	return nullptr;
+#endif
+}
+
+// ---------------------------------------------------------------------------
 // generateTextSurface
 // ---------------------------------------------------------------------------
 Graphics::Surface *RogerAssetGen::generateTextSurface(const Common::String &text, int fontId, byte penColor) {
@@ -507,33 +581,7 @@ Graphics::Surface *RogerAssetGen::generateTextSurface(const Common::String &text
 		x += font->getCharWidth(c);
 	}
 
-	IndexImage scaled = scale6x(idx);
-	const int sw = scaled.w, sh = scaled.h;
-	if (sw <= 0 || sh <= 0)
-		return nullptr;
-
-	// 0xRRGGBBAA in memory, alpha in the low byte (same as generateViewCel / the compositor).
-	const Graphics::PixelFormat fmt(4, 8, 8, 8, 8, 24, 16, 8, 0);
-	Graphics::Surface *surf = new Graphics::Surface();
-	surf->create((uint16)sw, (uint16)sh, fmt);
-	if (!surf->getPixels()) {
-		delete surf;
-		return nullptr;
-	}
-
-	const Palette &pal = g_sci->_gfxPalette16->_sysPalette;
-	for (int row = 0; row < sh; ++row) {
-		uint32 *dst = (uint32 *)surf->getBasePtr(0, row);
-		for (int col = 0; col < sw; ++col) {
-			const byte v = scaled.pixels[(uint32)(row * sw + col)];
-			if (v == ck) {
-				dst[col] = fmt.ARGBToColor(0, 0, 0, 0); // transparent background
-			} else {
-				const Color &cc = pal.colors[v];
-				dst[col] = fmt.ARGBToColor(255, cc.r, cc.g, cc.b);
-			}
-		}
-	}
+	Graphics::Surface *surf = finishGlyphSurface(idx, penColor, ck);
 	return surf;
 #else
 	(void)fontId; (void)penColor;
@@ -639,28 +687,7 @@ Graphics::Surface *RogerAssetGen::generateTextBlock(const Common::String &text, 
 		}
 	}
 
-	IndexImage scaled = scale6x(idx);
-	const int sw = scaled.w, sh = scaled.h;
-	if (sw <= 0 || sh <= 0)
-		return nullptr;
-
-	const Graphics::PixelFormat fmt(4, 8, 8, 8, 8, 24, 16, 8, 0);
-	Graphics::Surface *surf = new Graphics::Surface();
-	surf->create((uint16)sw, (uint16)sh, fmt);
-	if (!surf->getPixels()) {
-		delete surf;
-		return nullptr;
-	}
-	const Palette &pal = g_sci->_gfxPalette16->_sysPalette;
-	for (int row = 0; row < sh; ++row) {
-		uint32 *dst = (uint32 *)surf->getBasePtr(0, row);
-		for (int col = 0; col < sw; ++col) {
-			const byte v = scaled.pixels[(uint32)(row * sw + col)];
-			if (v == ck) dst[col] = fmt.ARGBToColor(0, 0, 0, 0);
-			else { const Color &cc = pal.colors[v]; dst[col] = fmt.ARGBToColor(255, cc.r, cc.g, cc.b); }
-		}
-	}
-	return surf;
+	return finishGlyphSurface(idx, penColor, ck);
 #else
 	(void)fontId; (void)penColor; (void)wrapWidthNative; (void)align;
 	return nullptr;

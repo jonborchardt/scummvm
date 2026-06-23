@@ -26,6 +26,7 @@
 
 #include "common/str.h"
 #include "common/array.h"
+#include "sci/roger/roger_scale.h"
 
 namespace Graphics { struct Surface; }
 
@@ -84,6 +85,11 @@ public:
 	const Common::Array<int> &enhancePasses() const { return _passes; }
 	GenMode mode() const { return _mode; }
 	void setMode(GenMode m) { _mode = m; }
+
+	// Native-font text enhance mode (Roger::FontEnhance). Applies to generateTextSurface
+	// (banner) and generateTextBlock (dialogs). Stored as int to keep this header SCI-free.
+	void setFontEnhance(int mode) { _fontEnhance = mode; }
+	int  fontEnhance() const { return _fontEnhance; }
 
 	/**
 	 * Generate (or load from cache) the omyac RGBA plate for pictureId.
@@ -148,6 +154,11 @@ private:
 	Common::String _gameId;
 	Common::String _cacheDir;
 	Common::Array<int> _passes; // empty => use defaultPasses() at generation time
+	int _fontEnhance = 1; // Roger::kFontEnhNearest (crisp) by default
+	// Shared tail for native-font glyph rendering: scales `idx` by the current
+	// _fontEnhance mode, maps indices through the live palette to RGBA, and (Smooth)
+	// alpha-blurs the edges. `ck` is the transparent clear-key index. Caller owns.
+	Graphics::Surface *finishGlyphSurface(const IndexImage &idx, int penColor, byte ck);
 };
 
 } // namespace Roger

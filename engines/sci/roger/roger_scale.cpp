@@ -233,5 +233,32 @@ IndexImage scale6x(const IndexImage &in) {
 	return scale3x(scale2x(in));
 }
 
+// ---------------------------------------------------------------------------
+// scaleNearest — integer nearest-neighbour (pixel replication) by `factor`.
+// ---------------------------------------------------------------------------
+IndexImage scaleNearest(const IndexImage &in, int factor) {
+	IndexImage out;
+	if (in.w <= 0 || in.h <= 0 || in.pixels.empty() || factor <= 0) {
+		out.w = 0; out.h = 0;
+		return out;
+	}
+	out.w = in.w * factor;
+	out.h = in.h * factor;
+	out.pixels.resize((uint32)(out.w * out.h), 0);
+	const byte *src = in.pixels.data();
+	byte *dst = out.pixels.data();
+	for (int iy = 0; iy < in.h; iy++) {
+		for (int ix = 0; ix < in.w; ix++) {
+			const byte v = src[iy * in.w + ix];
+			for (int dy = 0; dy < factor; dy++) {
+				byte *row = dst + ((iy * factor + dy) * out.w) + ix * factor;
+				for (int dx = 0; dx < factor; dx++)
+					row[dx] = v;
+			}
+		}
+	}
+	return out;
+}
+
 } // namespace Roger
 } // namespace Sci

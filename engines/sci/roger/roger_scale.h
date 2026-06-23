@@ -55,6 +55,21 @@ IndexImage scale3x(const IndexImage &in);
  */
 IndexImage scale6x(const IndexImage &in);
 
+/**
+ * Integer nearest-neighbour upscale (pixel replication) by `factor` in each axis.
+ * Crisp/blocky — preserves the source pixels exactly (no edge smoothing). For text
+ * this avoids the EPX corner-rounding that makes glyphs look "bubbly".
+ */
+IndexImage scaleNearest(const IndexImage &in, int factor);
+
+/**
+ * Enhance mode for native-font text rendering (banner + dialogs).
+ *   kFontEnhEpx     - scale6x EPX (smooth but rounds corners; "bubbly" on text)
+ *   kFontEnhNearest - nearest-neighbour 6x (crisp, faithful big pixels)
+ *   kFontEnhSmooth  - nearest 6x + alpha box-blur (anti-aliased, soft edges)
+ */
+enum FontEnhance { kFontEnhEpx = 0, kFontEnhNearest = 1, kFontEnhSmooth = 2 };
+
 } // namespace Roger
 } // namespace Sci
 
