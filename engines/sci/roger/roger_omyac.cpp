@@ -335,10 +335,8 @@ static void connectFillAnchors(const NativeRef &ref, Common::Array<Anchor> &anch
 // ─── Step 6: Hybrid render ─────────────────────────────────────────────────────
 // Half-A/half-B Bresenham used by the hybrid render pass.
 static void drawHybridLine(Common::Array<byte> &buf, Common::Array<byte> &typeBuf,
-                           Common::Array<int32> &srcBuf,
                            int x0, int y0, int x1, int y1,
-                           byte colorA, byte colorB, byte pixType,
-                           int32 srcA, int32 srcB) {
+                           byte colorA, byte colorB, byte pixType) {
 	int dx = ABS(x1 - x0);
 	int dy = ABS(y1 - y0);
 	int sx = x0 < x1 ? 1 : -1;
@@ -352,10 +350,8 @@ static void drawHybridLine(Common::Array<byte> &buf, Common::Array<byte> &typeBu
 	while (true) {
 		if (cx >= 0 && cx < OMYAC_HYBRID_W && cy >= 0 && cy < OMYAC_HYBRID_H) {
 			int idx = cy * OMYAC_HYBRID_W + cx;
-			bool firstHalf = step < half;
-			buf[idx] = firstHalf ? colorA : colorB;
+			buf[idx] = step < half ? colorA : colorB;
 			typeBuf[idx] = pixType;
-			srcBuf[idx] = firstHalf ? srcA : srcB;
 		}
 		if (cx == x1 && cy == y1)
 			break;
@@ -373,15 +369,12 @@ static void drawHybridLine(Common::Array<byte> &buf, Common::Array<byte> &typeBu
 }
 
 static void hybridRender(const NativeRef &ref, Common::Array<Anchor> &anchors,
-                         Common::Array<byte> &buf, Common::Array<byte> &typeBuf,
-                         Common::Array<int32> &srcBuf) {
+                         Common::Array<byte> &buf, Common::Array<byte> &typeBuf) {
 	buf.resize(OMYAC_HYBRID_W * OMYAC_HYBRID_H);
 	typeBuf.resize(OMYAC_HYBRID_W * OMYAC_HYBRID_H);
-	srcBuf.resize(OMYAC_HYBRID_W * OMYAC_HYBRID_H);
 	for (uint i = 0; i < buf.size(); i++) {
 		buf[i] = 0xff;
 		typeBuf[i] = 0;
-		srcBuf[i] = -1;
 	}
 
 	// [ddx, ddy, dir, outBit, inBit]; dir is unused (named _dir in the TS).
@@ -412,8 +405,8 @@ static void hybridRender(const NativeRef &ref, Common::Array<Anchor> &anchors,
 				if (!(a.connects & outBit) && !(b.connects & inBit))
 					continue;
 				byte colB = ref.refPixel[nidx];
-				drawHybridLine(buf, typeBuf, srcBuf, a.screenX, a.screenY, b.screenX, b.screenY,
-				               colA, colB, pixTypeA, idx, nidx);
+				drawHybridLine(buf, typeBuf, a.screenX, a.screenY, b.screenX, b.screenY,
+				               colA, colB, pixTypeA);
 			}
 		}
 	}
@@ -445,7 +438,7 @@ static void hybridRender(const NativeRef &ref, Common::Array<Anchor> &anchors,
 					steps = MIN(steps, a.screenY);
 				int bx = a.screenX + DIR_DX[dir] * steps;
 				int by = a.screenY + DIR_DY[dir] * steps;
-				drawHybridLine(buf, typeBuf, srcBuf, a.screenX, a.screenY, bx, by, col, col, pixType, idx, idx);
+				drawHybridLine(buf, typeBuf, a.screenX, a.screenY, bx, by, col, col, pixType);
 			}
 		}
 	}
@@ -460,7 +453,6 @@ static void hybridRender(const NativeRef &ref, Common::Array<Anchor> &anchors,
 		int dotIdx = a.screenY * OMYAC_HYBRID_W + a.screenX;
 		buf[dotIdx] = ref.refPixel[i];
 		typeBuf[dotIdx] = ref.cmdType[i];
-		srcBuf[dotIdx] = i;
 	}
 }
 
@@ -481,11 +473,9 @@ static int enhanceResultType(int mode, int lineCount, int fillCount) {
 	return lineCount >= fillCount ? CMD_LINE : CMD_FILL;
 }
 
-static void enhance(Common::Array<byte> &buf, Common::Array<byte> &typeBuf,
-                    Common::Array<int32> &srcBuf, int mode) {
+static void enhance(Common::Array<byte> &buf, Common::Array<byte> &typeBuf, int mode) {
 	Common::Array<byte> src(buf);
 	Common::Array<byte> srcType(typeBuf);
-	Common::Array<int32> srcSrc(srcBuf);
 	int minVotes = mode == 1 ? 1 : 2;
 	// Vote on the full doubled-nibble byte space (256 buckets).
 	int count[256];
@@ -596,30 +586,6 @@ static void enhance(Common::Array<byte> &buf, Common::Array<byte> &typeBuf,
 			if (resultColor != ENHANCE_NO_RESULT) {
 				buf[idx] = (byte)resultColor;
 				typeBuf[idx] = (byte)enhanceResultType(mode, lineCount, fillCount);
-				// Carry the source-native index from the first neighbour whose
-				// colour won the vote (same eligibility filter as the count loop).
-				bool carried = false;
-				for (int dy2 = -1; dy2 <= 1 && !carried; dy2++) {
-					for (int dx2 = -1; dx2 <= 1 && !carried; dx2++) {
-						if (!dx2 && !dy2)
-							continue;
-						int nx = x + dx2;
-						int ny = y + dy2;
-						if (nx < 0 || nx >= OMYAC_HYBRID_W || ny < 0 || ny >= OMYAC_HYBRID_H)
-							continue;
-						int nidx = ny * OMYAC_HYBRID_W + nx;
-						if (srcType[nidx] == CMD_NONE)
-							continue;
-						if (suppressFill && srcType[nidx] != CMD_LINE)
-							continue;
-						if (!enhanceEligible(srcType[nidx], mode))
-							continue;
-						if (src[nidx] == (byte)resultColor) {
-							srcBuf[idx] = srcSrc[nidx];
-							carried = true;
-						}
-					}
-				}
 			}
 		}
 	}
@@ -666,7 +632,6 @@ static void enhance(Common::Array<byte> &buf, Common::Array<byte> &typeBuf,
 					if (srcType[nidx] == CMD_NONE) {
 						buf[nidx] = color;
 						typeBuf[nidx] = (byte)pixType;
-						srcBuf[nidx] = srcSrc[idx];
 					}
 				}
 			}
@@ -675,8 +640,7 @@ static void enhance(Common::Array<byte> &buf, Common::Array<byte> &typeBuf,
 }
 
 // ─── Step 8: Final null-pixel mode fill ─────────────────────────────────────────
-static void fillNullPixels(Common::Array<byte> &buf, Common::Array<byte> &typeBuf,
-                           Common::Array<int32> &srcBuf) {
+static void fillNullPixels(Common::Array<byte> &buf, Common::Array<byte> &typeBuf) {
 	int count[256];
 	for (int y = 0; y < OMYAC_HYBRID_H; y++) {
 		for (int x = 0; x < OMYAC_HYBRID_W; x++) {
@@ -709,26 +673,6 @@ static void fillNullPixels(Common::Array<byte> &buf, Common::Array<byte> &typeBu
 			}
 			buf[idx] = bestColor;
 			typeBuf[idx] = CMD_FILL;
-			// Inherit the source-native index of a neighbour that has the winning colour.
-			for (int dy = -1; dy <= 1; dy++) {
-				bool done = false;
-				for (int dx = -1; dx <= 1; dx++) {
-					if (!dx && !dy)
-						continue;
-					int nx = x + dx;
-					int ny = y + dy;
-					if (nx < 0 || nx >= OMYAC_HYBRID_W || ny < 0 || ny >= OMYAC_HYBRID_H)
-						continue;
-					int nidx = ny * OMYAC_HYBRID_W + nx;
-					if (typeBuf[nidx] != CMD_NONE && buf[nidx] == bestColor) {
-						srcBuf[idx] = srcBuf[nidx];
-						done = true;
-						break;
-					}
-				}
-				if (done)
-					break;
-			}
 		}
 	}
 }
@@ -758,12 +702,12 @@ OmyacResult renderOmyac(const NativeRef &ref, const Common::Array<int> &passes) 
 	connectFillAnchors(ref, anchors);
 
 	OmyacResult out;
-	hybridRender(ref, anchors, out.pixels, out.cmdType, out.srcNativeIdx);
+	hybridRender(ref, anchors, out.pixels, out.cmdType);
 
 	for (uint i = 0; i < passes.size(); i++)
-		enhance(out.pixels, out.cmdType, out.srcNativeIdx, passes[i]);
+		enhance(out.pixels, out.cmdType, passes[i]);
 
-	fillNullPixels(out.pixels, out.cmdType, out.srcNativeIdx);
+	fillNullPixels(out.pixels, out.cmdType);
 
 	return out;
 }

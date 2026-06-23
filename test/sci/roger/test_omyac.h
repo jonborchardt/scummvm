@@ -70,25 +70,4 @@ public:
 		TS_ASSERT_EQUALS(ref.priority.size(), (uint)(OMYAC_NATIVE_W * OMYAC_NATIVE_H));
 		TS_ASSERT_EQUALS(ref.priority[10 * OMYAC_NATIVE_W + 10], (byte)5);
 	}
-
-	void test_omyac_srcindex_roundtrips_priority() {
-		// A priority FILL (band 5) at (10,10) over white background + a visual line.
-		// In wireframe (no enhance passes) the anchor dot for native cell (10,10)
-		// lands at hires (63,63) and must carry that cell's source index, so looking
-		// it up in ref.priority reproduces band 5.
-		Common::Array<DrawCommand> cmds;
-		DrawCommand pf; pf.kind = kCmdFill; pf.drawMode = kDrawPriority; pf.drawCodes[1] = 5;
-		Point p = {10, 10}; pf.points.push_back(p); cmds.push_back(pf);
-		DrawCommand ln; ln.kind = kCmdPline; ln.drawMode = kDrawVisual; ln.drawCodes[0] = 2;
-		Point a = {2, 2}, b = {8, 6}; ln.points.push_back(a); ln.points.push_back(b); cmds.push_back(ln);
-
-		NativeRef ref = nativePreRender(cmds);
-		OmyacResult out = renderOmyac(ref, Common::Array<int>()); // wireframe: no enhance
-		TS_ASSERT_EQUALS(out.srcNativeIdx.size(), (uint)(OMYAC_HYBRID_W * OMYAC_HYBRID_H));
-
-		const int dot = 63 * OMYAC_HYBRID_W + 63; // anchor dot of native (10,10)
-		const int32 s = out.srcNativeIdx[dot];
-		TS_ASSERT(s >= 0 && s < OMYAC_NATIVE_W * OMYAC_NATIVE_H);
-		TS_ASSERT_EQUALS(ref.priority[s], (byte)5);
-	}
 };
