@@ -148,29 +148,49 @@ void RogerCompositor::renderScene(Graphics::ManagedSurface &dest, const Common::
 			const int SCALE = 0x100; // == SCALE_THRESHOLD in managed_surface.cpp
 			const int scaleX = SCALE * _plate->w / GW;
 			const int scaleY = SCALE * _plate->h / GH;
+			const int pw = _plate->w, ph = _plate->h;
+			const byte spritePri = s.priority;
+
+			// Hot path (runs for every pixel of every sprite, every frame): when the
+			// scene and plate share the exact RGBA32 layout, an occluded pixel is a raw
+			// 32-bit word copy via row pointers — no per-pixel virtual getPixel/setPixel
+			// (each of those does format dispatch + bounds checks). The plate column is
+			// advanced incrementally (accX += scaleX) instead of a multiply+divide per
+			// pixel, and picX collapses to plX when the priority map matches the plate
+			// resolution (the normal hires case). Falls back to getPixel/setPixel if the
+			// formats ever differ. Same priority>sprite rule, identical output.
+			const bool fast = (destSurf->format == _plate->format &&
+			                   destSurf->format.bytesPerPixel == 4);
+			const bool priMatchesPlate = (_priorityW == pw);
 
 			for (int oy = y0; oy < y1; oy++) {
 				// Plate row the background scaler drew at this overlay row.
 				const int plY = (oy - picRect.top) * scaleY / SCALE;
-				if (plY < 0 || plY >= _plate->h)
+				if (plY < 0 || plY >= ph)
 					continue;
 				// Sample the priority at the SAME scene location the displayed plate
-				// occupies — map overlay -> plate (scaler) -> priority — so the occlusion
-				// boundary (which points get splatted) tracks the displayed plate instead
-				// of a separately, exactly-scaled grid that drifts from it (that drift was
-				// eating the sprite's edge). The priority>sprite rule is unchanged.
-				const int prY = plY * _priorityH / _plate->h + _picScreenTop;
+				// occupies, so the occlusion boundary tracks the displayed plate.
+				const int prY = plY * _priorityH / ph + _picScreenTop;
 				if (prY < 0 || prY >= _priorityH)
 					continue;
-				for (int ox = x0; ox < x1; ox++) {
-					const int plX = (ox - picRect.left) * scaleX / SCALE;
-					if (plX < 0 || plX >= _plate->w)
+				const byte *priRow = _priority + (uint)prY * _priorityW;
+				const uint32 *plateRow = fast ? (const uint32 *)_plate->getBasePtr(0, plY) : nullptr;
+				uint32 *destRow = fast ? (uint32 *)destSurf->getBasePtr(0, oy) : nullptr;
+
+				int accX = (x0 - picRect.left) * scaleX;
+				for (int ox = x0; ox < x1; ox++, accX += scaleX) {
+					const int plX = accX / SCALE;
+					if (plX < 0 || plX >= pw)
 						continue;
-					const int picX = plX * _priorityW / _plate->w;
+					const int picX = priMatchesPlate ? plX : (plX * _priorityW / pw);
 					if (picX < 0 || picX >= _priorityW)
 						continue;
-					if (_priority[prY * _priorityW + picX] > s.priority)
-						destSurf->setPixel(ox, oy, _plate->getPixel(plX, plY));
+					if (priRow[picX] > spritePri) {
+						if (fast)
+							destRow[ox] = plateRow[plX];
+						else
+							destSurf->setPixel(ox, oy, _plate->getPixel(plX, plY));
+					}
 				}
 			}
 		}
