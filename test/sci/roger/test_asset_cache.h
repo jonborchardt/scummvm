@@ -27,4 +27,16 @@ public:
 		// In prebuilt mode generatePlate is a no-op signal even without engine state.
 		TS_ASSERT(g.generatePlate(2, ms) == nullptr);
 	}
+	void test_omyacprio_key_distinct_from_omyac() {
+		RogerAssetGen g("sq3", "cache", kGenCache);
+		Common::Array<int> p; p.push_back(2);
+		g.setEnhancePasses(p);
+		TS_ASSERT_DIFFERS(g.testKey("omyac", 5u), g.testKey("omyacprio", 5u));
+	}
+	void test_omyacprio_prebuilt_returns_false() {
+		RogerAssetGen g("sq3", "cache", kGenPrebuilt);
+		Common::Array<byte> bands; int w = 1, h = 1; uint32 ms = 9;
+		TS_ASSERT(!g.generatePriorityMap(2, bands, w, h, ms));
+		TS_ASSERT_EQUALS(bands.size(), (uint)0);
+	}
 };

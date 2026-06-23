@@ -352,6 +352,93 @@ Graphics::Surface *RogerAssetGen::generateViewCel(int viewId, int loopNo, int ce
 #endif // ENABLE_SCI
 }
 
+// -------------------------------------------------------------------------
+// generatePriorityMap — hires omyac-aligned priority bands (cached)
+// -------------------------------------------------------------------------
+
+bool RogerAssetGen::generatePriorityMap(int picId, Common::Array<byte> &outBands,
+                                        int &outW, int &outH, uint32 &outMs) {
+	outBands.clear(); outW = 0; outH = 0; outMs = 0;
+
+	if (_mode == kGenPrebuilt)
+		return false;
+
+#ifdef ENABLE_SCI
+	if (!g_sci)
+		return false;
+	ResourceManager *resMan = g_sci->getResMan();
+	if (!resMan)
+		return false;
+	Resource *res = resMan->findResource(ResourceId(kResourceTypePic, (uint16)picId), false);
+	if (!res || res->size() == 0)
+		return false;
+
+	uint32 hash = fnv1a32(res->data(), (uint32)res->size());
+	Common::String key = cacheKey("omyacprio", hash);
+	Common::String cachePath = _cacheDir + "/" + key + ".png";
+
+	const uint32 hiresCount = (uint32)(OMYAC_HYBRID_W * OMYAC_HYBRID_H);
+
+	// kGenCache: a grayscale PNG (R=G=B=band) re-decodes to one band byte per pixel.
+	if (_mode == kGenCache) {
+		Common::Array<byte> cached = loadGrayscale8(cachePath);
+		if (cached.size() == hiresCount) {
+			outBands = cached;
+			outW = OMYAC_HYBRID_W; outH = OMYAC_HYBRID_H;
+			return true; // cache hit, outMs stays 0
+		}
+	}
+
+	uint32 t0 = g_system->getMillis();
+
+	Common::Array<DrawCommand> cmds = parsePic(res->data(), (uint32)res->size());
+	NativeRef ref = nativePreRender(cmds);
+	if (ref.priority.empty())
+		return false;
+
+	// Same passes as the plate (the provider sets _passes once), so edges agree.
+	OmyacResult omyac = renderOmyac(ref, _passes);
+	if (omyac.srcNativeIdx.size() != hiresCount)
+		return false;
+
+	const uint32 nativeCount = (uint32)(OMYAC_NATIVE_W * OMYAC_NATIVE_H);
+	outBands.resize(hiresCount);
+	for (uint32 i = 0; i < hiresCount; ++i) {
+		int32 s = omyac.srcNativeIdx[i];
+		outBands[i] = (s >= 0 && (uint32)s < nativeCount) ? ref.priority[s] : 0;
+	}
+	outW = OMYAC_HYBRID_W; outH = OMYAC_HYBRID_H;
+
+	uint32 t1 = g_system->getMillis();
+	outMs = t1 - t0;
+
+	// Persist as a grayscale RGBA PNG (R=G=B=band, A=255). loadGrayscale8 reads any
+	// channel back as the band (R==G==B), so no palette is needed. (kGenMemory: skip.)
+	if (_mode == kGenCache || _mode == kGenAlways) {
+		ensureCacheDir(_cacheDir);
+		const Graphics::PixelFormat fmt(4, 8, 8, 8, 8, 24, 16, 8, 0);
+		Graphics::Surface surf;
+		surf.create((uint16)OMYAC_HYBRID_W, (uint16)OMYAC_HYBRID_H, fmt);
+		if (surf.getPixels()) {
+			for (int y = 0; y < OMYAC_HYBRID_H; ++y) {
+				uint32 *dst = (uint32 *)surf.getBasePtr(0, y);
+				for (int x = 0; x < OMYAC_HYBRID_W; ++x) {
+					byte b = outBands[(uint32)(y * OMYAC_HYBRID_W + x)];
+					dst[x] = fmt.ARGBToColor(255, b, b, b);
+				}
+			}
+			dumpSurfacePng(surf, cachePath);
+		}
+		surf.free();
+	}
+
+	return true;
+#else
+	(void)picId;
+	return false;
+#endif // ENABLE_SCI
+}
+
 // ---------------------------------------------------------------------------
 // generateTextSurface
 // ---------------------------------------------------------------------------

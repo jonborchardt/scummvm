@@ -114,6 +114,14 @@ public:
 	// derived from the in-engine native pre-render. Returns false on any miss.
 	bool priorityBands(int picId, Common::Array<byte> &outBands, int &outW, int &outH);
 
+	// Hires omyac-derived priority bands (OMYAC_HYBRID_W x OMYAC_HYBRID_H = 1920x1140)
+	// whose band edges align with the generated plate, backed by the same content-hash
+	// disk cache (transform "omyacprio", keyed by pic bytes + passes + kTransformVersion).
+	// Returns false on any miss or in kGenPrebuilt; sprites then draw without occlusion.
+	// @param outMs generation time in ms (0 on cache hit).
+	bool generatePriorityMap(int picId, Common::Array<byte> &outBands,
+	                         int &outW, int &outH, uint32 &outMs);
+
 	// White-box test shim: exposes the private cacheKey() for unit tests.
 	Common::String testKey(const char *transform, uint32 resourceHash) const {
 		return cacheKey(transform, resourceHash);
