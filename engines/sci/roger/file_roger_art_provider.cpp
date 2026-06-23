@@ -693,33 +693,59 @@ void FileRogerArtProvider::onDrawCel(const Common::Rect &r, int viewId, int loop
 	presentWithUi();
 }
 
-void FileRogerArtProvider::uiPushStatus(const Common::Rect &r, const char *text, int penColor,
-                                        int backColor, uint32 token) {
+void FileRogerArtProvider::uiPushStatus(const Common::Rect &r, const char *text, int fontId,
+                                        int penColor, int backColor, uint32 token) {
 	// Remember the banner so it can be re-applied on room load / F10 enable, even if
 	// the overlay was not ready when the game first drew it.
 	_haveStatus = true; _statusRect = r; _statusText = text ? text : "";
-	_statusPen = penColor; _statusBack = backColor; _statusToken = token;
+	_statusFont = fontId; _statusPen = penColor; _statusBack = backColor; _statusToken = token;
 	if (!_overlayActive || !_plate) return;
 	ensureUi();
 	// The score banner and the menu bar share this token (top strip); drop whatever
-	// is there (e.g. the menu bar's window + titles) before pushing the banner text.
+	// is there (e.g. the menu bar's window + titles) before pushing the banner.
 	_uiLayer->clearToken(token);
-	Roger::UiElement e;
-	e.type = Roger::kUiText; e.nativeRect = r;
-	// Strip SCI's stylized/high-bit glyphs the TTF lacks (e.g. a "III" title glyph)
-	// so they do not render as tofu on the opaque status strip; ASCII is unchanged.
-	e.text = Roger::stripUnrenderable(text ? text : "");
-	e.penColor = penColor; e.backColor = backColor; e.align = 0;
-	e.textRole = Roger::kRoleHeading; // banner is a heading; capped to the strip height
-	e.useAltFont = true;              // header uses the updated font
-	e.token = token;
-	_uiLayer->push(e);
+
+	// Opaque bar (matches the native menu/status strip), no frame, full width.
+	Roger::UiElement bar;
+	bar.type = Roger::kUiWindow; bar.nativeRect = r; bar.backColor = backColor;
+	bar.penColor = penColor; bar.style = 2; bar.token = token;
+	_uiLayer->push(bar);
+
+	// Render the banner with the GAME'S OWN native font, upscaled 6x, so custom glyphs
+	// (e.g. SQ3's stylized "III") appear. Falls back to TTF if generation is unavailable.
+	if (_statusSurface) { _statusSurface->free(); delete _statusSurface; _statusSurface = nullptr; }
+	int nativeStringW = 0;
+	if (_assetGen)
+		_statusSurface = _assetGen->generateTextSurface(_statusText, fontId, (byte)penColor);
+
+	if (_statusSurface) {
+		// The generated surface is the native string scaled 6x; map its element rect to
+		// the native string's own width so the compositor scales it proportionally.
+		nativeStringW = _statusSurface->w / 6;
+		if (nativeStringW <= 0) nativeStringW = r.width();
+		Roger::UiElement e;
+		e.type = Roger::kUiIcon; // borrowed RGBA surface, blitted scaled by the compositor
+		e.nativeRect = Common::Rect(r.left, r.top, r.left + nativeStringW, r.bottom);
+		e.iconSurface = _statusSurface;
+		e.token = token;
+		_uiLayer->push(e);
+	} else {
+		// Fallback: strip unrenderable glyphs and draw with the TTF header font.
+		Roger::UiElement e;
+		e.type = Roger::kUiText; e.nativeRect = r;
+		e.text = Roger::stripUnrenderable(text ? text : "");
+		e.penColor = penColor; e.backColor = backColor; e.align = 0;
+		e.textRole = Roger::kRoleHeading;
+		e.useAltFont = true;
+		e.token = token;
+		_uiLayer->push(e);
+	}
 	presentWithUi();
 }
 
 void FileRogerArtProvider::reapplyStatus() {
 	if (_haveStatus)
-		uiPushStatus(_statusRect, _statusText.c_str(), _statusPen, _statusBack, _statusToken);
+		uiPushStatus(_statusRect, _statusText.c_str(), _statusFont, _statusPen, _statusBack, _statusToken);
 }
 
 void FileRogerArtProvider::uiClearToken(uint32 token) {
@@ -988,6 +1014,7 @@ FileRogerArtProvider::~FileRogerArtProvider() {
 	if (_sceneCache) { delete _sceneCache; _sceneCache = nullptr; }
 	if (_scratchScene) { delete _scratchScene; _scratchScene = nullptr; }
 	if (_cursorSurf) { _cursorSurf->free(); delete _cursorSurf; _cursorSurf = nullptr; }
+	if (_statusSurface) { _statusSurface->free(); delete _statusSurface; _statusSurface = nullptr; }
 	for (uint i = 0; i < _uiIcons.size(); i++) { _uiIcons[i]->free(); delete _uiIcons[i]; }
 	_uiIcons.clear();
 }

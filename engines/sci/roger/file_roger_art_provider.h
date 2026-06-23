@@ -67,8 +67,8 @@ public:
 	                    int style, int cursorPos, uint32 token) override;
 	void uiPushIcon(const Common::Rect &globalRect, int viewId, int loopNo, int celNo,
 	                uint32 token) override;
-	void uiPushStatus(const Common::Rect &globalRect, const char *text, int penColor,
-	                  int backColor, uint32 token) override;
+	void uiPushStatus(const Common::Rect &globalRect, const char *text, int fontId,
+	                  int penColor, int backColor, uint32 token) override;
 	void uiClearToken(uint32 token) override;
 	void uiClearAll() override;
 
@@ -121,6 +121,8 @@ private:
 	Common::String _statusText;
 	int _statusPen = 0, _statusBack = 0;
 	uint32 _statusToken = 0;
+	int _statusFont = 0;                       // SCI font id the game drew the banner with
+	Graphics::Surface *_statusSurface = nullptr; // owned: upscaled native-font banner (RGBA)
 	void reapplyStatus(); // re-push the cached banner (no-op if none)
 	// roger_autoshot helper: dump <screenshotpath>/roger-<id><suffix>-overlay.png and
 	// -preview.png for the given composited scene (suffix "" = per-room scene, "-ui" =

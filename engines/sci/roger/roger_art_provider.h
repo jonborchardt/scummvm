@@ -111,8 +111,8 @@ public:
 	                        uint32 token) {}
 	// Score/title status banner (top strip): rendered hires (exact fit, opaque) so it
 	// occludes the native low-res bar instead of showing through the overlay strip.
-	virtual void uiPushStatus(const Common::Rect &globalRect, const char *text, int penColor,
-	                          int backColor, uint32 token) {}
+	virtual void uiPushStatus(const Common::Rect &globalRect, const char *text, int fontId,
+	                          int penColor, int backColor, uint32 token) {}
 	virtual void uiClearToken(uint32 token) {}
 	virtual void uiClearAll() {}
 
