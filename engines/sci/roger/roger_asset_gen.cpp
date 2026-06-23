@@ -356,6 +356,40 @@ Graphics::Surface *RogerAssetGen::generateViewCel(int viewId, int loopNo, int ce
 // generatePriorityMap — hires omyac-aligned priority bands (cached)
 // -------------------------------------------------------------------------
 
+#ifdef ENABLE_SCI
+// Recover the per-pixel SCI priority band (0..15) from an omyac-rendered priority
+// surface. The priority screen is upscaled through omyac as EGA colours (code N ->
+// solid colour 0xNN), so each output pixel's colour maps back to a band by nearest
+// EGA colour. Solid regions recover exactly; omyac-blended edge pixels resolve to the
+// nearer of the two adjacent bands (a sub-pixel occlusion boundary, which is the win).
+static void deriveBandsFromSurface(const Graphics::Surface &surf, Common::Array<byte> &outBands) {
+	int egaR[16], egaG[16], egaB[16];
+	for (int c = 0; c < 16; ++c) {
+		uint32 v = BLEND_TABLE[(c << 4) | c]; // packed 0xAABBGGRR
+		egaR[c] = (int)(v & 0xff);
+		egaG[c] = (int)((v >> 8) & 0xff);
+		egaB[c] = (int)((v >> 16) & 0xff);
+	}
+	const Graphics::PixelFormat &fmt = surf.format;
+	const int w = surf.w, h = surf.h;
+	outBands.resize((uint32)(w * h));
+	for (int y = 0; y < h; ++y) {
+		const uint32 *src = (const uint32 *)surf.getBasePtr(0, y);
+		for (int x = 0; x < w; ++x) {
+			byte a, r, g, bb;
+			fmt.colorToARGB(src[x], a, r, g, bb);
+			int best = 0, bestD = 0x7fffffff;
+			for (int c = 0; c < 16; ++c) {
+				int dr = (int)r - egaR[c], dg = (int)g - egaG[c], db = (int)bb - egaB[c];
+				int d = dr * dr + dg * dg + db * db;
+				if (d < bestD) { bestD = d; best = c; }
+			}
+			outBands[(uint32)(y * w + x)] = (byte)best;
+		}
+	}
+}
+#endif // ENABLE_SCI
+
 bool RogerAssetGen::generatePriorityMap(int picId, Common::Array<byte> &outBands,
                                         int &outW, int &outH, uint32 &outMs) {
 	outBands.clear(); outW = 0; outH = 0; outMs = 0;
@@ -379,63 +413,52 @@ bool RogerAssetGen::generatePriorityMap(int picId, Common::Array<byte> &outBands
 
 	const uint32 hiresCount = (uint32)(OMYAC_HYBRID_W * OMYAC_HYBRID_H);
 
-	// kGenCache: the PNG stores band*kPriorityGrayScale per pixel (R=G=B); unscale
-	// each byte back to a 0..15 band on load.
+	// kGenCache: the PNG is the colour priority picture (EGA colours). Recover the
+	// occlusion bands by mapping each pixel's colour back to its priority code.
 	if (_mode == kGenCache) {
-		Common::Array<byte> cached = loadGrayscale8(cachePath);
-		if (cached.size() == hiresCount) {
-			outBands.resize(hiresCount);
-			for (uint32 i = 0; i < hiresCount; ++i)
-				outBands[i] = grayToPriorityBand(cached[i]);
-			outW = OMYAC_HYBRID_W; outH = OMYAC_HYBRID_H;
-			return true; // cache hit, outMs stays 0
+		Graphics::Surface *cached = loadSurfaceRGBA(cachePath);
+		if (cached) {
+			deriveBandsFromSurface(*cached, outBands);
+			cached->free();
+			delete cached;
+			if (outBands.size() == hiresCount) {
+				outW = OMYAC_HYBRID_W; outH = OMYAC_HYBRID_H;
+				return true; // cache hit, outMs stays 0
+			}
+			outBands.clear(); // wrong dimensions -> fall through and regenerate
 		}
 	}
 
 	uint32 t0 = g_system->getMillis();
 
+	// Render the PRIORITY screen through the SAME omyac pipeline as the visual: the
+	// priority codes are encoded as EGA colours (nativePreRender kDrawPriority), so the
+	// output is a colour hires priority picture, upscaled and edge-enhanced identically.
 	Common::Array<DrawCommand> cmds = parsePic(res->data(), (uint32)res->size());
-	NativeRef ref = nativePreRender(cmds);
-	if (ref.priority.empty())
-		return false;
+	NativeRef ref = nativePreRender(cmds, kDrawPriority);
 
 	// Same passes as the plate (the provider sets _passes once), so edges agree.
 	OmyacResult omyac = renderOmyac(ref, _passes);
-	if (omyac.srcNativeIdx.size() != hiresCount)
+	Graphics::Surface *plate = blendToSurface(omyac.pixels, OMYAC_HYBRID_W, OMYAC_HYBRID_H);
+	if (!plate)
 		return false;
 
-	const uint32 nativeCount = (uint32)(OMYAC_NATIVE_W * OMYAC_NATIVE_H);
-	outBands.resize(hiresCount);
-	for (uint32 i = 0; i < hiresCount; ++i) {
-		int32 s = omyac.srcNativeIdx[i];
-		outBands[i] = (s >= 0 && (uint32)s < nativeCount) ? ref.priority[s] : 0;
-	}
+	// Occlusion bands fall out of the rendered colour picture.
+	deriveBandsFromSurface(*plate, outBands);
 	outW = OMYAC_HYBRID_W; outH = OMYAC_HYBRID_H;
 
 	uint32 t1 = g_system->getMillis();
 	outMs = t1 - t0;
 
-	// Persist as a grayscale RGBA PNG: store band*kPriorityGrayScale (R=G=B, A=255) so
-	// the file is a readable priority visualization (not a near-black 0..15 smear) and
-	// loadGrayscale8 reads any channel back, unscaled on load. No palette. (kGenMemory: skip.)
+	// Persist the COLOUR priority picture (the same way the plate is cached), so the
+	// cached omyacprio PNG is a readable EGA priority view. (kGenMemory: skip the write.)
 	if (_mode == kGenCache || _mode == kGenAlways) {
 		ensureCacheDir(_cacheDir);
-		const Graphics::PixelFormat fmt(4, 8, 8, 8, 8, 24, 16, 8, 0);
-		Graphics::Surface surf;
-		surf.create((uint16)OMYAC_HYBRID_W, (uint16)OMYAC_HYBRID_H, fmt);
-		if (surf.getPixels()) {
-			for (int y = 0; y < OMYAC_HYBRID_H; ++y) {
-				uint32 *dst = (uint32 *)surf.getBasePtr(0, y);
-				for (int x = 0; x < OMYAC_HYBRID_W; ++x) {
-					byte g = priorityBandToGray(outBands[(uint32)(y * OMYAC_HYBRID_W + x)]);
-					dst[x] = fmt.ARGBToColor(255, g, g, g);
-				}
-			}
-			dumpSurfacePng(surf, cachePath);
-		}
-		surf.free();
+		dumpSurfacePng(*plate, cachePath);
 	}
 
+	plate->free();
+	delete plate;
 	return true;
 #else
 	(void)picId;

@@ -39,14 +39,4 @@ public:
 		TS_ASSERT(!g.generatePriorityMap(2, bands, w, h, ms));
 		TS_ASSERT_EQUALS(bands.size(), (uint)0);
 	}
-	void test_priority_band_gray_roundtrips_and_spreads() {
-		// Every SCI band (0..15) must survive store->load, and map across the full
-		// 0..255 grayscale range so the cached omyacprio PNG is inspectable.
-		for (int b = 0; b <= 15; ++b) {
-			byte gray = priorityBandToGray((byte)b);
-			TS_ASSERT_EQUALS((int)grayToPriorityBand(gray), b); // lossless round-trip
-		}
-		TS_ASSERT_EQUALS((int)priorityBandToGray(0), 0);    // black
-		TS_ASSERT_EQUALS((int)priorityBandToGray(15), 255); // white (full range)
-	}
 };

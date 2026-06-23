@@ -41,6 +41,24 @@ public:
 		TS_ASSERT(!anyNone); // fillNullPixels leaves nothing unfilled
 	}
 
+	void test_priority_layer_renders_priority_as_color() {
+		// A priority-mode FILL with code 5 (floods the screen, no barriers). Rendering
+		// the PRIORITY layer must record the priority code as a solid EGA colour byte
+		// (doubled-nibble 0x55) in refPixel, so the omyac pipeline upscales the priority
+		// screen in colour exactly like the visual screen.
+		Common::Array<DrawCommand> cmds;
+		DrawCommand c; c.kind = kCmdFill; c.drawMode = kDrawPriority; c.drawCodes[1] = 5;
+		Point pos = {10, 10}; c.points.push_back(pos); cmds.push_back(c);
+
+		NativeRef pri = nativePreRender(cmds, kDrawPriority);
+		TS_ASSERT_EQUALS(pri.refPixel[10 * OMYAC_NATIVE_W + 10], (byte)0x55);
+
+		// Default (visual) tracking is unchanged: a priority-only fill leaves the visual
+		// screen untouched, so refPixel stays the white-background byte, not 0x55.
+		NativeRef vis = nativePreRender(cmds, kDrawVisual);
+		TS_ASSERT_DIFFERS(vis.refPixel[10 * OMYAC_NATIVE_W + 10], (byte)0x55);
+	}
+
 	void test_native_exposes_priority_band() {
 		// A FILL in priority mode (drawMode=Priority) with priority code 5 over a
 		// region; the exposed band buffer must carry 5 where the fill landed.

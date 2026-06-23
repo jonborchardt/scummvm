@@ -88,8 +88,9 @@ struct Buffers {
 	NativeRef *ref;
 	int currentCmdIdx;
 	int currentType;
+	int trackLayer; // which SCI screen feeds the omyac geometry (kDrawVisual/kDrawPriority)
 
-	Buffers(int w, int h) : width(w), height(h), ref(nullptr), currentCmdIdx(-1), currentType(CMD_NONE) {
+	Buffers(int w, int h) : width(w), height(h), ref(nullptr), currentCmdIdx(-1), currentType(CMD_NONE), trackLayer(kDrawVisual) {
 		visible.resize(w * h);
 		priority.resize(w * h);
 		control.resize(w * h);
@@ -133,6 +134,17 @@ struct Buffers {
 			control[idx] = (byte)drawCodes[2];
 	}
 
+	// The doubled-nibble colour byte for the tracked layer at cell idx: the visual
+	// buffer for kDrawVisual; the priority code rendered as a solid EGA colour
+	// (0xNN) for kDrawPriority, so omyac upscales the priority screen in colour.
+	byte trackColorByte(int idx) const {
+		if (trackLayer == kDrawPriority) {
+			byte c = (byte)(priority[idx] & 0x0f);
+			return (byte)((c << 4) | c);
+		}
+		return visible[idx];
+	}
+
 	// trackPlot: plotOne + per-pixel command tracking (omyac wrapper).
 	void trackPlot(int x, int y, int drawMode, const int *drawCodes) {
 		plotOne(x, y, drawMode, drawCodes);
@@ -140,12 +152,12 @@ struct Buffers {
 			return;
 		if (x < 0 || x >= width || y < 0 || y >= height)
 			return;
-		if (!isVisual(drawMode))
+		if ((drawMode & trackLayer) == 0)
 			return;
 		int i = y * width + x;
 		ref->refCmd[i] = (int16)currentCmdIdx;
 		ref->cmdType[i] = (byte)currentType;
-		ref->refPixel[i] = visible[i];
+		ref->refPixel[i] = trackColorByte(i);
 	}
 
 	// isFillable: omyac override (render-omyac-upscaler.ts:179-194).
@@ -418,7 +430,7 @@ static void picStep(Buffers &b, const DrawCommand &cmd) {
 }
 
 // ─── render-omyac-upscaler.ts: nativePreRender (lines 146-248) ──────────────
-NativeRef nativePreRender(const Common::Array<DrawCommand> &cmds) {
+NativeRef nativePreRender(const Common::Array<DrawCommand> &cmds, int trackLayer) {
 	const int N = OMYAC_NATIVE_W * OMYAC_NATIVE_H;
 
 	NativeRef ref;
@@ -435,6 +447,7 @@ NativeRef nativePreRender(const Common::Array<DrawCommand> &cmds) {
 
 	Buffers b(OMYAC_NATIVE_W, OMYAC_NATIVE_H);
 	b.ref = &ref;
+	b.trackLayer = trackLayer;
 
 	int step = 0;
 	for (uint c = 0; c < cmds.size(); c++) {
@@ -464,12 +477,13 @@ NativeRef nativePreRender(const Common::Array<DrawCommand> &cmds) {
 	}
 
 	// White-background promotion: any still-CMD_NONE cell becomes a CMD_FILL
-	// anchor with refPixel = visible (refCmd stays -1). Lines 241-245.
+	// anchor with refPixel = the tracked layer's colour (refCmd stays -1).
+	// Lines 241-245. For kDrawPriority this is the priority-0 background -> 0x00.
 	for (int i = 0; i < N; i++) {
 		if (ref.cmdType[i] != CMD_NONE)
 			continue;
 		ref.cmdType[i] = CMD_FILL;
-		ref.refPixel[i] = b.visible[i];
+		ref.refPixel[i] = b.trackColorByte(i);
 	}
 
 	ref.priority = b.priority;   // expose the native priority bands for overlay occlusion

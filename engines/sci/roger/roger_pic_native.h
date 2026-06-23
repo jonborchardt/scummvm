@@ -48,7 +48,13 @@ struct NativeRef {
 // Replay a parsed pic command list into a native 320x190 render, tracking
 // which command owns each pixel and whether it's a line or fill pixel.
 // Verbatim port of render-omyac-upscaler.ts nativePreRender (lines 146-248).
-NativeRef nativePreRender(const Common::Array<DrawCommand> &cmds);
+//
+// trackLayer selects which SCI screen drives the omyac geometry (refPixel/cmdType/
+// refCmd/segments): kDrawVisual (default) records the visual colour exactly as
+// before; kDrawPriority records the priority screen, with each priority code 0..15
+// encoded as its solid EGA colour byte (doubled nibble 0xNN) so the SAME omyac
+// pipeline upscales the priority screen into a colour picture just like the visual.
+NativeRef nativePreRender(const Common::Array<DrawCommand> &cmds, int trackLayer = kDrawVisual);
 
 } // namespace Roger
 } // namespace Sci
