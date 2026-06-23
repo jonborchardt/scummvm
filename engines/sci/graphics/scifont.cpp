@@ -319,7 +319,6 @@ void GfxFontFromResource::draw(uint16 chr, int16 top, int16 left, byte color, bo
 	}
 }
 
-#ifdef ENABLE_SCI32
 void GfxFontFromResource::drawToBuffer(uint16 chr, int16 top, int16 left, byte color, bool greyedOutput, byte *buffer, int16 bufWidth, int16 bufHeight) {
 	if (chr >= _numChars) {
 		// SSCI silently ignores attempts to draw characters that do not exist
@@ -355,6 +354,5 @@ void GfxFontFromResource::drawToBuffer(uint16 chr, int16 top, int16 left, byte c
 		}
 	}
 }
-#endif
 
 } // End of namespace Sci
