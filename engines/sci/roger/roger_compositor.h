@@ -44,7 +44,9 @@ struct Sprite {
 class RogerCompositor {
 public:
 	RogerCompositor() : _plate(nullptr), _views(nullptr),
-		_picW(320), _picH(190), _priority(nullptr), _priorityW(0), _priorityH(0), _picScreenTop(0) {}
+		_picW(320), _picH(190), _priority(nullptr), _priorityW(0), _priorityH(0), _picScreenTop(0),
+		_bgCache(nullptr), _bgPlate(nullptr) {}
+	~RogerCompositor();
 
 	// Borrowed pointers; lifetime managed by the caller (the provider).
 	void setRoom(Graphics::Surface *cleanPlate, ViewCache *views);
@@ -94,6 +96,15 @@ private:
 	int _priorityW, _priorityH;
 	int _picScreenTop;         // screen row where the picture starts (menu-bar offset)
 	Common::Rect _pictureDest; // overlay-space picture rect (set by the caller; empty => full surface)
+
+	// Static-background cache. The compose+present runs synchronously inside SCI's
+	// kAnimate cycle, so re-scaling the 1920x1140 plate into the game rect every frame
+	// throttles the game clock. The letterbox + scaled plate never change within a room,
+	// so build them once into _bgCache and seed each frame with a straight copy.
+	// Invalidated on room change (setRoom) and on any geometry/size change.
+	Graphics::ManagedSurface *_bgCache;
+	Graphics::Surface *_bgPlate;   // plate the cache was built from (re-validate within a room)
+	Common::Rect _bgPicRect, _bgGameRect;
 };
 
 } // namespace Roger

@@ -30,6 +30,13 @@
 namespace Sci {
 namespace Roger {
 
+RogerCompositor::~RogerCompositor() {
+	if (_bgCache) {
+		_bgCache->free();
+		delete _bgCache;
+	}
+}
+
 // Roger UI type scale: target on-screen cell heights expressed in native 320x200
 // rows (the compositor scales them to the overlay). One body size for dialog /
 // message / input / list / button text, one larger heading size for the score
@@ -40,6 +47,10 @@ static const int kRoleHeadingNativeH = 11;
 void RogerCompositor::setRoom(Graphics::Surface *cleanPlate, ViewCache *views) {
 	_plate = cleanPlate;
 	_views = views;
+	// Invalidate the static-background cache so the new room rebuilds it. (The plate
+	// pointer can be freed+reallocated to the same address across rooms, so an identity
+	// check alone could go stale — null it here on every room load to be safe.)
+	_bgPlate = nullptr;
 }
 
 void RogerCompositor::setPicture(int picW, int picH, int picScreenTop) {
@@ -74,29 +85,54 @@ void RogerCompositor::renderScene(Graphics::ManagedSurface &dest, const Common::
 	// SCI0); the plate encodes that same picture, so both map into picRect.
 	const int PIC_W = _picW, PIC_H = _picH;
 
-	// 0) The overlay is alpha-blended over the still-rendered native game. Fill the
-	//    letterbox — everything OUTSIDE the game rect — opaque black so the native render
-	//    and its hardware cursor cannot leak through there. The reserved status strip
-	//    (inside the game rect, above the picture) stays transparent so native UI Roger
-	//    intentionally leaves alone — e.g. the graphical Sierra menu icon — shows through.
-	const uint32 black = dest.surfacePtr()->format.ARGBToColor(255, 0, 0, 0);
-	if (gameRect.isEmpty()) {
-		dest.clear(black); // no geometry (unit tests): whole surface is a solid blocker
+	// 0+1) Static background = opaque-black letterbox (everything OUTSIDE the game rect,
+	//      so the native render/cursor can't leak there; the status strip inside it stays
+	//      transparent for the native Sierra menu icon) + the clean plate scaled into the
+	//      game rect. None of this changes within a room, so build it ONCE per geometry
+	//      into _bgCache and seed each frame with a straight copy — re-scaling the
+	//      1920x1140 plate every frame was wasted work on SCI's kAnimate (game-clock) path.
+	//      Output is byte-identical to the old per-frame clear+letterbox+scale.
+	//      SAFETY: only cache once the plate is actually present and blitted, so a
+	//      transient null-plate frame can never bake a black/transparent picRect into the
+	//      cache (which would then persist). _bgPlate is nulled in setRoom on room change.
+	const Graphics::PixelFormat fmt = dest.surfacePtr()->format;
+	const uint32 black = fmt.ARGBToColor(255, 0, 0, 0);
+	const bool bgValid = _bgCache && _bgPlate && _bgPlate == _plate &&
+	                     _bgCache->w == W && _bgCache->h == H && _bgCache->format == fmt &&
+	                     _bgPicRect == picRect && _bgGameRect == gameRect;
+	if (bgValid) {
+		dest.copyFrom(*_bgCache); // memcpy-class seed instead of clear + plate rescale
 	} else {
-		dest.clear(0); // transparent base; status strip + (later) plate keep/overwrite it
-		const int16 gt = (int16)MAX<int>(0, gameRect.top);
-		const int16 gb = (int16)MIN<int>(H, gameRect.bottom);
-		const int16 gl = (int16)MAX<int>(0, gameRect.left);
-		const int16 gr = (int16)MIN<int>(W, gameRect.right);
-		if (gt > 0) dest.fillRect(Common::Rect(0, 0, (int16)W, gt), black);
-		if (gb < H) dest.fillRect(Common::Rect(0, gb, (int16)W, (int16)H), black);
-		if (gl > 0) dest.fillRect(Common::Rect(0, gt, gl, gb), black);
-		if (gr < W) dest.fillRect(Common::Rect(gr, gt, (int16)W, gb), black);
-	}
+		if (gameRect.isEmpty()) {
+			dest.clear(black); // no geometry (unit tests): whole surface is a solid blocker
+		} else {
+			dest.clear(0); // transparent base; status strip + (later) plate keep/overwrite it
+			const int16 gt = (int16)MAX<int>(0, gameRect.top);
+			const int16 gb = (int16)MIN<int>(H, gameRect.bottom);
+			const int16 gl = (int16)MAX<int>(0, gameRect.left);
+			const int16 gr = (int16)MIN<int>(W, gameRect.right);
+			if (gt > 0) dest.fillRect(Common::Rect(0, 0, (int16)W, gt), black);
+			if (gb < H) dest.fillRect(Common::Rect(0, gb, (int16)W, (int16)H), black);
+			if (gl > 0) dest.fillRect(Common::Rect(0, gt, gl, gb), black);
+			if (gr < W) dest.fillRect(Common::Rect(gr, gt, (int16)W, gb), black);
+		}
+		// Clean plate, scaled into the game rect (aspect preserved).
+		if (_plate)
+			dest.blitFrom(*_plate, Common::Rect(0, 0, _plate->w, _plate->h), picRect);
 
-	// 1) Clean plate, scaled into the game rect (aspect preserved).
-	if (_plate)
-		dest.blitFrom(*_plate, Common::Rect(0, 0, _plate->w, _plate->h), picRect);
+		// Snapshot this fully-drawn background into the cache for subsequent frames —
+		// but only when a plate was actually drawn, so we never cache an empty picRect.
+		if (_plate) {
+			if (!_bgCache || _bgCache->w != W || _bgCache->h != H || _bgCache->format != fmt) {
+				if (_bgCache) { _bgCache->free(); delete _bgCache; }
+				_bgCache = new Graphics::ManagedSurface(W, H, fmt);
+			}
+			_bgCache->copyFrom(dest);
+			_bgPlate = _plate;
+			_bgPicRect = picRect;
+			_bgGameRect = gameRect;
+		}
+	}
 
 	Graphics::Surface *destSurf = dest.surfacePtr();
 
