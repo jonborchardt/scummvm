@@ -24,6 +24,7 @@
 #include "sci/roger/roger_art_provider.h"
 #include "sci/roger/null_roger_art_provider.h"
 #include "sci/roger/roger_asset_gen.h"
+#include "sci/roger/roger_ui_layer.h"
 #include "common/array.h"
 #include "common/str.h"
 #include "common/path.h"
@@ -146,6 +147,11 @@ private:
 	// (caller should fall through to the TTF path). Owns the surface via _uiIcons.
 	bool pushNativeText(const Common::Rect &r, const char *text, int fontId, int penColor,
 	                    int backColor, int align, uint32 token, bool frame);
+
+	// Render each unique non-ASCII byte of `text` as a glyph surface from the game's
+	// SCI font (fontId, penColor), own it in _uiIcons, and append {byte,surface} to
+	// `out`. ASCII-only text yields an empty list (pure TTF path).
+	void buildGlyphs(const char *text, int fontId, int penColor, Common::Array<Roger::UiGlyph> &out);
 
 	// Render a native SCI cel to a new RGBA surface. Caller owns and must free.
 	// Returns nullptr on any failure (guard: sprite will be skipped).

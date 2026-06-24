@@ -628,6 +628,29 @@ void FileRogerArtProvider::presentWithUi() {
 	}
 }
 
+void FileRogerArtProvider::buildGlyphs(const char *text, int fontId, int penColor,
+                                       Common::Array<Roger::UiGlyph> &out) {
+	if (!text || !_assetGen)
+		return;
+	for (const char *p = text; *p; ++p) {
+		const byte c = (byte)*p;
+		if (c >= 0x20 && c < 0x7f)
+			continue; // printable ASCII -> TTF handles it
+		bool seen = false;
+		for (uint i = 0; i < out.size(); i++)
+			if (out[i].ch == c) { seen = true; break; }
+		if (seen)
+			continue;
+		Graphics::Surface *g = _assetGen->generateTextSurface(Common::String(1, (char)c),
+		                                                       fontId, (byte)(penColor >= 0 ? penColor : 0));
+		if (g) {
+			_uiIcons.push_back(g); // owned; freed on room change / uiClearAll
+			Roger::UiGlyph ug; ug.ch = c; ug.surf = g;
+			out.push_back(ug);
+		}
+	}
+}
+
 bool FileRogerArtProvider::pushNativeText(const Common::Rect &r, const char *text, int fontId,
                                           int penColor, int backColor, int align, uint32 token,
                                           bool frame) {
@@ -677,15 +700,12 @@ void FileRogerArtProvider::uiPushText(const Common::Rect &r, const char *text, i
                                       int textRole, bool useAltFont) {
 	if (!_overlayActive || !_plate) return;
 	ensureUi();
-	if (_uiNativeFont && pushNativeText(r, text, fontId, penColor, backColor, align, token, false)) {
-		presentWithUi();
-		return;
-	}
 	Roger::UiElement e;
 	e.type = Roger::kUiText; e.nativeRect = r; e.text = text ? text : "";
 	e.penColor = penColor; e.backColor = backColor; e.fontId = fontId;
 	e.align = align; e.token = token;
 	e.textRole = textRole; e.useAltFont = useAltFont;
+	buildGlyphs(text, fontId, penColor, e.glyphs);
 	_uiLayer->push(e);
 	presentWithUi();
 }
@@ -694,14 +714,11 @@ void FileRogerArtProvider::uiPushButton(const Common::Rect &r, const char *text,
                                         int style, uint32 token) {
 	if (!_overlayActive || !_plate) return;
 	ensureUi();
-	if (_uiNativeFont && pushNativeText(r, text, fontId, /*pen*/0, /*back*/7, /*align*/1, token, true)) {
-		presentWithUi();
-		return;
-	}
 	Roger::UiElement e;
 	e.type = Roger::kUiButton; e.nativeRect = r; e.text = text ? text : "";
 	e.fontId = fontId; e.style = style; e.align = 1 /*center*/;
 	e.backColor = 7 /*light gray*/; e.penColor = 0; e.hasFrame = true; e.token = token;
+	buildGlyphs(text, fontId, e.penColor, e.glyphs);
 	_uiLayer->push(e);
 	presentWithUi();
 }
@@ -710,16 +727,13 @@ void FileRogerArtProvider::uiPushTextEdit(const Common::Rect &r, const char *tex
                                           int style, int cursorPos, uint32 token) {
 	if (!_overlayActive || !_plate) return;
 	ensureUi();
-	if (_uiNativeFont && pushNativeText(r, text, fontId, /*pen*/0, /*back*/15, /*align*/0, token, true)) {
-		presentWithUi();
-		return;
-	}
 	Roger::UiElement e;
 	e.type = Roger::kUiTextEdit; e.nativeRect = r; e.text = text ? text : "";
 	e.fontId = fontId; e.style = style; e.cursorPos = cursorPos; e.align = 0;
 	e.backColor = 15 /*white*/; e.penColor = 0; e.hasFrame = true; e.token = token;
 	e.textRole = Roger::kRoleBody; // body size, same as the dialog prompt above it
 	e.vAlignTop = true;            // SCI draws edit text at the top of the field, not centred
+	buildGlyphs(text, fontId, e.penColor, e.glyphs);
 	_uiLayer->push(e);
 	presentWithUi();
 }
@@ -776,35 +790,17 @@ void FileRogerArtProvider::uiPushStatus(const Common::Rect &r, const char *text,
 	bar.penColor = penColor; bar.style = 2; bar.token = token;
 	_uiLayer->push(bar);
 
-	// Render the banner with the GAME'S OWN native font, upscaled 6x, so custom glyphs
-	// (e.g. SQ3's stylized "III") appear. Falls back to TTF if generation is unavailable.
-	if (_statusSurface) { _statusSurface->free(); delete _statusSurface; _statusSurface = nullptr; }
-	int nativeStringW = 0;
-	if (_assetGen)
-		_statusSurface = _assetGen->generateTextSurface(_statusText, fontId, (byte)penColor);
-
-	if (_statusSurface) {
-		// The generated surface is the native string scaled 6x; map its element rect to
-		// the native string's own width so the compositor scales it proportionally.
-		nativeStringW = _statusSurface->w / 6;
-		if (nativeStringW <= 0) nativeStringW = r.width();
-		Roger::UiElement e;
-		e.type = Roger::kUiIcon; // borrowed RGBA surface, blitted scaled by the compositor
-		e.nativeRect = Common::Rect(r.left, r.top, r.left + nativeStringW, r.bottom);
-		e.iconSurface = _statusSurface;
-		e.token = token;
-		_uiLayer->push(e);
-	} else {
-		// Fallback: strip unrenderable glyphs and draw with the TTF header font.
-		Roger::UiElement e;
-		e.type = Roger::kUiText; e.nativeRect = r;
-		e.text = Roger::stripUnrenderable(text ? text : "");
-		e.penColor = penColor; e.backColor = backColor; e.align = 0;
-		e.textRole = Roger::kRoleHeading;
-		e.useAltFont = true;
-		e.token = token;
-		_uiLayer->push(e);
-	}
+	// Hybrid banner: crisp TTF for ASCII characters, game's own SCI font glyph spliced
+	// inline for non-ASCII bytes (e.g. SQ3's stylized "III"). No whole-native path.
+	Roger::UiElement e;
+	e.type = Roger::kUiText; e.nativeRect = r;
+	e.text = text ? text : "";              // full text, NOT stripUnrenderable
+	e.penColor = penColor; e.backColor = backColor; e.align = 0;
+	e.textRole = Roger::kRoleHeading;
+	e.useAltFont = true;
+	e.token = token;
+	buildGlyphs(text, fontId, penColor, e.glyphs);
+	_uiLayer->push(e);
 	presentWithUi();
 }
 
