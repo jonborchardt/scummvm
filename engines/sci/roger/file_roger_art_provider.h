@@ -55,7 +55,6 @@ public:
 	void toggleDebugLog() override;  // Ctrl+Shift+L: per-frame Roger diagnostic logging
 	void tuneEnhancePasses(int delta, int which) override; // Ctrl+Shift+]/[ add/remove fill; '/; add/remove all
 	void reloadGenConfig() override; // Ctrl+Shift+R: re-read roger_omyac_passes from ConfMan
-	void cycleFontEnhance() override; // F9 / Ctrl+Shift+G: cycle native-font enhance mode
 
 	// UI display-list capture (Roger hires dialogs) — see roger_art_provider.h.
 	void uiPushWindow(const Common::Rect &globalRect, int backColor, int penColor,
@@ -93,7 +92,6 @@ private:
 	bool _debugLog = false;      // per-frame diagnostic logging
 	bool _autoshot = false;      // roger_autoshot: dump the composited scene to PNG on room load (verification harness)
 	bool _useHwCursor = false;   // roger_hw_cursor: try the native HW cursor over the overlay (invisible in practice); default false = composited arrow
-	bool _uiNativeFont = false;  // EXPERIMENT: render dialog/control text in the game's native font (upscaled 6x) instead of TTF
 	int _autoshotPicId = -1;     // last pic id already auto-shot (so we dump once per room, not per frame)
 	uint32 _lastUiSig = 0;       // signature of the last -ui autoshot's UI layer (throttle: dump only on change)
 	int _statusBarH = 10;        // SCI0 status/menu bar height in screen rows (of 200); reserved at the top of the game rect (may change)
@@ -125,7 +123,6 @@ private:
 	int _statusPen = 0, _statusBack = 0;
 	uint32 _statusToken = 0;
 	int _statusFont = 0;                       // SCI font id the game drew the banner with
-	Graphics::Surface *_statusSurface = nullptr; // owned: upscaled native-font banner (RGBA)
 	void reapplyStatus(); // re-push the cached banner (no-op if none)
 	// roger_autoshot helper: dump <screenshotpath>/roger-<id><suffix>-overlay.png and
 	// -preview.png for the given composited scene (suffix "" = per-room scene, "-ui" =
@@ -141,12 +138,6 @@ private:
 	// Regenerate the current room's plate in place and re-push the overlay.
 	// No-op if no room is loaded (_loadedPicId < 0) or _assetGen is null.
 	void regenInPlace();
-
-	// Push a native-font (upscaled 6x) text surface into the UI layer as a kUiIcon,
-	// optionally preceded by a kUiWindow fill/frame. Returns false if generation fails
-	// (caller should fall through to the TTF path). Owns the surface via _uiIcons.
-	bool pushNativeText(const Common::Rect &r, const char *text, int fontId, int penColor,
-	                    int backColor, int align, uint32 token, bool frame);
 
 	// Render each unique non-ASCII byte of `text` as a glyph surface from the game's
 	// SCI font (fontId, penColor), own it in _uiIcons, and append {byte,surface} to

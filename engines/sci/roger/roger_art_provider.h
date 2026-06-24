@@ -127,10 +127,6 @@ public:
 	virtual void tuneEnhancePasses(int delta, int which) {}
 	virtual void reloadGenConfig() {}
 
-	// Cycle native-font text enhance mode: nearest -> epx -> smooth -> nearest.
-	// Bound to F9 / Ctrl+Shift+G; re-applies the status banner immediately.
-	virtual void cycleFontEnhance() {}
-
 	// Set to false to disable Roger without destroying the provider.
 	// ScummVM native rendering is used when false.
 	bool enabled;

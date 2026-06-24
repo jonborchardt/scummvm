@@ -82,11 +82,6 @@ FileRogerArtProvider::FileRogerArtProvider(const Common::String &gameId,
 	// with Ctrl+Shift+L). Read it here so the documented config knob actually works.
 	_debugLog = ConfMan.hasKey("roger_debug") && ConfMan.getBool("roger_debug");
 
-	// roger_ui_native_font (default false): EXPERIMENT — draw dialog/control text with
-	// the game's own SCI font upscaled 6x (via RogerAssetGen::generateTextBlock) instead
-	// of the TTF dialog font. Set to true to A/B the look; flip back to revert.
-	_uiNativeFont = ConfMan.hasKey("roger_ui_native_font") && ConfMan.getBool("roger_ui_native_font");
-
 	// Cursor: the native hardware cursor is NOT usefully visible over the in-game
 	// OSystem overlay (verified in live play — it disappears), which is the original
 	// reason Roger composites its own arrow into the overlay scene. So default to the
@@ -126,16 +121,6 @@ FileRogerArtProvider::FileRogerArtProvider(const Common::String &gameId,
 		                 ConfMan.hasKey("roger_omyac_passes") ? ConfMan.get("roger_omyac_passes") : "")
 	);
 
-	// roger_font_enhance: native-font text enhance mode — nearest|epx|smooth.
-	// Default nearest (crisp); EPX rounds corners (bubbly on text).
-	int fe = Roger::kFontEnhNearest;
-	if (ConfMan.hasKey("roger_font_enhance")) {
-		const Common::String s = ConfMan.get("roger_font_enhance");
-		if (s == "epx") fe = Roger::kFontEnhEpx;
-		else if (s == "smooth") fe = Roger::kFontEnhSmooth;
-		else fe = Roger::kFontEnhNearest;
-	}
-	_assetGen->setFontEnhance(fe);
 }
 
 bool FileRogerArtProvider::hasBackground(GuiResourceId pictureId) const {
@@ -651,36 +636,6 @@ void FileRogerArtProvider::buildGlyphs(const char *text, int fontId, int penColo
 	}
 }
 
-bool FileRogerArtProvider::pushNativeText(const Common::Rect &r, const char *text, int fontId,
-                                          int penColor, int backColor, int align, uint32 token,
-                                          bool frame) {
-	if (!_assetGen)
-		return false;
-	Graphics::Surface *s = _assetGen->generateTextBlock(text ? text : "", fontId,
-	                                                     (byte)(penColor >= 0 ? penColor : 0),
-	                                                     r.width(), align);
-	if (!s)
-		return false;
-	_uiIcons.push_back(s); // owned; freed on room change / uiClearAll
-	// If the control has a fill or frame, keep a window underneath so the look matches
-	// the TTF path (the compositor fills backColor and frames kUiWindow).
-	if (backColor >= 0 || frame) {
-		Roger::UiElement bg;
-		bg.type = Roger::kUiWindow; bg.nativeRect = r; bg.backColor = backColor;
-		bg.penColor = penColor; bg.hasFrame = frame; bg.token = token;
-		_uiLayer->push(bg);
-	}
-	const int nativeW = s->w / 6, nativeH = s->h / 6;
-	Roger::UiElement e;
-	e.type = Roger::kUiIcon;
-	e.nativeRect = Common::Rect(r.left, r.top,
-	                            r.left + (nativeW > 0 ? nativeW : r.width()),
-	                            r.top + (nativeH > 0 ? nativeH : r.height()));
-	e.iconSurface = s; e.token = token;
-	_uiLayer->push(e);
-	return true;
-}
-
 void FileRogerArtProvider::uiPushWindow(const Common::Rect &r, int backColor, int penColor,
                                         uint16 wndStyle, uint32 token) {
 	if (!_overlayActive || !_plate) return; // no hires scene -> leave native UI visible
@@ -1022,19 +977,6 @@ void FileRogerArtProvider::tuneEnhancePasses(int delta, int which) {
 	regenInPlace();
 }
 
-void FileRogerArtProvider::cycleFontEnhance() {
-	if (!_assetGen)
-		return;
-	const int next = (_assetGen->fontEnhance() + 1) % 3; // EPX -> Nearest -> Smooth -> ...
-	_assetGen->setFontEnhance(next);
-	const char *name = (next == Roger::kFontEnhEpx) ? "epx" :
-	                   (next == Roger::kFontEnhSmooth) ? "smooth" : "nearest";
-	warning("ROGER font enhance: %s", name);
-	// Re-apply the banner immediately so the change is visible; dialogs pick it up on
-	// their next redraw (re-open the dialog to compare).
-	reapplyStatus();
-}
-
 void FileRogerArtProvider::reloadGenConfig() {
 	if (!_assetGen)
 		return;
@@ -1088,7 +1030,6 @@ FileRogerArtProvider::~FileRogerArtProvider() {
 	if (_sceneCache) { delete _sceneCache; _sceneCache = nullptr; }
 	if (_scratchScene) { delete _scratchScene; _scratchScene = nullptr; }
 	if (_cursorSurf) { _cursorSurf->free(); delete _cursorSurf; _cursorSurf = nullptr; }
-	if (_statusSurface) { _statusSurface->free(); delete _statusSurface; _statusSurface = nullptr; }
 	for (uint i = 0; i < _uiIcons.size(); i++) { _uiIcons[i]->free(); delete _uiIcons[i]; }
 	_uiIcons.clear();
 }

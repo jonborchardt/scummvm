@@ -467,14 +467,14 @@ bool RogerAssetGen::generatePriorityMap(int picId, Common::Array<byte> &outBands
 }
 
 // ---------------------------------------------------------------------------
-// finishGlyphSurface — scale (by mode) + palette->RGBA + optional smooth blur.
+// finishGlyphSurface — nearest-upscale 6x + palette->RGBA.
 // ---------------------------------------------------------------------------
 Graphics::Surface *RogerAssetGen::finishGlyphSurface(const IndexImage &idx, int penColor, byte ck) {
 #ifdef ENABLE_SCI
 	if (!g_sci || idx.w <= 0 || idx.h <= 0)
 		return nullptr;
 
-	IndexImage scaled = (_fontEnhance == kFontEnhEpx) ? scale6x(idx) : scaleNearest(idx, 6);
+	IndexImage scaled = scaleNearest(idx, 6);
 	const int sw = scaled.w, sh = scaled.h;
 	if (sw <= 0 || sh <= 0)
 		return nullptr;
@@ -486,45 +486,7 @@ Graphics::Surface *RogerAssetGen::finishGlyphSurface(const IndexImage &idx, int 
 
 	const Palette &pal = g_sci->_gfxPalette16->_sysPalette;
 
-	if (_fontEnhance == kFontEnhSmooth) {
-		// Pen colour everywhere; alpha = coverage (opaque on glyph, 0 on clear-key),
-		// then box-blur alpha so edges anti-alias to pen colour (not black).
-		const Color &pc = pal.colors[(byte)penColor];
-		Common::Array<byte> a((uint32)(sw * sh), 0);
-		for (int i = 0; i < sw * sh; i++)
-			a[i] = (scaled.pixels[i] == ck) ? 0 : 255;
-		Common::Array<byte> b = a; // blurred copy
-		const int r = 2; // blur radius (in 6x px)
-		// separable box blur
-		for (int y = 0; y < sh; y++) {
-			for (int x = 0; x < sw; x++) {
-				int sum = 0, n = 0;
-				for (int dx = -r; dx <= r; dx++) {
-					int xx = x + dx; if (xx < 0 || xx >= sw) continue;
-					sum += a[y * sw + xx]; n++;
-				}
-				b[y * sw + x] = (byte)(sum / n);
-			}
-		}
-		for (int y = 0; y < sh; y++) {
-			for (int x = 0; x < sw; x++) {
-				int sum = 0, n = 0;
-				for (int dy = -r; dy <= r; dy++) {
-					int yy = y + dy; if (yy < 0 || yy >= sh) continue;
-					sum += b[yy * sw + x]; n++;
-				}
-				a[y * sw + x] = (byte)(sum / n);
-			}
-		}
-		for (int y = 0; y < sh; y++) {
-			uint32 *dst = (uint32 *)surf->getBasePtr(0, y);
-			for (int x = 0; x < sw; x++)
-				dst[x] = fmt.ARGBToColor(a[y * sw + x], pc.r, pc.g, pc.b);
-		}
-		return surf;
-	}
-
-	// EPX / Nearest: hard edges, index -> palette RGBA (ck -> transparent).
+	// Hard edges, index -> palette RGBA (ck -> transparent).
 	for (int y = 0; y < sh; y++) {
 		uint32 *dst = (uint32 *)surf->getBasePtr(0, y);
 		for (int x = 0; x < sw; x++) {
@@ -585,111 +547,6 @@ Graphics::Surface *RogerAssetGen::generateTextSurface(const Common::String &text
 	return surf;
 #else
 	(void)fontId; (void)penColor;
-	return nullptr;
-#endif
-}
-
-// ---------------------------------------------------------------------------
-// generateTextBlock — multi-line, word-wrapped native-font render, upscaled 6x.
-// ---------------------------------------------------------------------------
-Graphics::Surface *RogerAssetGen::generateTextBlock(const Common::String &text, int fontId,
-                                                    byte penColor, int wrapWidthNative, int align) {
-	if (text.empty())
-		return nullptr;
-
-#ifdef ENABLE_SCI
-	if (!g_sci)
-		return nullptr;
-	GfxCache *gfxCache = g_sci->_gfxCache;
-	if (!gfxCache)
-		return nullptr;
-	GfxFont *font = gfxCache->getFont((GuiResourceId)fontId);
-	if (!font)
-		return nullptr;
-
-	const int fh = font->getHeight();
-	if (fh <= 0)
-		return nullptr;
-
-	// --- Wrap into lines. Hard-break on '\n'; greedy word-wrap to wrapWidthNative. ---
-	Common::Array<Common::String> lines;
-	const int spaceW = font->getCharWidth((uint16)' ');
-	Common::String paragraph;
-	for (uint p = 0; p <= text.size(); p++) {
-		const bool end = (p == text.size());
-		const char ch = end ? '\n' : text[p];
-		if (ch != '\n') { paragraph += ch; continue; }
-
-		// Wrap this paragraph.
-		Common::String line;
-		int lineW = 0;
-		uint i = 0;
-		while (i < paragraph.size()) {
-			// Skip leading spaces of a word run but remember count.
-			uint ws = 0;
-			while (i < paragraph.size() && paragraph[i] == ' ') { ws++; i++; }
-			Common::String word;
-			int wordW = 0;
-			while (i < paragraph.size() && paragraph[i] != ' ') {
-				wordW += font->getCharWidth((uint16)(byte)paragraph[i]);
-				word += paragraph[i];
-				i++;
-			}
-			if (word.empty())
-				break;
-			const int sepW = line.empty() ? 0 : (int)ws * spaceW;
-			if (wrapWidthNative > 0 && !line.empty() && lineW + sepW + wordW > wrapWidthNative) {
-				lines.push_back(line);
-				line = word; lineW = wordW;
-			} else {
-				if (!line.empty()) { for (uint s = 0; s < ws; s++) line += ' '; }
-				line += word; lineW += sepW + wordW;
-			}
-		}
-		lines.push_back(line); // even if empty (preserves blank lines)
-		paragraph.clear();
-	}
-	if (lines.empty())
-		return nullptr;
-
-	// --- Measure block. ---
-	int blockW = 0;
-	Common::Array<int> lineW(lines.size(), 0);
-	for (uint l = 0; l < lines.size(); l++) {
-		int w = 0;
-		for (uint c = 0; c < lines[l].size(); c++)
-			w += font->getCharWidth((uint16)(byte)lines[l][c]);
-		lineW[l] = w;
-		if (w > blockW) blockW = w;
-	}
-	const int blockH = (int)lines.size() * fh;
-	if (blockW <= 0 || blockH <= 0)
-		return nullptr;
-
-	const byte ck = (penColor != 0xFF) ? 0xFF : 0xFE;
-	IndexImage idx;
-	idx.w = blockW; idx.h = blockH;
-	idx.pixels.resize((uint32)(blockW * blockH), ck);
-
-	// --- Draw each line, aligned within the block. ---
-	for (uint l = 0; l < lines.size(); l++) {
-		int startX = 0;
-		if (align == 1)       startX = (blockW - lineW[l]) / 2;        // center
-		else if (align == -1) startX = (blockW - lineW[l]);           // right
-		if (startX < 0) startX = 0;
-		int x = startX;
-		const int topY = (int)l * fh;
-		for (uint c = 0; c < lines[l].size(); c++) {
-			const uint16 ch = (byte)lines[l][c];
-			font->drawToBuffer(ch, (int16)topY, (int16)x, penColor, false,
-			                   idx.pixels.begin(), (int16)blockW, (int16)blockH);
-			x += font->getCharWidth(ch);
-		}
-	}
-
-	return finishGlyphSurface(idx, penColor, ck);
-#else
-	(void)fontId; (void)penColor; (void)wrapWidthNative; (void)align;
 	return nullptr;
 #endif
 }

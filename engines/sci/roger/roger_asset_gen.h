@@ -86,11 +86,6 @@ public:
 	GenMode mode() const { return _mode; }
 	void setMode(GenMode m) { _mode = m; }
 
-	// Native-font text enhance mode (Roger::FontEnhance). Applies to generateTextSurface
-	// (banner) and generateTextBlock (dialogs). Stored as int to keep this header SCI-free.
-	void setFontEnhance(int mode) { _fontEnhance = mode; }
-	int  fontEnhance() const { return _fontEnhance; }
-
 	/**
 	 * Generate (or load from cache) the omyac RGBA plate for pictureId.
 	 * Returns a new Graphics::Surface (caller owns: ->free() then delete) or
@@ -115,16 +110,6 @@ public:
 	 * or nullptr on failure / in builds without ENABLE_SCI. Not disk-cached.
 	 */
 	Graphics::Surface *generateTextSurface(const Common::String &text, int fontId, byte penColor);
-
-	/**
-	 * Like generateTextSurface but multi-line: word-wraps `text` to `wrapWidthNative`
-	 * native pixels (<=0 = single line) using the native font's per-char widths, stacks
-	 * the lines, aligns each line within the block (`align`: -1 right / 0 left / 1 center),
-	 * and upscales 6x. Honours existing '\n' as hard breaks. Caller owns the surface
-	 * (->free() then delete); nullptr on failure or in builds without ENABLE_SCI.
-	 */
-	Graphics::Surface *generateTextBlock(const Common::String &text, int fontId, byte penColor,
-	                                     int wrapWidthNative, int align);
 
 	// Native priority bands (320x190, one SCI band per pixel) for overlay occlusion,
 	// derived from the in-engine native pre-render. Returns false on any miss.
@@ -154,10 +139,8 @@ private:
 	Common::String _gameId;
 	Common::String _cacheDir;
 	Common::Array<int> _passes; // empty => use defaultPasses() at generation time
-	int _fontEnhance = 1; // Roger::kFontEnhNearest (crisp) by default
-	// Shared tail for native-font glyph rendering: scales `idx` by the current
-	// _fontEnhance mode, maps indices through the live palette to RGBA, and (Smooth)
-	// alpha-blurs the edges. `ck` is the transparent clear-key index. Caller owns.
+	// Shared tail for native-font glyph rendering: nearest-upscale 6x + palette->RGBA.
+	// `ck` is the transparent clear-key index. Caller owns.
 	Graphics::Surface *finishGlyphSurface(const IndexImage &idx, int penColor, byte ck);
 };
 
