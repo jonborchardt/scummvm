@@ -24,11 +24,23 @@
 #include "sci/roger/roger_text.h"
 #include "graphics/managed_surface.h"
 #include "graphics/surface.h"
+#include "graphics/blit.h"
 #include "common/system.h"
 #include "common/textconsole.h"
 
 namespace Sci {
 namespace Roger {
+
+RogerCompositor::~RogerCompositor() {
+	if (_bgCache) {
+		_bgCache->free();
+		delete _bgCache;
+	}
+	if (_overlayConv) {
+		_overlayConv->free();
+		delete _overlayConv;
+	}
+}
 
 // Roger UI type scale: target on-screen cell heights expressed in native 320x200
 // rows (the compositor scales them to the overlay). One body size for dialog /
@@ -74,29 +86,43 @@ void RogerCompositor::renderScene(Graphics::ManagedSurface &dest, const Common::
 	// SCI0); the plate encodes that same picture, so both map into picRect.
 	const int PIC_W = _picW, PIC_H = _picH;
 
-	// 0) The overlay is alpha-blended over the still-rendered native game. Fill the
-	//    letterbox — everything OUTSIDE the game rect — opaque black so the native render
-	//    and its hardware cursor cannot leak through there. The reserved status strip
-	//    (inside the game rect, above the picture) stays transparent so native UI Roger
-	//    intentionally leaves alone — e.g. the graphical Sierra menu icon — shows through.
-	const uint32 black = dest.surfacePtr()->format.ARGBToColor(255, 0, 0, 0);
-	if (gameRect.isEmpty()) {
-		dest.clear(black); // no geometry (unit tests): whole surface is a solid blocker
-	} else {
-		dest.clear(0); // transparent base; status strip + (later) plate keep/overwrite it
-		const int16 gt = (int16)MAX<int>(0, gameRect.top);
-		const int16 gb = (int16)MIN<int>(H, gameRect.bottom);
-		const int16 gl = (int16)MAX<int>(0, gameRect.left);
-		const int16 gr = (int16)MIN<int>(W, gameRect.right);
-		if (gt > 0) dest.fillRect(Common::Rect(0, 0, (int16)W, gt), black);
-		if (gb < H) dest.fillRect(Common::Rect(0, gb, (int16)W, (int16)H), black);
-		if (gl > 0) dest.fillRect(Common::Rect(0, gt, gl, gb), black);
-		if (gr < W) dest.fillRect(Common::Rect(gr, gt, (int16)W, gb), black);
+	// 0+1) Static background = opaque-black letterbox (everything OUTSIDE the game rect,
+	//      so the native render/cursor can't leak there; the status strip inside it stays
+	//      transparent for the native Sierra menu icon) + the clean plate scaled into the
+	//      game rect. This never changes within a room, so build it ONCE per geometry into
+	//      _bgCache and seed each frame with a straight copy. Re-scaling the 1920x1140
+	//      plate every frame was wasted work on SCI's kAnimate path (which throttles the
+	//      game clock). Output is byte-identical to the old per-frame clear+letterbox+scale.
+	const Graphics::PixelFormat fmt = dest.surfacePtr()->format;
+	const bool bgValid = _bgCache && _bgCache->w == W && _bgCache->h == H &&
+	                     _bgCache->format == fmt && _bgPlate == _plate &&
+	                     _bgPicRect == picRect && _bgGameRect == gameRect;
+	if (!bgValid) {
+		if (!_bgCache || _bgCache->w != W || _bgCache->h != H || _bgCache->format != fmt) {
+			if (_bgCache) { _bgCache->free(); delete _bgCache; }
+			_bgCache = new Graphics::ManagedSurface(W, H, fmt);
+		}
+		const uint32 black = fmt.ARGBToColor(255, 0, 0, 0);
+		if (gameRect.isEmpty()) {
+			_bgCache->clear(black); // no geometry (unit tests): whole surface is a solid blocker
+		} else {
+			_bgCache->clear(0); // transparent base; status strip + plate keep/overwrite it
+			const int16 gt = (int16)MAX<int>(0, gameRect.top);
+			const int16 gb = (int16)MIN<int>(H, gameRect.bottom);
+			const int16 gl = (int16)MAX<int>(0, gameRect.left);
+			const int16 gr = (int16)MIN<int>(W, gameRect.right);
+			if (gt > 0) _bgCache->fillRect(Common::Rect(0, 0, (int16)W, gt), black);
+			if (gb < H) _bgCache->fillRect(Common::Rect(0, gb, (int16)W, (int16)H), black);
+			if (gl > 0) _bgCache->fillRect(Common::Rect(0, gt, gl, gb), black);
+			if (gr < W) _bgCache->fillRect(Common::Rect(gr, gt, (int16)W, gb), black);
+		}
+		if (_plate)
+			_bgCache->blitFrom(*_plate, Common::Rect(0, 0, _plate->w, _plate->h), picRect);
+		_bgPlate = _plate;
+		_bgPicRect = picRect;
+		_bgGameRect = gameRect;
 	}
-
-	// 1) Clean plate, scaled into the game rect (aspect preserved).
-	if (_plate)
-		dest.blitFrom(*_plate, Common::Rect(0, 0, _plate->w, _plate->h), picRect);
+	dest.copyFrom(*_bgCache); // memcpy-class seed instead of per-frame clear + plate rescale
 
 	Graphics::Surface *destSurf = dest.surfacePtr();
 
@@ -217,13 +243,22 @@ void RogerCompositor::presentToOverlay(Graphics::ManagedSurface &scene) {
 		const int h = s->h < OH ? s->h : OH;
 		g_system->copyRectToOverlay(s->getPixels(), s->pitch, 0, 0, w, h);
 	} else {
-		Graphics::Surface *conv = s->convertTo(overlayFmt);
-		if (conv) {
-			const int w = conv->w < OW ? conv->w : OW;
-			const int h = conv->h < OH ? conv->h : OH;
-			g_system->copyRectToOverlay(conv->getPixels(), conv->pitch, 0, 0, w, h);
-			conv->free();
-			delete conv;
+		// Convert into a PERSISTENT overlay-format buffer (crossBlit) rather than
+		// convertTo's allocate-full-surface-then-free every frame — that per-frame
+		// alloc/free churned the heap on the game's kAnimate path. Reused across frames;
+		// reallocated only when the scene size or overlay format changes.
+		if (!_overlayConv || _overlayConv->w != s->w || _overlayConv->h != s->h ||
+		    _overlayConv->format != overlayFmt) {
+			if (_overlayConv) { _overlayConv->free(); delete _overlayConv; }
+			_overlayConv = new Graphics::Surface();
+			_overlayConv->create((uint16)s->w, (uint16)s->h, overlayFmt);
+		}
+		if (_overlayConv->getPixels() &&
+		    Graphics::crossBlit((byte *)_overlayConv->getPixels(), (const byte *)s->getPixels(),
+		                        _overlayConv->pitch, s->pitch, s->w, s->h, overlayFmt, s->format)) {
+			const int w = _overlayConv->w < OW ? _overlayConv->w : OW;
+			const int h = _overlayConv->h < OH ? _overlayConv->h : OH;
+			g_system->copyRectToOverlay(_overlayConv->getPixels(), _overlayConv->pitch, 0, 0, w, h);
 		}
 	}
 	g_system->showOverlay(false);

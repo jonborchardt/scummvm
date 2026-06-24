@@ -44,7 +44,9 @@ struct Sprite {
 class RogerCompositor {
 public:
 	RogerCompositor() : _plate(nullptr), _views(nullptr),
-		_picW(320), _picH(190), _priority(nullptr), _priorityW(0), _priorityH(0), _picScreenTop(0) {}
+		_picW(320), _picH(190), _priority(nullptr), _priorityW(0), _priorityH(0), _picScreenTop(0),
+		_bgCache(nullptr), _bgPlate(nullptr), _overlayConv(nullptr) {}
+	~RogerCompositor();
 
 	// Borrowed pointers; lifetime managed by the caller (the provider).
 	void setRoom(Graphics::Surface *cleanPlate, ViewCache *views);
@@ -94,6 +96,17 @@ private:
 	int _priorityW, _priorityH;
 	int _picScreenTop;         // screen row where the picture starts (menu-bar offset)
 	Common::Rect _pictureDest; // overlay-space picture rect (set by the caller; empty => full surface)
+
+	// Per-frame cost reducers (the compose+present runs synchronously inside SCI's
+	// kAnimate cycle, so full-screen work here throttles the game clock):
+	// _bgCache holds the static background (letterbox + scaled plate), rebuilt only when
+	// the plate or geometry changes so each frame seeds from a memcpy instead of
+	// re-scaling the 1920x1140 plate. _overlayConv is a persistent overlay-format buffer
+	// so presentToOverlay no longer allocates/frees a full-screen surface every frame.
+	Graphics::ManagedSurface *_bgCache;
+	Graphics::Surface *_bgPlate;       // plate the bg cache was built from (identity check)
+	Common::Rect _bgPicRect, _bgGameRect;
+	Graphics::Surface *_overlayConv;
 };
 
 } // namespace Roger
