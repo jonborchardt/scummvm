@@ -54,6 +54,7 @@ public:
 	void toggleDebugLog() override;  // Ctrl+Shift+L: per-frame Roger diagnostic logging
 	void tuneEnhancePasses(int delta, int which) override; // Ctrl+Shift+]/[ add/remove fill; '/; add/remove all
 	void reloadGenConfig() override; // Ctrl+Shift+R: re-read roger_omyac_passes from ConfMan
+	void cycleFontEnhance() override; // F9 / Ctrl+Shift+G: cycle native-font enhance mode
 
 	// UI display-list capture (Roger hires dialogs) — see roger_art_provider.h.
 	void uiPushWindow(const Common::Rect &globalRect, int backColor, int penColor,

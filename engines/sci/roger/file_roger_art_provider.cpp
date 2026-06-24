@@ -125,6 +125,17 @@ FileRogerArtProvider::FileRogerArtProvider(const Common::String &gameId,
 		parseOmyacPasses(ConfMan.hasKey("roger_omyac_passes"),
 		                 ConfMan.hasKey("roger_omyac_passes") ? ConfMan.get("roger_omyac_passes") : "")
 	);
+
+	// roger_font_enhance: native-font text enhance mode — nearest|epx|smooth.
+	// Default nearest (crisp); EPX rounds corners (bubbly on text).
+	int fe = Roger::kFontEnhNearest;
+	if (ConfMan.hasKey("roger_font_enhance")) {
+		const Common::String s = ConfMan.get("roger_font_enhance");
+		if (s == "epx") fe = Roger::kFontEnhEpx;
+		else if (s == "smooth") fe = Roger::kFontEnhSmooth;
+		else fe = Roger::kFontEnhNearest;
+	}
+	_assetGen->setFontEnhance(fe);
 }
 
 bool FileRogerArtProvider::hasBackground(GuiResourceId pictureId) const {
@@ -1013,6 +1024,19 @@ void FileRogerArtProvider::tuneEnhancePasses(int delta, int which) {
 	      fillCount, lineCount, allCount);
 
 	regenInPlace();
+}
+
+void FileRogerArtProvider::cycleFontEnhance() {
+	if (!_assetGen)
+		return;
+	const int next = (_assetGen->fontEnhance() + 1) % 3; // EPX -> Nearest -> Smooth -> ...
+	_assetGen->setFontEnhance(next);
+	const char *name = (next == Roger::kFontEnhEpx) ? "epx" :
+	                   (next == Roger::kFontEnhSmooth) ? "smooth" : "nearest";
+	warning("ROGER font enhance: %s", name);
+	// Re-apply the banner immediately so the change is visible; dialogs pick it up on
+	// their next redraw (re-open the dialog to compare).
+	reapplyStatus();
 }
 
 void FileRogerArtProvider::reloadGenConfig() {
