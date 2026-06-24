@@ -38,6 +38,14 @@ enum UiElementType { kUiWindow, kUiText, kUiButton, kUiTextEdit, kUiIcon };
 // elements instead of tracking each one's tiny native rect.
 enum UiTextRole { kRoleBody = 0, kRoleHeading = 1 };
 
+// A non-ASCII glyph the TTF font can't render, pre-rendered from the game's own SCI
+// font (borrowed surface, owned elsewhere). The renderer blits it inline between TTF
+// runs, scaled to the line height. `ch` is the raw byte (0..255) it stands in for.
+struct UiGlyph {
+	uint16 ch;
+	const Graphics::Surface *surf;
+};
+
 // Resolution-independent UI element. Rects are in global 320x200 screen space
 // (the same space sprite celRects use), so the compositor maps them through the
 // same game-rect placement as the plate. No SCI engine types here.
@@ -53,6 +61,7 @@ struct UiElement {
 	int  cursorPos;   // kUiTextEdit caret char index
 	bool hasFrame;
 	const Graphics::Surface *iconSurface; // kUiIcon: borrowed RGBA cel, not owned
+	Common::Array<UiGlyph> glyphs; // non-ASCII glyphs in `text`, rendered from the game font
 	uint32 token;     // clear-token (window id or save-under handle)
 	int  textRole;    // UiTextRole: body vs heading target size
 	bool useAltFont;   // render with the header/menu font instead of the dialog font

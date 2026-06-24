@@ -24,6 +24,7 @@
 #include "common/array.h"
 #include "common/rect.h"
 #include "common/str.h"
+#include "sci/roger/roger_ui_layer.h"
 
 namespace Graphics { class Font; class ManagedSurface; }
 
@@ -72,7 +73,7 @@ public:
 	// overlapping. targetPx <= 0 => fill the box height.
 	void drawPx(Graphics::ManagedSurface &dst, const Common::String &text,
 	            const Common::Rect &rect, uint32 color, int align, int targetPx,
-	            bool vAlignTop = false) const;
+	            bool vAlignTop = false, const Common::Array<UiGlyph> *glyphs = nullptr) const;
 	int caretPx(const Common::String &text, int cursorPos,
 	            const Common::Rect &rect, int targetPx) const;
 

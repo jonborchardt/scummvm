@@ -111,9 +111,50 @@ const Graphics::Font *RogerTextRenderer::fontForBox(const Common::Rect &rect, in
 	return idx < 0 ? nullptr : _fonts[idx];
 }
 
+// Look up the pre-rendered surface for byte `c` in the element's glyph list (nullptr if none).
+static const Graphics::Surface *findGlyph(const Common::Array<UiGlyph> *glyphs, uint16 c) {
+	if (!glyphs)
+		return nullptr;
+	for (uint i = 0; i < glyphs->size(); i++)
+		if ((*glyphs)[i].ch == c)
+			return (*glyphs)[i].surf;
+	return nullptr;
+}
+
+// Does this line contain a byte outside printable ASCII that we have a glyph for?
+static bool lineHasGlyph(const Common::String &line, const Common::Array<UiGlyph> *glyphs) {
+	if (!glyphs || glyphs->empty())
+		return false;
+	for (uint i = 0; i < line.size(); i++) {
+		const byte c = (byte)line[i];
+		if ((c < 0x20 || c >= 0x7f) && findGlyph(glyphs, c))
+			return true;
+	}
+	return false;
+}
+
+// Width of a mixed line: ASCII measured by the TTF font, each glyph scaled to lineH.
+static int mixedLineWidth(const Graphics::Font *f, const Common::String &line,
+                          const Common::Array<UiGlyph> *glyphs, int lineH) {
+	int w = 0;
+	Common::String run;
+	for (uint i = 0; i < line.size(); i++) {
+		const byte c = (byte)line[i];
+		const Graphics::Surface *g = (c < 0x20 || c >= 0x7f) ? findGlyph(glyphs, c) : nullptr;
+		if (g) {
+			if (!run.empty()) { w += f->getStringWidth(run); run.clear(); }
+			if (g->h > 0) w += g->w * lineH / g->h;
+		} else {
+			run += (char)c;
+		}
+	}
+	if (!run.empty()) w += f->getStringWidth(run);
+	return w;
+}
+
 void RogerTextRenderer::drawPx(Graphics::ManagedSurface &dst, const Common::String &text,
                                const Common::Rect &rect, uint32 color, int align, int targetPx,
-                               bool vAlignTop) const {
+                               bool vAlignTop, const Common::Array<UiGlyph> *glyphs) const {
 	if (_fonts.empty())
 		return;
 	// Target on-screen cell height (role scale * global multiplier), capped to the box.
@@ -149,7 +190,40 @@ void RogerTextRenderer::drawPx(Graphics::ManagedSurface &dst, const Common::Stri
 	const int lh = f->getFontHeight();
 	int y = firstLineTop(rect.top, rect.height(), (int)lines.size(), lh, vAlignTop);
 	for (uint i = 0; i < lines.size(); i++) {
-		f->drawString(&dst, lines[i], rect.left, y, rect.width(), color, ta);
+		if (lineHasGlyph(lines[i], glyphs)) {
+			// Mixed TTF + native-glyph layout: lay out left->right, drawing ASCII runs
+			// with the TTF font and blitting each non-ASCII glyph scaled to the line
+			// height, inline. Honours the element alignment via a measured start x.
+			const int lineW = mixedLineWidth(f, lines[i], glyphs, lh);
+			int x = rect.left;
+			if (align == 1)       x = rect.left + (rect.width() - lineW) / 2; // center
+			else if (align == -1) x = rect.right - lineW;                     // right
+			if (x < rect.left) x = rect.left;
+			Common::String run;
+			for (uint c = 0; c < lines[i].size(); c++) {
+				const byte ch = (byte)lines[i][c];
+				const Graphics::Surface *g = (ch < 0x20 || ch >= 0x7f) ? findGlyph(glyphs, ch) : nullptr;
+				if (g) {
+					if (!run.empty()) {
+						f->drawString(&dst, run, x, y, rect.right - x, color, Graphics::kTextAlignLeft);
+						x += f->getStringWidth(run);
+						run.clear();
+					}
+					if (g->h > 0) {
+						const int gw = g->w * lh / g->h;
+						dst.blitFrom(*g, Common::Rect(0, 0, g->w, g->h),
+						             Common::Rect(x, y, x + gw, y + lh));
+						x += gw;
+					}
+				} else {
+					run += (char)ch;
+				}
+			}
+			if (!run.empty())
+				f->drawString(&dst, run, x, y, rect.right - x, color, Graphics::kTextAlignLeft);
+		} else {
+			f->drawString(&dst, lines[i], rect.left, y, rect.width(), color, ta);
+		}
 		y += lh;
 	}
 }

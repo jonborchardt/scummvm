@@ -302,7 +302,7 @@ void RogerCompositor::renderUiLayer(Graphics::ManagedSurface &dest,
 			const byte *pc = palette ? palette + (e.penColor >= 0 ? e.penColor : 0) * 3 : nullptr;
 			const uint32 col = pc ? fmt.ARGBToColor(255, pc[0], pc[1], pc[2])
 			                      : fmt.ARGBToColor(255, 255, 255, 255);
-			tr->drawPx(dest, e.text, d, col, e.align, targetPx, e.vAlignTop);
+			tr->drawPx(dest, e.text, d, col, e.align, targetPx, e.vAlignTop, &e.glyphs);
 		}
 		if (tr && e.type == kUiTextEdit && (e.style & 0x8)) { // SELECTED -> caret
 			const int cx = d.left + tr->caretPx(e.text, e.cursorPos, d, targetPx);
