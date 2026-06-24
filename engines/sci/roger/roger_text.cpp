@@ -143,7 +143,7 @@ static int mixedLineWidth(const Graphics::Font *f, const Common::String &line,
 		const Graphics::Surface *g = (c < 0x20 || c >= 0x7f) ? findGlyph(glyphs, c) : nullptr;
 		if (g) {
 			if (!run.empty()) { w += f->getStringWidth(run); run.clear(); }
-			if (g->h > 0) w += g->w * lineH / g->h;
+			if (g->h > 0) { const int gh = lineH * 3 / 4; w += g->w * gh / g->h; }
 		} else {
 			run += (char)c;
 		}
@@ -210,9 +210,11 @@ void RogerTextRenderer::drawPx(Graphics::ManagedSurface &dst, const Common::Stri
 						run.clear();
 					}
 					if (g->h > 0) {
-						const int gw = g->w * lh / g->h;
+						const int gh = lh * 3 / 4;   // 25% smaller than the line height
+						const int gw = g->w * gh / g->h;
+						const int gy = y + lh - gh;  // bottom-align to the text baseline
 						dst.blitFrom(*g, Common::Rect(0, 0, g->w, g->h),
-						             Common::Rect(x, y, x + gw, y + lh));
+						             Common::Rect(x, gy, x + gw, gy + gh));
 						x += gw;
 					}
 				} else {
