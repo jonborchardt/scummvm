@@ -336,6 +336,7 @@ void FileRogerArtProvider::observeLivePalette() {
 		Common::Rect plateDirty;
 		Roger::reblendChangedPixels(_plateIndex.begin(), Roger::OMYAC_HYBRID_W, Roger::OMYAC_HYBRID_H,
 		                            table, changed, *_plate, plateDirty);
+		_compositor->invalidateBackgroundCache(); // plate pixels mutated; force bgCache rebuild
 		if (!plateDirty.isEmpty()) {
 			// Map plate-space bbox -> dest/overlay space (same scale renderScene uses).
 			const bool aspect = g_system->getFeatureState(OSystem::kFeatureAspectRatioCorrection);
@@ -362,6 +363,7 @@ void FileRogerArtProvider::observeLivePalette() {
 	Common::Rect whole;
 	Roger::reblendChangedPixels(_plateIndex.begin(), Roger::OMYAC_HYBRID_W, Roger::OMYAC_HYBRID_H,
 	                            table, all, *_plate, whole);
+	_compositor->invalidateBackgroundCache(); // plate pixels mutated; force bgCache rebuild
 	_compositor->forceFullPresentNext();
 	for (int i = 0; i < 48; i++) _palSnapshot[i] = live[i];
 	_lastPaletteCheckMs = now;
