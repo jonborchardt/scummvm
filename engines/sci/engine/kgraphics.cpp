@@ -1258,6 +1258,13 @@ reg_t kShakeScreen(EngineState *s, int argc, reg_t *argv) {
 	int16 shakeCount = (argc > 0) ? argv[0].toUint16() : 1;
 	int16 directions = (argc > 1) ? argv[1].toUint16() : 1;
 
+	// Roger overlay: mirror the shake in the hires overlay and skip the native shake
+	// (invisible under the opaque overlay; avoids double-blocking). Gated.
+	if (g_sciRogerProvider && g_sciRogerProvider->enabled) {
+		g_sciRogerProvider->onShake(shakeCount, directions);
+		return s->r_acc;
+	}
+
 	g_sci->_gfxScreen->kernelShakeScreen(shakeCount, directions);
 	return s->r_acc;
 }

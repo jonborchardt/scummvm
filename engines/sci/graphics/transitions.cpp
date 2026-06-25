@@ -29,6 +29,7 @@
 #include "sci/graphics/screen.h"
 #include "sci/graphics/palette16.h"
 #include "sci/graphics/transitions.h"
+#include "sci/roger/roger_art_provider.h"
 
 namespace Sci {
 
@@ -192,6 +193,17 @@ void GfxTransitions::doit(Common::Rect picRect) {
 	}
 
 	_palette->palVaryPrepareForTransition();
+
+	// Roger overlay: mirror the transition in the hires overlay, then finalize SCI's
+	// native screen instantly (invisible under the opaque overlay). Skips SCI's animated
+	// transition to avoid double-blocking. Gated; no-op when Roger is inactive.
+	if (g_sciRogerProvider && g_sciRogerProvider->enabled) {
+		g_sciRogerProvider->onTransition(_number, picRect);
+		setNewScreen(_blackoutFlag); // instant final pixels (the NONE path)
+		setNewPalette(_blackoutFlag);
+		_screen->_picNotValid = 0;
+		return;
+	}
 
 	// Now we do the actual transition to the new screen
 	doTransition(_number, false);
