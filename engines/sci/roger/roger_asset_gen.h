@@ -95,6 +95,12 @@ public:
 	 */
 	Graphics::Surface *generatePlate(int id, uint32 &outMs);
 
+	// As generatePlate, but also returns the omyac doubled-nibble index buffer
+	// (OMYAC_HYBRID_W*OMYAC_HYBRID_H) in outIndex — the pre-blend color source used by
+	// live palette re-apply. outIndex is cleared on any failure / cache-only path where
+	// the index is unavailable (caller must check !outIndex.empty()).
+	Graphics::Surface *generatePlateWithIndex(int id, Common::Array<byte> &outIndex, uint32 &outMs);
+
 	/**
 	 * Generate a scale6x RGBA cel from the native GfxView cel.
 	 * Returns nullptr on any failure or in kGenPrebuilt mode.

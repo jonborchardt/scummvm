@@ -148,11 +148,24 @@ Common::String RogerAssetGen::cacheKey(const char *transform, uint32 resourceHas
 }
 
 // -------------------------------------------------------------------------
-// generatePlate
+// generatePlate — thin wrapper; delegates to generatePlateWithIndex
 // -------------------------------------------------------------------------
 
 Graphics::Surface *RogerAssetGen::generatePlate(int id, uint32 &outMs) {
+	Common::Array<byte> throwaway;
+	return generatePlateWithIndex(id, throwaway, outMs);
+}
+
+// -------------------------------------------------------------------------
+// generatePlateWithIndex — full implementation; also returns the pre-blend
+// doubled-nibble index buffer (OMYAC_HYBRID_W*OMYAC_HYBRID_H) in outIndex.
+// outIndex is cleared on any failure or cache-only path where the index is
+// unavailable; caller must check !outIndex.empty() before using it.
+// -------------------------------------------------------------------------
+
+Graphics::Surface *RogerAssetGen::generatePlateWithIndex(int id, Common::Array<byte> &outIndex, uint32 &outMs) {
 	outMs = 0;
+	outIndex.clear();
 
 	// kGenPrebuilt: signal the provider to use the prebuilt PNG.
 	if (_mode == kGenPrebuilt)
@@ -176,11 +189,12 @@ Graphics::Surface *RogerAssetGen::generatePlate(int id, uint32 &outMs) {
 	Common::String key = cacheKey("omyac", hash);
 	Common::String cachePath = _cacheDir + "/" + key + ".png";
 
-	// kGenCache: check disk first.
+	// kGenCache: check disk first. Index is NOT available from a PNG cache hit;
+	// outIndex stays empty so callers fall back to regeneration (Task 9 policy).
 	if (_mode == kGenCache) {
 		Graphics::Surface *cached = loadSurfaceRGBA(cachePath);
 		if (cached) {
-			// outMs stays 0 (cache hit).
+			// outMs stays 0 (cache hit); outIndex stays empty (unavailable from PNG).
 			return cached;
 		}
 	}
@@ -196,13 +210,19 @@ Graphics::Surface *RogerAssetGen::generatePlate(int id, uint32 &outMs) {
 	const Common::Array<int> &passes = _passes;
 	OmyacResult omyac = renderOmyac(ref, passes);
 
+	// Preserve the pre-blend doubled-nibble index map BEFORE blendToSurface
+	// consumes omyac.pixels. This is the color source for live palette re-apply.
+	outIndex = omyac.pixels;
+
 	Graphics::Surface *plate = blendToSurface(omyac.pixels, OMYAC_HYBRID_W, OMYAC_HYBRID_H);
 
 	uint32 t1 = g_system->getMillis();
 	outMs = t1 - t0;
 
-	if (!plate)
+	if (!plate) {
+		outIndex.clear();
 		return nullptr;
+	}
 
 	// Write to cache for kGenCache and kGenAlways.
 	if (_mode == kGenCache || _mode == kGenAlways) {
