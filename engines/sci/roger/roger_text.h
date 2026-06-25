@@ -78,18 +78,16 @@ public:
 	// Draw word-wrapped, vertically-centred text. The font is chosen by `targetPx`
 	// (an on-screen cell height in dest pixels), scaled by the global multiplier and
 	// then capped to rect.height() so tight strips/rows shrink to fit rather than
-	// overlapping. targetPx <= 0 => fill the box height.
+	// overlapping. targetPx <= 0 => fill the box height. maxTextW > 0 caps the
+	// single-line width (native footprint scaled to dest; 0 = box width / unbounded).
 	void drawPx(Graphics::ManagedSurface &dst, const Common::String &text,
 	            const Common::Rect &rect, uint32 color, int align, int targetPx,
-	            bool vAlignTop = false, const Common::Array<UiGlyph> *glyphs = nullptr) const;
+	            bool vAlignTop = false, const Common::Array<UiGlyph> *glyphs = nullptr,
+	            int maxTextW = 0) const;
 	int caretPx(const Common::String &text, int cursorPos,
-	            const Common::Rect &rect, int targetPx) const;
+	            const Common::Rect &rect, int targetPx, int maxTextW = 0) const;
 
 private:
-	// Pick the font for `rect` at the given target cell height (with global scale +
-	// box-height cap applied). nullptr only if no fonts at all.
-	const Graphics::Font *fontForBox(const Common::Rect &rect, int targetPx) const;
-
 	Common::Array<const Graphics::Font *> _fonts; // ascending by size
 	Common::Array<bool> _owned;                   // parallel: delete on dtor?
 	bool _ttfLoaded = false;                       // requested TTF loaded (not bitmap fallback)?

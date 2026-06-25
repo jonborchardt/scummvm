@@ -114,17 +114,6 @@ RogerTextRenderer::~RogerTextRenderer() {
 			delete _fonts[i];
 }
 
-const Graphics::Font *RogerTextRenderer::fontForBox(const Common::Rect &rect, int targetPx) const {
-	// targetPx is the desired on-screen cell height; apply the user's global scale,
-	// then cap to the box height so a tight strip/row shrinks to fit instead of
-	// overlapping its neighbours. targetPx <= 0 => simply fill the box.
-	int h = targetPx > 0 ? targetPx * _globalScalePct / 100 : rect.height();
-	if (h > rect.height())
-		h = rect.height();
-	int idx = fitFontIndexByHeight(_fonts, h);
-	return idx < 0 ? nullptr : _fonts[idx];
-}
-
 // Look up the pre-rendered surface for byte `c` in the element's glyph list (nullptr if none).
 static const Graphics::Surface *findGlyph(const Common::Array<UiGlyph> *glyphs, uint16 c) {
 	if (!glyphs)
@@ -168,14 +157,17 @@ static int mixedLineWidth(const Graphics::Font *f, const Common::String &line,
 
 void RogerTextRenderer::drawPx(Graphics::ManagedSurface &dst, const Common::String &text,
                                const Common::Rect &rect, uint32 color, int align, int targetPx,
-                               bool vAlignTop, const Common::Array<UiGlyph> *glyphs) const {
+                               bool vAlignTop, const Common::Array<UiGlyph> *glyphs,
+                               int maxTextW) const {
 	if (_fonts.empty())
 		return;
-	// Target on-screen cell height (role scale * global multiplier), capped to the box.
+	// Target on-screen cell height (native metric * global multiplier), capped to box.
 	int h = targetPx > 0 ? targetPx * _globalScalePct / 100 : rect.height();
 	if (h > rect.height())
 		h = rect.height();
-	int idx = fitFontIndexByHeight(_fonts, h);
+	// Width cap: the native single-line footprint (0 => fall back to box width).
+	const int wCap = maxTextW > 0 ? maxTextW : rect.width();
+	int idx = fitFontIndexByHeightAndWidth(_fonts, text, h, wCap);
 	if (idx < 0)
 		return;
 
@@ -245,10 +237,15 @@ void RogerTextRenderer::drawPx(Graphics::ManagedSurface &dst, const Common::Stri
 }
 
 int RogerTextRenderer::caretPx(const Common::String &text, int cursorPos,
-                               const Common::Rect &rect, int targetPx) const {
-	const Graphics::Font *f = fontForBox(rect, targetPx);
-	if (!f)
+                               const Common::Rect &rect, int targetPx, int maxTextW) const {
+	int h = targetPx > 0 ? targetPx * _globalScalePct / 100 : rect.height();
+	if (h > rect.height())
+		h = rect.height();
+	const int wCap = maxTextW > 0 ? maxTextW : rect.width();
+	int idx = fitFontIndexByHeightAndWidth(_fonts, text, h, wCap);
+	if (idx < 0)
 		return 0;
+	const Graphics::Font *f = _fonts[idx];
 	int n = cursorPos;
 	if (n > (int)text.size()) n = (int)text.size();
 	return f->getStringWidth(Common::String(text.c_str(), n));

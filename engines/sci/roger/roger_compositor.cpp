@@ -424,12 +424,13 @@ void RogerCompositor::renderUiLayer(Graphics::ManagedSurface &dest,
                                     const byte *palette, const Common::Rect &gameRect,
                                     const RogerTextRenderer *text, const RogerTextRenderer *altText) {
 	const Graphics::PixelFormat &fmt = dest.surfacePtr()->format;
-	// Role -> target on-screen cell height, in dest pixels. Expressed as a height in
-	// the native 320x200 space scaled up by the game-rect mapping, so it is the SAME
-	// physical size for every element regardless of its own (tiny, varying) rect, and
-	// it tracks the overlay resolution. One body size + one slightly larger heading.
-	const int bodyPx    = kRoleBodyNativeH    * gameRect.height() / 200;
-	const int headingPx = kRoleHeadingNativeH * gameRect.height() / 200;
+	// Per-element target cell height comes from each element's NATIVE SCI font height
+	// (scaled to the overlay), so the crisp text occupies the same footprint as the
+	// original. Elements without a captured metric (nativeFontH == 0) fall back to the
+	// legacy role heights so no path regresses.
+	const int overlayH = gameRect.height();
+	const int fallbackBodyPx    = kRoleBodyNativeH    * overlayH / 200;
+	const int fallbackHeadingPx = kRoleHeadingNativeH * overlayH / 200;
 	for (uint i = 0; i < elems.size(); i++) {
 		const UiElement &e = elems[i];
 		Common::Rect nr = e.nativeRect;
@@ -450,7 +451,9 @@ void RogerCompositor::renderUiLayer(Graphics::ManagedSurface &dest,
 			continue;
 		// Pick the font renderer for this element (header/menu use the alt font).
 		const RogerTextRenderer *tr = (e.useAltFont && altText) ? altText : text;
-		const int targetPx = (e.textRole == kRoleHeading) ? headingPx : bodyPx;
+		int targetPx = rogerTargetPx(e.nativeFontH, overlayH, 100);
+		if (targetPx <= 0)
+			targetPx = (e.textRole == kRoleHeading) ? fallbackHeadingPx : fallbackBodyPx;
 
 		// Background fill (opaque) for windows / buttons / edit fields.
 		if (palette && e.backColor >= 0) {
@@ -493,10 +496,13 @@ void RogerCompositor::renderUiLayer(Graphics::ManagedSurface &dest,
 			const byte *pc = palette ? palette + (e.penColor >= 0 ? e.penColor : 0) * 3 : nullptr;
 			const uint32 col = pc ? fmt.ARGBToColor(255, pc[0], pc[1], pc[2])
 			                      : fmt.ARGBToColor(255, 255, 255, 255);
-			tr->drawPx(dest, e.text, d, col, e.align, targetPx, e.vAlignTop, &e.glyphs);
+			// Native single-line width cap, scaled to the overlay (0 => multi-line: box width).
+			const int wCap = e.nativeTextW > 0 ? e.nativeTextW * overlayH / 200 : 0;
+			tr->drawPx(dest, e.text, d, col, e.align, targetPx, e.vAlignTop, &e.glyphs, wCap);
 		}
 		if (tr && e.type == kUiTextEdit && (e.style & 0x8)) { // SELECTED -> caret
-			const int cx = d.left + tr->caretPx(e.text, e.cursorPos, d, targetPx);
+			const int wCap = e.nativeTextW > 0 ? e.nativeTextW * overlayH / 200 : 0;
+			const int cx = d.left + tr->caretPx(e.text, e.cursorPos, d, targetPx, wCap);
 			const byte *pc = palette ? palette + (e.penColor >= 0 ? e.penColor : 0) * 3 : nullptr;
 			const uint32 col = pc ? fmt.ARGBToColor(255, pc[0], pc[1], pc[2])
 			                      : fmt.ARGBToColor(255, 255, 255, 255);
