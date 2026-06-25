@@ -576,10 +576,10 @@ void FileRogerArtProvider::buildCursorForShape(int cursorId) {
 	if (_cursorSurf) { _cursorSurf->free(); delete _cursorSurf; _cursorSurf = nullptr; }
 	_cursorHotspot = Common::Point(2, 2); // fallback: arrow hotspot if resource missing
 
-	if (!g_sci || !g_sci->_resMan || cursorId < 0)
+	if (!g_sci || !g_sci->getResMan() || cursorId < 0)
 		return;
 
-	Resource *res = g_sci->_resMan->findResource(
+	Resource *res = g_sci->getResMan()->findResource(
 		ResourceId(kResourceTypeCursor, (uint16)cursorId), false);
 	if (!res || (int)res->size() != 68)
 		return;
