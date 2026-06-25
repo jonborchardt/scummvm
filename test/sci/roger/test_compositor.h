@@ -148,6 +148,72 @@ public:
 		cel.free();
 	}
 
+	void test_sprite_history_survives_ui_only_present() {
+		// Regression: a UI-only present (presentWithUi — cursor move / dialog, with NO
+		// renderScene) must not discard the previous sprite position. If sprite rects were
+		// rolled at present granularity, a present that lacks them (UI-only) clobbers the
+		// history, so when the sprite next MOVES its old position is never repainted ->
+		// "shadow of old animation frames." Sprite rects are tracked at renderScene
+		// granularity (rolled in renderScene) and unioned by presentToOverlay, so the
+		// vacated spot is always pushed. We drive the g_system-free seams (renderScene fills
+		// the scene set; rollPresentDirty simulates a present's UI-granularity roll;
+		// dirtyUnion is what the dirty present pushes) so no overlay backend is needed.
+		const Graphics::PixelFormat rgba(4, 8, 8, 8, 8, 24, 16, 8, 0);
+
+		Graphics::Surface plate;
+		plate.create(64, 64, rgba);
+		plate.fillRect(Common::Rect(0, 0, 64, 64), rgba.ARGBToColor(255, 64, 64, 64));
+
+		Graphics::Surface cel; // green sprite content via celOverride (no ViewCache)
+		cel.create(8, 8, rgba);
+		cel.fillRect(Common::Rect(0, 0, 8, 8), rgba.ARGBToColor(255, 0, 255, 0));
+
+		Sci::Roger::RogerCompositor comp;
+		comp.setRoom(&plate, nullptr);
+		comp.setPicture(64, 64, 0);   // PIC == picRect == surface, so dst == celRect
+		comp.setDirtyPresent(true);
+
+		const Common::Rect gameRect(0, 0, 64, 64);
+		const Common::Rect bounds(0, 0, 64, 64);
+		Graphics::ManagedSurface dest(64, 64, rgba);
+
+		Sci::Roger::Sprite spr;
+		spr.viewId = 900; spr.loopNo = 0; spr.celNo = 1;
+		spr.priority = 1; spr.mirror = false;
+		spr.celOverride = &cel;
+		Common::Array<Sci::Roger::Sprite> list;
+
+		// Frame 1: sprite at P=(4,4,12,12). A present follows (its UI-granularity roll).
+		spr.celRect = Common::Rect(4, 4, 12, 12);
+		list.clear(); list.push_back(spr);
+		comp.renderScene(dest, list, gameRect);
+		comp.rollPresentDirty();
+
+		// Frame 2: a UI-only present (no renderScene) — e.g. presentWithUi on a mouse move.
+		// Only a cursor rect is added; the sprite is static (still at P). The present rolls.
+		comp.addDirtyRect(Common::Rect(50, 4, 58, 12)); // "cursor"
+		comp.rollPresentDirty();
+
+		// Frame 3: the animation advances — the sprite moves to Q=(40,40,52,52).
+		spr.celRect = Common::Rect(40, 40, 52, 52);
+		list.clear(); list.push_back(spr);
+		comp.renderScene(dest, list, gameRect);
+
+		// What the dirty present would push this frame. The vacated OLD position P must be
+		// inside some region so its background repaints (no shadow). Center of P is (8,8);
+		// Q=(40,40,52,52) and the cursor=(50,4,58,12) do not contain it.
+		Common::Array<Common::Rect> push;
+		comp.dirtyUnion(bounds, push);
+		bool pCovered = false;
+		for (uint i = 0; i < push.size(); i++)
+			if (push[i].contains(8, 8))
+				pCovered = true;
+		TS_ASSERT(pCovered);
+
+		cel.free();
+		plate.free();
+	}
+
 	void test_coalesce_clamps_drops_and_merges() {
 		Common::Array<Common::Rect> in, out;
 		const Common::Rect bounds(0, 0, 100, 100);

@@ -76,13 +76,28 @@ public:
 	// left unset (empty), renderScene falls back to the full destination surface.
 	void setPictureDest(const Common::Rect &r) { _pictureDest = r; }
 
-	// Dirty-rect present: record a dest-space rect that changed this frame. renderScene
-	// (sprites) and renderUiLayer (UI) call this internally; the provider calls it for
-	// the composited cursor. presentToOverlay (Task 3) pushes only these (∪ last frame's).
+	// Dirty-rect present: record a dest-space UI/cursor rect that changed this present.
+	// renderUiLayer (UI) calls this internally; the provider calls it for the composited
+	// cursor. (Sprite rects are recorded separately by renderScene into the scene-granularity
+	// set — see _sceneDirtyCur.) presentToOverlay pushes the dirtyUnion of all of these.
 	void addDirtyRect(const Common::Rect &destRect) { if (!destRect.isEmpty()) _dirtyCur.push_back(destRect); }
 	// Enable/disable dirty present (roger_dirty_present knob). When off, presentToOverlay
 	// always does a full region push (the pre-dirty behavior).
 	void setDirtyPresent(bool enabled) { _dirtyPresent = enabled; }
+
+	// Coalesced union (clamped to bounds) of every dynamic dirty rect that may need
+	// repainting this present: UI/cursor rects at PRESENT granularity (_dirtyCur this
+	// present + _dirtyPrev last present) plus sprite rects at SCENE/renderScene granularity
+	// (_sceneDirtyCur + _sceneDirtyPrev). presentToOverlay's dirty path pushes exactly this.
+	// Sprite rects are tracked separately because a UI-only present (presentWithUi: cursor/
+	// dialog, NO renderScene) must not roll the sprite history away, or a sprite that moves
+	// across that present leaves a "shadow of old animation frames." Pure (no g_system);
+	// exposed so tests can assert a vacated position is covered.
+	void dirtyUnion(const Common::Rect &bounds, Common::Array<Common::Rect> &out) const;
+	// Advance present-granularity bookkeeping: roll this present's UI/cursor rects (_dirtyCur)
+	// into _dirtyPrev and clear _dirtyCur. Sprite rects roll separately, in renderScene.
+	// presentToOverlay calls this once per present; exposed so tests can simulate presents.
+	void rollPresentDirty();
 
 	// Compose dest = plate + sprites (back-to-front) with per-pixel priority occlusion.
 	// gameRect (overlay-space, from computeGameRect) bounds the displayed game: the area
@@ -137,6 +152,13 @@ private:
 	Common::Array<Common::Rect> _dirtyCur, _dirtyPrev;
 	bool _dirtyPresent = false;
 	int _framesSinceFullPresent = 0; // periodic full-present heal counter
+	// Sprite dirty rects, tracked at renderScene granularity (NOT present granularity): rolled
+	// cur->prev at the TOP of renderScene, so an intervening UI-only present (presentWithUi,
+	// no renderScene) cannot discard the previous sprite positions. dirtyUnion adds these, so
+	// a sprite that moves between two renderScene calls repaints the clean background it
+	// vacated even if several UI-only presents happened in between. Without this split, a
+	// mouse-move during an animation clobbered _dirtyPrev and left a shadow of old frames.
+	Common::Array<Common::Rect> _sceneDirtyCur, _sceneDirtyPrev;
 
 	// Temporary perf instrumentation: per-frame render vs present cost, averaged and
 	// logged every kPerfWindow frames so we target the real bottleneck instead of

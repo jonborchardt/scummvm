@@ -126,6 +126,15 @@ void RogerCompositor::renderScene(Graphics::ManagedSurface &dest, const Common::
 	const uint32 _perfT0 = g_system ? g_system->getMillis() : 0; // temp perf timing
 	const int W = dest.w, H = dest.h;
 
+	// Roll the sprite dirty set at renderScene (scene) granularity — NOT present granularity.
+	// A UI-only present (presentWithUi: cursor/dialog, no renderScene) must not discard these,
+	// or a sprite that moves across that present leaves a stale "shadow." presentToOverlay's
+	// dirtyUnion adds _sceneDirtyCur ∪ _sceneDirtyPrev, so the vacated position is repainted.
+	_sceneDirtyPrev.clear();
+	for (uint i = 0; i < _sceneDirtyCur.size(); i++)
+		_sceneDirtyPrev.push_back(_sceneDirtyCur[i]);
+	_sceneDirtyCur.clear();
+
 	// The picture (plate + sprites) is drawn into _pictureDest — the overlay-space
 	// rect the caller computed (via roger_coords::computeGameRect/computePictureRect)
 	// to coincide with the native game's on-screen PICTURE region, i.e. below the
@@ -225,7 +234,8 @@ void RogerCompositor::renderScene(Graphics::ManagedSurface &dest, const Common::
 			(int16)(picRect.top  + (int)s.celRect.top    * GH / PIC_H),
 			(int16)(picRect.left + (int)s.celRect.right  * GW / PIC_W),
 			(int16)(picRect.top  + (int)s.celRect.bottom * GH / PIC_H));
-		addDirtyRect(dst); // sprite changed this region (dirty-rect present)
+		if (!dst.isEmpty())
+			_sceneDirtyCur.push_back(dst); // sprite region (scene-granularity dirty; see header)
 		// Alpha-aware blit: respects each pixel's alpha so transparent non-black
 		// pixels (common in exported spritesheets) do not render opaque (halos).
 		dest.blendBlitFrom(*cel, Common::Rect(0, 0, cel->w, cel->h), dst,
@@ -305,6 +315,22 @@ void RogerCompositor::renderScene(Graphics::ManagedSurface &dest, const Common::
 		_renderMs = g_system->getMillis() - _perfT0; // temp perf timing
 }
 
+void RogerCompositor::dirtyUnion(const Common::Rect &bounds, Common::Array<Common::Rect> &out) const {
+	Common::Array<Common::Rect> raw;
+	for (uint i = 0; i < _dirtyCur.size(); i++) raw.push_back(_dirtyCur[i]);
+	for (uint i = 0; i < _dirtyPrev.size(); i++) raw.push_back(_dirtyPrev[i]);
+	for (uint i = 0; i < _sceneDirtyCur.size(); i++) raw.push_back(_sceneDirtyCur[i]);
+	for (uint i = 0; i < _sceneDirtyPrev.size(); i++) raw.push_back(_sceneDirtyPrev[i]);
+	coalesceDirtyRects(raw, bounds, out);
+}
+
+void RogerCompositor::rollPresentDirty() {
+	_dirtyPrev.clear();
+	for (uint i = 0; i < _dirtyCur.size(); i++)
+		_dirtyPrev.push_back(_dirtyCur[i]);
+	_dirtyCur.clear();
+}
+
 void RogerCompositor::presentToOverlay(Graphics::ManagedSurface &scene) {
 	// The scene is composited in RGBA32 (so the alpha-aware blendBlitFrom works -
 	// it only accepts an RGBA32 destination). The OSystem overlay, however, uses
@@ -321,6 +347,8 @@ void RogerCompositor::presentToOverlay(Graphics::ManagedSurface &scene) {
 	if (OW <= 0 || OH <= 0) {
 		_dirtyCur.clear();
 		_dirtyPrev.clear();
+		_sceneDirtyCur.clear();
+		_sceneDirtyPrev.clear();
 		return;
 	}
 	const uint32 _perfT0 = g_system->getMillis(); // temp perf timing
@@ -347,12 +375,10 @@ void RogerCompositor::presentToOverlay(Graphics::ManagedSurface &scene) {
 		push.push_back(r);
 		_framesSinceFullPresent = 0;
 	} else {
-		// Push only what changed this frame plus what changed last frame (so a moved
-		// sprite/cursor/closed-dialog repaints the clean background it vacated).
-		Common::Array<Common::Rect> raw;
-		for (uint i = 0; i < _dirtyCur.size(); i++) raw.push_back(_dirtyCur[i]);
-		for (uint i = 0; i < _dirtyPrev.size(); i++) raw.push_back(_dirtyPrev[i]);
-		coalesceDirtyRects(raw, fullRect, push);
+		// Push only what changed: this present's + last present's UI/cursor rects AND this
+		// renderScene's + last renderScene's sprite rects (so a moved sprite/cursor/closed
+		// dialog repaints the clean background it vacated). See dirtyUnion.
+		dirtyUnion(fullRect, push);
 		_framesSinceFullPresent++;
 	}
 
@@ -398,11 +424,9 @@ void RogerCompositor::presentToOverlay(Graphics::ManagedSurface &scene) {
 		}
 	}
 
-	// Roll this frame's dirty set into "previous" and clear for the next frame.
-	_dirtyPrev.clear();
-	for (uint i = 0; i < _dirtyCur.size(); i++)
-		_dirtyPrev.push_back(_dirtyCur[i]);
-	_dirtyCur.clear();
+	// Roll this present's UI/cursor dirty set into "previous" for the next present. (Sprite
+	// rects roll separately, in renderScene — see _sceneDirtyCur.)
+	rollPresentDirty();
 
 	g_system->showOverlay(false);
 
