@@ -57,16 +57,6 @@ public:
 		TS_ASSERT_EQUALS(fitFontIndex(fonts, "x", 100, 100), -1);
 	}
 
-	void test_strip_unrenderable_keeps_ascii_drops_glyphs() {
-		// Pure ASCII is unchanged (the normal score banner).
-		TS_ASSERT_EQUALS(stripUnrenderable(Common::String("Score: 42 of 999")),
-		                 Common::String("Score: 42 of 999"));
-		// High-bit / control glyphs (SCI's stylized chars) are dropped, not tofu'd.
-		Common::String withGlyph("Space Quest ");
-		withGlyph += (char)0x01; withGlyph += (char)0x02; withGlyph += (char)0x03;
-		TS_ASSERT_EQUALS(stripUnrenderable(withGlyph), Common::String("Space Quest "));
-	}
-
 	void test_edit_text_top_aligned_starts_near_top() {
 		// firstLineTop(top, boxH, lines, lineH, vAlignTop)
 		TS_ASSERT_EQUALS(firstLineTop(0, 100, 1, 20, /*top*/true), 0);

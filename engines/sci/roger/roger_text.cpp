@@ -52,16 +52,6 @@ int fitFontIndexByHeight(const Common::Array<const Graphics::Font *> &fonts, int
 	return best;
 }
 
-Common::String stripUnrenderable(const Common::String &s) {
-	Common::String out;
-	for (uint i = 0; i < s.size(); i++) {
-		const byte c = (byte)s[i];
-		if (c >= 0x20 && c < 0x7f)
-			out += (char)c;
-	}
-	return out;
-}
-
 int firstLineTop(int top, int boxH, int lineCount, int lineH, bool vAlignTop) {
 	if (vAlignTop)
 		return top;

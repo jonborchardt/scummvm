@@ -43,12 +43,6 @@ int fitFontIndex(const Common::Array<const Graphics::Font *> &fonts,
 // prompt and its input field render at one consistent size.
 int fitFontIndexByHeight(const Common::Array<const Graphics::Font *> &fonts, int maxH);
 
-// Keep only printable-ASCII characters (0x20..0x7e); drop the rest. The TTF UI
-// fonts lack SCI's stylized/high-bit glyphs (e.g. the "III" title glyph), which
-// would otherwise render as tofu boxes on the now-opaque status strip. A no-op for
-// ordinary ASCII text (the score banner). Pure: unit-testable.
-Common::String stripUnrenderable(const Common::String &s);
-
 // Y of the first text line inside a box. Centred vertically by default (matches
 // dialogs/buttons); when vAlignTop is set the text starts at the top of the box
 // (matches SCI's native top-aligned text-edit fields). Pure: unit-testable.

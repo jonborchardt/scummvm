@@ -749,7 +749,7 @@ void FileRogerArtProvider::uiPushStatus(const Common::Rect &r, const char *text,
 	// inline for non-ASCII bytes (e.g. SQ3's stylized "III"). No whole-native path.
 	Roger::UiElement e;
 	e.type = Roger::kUiText; e.nativeRect = r;
-	e.text = text ? text : "";              // full text, NOT stripUnrenderable
+	e.text = text ? text : "";              // full text; non-ASCII glyphs spliced from the game font
 	e.penColor = penColor; e.backColor = backColor; e.align = 0;
 	e.textRole = Roger::kRoleHeading;
 	e.useAltFont = true;
