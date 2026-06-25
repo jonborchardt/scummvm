@@ -132,6 +132,13 @@ private:
 	Graphics::Surface *_cursorSurf = nullptr;        // smooth hires arrow cursor (RGBA, owned)
 	void ensureCursor();                             // build _cursorSurf once
 	void compositeCursor(Graphics::ManagedSurface &scene, const Common::Rect &gameRect);
+	// Cursor-only fast redraw (composite cache). Holds scene+UI with no cursor baked in.
+	// Rebuilt on scene/UI change; patched in-place on cursor-only moves.
+	Graphics::ManagedSurface *_compositeCache = nullptr;  // scene+UI, no cursor
+	bool _compositeCacheValid = false;                     // cleared on scene/UI change; set after rebuild
+	Common::Rect _lastCursorDstRect;                       // overlay-space rect where cursor was last painted
+	Common::Point _cursorHotspot;                          // active-point offset within _cursorSurf (overlay px)
+	void ensureCompositeCache(int w, int h);
 	Common::Rect _lastGameRect;                      // gameRect used for the cached scene
 	void ensureUi();                                 // lazily build _uiLayer + _textRenderer
 	void presentWithUi();                            // compose _sceneCache + _uiLayer -> overlay

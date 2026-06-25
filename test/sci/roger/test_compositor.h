@@ -237,4 +237,35 @@ public:
 		TS_ASSERT(hasClip);
 		TS_ASSERT(hasMerge);
 	}
+
+	void test_cursor_only_dirty_covers_old_and_new_rects() {
+		// Simulates the cursor-only fast path: two addDirtyRect calls (old + new cursor pos).
+		// dirtyUnion must cover both rects and must NOT blow up to a full-surface rect.
+		Sci::Roger::RogerCompositor comp;
+		comp.setDirtyPresent(true);
+
+		const Common::Rect oldCursor(100, 200, 180, 280); // 80x80 cursor at (100,200)
+		const Common::Rect newCursor(120, 210, 200, 290); // moved 20px right, 10px down
+		const Common::Rect bounds(0, 0, 2862, 1986);
+
+		comp.addDirtyRect(oldCursor);
+		comp.addDirtyRect(newCursor);
+
+		Common::Array<Common::Rect> result;
+		comp.dirtyUnion(bounds, result);
+
+		TS_ASSERT(!result.empty());
+		bool coversOld = false, coversNew = false;
+		for (uint i = 0; i < result.size(); i++) {
+			if (result[i].contains(oldCursor)) coversOld = true;
+			if (result[i].contains(newCursor)) coversNew = true;
+		}
+		TS_ASSERT(coversOld);
+		TS_ASSERT(coversNew);
+		// Sanity: the dirty area must be much smaller than the full surface.
+		int totalArea = 0;
+		for (uint i = 0; i < result.size(); i++)
+			totalArea += result[i].width() * result[i].height();
+		TS_ASSERT_LESS_THAN(totalArea, bounds.width() * bounds.height() / 10);
+	}
 };

@@ -416,6 +416,10 @@ void FileRogerArtProvider::renderFrame(const Common::Array<Roger::Sprite> &sprit
 		g_system->getPaletteManager()->grabPalette(pal, 0, 256);
 		_compositor->renderUiLayer(scene, _uiLayer->elements(), pal, gameRect, _textRenderer, _altTextRenderer);
 	}
+	// Snapshot scene+UI (no cursor) — cursor-only onMouseMoved restores from here.
+	ensureCompositeCache(OW, OH);
+	_compositeCache->copyFrom(scene);
+	_compositeCacheValid = true;
 	compositeCursor(scene, gameRect);
 	_compositor->presentToOverlay(scene);
 
@@ -549,6 +553,7 @@ void FileRogerArtProvider::ensureCursor() {
 			_cursorSurf->setPixel(x, y, px);
 		}
 	}
+	_cursorHotspot = Common::Point(2, 2); // tip is 2px from top-left corner of the surface
 }
 
 void FileRogerArtProvider::compositeCursor(Graphics::ManagedSurface &scene,
@@ -566,10 +571,13 @@ void FileRogerArtProvider::compositeCursor(Graphics::ManagedSurface &scene,
 	const Common::Point mp = g_system->getEventManager()->getMousePos();
 	const int ox = gameRect.left + mp.x * gameRect.width() / 320;
 	const int oy = gameRect.top + mp.y * gameRect.height() / 200;
-	const Common::Rect dst(ox - 2, oy - 2, ox - 2 + _cursorSurf->w, oy - 2 + _cursorSurf->h);
+	const Common::Rect dst(ox - _cursorHotspot.x, oy - _cursorHotspot.y,
+	                       ox - _cursorHotspot.x + _cursorSurf->w,
+	                       oy - _cursorHotspot.y + _cursorSurf->h);
 	scene.blendBlitFrom(*_cursorSurf, Common::Rect(0, 0, _cursorSurf->w, _cursorSurf->h), dst);
 	if (_compositor)
 		_compositor->addDirtyRect(dst); // cursor moved here this frame (dirty-rect present)
+	_lastCursorDstRect = dst; // fast path uses this to restore the old cursor region
 }
 
 void FileRogerArtProvider::ensureUi() {
@@ -629,6 +637,15 @@ Graphics::ManagedSurface *FileRogerArtProvider::scratchScene(int w, int h) {
 	return _scratchScene;
 }
 
+void FileRogerArtProvider::ensureCompositeCache(int w, int h) {
+	const Graphics::PixelFormat rgba(4, 8, 8, 8, 8, 24, 16, 8, 0);
+	if (!_compositeCache || _compositeCache->w != w || _compositeCache->h != h) {
+		delete _compositeCache;
+		_compositeCache = new Graphics::ManagedSurface(w, h, rgba);
+		_compositeCacheValid = false;
+	}
+}
+
 void FileRogerArtProvider::presentWithUi() {
 	if (!_overlayActive || !_compositor || !_haveScene || !_sceneCache)
 		return;
@@ -650,6 +667,8 @@ void FileRogerArtProvider::presentWithUi() {
 		_sceneCache = resized;
 		const bool aspect = g_system->getFeatureState(OSystem::kFeatureAspectRatioCorrection);
 		_lastGameRect = Roger::computeGameRect(OW, OH, aspect);
+		_compositeCacheValid = false;
+		_lastCursorDstRect = Common::Rect(); // position was in old overlay space; invalid
 	}
 	Graphics::ManagedSurface &scene = *scratchScene(_sceneCache->w, _sceneCache->h);
 	scene.copyFrom(*_sceneCache); // fully overwrites the scratch buffer
@@ -671,6 +690,9 @@ void FileRogerArtProvider::presentWithUi() {
 		}
 		_compositor->renderUiLayer(scene, _uiLayer->elements(), pal, _lastGameRect, _textRenderer, _altTextRenderer);
 	}
+	ensureCompositeCache(OW, OH);
+	_compositeCache->copyFrom(scene);
+	_compositeCacheValid = true;
 	compositeCursor(scene, _lastGameRect);
 	_compositor->presentToOverlay(scene);
 
@@ -721,6 +743,7 @@ void FileRogerArtProvider::buildGlyphs(const char *text, int fontId, int penColo
 
 void FileRogerArtProvider::uiPushWindow(const Common::Rect &r, int backColor, int penColor,
                                         uint16 wndStyle, uint32 token) {
+	_compositeCacheValid = false;
 	if (!_overlayActive || !_plate) return; // no hires scene -> leave native UI visible
 	ensureUi();
 	Roger::UiElement e;
@@ -737,6 +760,7 @@ void FileRogerArtProvider::uiPushText(const Common::Rect &r, const char *text, i
                                       int backColor, int fontId, int align, uint32 token,
                                       int textRole, bool useAltFont,
                                       int nativeFontH, int nativeTextW) {
+	_compositeCacheValid = false;
 	if (!_overlayActive || !_plate) return;
 	ensureUi();
 	Roger::UiElement e;
@@ -753,6 +777,7 @@ void FileRogerArtProvider::uiPushText(const Common::Rect &r, const char *text, i
 void FileRogerArtProvider::uiPushButton(const Common::Rect &r, const char *text, int fontId,
                                         int style, uint32 token,
                                         int nativeFontH, int nativeTextW) {
+	_compositeCacheValid = false;
 	if (!_overlayActive || !_plate) return;
 	ensureUi();
 	Roger::UiElement e;
@@ -768,6 +793,7 @@ void FileRogerArtProvider::uiPushButton(const Common::Rect &r, const char *text,
 void FileRogerArtProvider::uiPushTextEdit(const Common::Rect &r, const char *text, int fontId,
                                           int style, int cursorPos, uint32 token,
                                           int nativeFontH, int nativeTextW) {
+	_compositeCacheValid = false;
 	if (!_overlayActive || !_plate) return;
 	ensureUi();
 	Roger::UiElement e;
@@ -784,6 +810,7 @@ void FileRogerArtProvider::uiPushTextEdit(const Common::Rect &r, const char *tex
 
 void FileRogerArtProvider::uiPushIcon(const Common::Rect &r, int viewId, int loopNo, int celNo,
                                       uint32 token) {
+	_compositeCacheValid = false;
 	if (!_overlayActive || !_plate) return;
 	ensureUi();
 	Roger::UiElement e;
@@ -819,6 +846,7 @@ void FileRogerArtProvider::onDrawCel(const Common::Rect &r, int viewId, int loop
 void FileRogerArtProvider::uiPushStatus(const Common::Rect &r, const char *text, int fontId,
                                         int penColor, int backColor, uint32 token,
                                         int nativeFontH, int nativeTextW) {
+	_compositeCacheValid = false;
 	// Remember the banner so it can be re-applied on room load / F10 enable, even if
 	// the overlay was not ready when the game first drew it.
 	_haveStatus = true; _statusRect = r; _statusText = text ? text : "";
@@ -858,11 +886,13 @@ void FileRogerArtProvider::reapplyStatus() {
 }
 
 void FileRogerArtProvider::uiClearToken(uint32 token) {
+	_compositeCacheValid = false;
 	if (_uiLayer) _uiLayer->clearToken(token);
 	if (_overlayActive && _plate) presentWithUi();
 }
 
 void FileRogerArtProvider::uiClearAll() {
+	_compositeCacheValid = false;
 	if (_uiLayer) _uiLayer->clearAll();
 	for (uint i = 0; i < _uiIcons.size(); i++) { _uiIcons[i]->free(); delete _uiIcons[i]; }
 	_uiIcons.clear();
@@ -1147,10 +1177,25 @@ void FileRogerArtProvider::onNativePicture() {
 
 void FileRogerArtProvider::onMouseMoved() {
 	if (_useHwCursor)
-		return; // the hardware cursor moves itself smoothly; no per-move recomposite
-	// Fallback path only: re-present the cached scene (+ any UI) so the composited
-	// cursor follows the pointer. Cheap when idle (a memcpy + overlay push); only
-	// fires when the mouse moved. presentWithUi no-ops if there is no scene/overlay.
+		return; // hardware cursor moves itself; no recomposite needed
+
+	// Fast path: composite cache is valid — patch _scratchScene in-place rather than
+	// doing a full 22 MB copyFrom(_sceneCache) + re-render UI on every mouse event.
+	if (_compositeCache && _compositeCacheValid && _scratchScene &&
+	        _compositor && _haveScene && !_lastGameRect.isEmpty()) {
+		// Restore the old cursor region from the cursor-free composite cache.
+		if (!_lastCursorDstRect.isEmpty()) {
+			_compositor->addDirtyRect(_lastCursorDstRect);
+			_scratchScene->blitFrom(*_compositeCache, _lastCursorDstRect, _lastCursorDstRect);
+		}
+		// Paint cursor at new position (updates _lastCursorDstRect, adds new dirty rect).
+		compositeCursor(*_scratchScene, _lastGameRect);
+		// Present only the changed regions (two small cursor-sized rects).
+		_compositor->presentToOverlay(*_scratchScene);
+		return;
+	}
+
+	// Slow fallback: full rebuild — handles first present, resize, or stale cache.
 	presentWithUi();
 }
 
@@ -1219,6 +1264,7 @@ FileRogerArtProvider::~FileRogerArtProvider() {
 	delete _altTextRenderer; _altTextRenderer = nullptr;
 	if (_sceneCache) { delete _sceneCache; _sceneCache = nullptr; }
 	if (_scratchScene) { delete _scratchScene; _scratchScene = nullptr; }
+	if (_compositeCache) { delete _compositeCache; _compositeCache = nullptr; }
 	if (_cursorSurf) { _cursorSurf->free(); delete _cursorSurf; _cursorSurf = nullptr; }
 	for (uint i = 0; i < _uiIcons.size(); i++) { _uiIcons[i]->free(); delete _uiIcons[i]; }
 	_uiIcons.clear();
