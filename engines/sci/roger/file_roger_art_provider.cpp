@@ -516,8 +516,8 @@ void FileRogerArtProvider::ensureUi() {
 		// roger_ui_font_scale: global size multiplier (percent) on the role type scale.
 		// 100 = the role's baseline cell height; larger = bigger text everywhere. Text
 		// word-wraps and is capped to each box, so a larger scale grows text (and wraps)
-		// rather than clipping. Default 150 (readable hires dialogs).
-		int scale = 150;
+		// rather than clipping. Default 100 (native-metric footprint).
+		int scale = 100;
 		if (ConfMan.hasKey("roger_ui_font_scale"))
 			scale = ConfMan.getInt("roger_ui_font_scale");
 		_textRenderer->setGlobalScale(scale);
@@ -535,7 +535,7 @@ void FileRogerArtProvider::ensureUi() {
 		sizes.push_back(96); sizes.push_back(120); sizes.push_back(160);
 		_altTextRenderer = new Roger::RogerTextRenderer(headerTtf, sizes);
 		// Same global size multiplier so headings scale with the body text.
-		int scale = 150;
+		int scale = 100;
 		if (ConfMan.hasKey("roger_ui_font_scale"))
 			scale = ConfMan.getInt("roger_ui_font_scale");
 		_altTextRenderer->setGlobalScale(scale);
