@@ -19,6 +19,8 @@
  */
 
 #include "sci/roger/roger_effects.h"
+#include "graphics/surface.h"
+#include "common/util.h"
 
 namespace Sci {
 namespace Roger {
@@ -49,6 +51,56 @@ int defaultDurationMs(TransitionFamily f) {
 	case kFxWipe:     return 300;
 	case kFxScroll:   return 300;
 	default:          return 0;
+	}
+}
+
+static bool sameRGBA(const Graphics::Surface &a, const Graphics::Surface &b) {
+	return a.w == b.w && a.h == b.h && a.format.bytesPerPixel == 4 &&
+	       b.format.bytesPerPixel == 4;
+}
+
+// Scale an RGBA32 surface's RGB by factor k (0..1) into out (same dims/format).
+static void scaleRGB(const Graphics::Surface &src, Graphics::Surface &out, float k) {
+	for (int y = 0; y < src.h; y++) {
+		for (int x = 0; x < src.w; x++) {
+			uint8 a, r, g, b;
+			src.format.colorToARGB(src.getPixel(x, y), a, r, g, b);
+			r = (uint8)CLIP((int)(r * k + 0.5f), 0, 255);
+			g = (uint8)CLIP((int)(g * k + 0.5f), 0, 255);
+			b = (uint8)CLIP((int)(b * k + 0.5f), 0, 255);
+			out.setPixel(x, y, out.format.ARGBToColor(255, r, g, b));
+		}
+	}
+}
+
+void blendFadeThroughBlack(const Graphics::Surface &from, const Graphics::Surface &to,
+                           Graphics::Surface &out, float t) {
+	if (!sameRGBA(from, to) || !sameRGBA(from, out))
+		return;
+	t = CLIP(t, 0.0f, 1.0f);
+	if (t < 0.5f)
+		scaleRGB(from, out, 1.0f - t * 2.0f);   // from -> black
+	else
+		scaleRGB(to, out, (t - 0.5f) * 2.0f);    // black -> to
+}
+
+// 4x4 ordered (Bayer) matrix, values 0..15 -> thresholds 0..1.
+static const int kBayer4[16] = { 0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5 };
+
+void blendDissolve(const Graphics::Surface &from, const Graphics::Surface &to,
+                   Graphics::Surface &out, float t, int blockPx) {
+	if (!sameRGBA(from, to) || !sameRGBA(from, out))
+		return;
+	if (blockPx < 1) blockPx = 1;
+	t = CLIP(t, 0.0f, 1.0f);
+	for (int y = 0; y < from.h; y++) {
+		for (int x = 0; x < from.w; x++) {
+			const int bx = (x / blockPx) & 3;
+			const int by = (y / blockPx) & 3;
+			const float threshold = (kBayer4[by * 4 + bx] + 0.5f) / 16.0f;
+			const Graphics::Surface &src = (t >= threshold) ? to : from;
+			out.setPixel(x, y, src.getPixel(x, y));
+		}
 	}
 }
 

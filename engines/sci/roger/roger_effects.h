@@ -21,6 +21,8 @@
 #ifndef SCI_ROGER_ROGER_EFFECTS_H
 #define SCI_ROGER_ROGER_EFFECTS_H
 
+#include "graphics/surface.h"
+
 namespace Sci {
 namespace Roger {
 
@@ -36,6 +38,17 @@ TransitionFamily effectiveFamily(TransitionFamily f);
 
 // Default per-family effect duration in milliseconds (tuned from SCI's timing).
 int defaultDurationMs(TransitionFamily f);
+
+// Blend functions: cross-fade two RGBA32 surfaces.
+// All three surfaces must share dimensions and RGBA32 format; no-op on mismatch.
+
+// Fade through black: t<0.5 fades from->black, t>=0.5 black->to.
+void blendFadeThroughBlack(const Graphics::Surface &from, const Graphics::Surface &to,
+                           Graphics::Surface &out, float t);
+
+// Ordered (Bayer) dissolve: each blockPx×blockPx cell shows 'to' once threshold ≤ t, else 'from'.
+void blendDissolve(const Graphics::Surface &from, const Graphics::Surface &to,
+                   Graphics::Surface &out, float t, int blockPx);
 
 } // namespace Roger
 } // namespace Sci
