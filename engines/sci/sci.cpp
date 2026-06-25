@@ -69,6 +69,7 @@
 #include "sci/graphics/text16.h"
 #include "sci/graphics/transitions.h"
 #include "sci/roger/file_roger_art_provider.h"
+#include "sci/roger/roger_launcher.h"
 
 #ifdef ENABLE_SCI32
 #include "sci/graphics/controls32.h"
@@ -408,6 +409,12 @@ Common::Error SciEngine::run() {
 	// entry is all cache hits. No-op unless roger_precache is set and a generating
 	// roger_gen_mode is active.
 	g_sciRogerProvider->precacheAll();
+
+	if (!ConfMan.hasKey("roger_no_launcher") || !ConfMan.getBool("roger_no_launcher")) {
+		Roger::RogerLauncher launcher(g_sciRogerProvider);
+		if (!launcher.run())
+			return Common::kNoError; // game-switch pushed; ScummVM restarts engine
+	}
 
 	// Sound must be initialized after graphics because SysEx transfers at the
 	// start of the game must pump the event loop to avoid making the OS think

@@ -118,6 +118,8 @@ MODULE_OBJS += \
 	roger/roger_scale.o \
 	roger/roger_text.o \
 	roger/roger_ui_layer.o \
+	roger/roger_launcher.o \
+	roger/roger_launcher_dialog.o \
 	roger/file_roger_art_provider.o \
 	roger/png_loader.o \
 	roger/slice_set.o \
