@@ -45,7 +45,7 @@ class RogerCompositor {
 public:
 	RogerCompositor() : _plate(nullptr), _views(nullptr),
 		_picW(320), _picH(190), _priority(nullptr), _priorityW(0), _priorityH(0), _picScreenTop(0),
-		_bgCache(nullptr), _bgPlate(nullptr) {}
+		_bgCache(nullptr), _bgPlate(nullptr), _overlayConv(nullptr) {}
 	~RogerCompositor();
 
 	// Borrowed pointers; lifetime managed by the caller (the provider).
@@ -111,6 +111,9 @@ private:
 	// cursor — is inside gameRect, so the static black letterbox needn't be re-converted
 	// and re-pushed every frame).
 	bool _bgRebuilt = false;
+	// Persistent overlay-format buffer for presentToOverlay's RGBA32->overlay conversion,
+	// so we don't allocate+free a full-overlay surface every frame (convertTo did).
+	Graphics::Surface *_overlayConv;
 
 	// Temporary perf instrumentation: per-frame render vs present cost, averaged and
 	// logged every kPerfWindow frames so we target the real bottleneck instead of

@@ -35,6 +35,35 @@ RogerCompositor::~RogerCompositor() {
 		_bgCache->free();
 		delete _bgCache;
 	}
+	if (_overlayConv) {
+		_overlayConv->free();
+		delete _overlayConv;
+	}
+}
+
+// Tight 32bpp -> 32bpp channel shuffle (both 4 bytes/pixel, 8-bit channels). Extracts
+// each channel by the source PixelFormat's shift and repacks by the destination's, so
+// colours are correct by construction. Used instead of Surface::convertTo for the
+// per-frame overlay conversion: convertTo allocates+frees a full-overlay surface every
+// frame (~21 MB at this resolution), which dominated present cost. This writes into a
+// persistent buffer in a flat loop — no allocation, no per-pixel function calls.
+static void convert32(byte *dstP, const byte *srcP, int dstPitch, int srcPitch,
+                      int w, int h, const Graphics::PixelFormat &df, const Graphics::PixelFormat &sf) {
+	const int sR = sf.rShift, sG = sf.gShift, sB = sf.bShift, sA = sf.aShift;
+	const int dR = df.rShift, dG = df.gShift, dB = df.bShift, dA = df.aShift;
+	const bool srcHasA = sf.aBits() != 0;
+	const bool dstHasA = df.aBits() != 0;
+	for (int y = 0; y < h; y++) {
+		const uint32 *src = (const uint32 *)(srcP + (uint)y * srcPitch);
+		uint32 *dst = (uint32 *)(dstP + (uint)y * dstPitch);
+		for (int x = 0; x < w; x++) {
+			const uint32 p = src[x];
+			uint32 o = (((p >> sR) & 0xFF) << dR) | (((p >> sG) & 0xFF) << dG) | (((p >> sB) & 0xFF) << dB);
+			if (dstHasA)
+				o |= (srcHasA ? ((p >> sA) & 0xFF) : 0xFFu) << dA;
+			dst[x] = o;
+		}
+	}
 }
 
 // Roger UI type scale: target on-screen cell heights expressed in native 320x200
@@ -285,11 +314,33 @@ void RogerCompositor::presentToOverlay(Graphics::ManagedSurface &scene) {
 	if (fastPath) {
 		g_system->copyRectToOverlay(s->getBasePtr(region.left, region.top), s->pitch,
 		                            region.left, region.top, region.width(), region.height());
+	} else if (s->format.bytesPerPixel == 4 && overlayFmt.bytesPerPixel == 4) {
+		// Fast path: allocation-free 32->32 channel shuffle into a persistent buffer,
+		// then push only the region. (convertTo allocated/freed a full-overlay surface
+		// every frame — the bulk of present cost at this resolution.)
+		const uint32 tc = g_system->getMillis();
+		if (!_overlayConv || _overlayConv->w != s->w || _overlayConv->h != s->h ||
+		    _overlayConv->format != overlayFmt) {
+			if (_overlayConv) { _overlayConv->free(); delete _overlayConv; }
+			_overlayConv = new Graphics::Surface();
+			_overlayConv->create((uint16)s->w, (uint16)s->h, overlayFmt);
+		}
+		if (_overlayConv->getPixels()) {
+			convert32((byte *)_overlayConv->getBasePtr(region.left, region.top),
+			          (const byte *)s->getBasePtr(region.left, region.top),
+			          _overlayConv->pitch, s->pitch, region.width(), region.height(),
+			          overlayFmt, s->format);
+			convMs = g_system->getMillis() - tc;
+			g_system->copyRectToOverlay(_overlayConv->getBasePtr(region.left, region.top),
+			                            _overlayConv->pitch, region.left, region.top,
+			                            region.width(), region.height());
+		}
 	} else {
+		// Fallback for non-32bpp overlays (e.g. RGB565): generic convertTo.
 		const uint32 tc = g_system->getMillis();
 		Graphics::Surface sub = scene.surfacePtr()->getSubArea(region); // view, no copy
 		Graphics::Surface *conv = sub.convertTo(overlayFmt);
-		convMs = g_system->getMillis() - tc; // temp perf: convert cost only
+		convMs = g_system->getMillis() - tc;
 		if (conv) {
 			g_system->copyRectToOverlay(conv->getPixels(), conv->pitch,
 			                            region.left, region.top, region.width(), region.height());
