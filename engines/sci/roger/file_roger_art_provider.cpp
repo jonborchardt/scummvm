@@ -502,9 +502,11 @@ void FileRogerArtProvider::ensureUi() {
 	if (!_uiLayer)
 		_uiLayer = new Roger::RogerUiLayer();
 	if (!_textRenderer) {
-		// Default to a TTF that actually ships in ScummVM's fonts.dat (FreeSans was
-		// replaced by the Liberation family). Override with roger_ui_font.
-		Common::String ttf = "LiberationSans-Regular.ttf";
+		// Default to a monospace TTF that ships in ScummVM's fonts.dat: the fixed-width
+		// DOS/terminal look matches SCI0's native bitmap font far better than a
+		// proportional sans (judged in-game via the Ctrl+Shift+F cycle). Override with
+		// roger_ui_font; per-game targets can each set their own.
+		Common::String ttf = "GoMono-Regular.ttf";
 		if (ConfMan.hasKey("roger_ui_font"))
 			ttf = ConfMan.get("roger_ui_font");
 		// A ladder of pixel sizes for fit-to-box selection (cell mode, hires).
@@ -917,10 +919,10 @@ void FileRogerArtProvider::toggleDebugLog() {
 // font stays config-only (roger_ui_header_font). See docs/roger.md.
 static const char *const kBodyFontShortlist[] = {
 	"ms_sans_serif.ttf",            // clean Win9x UI sans (period feel)
-	"LiberationSans-Regular.ttf",   // neutral sans (current default)
+	"LiberationSans-Regular.ttf",   // neutral sans
 	"NotoSans-Regular.ttf",         // neutral sans
 	"LiberationSerif-Regular.ttf",  // storybook / manual feel
-	"GoMono-Regular.ttf",           // DOS/terminal monospace
+	"GoMono-Regular.ttf",           // DOS/terminal monospace (current default)
 	"LiberationMono-Regular.ttf",   // DOS/terminal monospace (Courier-metric)
 	"SourceCodeVariable-Roman.ttf", // monospace
 };
