@@ -92,6 +92,15 @@ public:
 	// into the overlay at globalRect (320x200 space); otherwise no-op (native shows).
 	virtual void onDrawCel(const Common::Rect &globalRect, int viewId, int loopNo, int celNo) {}
 
+	// Called from GfxTransitions::doit() when a room transition is about to run (gated on
+	// g_sciRogerProvider + enabled). The provider mirrors the effect in the overlay; SCI's
+	// native transition is then finalized instantly (invisible under the opaque overlay).
+	// sciType is the transitions.h enum value; picRect is the 320x200 picture rect.
+	virtual void onTransition(int sciType, const Common::Rect &picRect) {}
+	// Called from kShakeScreen (gated). shakeCount jolts; directions bit0=vertical,
+	// bit1=horizontal. The provider jolts the overlay; native shake is skipped.
+	virtual void onShake(int shakeCount, int directions) {}
+
 	// UI display-list capture (Roger hires dialogs). SCI's high-level UI draw calls
 	// push resolution-independent elements (global 320x200 rects) here; the provider
 	// composites them over the cached hires scene. All default to no-op so the base
