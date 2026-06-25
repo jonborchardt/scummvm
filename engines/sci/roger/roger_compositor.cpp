@@ -123,7 +123,6 @@ void RogerCompositor::setPriorityMask(const byte *priority, int priW, int priH) 
 
 void RogerCompositor::renderScene(Graphics::ManagedSurface &dest, const Common::Array<Sprite> &sprites,
                                   const Common::Rect &gameRect) {
-	const uint32 _perfT0 = g_system ? g_system->getMillis() : 0; // temp perf timing
 	const int W = dest.w, H = dest.h;
 
 	// Roll the sprite dirty set at renderScene (scene) granularity — NOT present granularity.
@@ -310,9 +309,6 @@ void RogerCompositor::renderScene(Graphics::ManagedSurface &dest, const Common::
 			}
 		}
 	}
-
-	if (g_system)
-		_renderMs = g_system->getMillis() - _perfT0; // temp perf timing
 }
 
 void RogerCompositor::dirtyUnion(const Common::Rect &bounds, Common::Array<Common::Rect> &out) const {
@@ -351,10 +347,6 @@ void RogerCompositor::presentToOverlay(Graphics::ManagedSurface &scene) {
 		_sceneDirtyPrev.clear();
 		return;
 	}
-	const uint32 _perfT0 = g_system->getMillis(); // temp perf timing
-
-	uint32 convMs = 0;
-
 	const Common::Rect fullRect(0, 0, (int16)(s->w < OW ? s->w : OW), (int16)(s->h < OH ? s->h : OH));
 
 	// Decide the regions to push this frame.
@@ -400,21 +392,17 @@ void RogerCompositor::presentToOverlay(Graphics::ManagedSurface &scene) {
 				_overlayConv->create((uint16)s->w, (uint16)s->h, overlayFmt);
 			}
 			if (_overlayConv->getPixels()) {
-				const uint32 tc = g_system->getMillis();
 				convert32((byte *)_overlayConv->getBasePtr(region.left, region.top),
 				          (const byte *)s->getBasePtr(region.left, region.top),
 				          _overlayConv->pitch, s->pitch, region.width(), region.height(),
 				          overlayFmt, s->format);
-				convMs += g_system->getMillis() - tc;
 				g_system->copyRectToOverlay(_overlayConv->getBasePtr(region.left, region.top),
 				                            _overlayConv->pitch, region.left, region.top,
 				                            region.width(), region.height());
 			}
 		} else {
-			const uint32 tc = g_system->getMillis();
 			Graphics::Surface sub = scene.surfacePtr()->getSubArea(region);
 			Graphics::Surface *conv = sub.convertTo(overlayFmt);
-			convMs += g_system->getMillis() - tc;
 			if (conv) {
 				g_system->copyRectToOverlay(conv->getPixels(), conv->pitch,
 				                            region.left, region.top, region.width(), region.height());
@@ -429,23 +417,6 @@ void RogerCompositor::presentToOverlay(Graphics::ManagedSurface &scene) {
 	rollPresentDirty();
 
 	g_system->showOverlay(false);
-
-	// Temp perf instrumentation: average renderScene vs present, split into convert vs
-	// push, plus overlay geometry/format, so we target the real per-frame bottleneck.
-	const int kPerfWindow = 240;
-	const uint32 presentMs = g_system->getMillis() - _perfT0;
-	_accRenderMs += _renderMs;
-	_accPresentMs += presentMs;
-	_accConvertMs += convMs;
-	_accPushMs += (presentMs - convMs); // copyRectToOverlay + showOverlay + setup
-	if (++_perfFrames >= kPerfWindow) {
-		warning("ROGER perf (%d-frame avg): render %.2f / present %.2f ms [convert %.2f, push %.2f]  overlay %dx%d bpp%d regions=%d",
-		        kPerfWindow, (double)_accRenderMs / kPerfWindow, (double)_accPresentMs / kPerfWindow,
-		        (double)_accConvertMs / kPerfWindow, (double)_accPushMs / kPerfWindow,
-		        OW, OH, overlayFmt.bytesPerPixel, (int)push.size());
-		_accRenderMs = _accPresentMs = _accConvertMs = _accPushMs = 0;
-		_perfFrames = 0;
-	}
 }
 
 void RogerCompositor::renderUiLayer(Graphics::ManagedSurface &dest,

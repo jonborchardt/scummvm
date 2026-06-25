@@ -159,13 +159,6 @@ private:
 	// vacated even if several UI-only presents happened in between. Without this split, a
 	// mouse-move during an animation clobbered _dirtyPrev and left a shadow of old frames.
 	Common::Array<Common::Rect> _sceneDirtyCur, _sceneDirtyPrev;
-
-	// Temporary perf instrumentation: per-frame render vs present cost, averaged and
-	// logged every kPerfWindow frames so we target the real bottleneck instead of
-	// guessing. Remove once tuning is done.
-	uint32 _renderMs = 0, _accRenderMs = 0, _accPresentMs = 0;
-	uint32 _accConvertMs = 0, _accPushMs = 0;
-	int _perfFrames = 0;
 };
 
 } // namespace Roger
