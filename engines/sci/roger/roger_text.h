@@ -43,6 +43,20 @@ int fitFontIndex(const Common::Array<const Graphics::Font *> &fonts,
 // prompt and its input field render at one consistent size.
 int fitFontIndexByHeight(const Common::Array<const Graphics::Font *> &fonts, int maxH);
 
+// Index of the largest font (ascending) whose cell height <= maxH AND whose
+// rendering of `text` is no wider than maxW. maxW <= 0 => width unbounded. 0 if
+// none fit (smallest); -1 if fonts is empty. Pure: unit-testable. This drives the
+// native-metric type scale: maxH comes from the SCI font's cell height (scaled to
+// the overlay) and maxW from the native string width, so the crisp text lands in
+// the same footprint the original occupied.
+int fitFontIndexByHeightAndWidth(const Common::Array<const Graphics::Font *> &fonts,
+                                 const Common::String &text, int maxH, int maxW);
+
+// Target on-screen cell height in dest pixels for a native cell height: scale the
+// native (320x200) height by the overlay game-area height, then by the user's
+// global percent. Returns 0 when nativeFontH <= 0 (caller falls back). Pure.
+int rogerTargetPx(int nativeFontH, int overlayH, int globalScalePct);
+
 // Y of the first text line inside a box. Centred vertically by default (matches
 // dialogs/buttons); when vAlignTop is set the text starts at the top of the box
 // (matches SCI's native top-aligned text-edit fields). Pure: unit-testable.

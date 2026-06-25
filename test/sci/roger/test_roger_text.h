@@ -64,4 +64,43 @@ public:
 		// Block taller than the box clamps to the top in either mode.
 		TS_ASSERT_EQUALS(firstLineTop(10, 20, 3, 20, /*centre*/false), 10);
 	}
+
+	void test_fit_by_height_and_width_respects_both_caps() {
+		const Graphics::Font *small = FontMan.getFontByUsage(Graphics::FontManager::kGUIFont);
+		const Graphics::Font *big   = FontMan.getFontByUsage(Graphics::FontManager::kBigGUIFont);
+		TS_ASSERT(small != nullptr);
+		TS_ASSERT(big != nullptr);
+		Common::Array<const Graphics::Font *> fonts;
+		fonts.push_back(small);
+		fonts.push_back(big);
+
+		// Tall + wide enough for the big font -> index 1.
+		int tallH = big->getFontHeight() + 10;
+		int wideW = big->getStringWidth("OK") + 50;
+		TS_ASSERT_EQUALS(fitFontIndexByHeightAndWidth(fonts, "OK", tallH, wideW), 1);
+
+		// Height OK but width too narrow for the big font -> falls back to small (0).
+		int narrowW = small->getStringWidth("OK"); // big is at least as wide
+		TS_ASSERT_EQUALS(fitFontIndexByHeightAndWidth(fonts, "OK", tallH, narrowW), 0);
+
+		// maxW <= 0 means width unbounded -> height alone decides (big fits) -> 1.
+		TS_ASSERT_EQUALS(fitFontIndexByHeightAndWidth(fonts, "OK", tallH, 0), 1);
+
+		// Nothing fits a 1px-tall box -> smallest (0), never -1 here.
+		TS_ASSERT_EQUALS(fitFontIndexByHeightAndWidth(fonts, "OK", 1, wideW), 0);
+	}
+
+	void test_fit_by_height_and_width_empty_is_minus_one() {
+		Common::Array<const Graphics::Font *> fonts;
+		TS_ASSERT_EQUALS(fitFontIndexByHeightAndWidth(fonts, "x", 100, 100), -1);
+	}
+
+	void test_roger_target_px_scales_native_height_by_overlay_and_user_pct() {
+		// 9px native font, overlay game-area height 2000 (10x of 200), 100% user scale -> 90.
+		TS_ASSERT_EQUALS(rogerTargetPx(9, 2000, 100), 90);
+		// 150% user scale -> 135.
+		TS_ASSERT_EQUALS(rogerTargetPx(9, 2000, 150), 135);
+		// Unknown native height -> 0 (caller falls back to role/box).
+		TS_ASSERT_EQUALS(rogerTargetPx(0, 2000, 100), 0);
+	}
 };

@@ -52,6 +52,30 @@ int fitFontIndexByHeight(const Common::Array<const Graphics::Font *> &fonts, int
 	return best;
 }
 
+int fitFontIndexByHeightAndWidth(const Common::Array<const Graphics::Font *> &fonts,
+                                 const Common::String &text, int maxH, int maxW) {
+	if (fonts.empty())
+		return -1;
+	int best = 0;
+	for (uint i = 0; i < fonts.size(); i++) {
+		if (fonts[i]->getFontHeight() > maxH)
+			continue;
+		if (maxW > 0 && fonts[i]->getStringWidth(text) > maxW)
+			continue;
+		best = (int)i; // ascending -> last fitting is largest
+	}
+	return best;
+}
+
+int rogerTargetPx(int nativeFontH, int overlayH, int globalScalePct) {
+	if (nativeFontH <= 0 || overlayH <= 0)
+		return 0;
+	if (globalScalePct <= 0)
+		globalScalePct = 100;
+	int px = nativeFontH * overlayH / 200 * globalScalePct / 100;
+	return px < 1 ? 1 : px;
+}
+
 int firstLineTop(int top, int boxH, int lineCount, int lineH, bool vAlignTop) {
 	if (vAlignTop)
 		return top;
