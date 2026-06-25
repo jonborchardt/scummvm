@@ -252,6 +252,11 @@ void FileRogerArtProvider::pushHiresBackground(GuiResourceId pictureId) {
 	}
 	if (!_compositor)
 		_compositor = new Roger::RogerCompositor();
+	// roger_dirty_present (default on): convert+push only changed regions each frame.
+	bool dirtyPresent = true;
+	if (ConfMan.hasKey("roger_dirty_present"))
+		dirtyPresent = ConfMan.getBool("roger_dirty_present");
+	_compositor->setDirtyPresent(dirtyPresent);
 	_compositor->setRoom(_plate, _viewCache);
 
 	// Derive the per-pixel overlay occlusion in-engine from the omyac-enhanced HIRES
@@ -489,6 +494,8 @@ void FileRogerArtProvider::compositeCursor(Graphics::ManagedSurface &scene,
 	const int oy = gameRect.top + mp.y * gameRect.height() / 200;
 	const Common::Rect dst(ox - 2, oy - 2, ox - 2 + _cursorSurf->w, oy - 2 + _cursorSurf->h);
 	scene.blendBlitFrom(*_cursorSurf, Common::Rect(0, 0, _cursorSurf->w, _cursorSurf->h), dst);
+	if (_compositor)
+		_compositor->addDirtyRect(dst); // cursor moved here this frame (dirty-rect present)
 }
 
 void FileRogerArtProvider::ensureUi() {
