@@ -21,6 +21,7 @@
 #include "sci/roger/file_roger_art_provider.h"
 #include "sci/roger/png_loader.h"
 #include "sci/roger/roger_asset_gen.h"
+#include "sci/roger/roger_palette_remap.h"
 #include "sci/roger/roger_compositor.h"
 #include "sci/roger/roger_coords.h"
 #include "sci/roger/roger_omyac.h"
@@ -94,6 +95,11 @@ FileRogerArtProvider::FileRogerArtProvider(const Common::String &gameId,
 	// roger_transitions: mirror SCI room transitions + shake in the overlay (default on).
 	if (ConfMan.hasKey("roger_transitions"))
 		_transitionsEnabled = ConfMan.getBool("roger_transitions");
+
+	// roger_palette_live: mirror live EGA palette changes (fades, flashes) into the
+	// overlay plate via per-frame palette diff + partial/full re-blend (default on).
+	if (ConfMan.hasKey("roger_palette_live"))
+		_paletteLive = ConfMan.getBool("roger_palette_live");
 
 	// roger_gen_mode: controls on-the-fly art generation. Default "cache" =>
 	// generate on a miss, load from the content cache on a hit (in-engine generation
@@ -234,7 +240,8 @@ void FileRogerArtProvider::pushHiresBackground(GuiResourceId pictureId) {
 	const char *plateSrc = "none";
 	uint32 tAcq0 = g_system->getMillis();
 	if (_assetGen && _assetGen->mode() != Roger::kGenPrebuilt) {
-		_plate = _assetGen->generatePlate(pictureId, genMs);
+		_plateIndex.clear();
+		_plate = _assetGen->generatePlateWithIndex(pictureId, _plateIndex, genMs);
 		if (_plate)
 			plateSrc = genMs ? "generated(miss)" : "cache-hit";
 	}
@@ -286,6 +293,12 @@ void FileRogerArtProvider::pushHiresBackground(GuiResourceId pictureId) {
 		_compositor->setPriorityMask(nullptr, 0, 0); // no bands -> sprites draw without occlusion
 	_loadedPicId = pictureId;
 
+	// Snapshot the room-load EGA palette for live re-apply. The first 16 OSystem palette
+	// entries are the EGA base colors in SCI0 (GfxPalette16::setEGA fills them at indices
+	// 0..15). grabPalette(buf, start, count) fills count*3 RGB bytes.
+	g_system->getPaletteManager()->grabPalette(_palSnapshot, 0, 16); // 16 colors = 48 bytes
+	_haveSnapshot = true;
+
 	// Re-push the cached score/title banner into the UI layer so it is enhanced again
 	// after the room change (the game only redraws status on score/text change). The
 	// present is deferred to the first kAnimate frame (presentWithUi no-ops until the
@@ -304,9 +317,60 @@ void FileRogerArtProvider::pushHiresBackground(GuiResourceId pictureId) {
 	}
 }
 
+void FileRogerArtProvider::observeLivePalette() {
+	if (!_paletteLive || _plateIndex.empty() || !_haveSnapshot || !_plate)
+		return;
+	byte live[48];
+	g_system->getPaletteManager()->grabPalette(live, 0, 16);
+	bool changed[16];
+	const int n = Roger::paletteDiffMask(_palSnapshot, live, changed);
+	if (n == 0)
+		return; // common case: zero extra present cost
+
+	uint32 table[256];
+	Roger::buildLivePaletteTable(_palSnapshot, live, table);
+
+	const int kPartialMax = 4;
+	if (n <= kPartialMax) {
+		// Partial: re-blend only changed-index pixels, mark just that region dirty.
+		Common::Rect plateDirty;
+		Roger::reblendChangedPixels(_plateIndex.begin(), Roger::OMYAC_HYBRID_W, Roger::OMYAC_HYBRID_H,
+		                            table, changed, *_plate, plateDirty);
+		if (!plateDirty.isEmpty()) {
+			// Map plate-space bbox -> dest/overlay space (same scale renderScene uses).
+			const bool aspect = g_system->getFeatureState(OSystem::kFeatureAspectRatioCorrection);
+			const int OW = g_system->getOverlayWidth(), OH = g_system->getOverlayHeight();
+			const Common::Rect gameRect = Roger::computeGameRect(OW, OH, aspect);
+			const Common::Rect picRect = Roger::computePictureRect(gameRect, _statusBarH);
+			const int pw = Roger::OMYAC_HYBRID_W, ph = Roger::OMYAC_HYBRID_H;
+			Common::Rect d(
+				(int16)(picRect.left + plateDirty.left   * picRect.width()  / pw),
+				(int16)(picRect.top  + plateDirty.top    * picRect.height() / ph),
+				(int16)(picRect.left + plateDirty.right  * picRect.width()  / pw + 1),
+				(int16)(picRect.top  + plateDirty.bottom * picRect.height() / ph + 1));
+			_compositor->addDirtyRect(d);
+		}
+		for (int i = 0; i < 48; i++) _palSnapshot[i] = live[i];
+		return;
+	}
+
+	// Whole-palette change (fade/flash/day-night): throttle, full re-blend, full present.
+	const uint32 now = g_system->getMillis();
+	if (now - _lastPaletteCheckMs < 16)
+		return; // bound to ~60Hz worst case; the static plate shows the prior color meanwhile
+	bool all[16]; for (int i = 0; i < 16; i++) all[i] = true;
+	Common::Rect whole;
+	Roger::reblendChangedPixels(_plateIndex.begin(), Roger::OMYAC_HYBRID_W, Roger::OMYAC_HYBRID_H,
+	                            table, all, *_plate, whole);
+	_compositor->forceFullPresentNext();
+	for (int i = 0; i < 48; i++) _palSnapshot[i] = live[i];
+	_lastPaletteCheckMs = now;
+}
+
 void FileRogerArtProvider::renderFrame(const Common::Array<Roger::Sprite> &sprites) {
 	if (!_overlayActive || !_compositor || !_plate)
 		return;
+	observeLivePalette();
 	// Composite in RGBA32 so the alpha-aware blendBlitFrom (used for view cels) works
 	// - it requires an RGBA32 destination. presentToOverlay converts the finished
 	// scene to the actual overlay format before pushing it.

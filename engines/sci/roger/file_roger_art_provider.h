@@ -119,6 +119,15 @@ private:
 	Common::Array<Graphics::Surface *> _uiIcons;     // owned native-cel surfaces for kUiIcon
 	bool _haveScene = false;                         // _sceneCache valid this room
 	bool _transitionsEnabled = true;                 // roger_transitions knob (default on)
+	bool _paletteLive = true;                        // roger_palette_live knob (default on)
+	Common::Array<byte> _plateIndex;                 // current room's omyac doubled-nibble index map (or empty)
+	byte _palSnapshot[48];                           // room-load EGA palette (16 RGB triples)
+	bool _haveSnapshot = false;
+	uint32 _lastPaletteCheckMs = 0;                  // whole-palette re-apply throttle
+	// Per-frame: diff live palette vs snapshot; partial change -> re-blend changed regions
+	// (dirty present), whole change -> throttled full re-blend + full present. No-op if
+	// roger_palette_live is off or no index map is resident.
+	void observeLivePalette();
 	Graphics::Surface *_cursorSurf = nullptr;        // smooth hires arrow cursor (RGBA, owned)
 	void ensureCursor();                             // build _cursorSurf once
 	void compositeCursor(Graphics::ManagedSurface &scene, const Common::Rect &gameRect);
