@@ -116,6 +116,7 @@ private:
 	// logged every kPerfWindow frames so we target the real bottleneck instead of
 	// guessing. Remove once tuning is done.
 	uint32 _renderMs = 0, _accRenderMs = 0, _accPresentMs = 0;
+	uint32 _accConvertMs = 0, _accPushMs = 0;
 	int _perfFrames = 0;
 };
 

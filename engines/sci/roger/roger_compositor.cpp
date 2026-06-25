@@ -102,7 +102,17 @@ void RogerCompositor::renderScene(Graphics::ManagedSurface &dest, const Common::
 	                     _bgCache->w == W && _bgCache->h == H && _bgCache->format == fmt &&
 	                     _bgPicRect == picRect && _bgGameRect == gameRect;
 	if (bgValid) {
-		dest.copyFrom(*_bgCache); // memcpy-class seed instead of clear + plate rescale
+		// Seed only the game region: the static black letterbox in dest persists from the
+		// last _bgRebuilt frame (this scratch surface is reused, and sprites only draw
+		// inside picRect ⊂ gameRect), so we skip copying the letterbox AND avoid copyFrom's
+		// per-frame free+malloc of the whole overlay. Empty gameRect (tests) -> full copy.
+		if (_bgGameRect.isEmpty()) {
+			dest.copyFrom(*_bgCache);
+		} else {
+			Common::Rect gr = _bgGameRect;
+			gr.clip(Common::Rect(0, 0, (int16)W, (int16)H));
+			dest.surfacePtr()->copyRectToSurface(*_bgCache->surfacePtr(), gr.left, gr.top, gr);
+		}
 	} else {
 		_bgRebuilt = true; // letterbox redrawn this frame -> present full overlay once
 		if (gameRect.isEmpty()) {
@@ -270,12 +280,16 @@ void RogerCompositor::presentToOverlay(Graphics::ManagedSurface &scene) {
 	}
 	_bgRebuilt = false;
 
-	if (s->format == overlayFmt) {
+	const bool fastPath = (s->format == overlayFmt);
+	uint32 convMs = 0;
+	if (fastPath) {
 		g_system->copyRectToOverlay(s->getBasePtr(region.left, region.top), s->pitch,
 		                            region.left, region.top, region.width(), region.height());
 	} else {
+		const uint32 tc = g_system->getMillis();
 		Graphics::Surface sub = scene.surfacePtr()->getSubArea(region); // view, no copy
 		Graphics::Surface *conv = sub.convertTo(overlayFmt);
+		convMs = g_system->getMillis() - tc; // temp perf: convert cost only
 		if (conv) {
 			g_system->copyRectToOverlay(conv->getPixels(), conv->pitch,
 			                            region.left, region.top, region.width(), region.height());
@@ -285,15 +299,21 @@ void RogerCompositor::presentToOverlay(Graphics::ManagedSurface &scene) {
 	}
 	g_system->showOverlay(false);
 
-	// Temp perf instrumentation: average renderScene vs present cost over a window so we
-	// target the real per-frame bottleneck. Logged via warning so it shows without flags.
+	// Temp perf instrumentation: average renderScene vs present, split into convert vs
+	// push, plus overlay geometry/format, so we target the real per-frame bottleneck.
 	const int kPerfWindow = 240;
+	const uint32 presentMs = g_system->getMillis() - _perfT0;
 	_accRenderMs += _renderMs;
-	_accPresentMs += (g_system->getMillis() - _perfT0);
+	_accPresentMs += presentMs;
+	_accConvertMs += convMs;
+	_accPushMs += (presentMs - convMs); // copyRectToOverlay + showOverlay + setup
 	if (++_perfFrames >= kPerfWindow) {
-		warning("ROGER perf (avg over %d frames): renderScene %.2f ms, present %.2f ms",
-		        kPerfWindow, (double)_accRenderMs / kPerfWindow, (double)_accPresentMs / kPerfWindow);
-		_accRenderMs = _accPresentMs = 0;
+		warning("ROGER perf (%d-frame avg): render %.2f / present %.2f ms [convert %.2f, push %.2f]  overlay %dx%d bpp%d region %dx%d %s",
+		        kPerfWindow, (double)_accRenderMs / kPerfWindow, (double)_accPresentMs / kPerfWindow,
+		        (double)_accConvertMs / kPerfWindow, (double)_accPushMs / kPerfWindow,
+		        OW, OH, overlayFmt.bytesPerPixel, region.width(), region.height(),
+		        fastPath ? "fmt-match" : "convert");
+		_accRenderMs = _accPresentMs = _accConvertMs = _accPushMs = 0;
 		_perfFrames = 0;
 	}
 }
