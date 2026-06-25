@@ -126,8 +126,11 @@ void GfxControls16::drawListControl(Common::Rect rect, reg_t obj, int16 maxChars
 				const bool sel = (!isAlias) && (i == cursorPos);
 				const int pen = sel ? 15 : (p ? p->penClr : 0);
 				const int back = sel ? 0 : -1;
+				int16 nfw = 0, nfh = 0;
+				_text16->StringWidth(textString, fontId, nfw, nfh);
 				g_sciRogerProvider->uiPushText(g, textString.c_str(), pen, back, fontId,
-				                               SCI_TEXT16_ALIGNMENT_LEFT, tok, 0 /*body*/, false);
+				                               SCI_TEXT16_ALIGNMENT_LEFT, tok, 0 /*body*/, false,
+				                               nfh, nfw);
 			}
 		}
 		workerRect.translate(0, fontSize);
@@ -324,7 +327,10 @@ void GfxControls16::kernelTexteditChange(reg_t controlObject, reg_t eventObject)
 			const Port *p = _ports->getPort();
 			const uint32 tok = 0x40000000u | (uint32)(p ? p->id : 0);
 			const int16 editStyle = readSelectorValue(_segMan, controlObject, SELECTOR(state));
-			g_sciRogerProvider->uiPushTextEdit(g, text.c_str(), fontId, editStyle, cursorPos, tok);
+			int16 nfw = 0, nfh = 0;
+			_text16->StringWidth(text, fontId, nfw, nfh);
+			g_sciRogerProvider->uiPushTextEdit(g, text.c_str(), fontId, editStyle, cursorPos, tok,
+			                                   nfh, nfw);
 		}
 	} else {
 		if (g_system->getMillis() >= _texteditBlinkTime) {
@@ -352,7 +358,9 @@ void GfxControls16::kernelDrawButton(Common::Rect rect, reg_t obj, const char *t
 		_ports->offsetRect(g);
 		const Port *p = _ports->getPort();
 		const uint32 tok = 0x40000000u | (uint32)(p ? p->id : 0);
-		g_sciRogerProvider->uiPushButton(g, text, fontId, style, tok);
+		int16 nfw = 0, nfh = 0;
+		_text16->StringWidth(text, fontId, nfw, nfh);
+		g_sciRogerProvider->uiPushButton(g, text, fontId, style, tok, nfh, nfw);
 	}
 
 	if (!hilite) {
@@ -438,8 +446,10 @@ void GfxControls16::kernelDrawText(Common::Rect rect, reg_t obj, const char *tex
 		_ports->offsetRect(g);
 		const Port *p = _ports->getPort();
 		const uint32 tok = 0x40000000u | (uint32)(p ? p->id : 0);
+		int16 nfw = 0, nfh = 0;
+		_text16->StringWidth(text, fontId, nfw, nfh);
 		g_sciRogerProvider->uiPushText(g, text, p ? p->penClr : 0, p ? p->backClr : -1,
-		                               fontId, alignment, tok);
+		                               fontId, alignment, tok, 0, false, nfh, nfw);
 	}
 
 	if (!hilite) {
@@ -483,7 +493,9 @@ void GfxControls16::kernelDrawTextEdit(Common::Rect rect, reg_t obj, const char 
 		_ports->offsetRect(g);
 		const Port *p = _ports->getPort();
 		const uint32 tok = 0x40000000u | (uint32)(p ? p->id : 0);
-		g_sciRogerProvider->uiPushTextEdit(g, text, fontId, style, cursorPos, tok);
+		int16 nfw = 0, nfh = 0;
+		_text16->StringWidth(text, fontId, nfw, nfh);
+		g_sciRogerProvider->uiPushTextEdit(g, text, fontId, style, cursorPos, tok, nfh, nfw);
 	}
 
 	Common::Rect textRect = rect;

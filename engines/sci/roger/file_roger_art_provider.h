@@ -61,15 +61,19 @@ public:
 	                  uint16 wndStyle, uint32 token) override;
 	void uiPushText(const Common::Rect &globalRect, const char *text, int penColor,
 	                int backColor, int fontId, int align, uint32 token,
-	                int textRole = 0, bool useAltFont = false) override;
+	                int textRole, bool useAltFont,
+	                int nativeFontH, int nativeTextW) override;
 	void uiPushButton(const Common::Rect &globalRect, const char *text, int fontId,
-	                  int style, uint32 token) override;
+	                  int style, uint32 token,
+	                  int nativeFontH, int nativeTextW) override;
 	void uiPushTextEdit(const Common::Rect &globalRect, const char *text, int fontId,
-	                    int style, int cursorPos, uint32 token) override;
+	                    int style, int cursorPos, uint32 token,
+	                    int nativeFontH, int nativeTextW) override;
 	void uiPushIcon(const Common::Rect &globalRect, int viewId, int loopNo, int celNo,
 	                uint32 token) override;
 	void uiPushStatus(const Common::Rect &globalRect, const char *text, int fontId,
-	                  int penColor, int backColor, uint32 token) override;
+	                  int penColor, int backColor, uint32 token,
+	                  int nativeFontH, int nativeTextW) override;
 	void uiClearToken(uint32 token) override;
 	void uiClearAll() override;
 
@@ -123,6 +127,7 @@ private:
 	int _statusPen = 0, _statusBack = 0;
 	uint32 _statusToken = 0;
 	int _statusFont = 0;                       // SCI font id the game drew the banner with
+	int _statusNativeFontH = 0, _statusNativeTextW = 0; // native font metrics captured at push time
 	void reapplyStatus(); // re-push the cached banner (no-op if none)
 	// roger_autoshot helper: dump <screenshotpath>/roger-<id><suffix>-overlay.png and
 	// -preview.png for the given composited scene (suffix "" = per-room scene, "-ui" =

@@ -100,19 +100,25 @@ public:
 	                          uint16 wndStyle, uint32 token) {}
 	// textRole: 0 = body (dialog/message/list text), 1 = heading (titles); see
 	// Roger::UiTextRole. useAltFont: render with the header/menu font.
+	// nativeFontH: SCI font cell height (px) for the line; 0 = unknown.
+	// nativeTextW: native single-line string width (px); 0 = multi-line/unknown.
 	virtual void uiPushText(const Common::Rect &globalRect, const char *text, int penColor,
 	                        int backColor, int fontId, int align, uint32 token,
-	                        int textRole = 0, bool useAltFont = false) {}
+	                        int textRole = 0, bool useAltFont = false,
+	                        int nativeFontH = 0, int nativeTextW = 0) {}
 	virtual void uiPushButton(const Common::Rect &globalRect, const char *text, int fontId,
-	                          int style, uint32 token) {}
+	                          int style, uint32 token,
+	                          int nativeFontH = 0, int nativeTextW = 0) {}
 	virtual void uiPushTextEdit(const Common::Rect &globalRect, const char *text, int fontId,
-	                            int style, int cursorPos, uint32 token) {}
+	                            int style, int cursorPos, uint32 token,
+	                            int nativeFontH = 0, int nativeTextW = 0) {}
 	virtual void uiPushIcon(const Common::Rect &globalRect, int viewId, int loopNo, int celNo,
 	                        uint32 token) {}
 	// Score/title status banner (top strip): rendered hires (exact fit, opaque) so it
 	// occludes the native low-res bar instead of showing through the overlay strip.
 	virtual void uiPushStatus(const Common::Rect &globalRect, const char *text, int fontId,
-	                          int penColor, int backColor, uint32 token) {}
+	                          int penColor, int backColor, uint32 token,
+	                          int nativeFontH = 0, int nativeTextW = 0) {}
 	virtual void uiClearToken(uint32 token) {}
 	virtual void uiClearAll() {}
 

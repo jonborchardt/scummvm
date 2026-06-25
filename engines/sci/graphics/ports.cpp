@@ -533,9 +533,12 @@ void GfxPorts::drawWindow(Window *pWnd) {
 				Common::Rect titleRect(pWnd->dims.left, pWnd->dims.top,
 				                       pWnd->dims.right, (int16)(pWnd->dims.top + 10));
 				const int titleBack = (getSciVersion() <= SCI_VERSION_0_LATE) ? 8 : 0;
+				int16 nfw = 0, nfh = 0;
+				_text16->StringWidth(pWnd->title, 0, nfw, nfh);
 				g_sciRogerProvider->uiPushText(titleRect, pWnd->title.c_str(),
 				                               _screen->getColorWhite(), titleBack, 0,
-				                               SCI_TEXT16_ALIGNMENT_CENTER, tok);
+				                               SCI_TEXT16_ALIGNMENT_CENTER, tok,
+				                               0, false, nfh, nfw);
 			}
 		}
 

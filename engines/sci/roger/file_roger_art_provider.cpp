@@ -659,7 +659,8 @@ void FileRogerArtProvider::uiPushWindow(const Common::Rect &r, int backColor, in
 
 void FileRogerArtProvider::uiPushText(const Common::Rect &r, const char *text, int penColor,
                                       int backColor, int fontId, int align, uint32 token,
-                                      int textRole, bool useAltFont) {
+                                      int textRole, bool useAltFont,
+                                      int nativeFontH, int nativeTextW) {
 	if (!_overlayActive || !_plate) return;
 	ensureUi();
 	Roger::UiElement e;
@@ -667,26 +668,30 @@ void FileRogerArtProvider::uiPushText(const Common::Rect &r, const char *text, i
 	e.penColor = penColor; e.backColor = backColor; e.fontId = fontId;
 	e.align = align; e.token = token;
 	e.textRole = textRole; e.useAltFont = useAltFont;
+	e.nativeFontH = nativeFontH; e.nativeTextW = nativeTextW;
 	buildGlyphs(text, fontId, penColor, e.glyphs);
 	_uiLayer->push(e);
 	presentWithUi();
 }
 
 void FileRogerArtProvider::uiPushButton(const Common::Rect &r, const char *text, int fontId,
-                                        int style, uint32 token) {
+                                        int style, uint32 token,
+                                        int nativeFontH, int nativeTextW) {
 	if (!_overlayActive || !_plate) return;
 	ensureUi();
 	Roger::UiElement e;
 	e.type = Roger::kUiButton; e.nativeRect = r; e.text = text ? text : "";
 	e.fontId = fontId; e.style = style; e.align = 1 /*center*/;
 	e.backColor = 7 /*light gray*/; e.penColor = 0; e.hasFrame = true; e.token = token;
+	e.nativeFontH = nativeFontH; e.nativeTextW = nativeTextW;
 	buildGlyphs(text, fontId, e.penColor, e.glyphs);
 	_uiLayer->push(e);
 	presentWithUi();
 }
 
 void FileRogerArtProvider::uiPushTextEdit(const Common::Rect &r, const char *text, int fontId,
-                                          int style, int cursorPos, uint32 token) {
+                                          int style, int cursorPos, uint32 token,
+                                          int nativeFontH, int nativeTextW) {
 	if (!_overlayActive || !_plate) return;
 	ensureUi();
 	Roger::UiElement e;
@@ -695,6 +700,7 @@ void FileRogerArtProvider::uiPushTextEdit(const Common::Rect &r, const char *tex
 	e.backColor = 15 /*white*/; e.penColor = 0; e.hasFrame = true; e.token = token;
 	e.textRole = Roger::kRoleBody; // body size, same as the dialog prompt above it
 	e.vAlignTop = true;            // SCI draws edit text at the top of the field, not centred
+	e.nativeFontH = nativeFontH; e.nativeTextW = nativeTextW;
 	buildGlyphs(text, fontId, e.penColor, e.glyphs);
 	_uiLayer->push(e);
 	presentWithUi();
@@ -735,11 +741,13 @@ void FileRogerArtProvider::onDrawCel(const Common::Rect &r, int viewId, int loop
 }
 
 void FileRogerArtProvider::uiPushStatus(const Common::Rect &r, const char *text, int fontId,
-                                        int penColor, int backColor, uint32 token) {
+                                        int penColor, int backColor, uint32 token,
+                                        int nativeFontH, int nativeTextW) {
 	// Remember the banner so it can be re-applied on room load / F10 enable, even if
 	// the overlay was not ready when the game first drew it.
 	_haveStatus = true; _statusRect = r; _statusText = text ? text : "";
 	_statusFont = fontId; _statusPen = penColor; _statusBack = backColor; _statusToken = token;
+	_statusNativeFontH = nativeFontH; _statusNativeTextW = nativeTextW;
 	if (!_overlayActive || !_plate) return;
 	ensureUi();
 	// The score banner and the menu bar share this token (top strip); drop whatever
@@ -761,6 +769,7 @@ void FileRogerArtProvider::uiPushStatus(const Common::Rect &r, const char *text,
 	e.textRole = Roger::kRoleHeading;
 	e.useAltFont = true;
 	e.token = token;
+	e.nativeFontH = nativeFontH; e.nativeTextW = nativeTextW;
 	buildGlyphs(text, fontId, penColor, e.glyphs);
 	_uiLayer->push(e);
 	presentWithUi();
@@ -768,7 +777,8 @@ void FileRogerArtProvider::uiPushStatus(const Common::Rect &r, const char *text,
 
 void FileRogerArtProvider::reapplyStatus() {
 	if (_haveStatus)
-		uiPushStatus(_statusRect, _statusText.c_str(), _statusFont, _statusPen, _statusBack, _statusToken);
+		uiPushStatus(_statusRect, _statusText.c_str(), _statusFont, _statusPen, _statusBack, _statusToken,
+		             _statusNativeFontH, _statusNativeTextW);
 }
 
 void FileRogerArtProvider::uiClearToken(uint32 token) {

@@ -624,8 +624,11 @@ reg_t GfxPaint16::kernelDisplay(const char *text, uint16 languageSplitter, int a
 	// the overlay). rect here is already global/offset for the display path.
 	if (doSaveUnder && g_sciRogerProvider && g_sciRogerProvider->enabled) {
 		const uint32 tok = ((uint32)result.getSegment() << 16) | result.getOffset();
+		int16 nfw = 0, nfh = 0;
+		_text16->StringWidth(text, _text16->GetFontId(), nfw, nfh);
 		g_sciRogerProvider->uiPushText(rect, text, colorPen >= 0 ? colorPen : 0,
-		                               colorBack, -1, alignment, tok);
+		                               colorBack, -1, alignment, tok,
+		                               0 /*body*/, false, nfh, 0 /*multi-line: no width cap*/);
 	}
 
 	if (colorBack != -1)
