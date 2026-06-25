@@ -24,6 +24,7 @@
 #include "common/array.h"
 #include "common/rect.h"
 #include "sci/roger/roger_ui_layer.h"
+#include "sci/roger/roger_effects.h"
 
 namespace Graphics { struct Surface; class ManagedSurface; }
 
@@ -117,6 +118,20 @@ public:
 	void renderUiLayer(Graphics::ManagedSurface &dest, const Common::Array<UiElement> &elems,
 	                   const byte *palette, const Common::Rect &gameRect,
 	                   const RogerTextRenderer *text, const RogerTextRenderer *altText = nullptr);
+
+	// Time-boxed full-screen transition between two composed RGBA32 scenes (full-overlay
+	// sized). Renders into `scratch`, full-presents each step, returns after presenting
+	// `to`. Runs synchronously (blocks, like SCI's own GfxTransitions::doit). durationMs<=0
+	// => instant swap (present `to` once).
+	void runTransition(Graphics::ManagedSurface &from, Graphics::ManagedSurface &to,
+	                   Graphics::ManagedSurface &scratch, TransitionFamily fam, int durationMs);
+	// Offset-present `scene` for `shakeCount` jolts (directions: bit0=vertical, bit1=horizontal),
+	// magnitudePx in overlay pixels. Restores `scene` at rest before returning.
+	void runShake(Graphics::ManagedSurface &scene, Graphics::ManagedSurface &scratch,
+	              int shakeCount, int directions, int magnitudePx);
+	// Make the NEXT presentToOverlay a full present (whole overlay). Used by the
+	// whole-palette re-apply path so a global color change is laid down completely.
+	void forceFullPresentNext() { _bgRebuilt = true; }
 
 private:
 	Graphics::Surface *_plate;

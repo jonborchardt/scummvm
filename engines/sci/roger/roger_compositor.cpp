@@ -511,5 +511,63 @@ void RogerCompositor::renderUiLayer(Graphics::ManagedSurface &dest,
 	}
 }
 
+void RogerCompositor::runTransition(Graphics::ManagedSurface &from, Graphics::ManagedSurface &to,
+                                    Graphics::ManagedSurface &scratch, TransitionFamily fam, int durationMs) {
+	fam = effectiveFamily(fam); // Phase 1: wipe/scroll -> dissolve
+	if (fam == kFxNone || durationMs <= 0) {
+		_bgRebuilt = true;
+		presentToOverlay(to);
+		g_system->updateScreen();
+		return;
+	}
+	// Dissolve block size: ~1/40th of overlay width, min 8px (coarse blocks read as a
+	// classic SCI mosaic and keep the per-step setPixel cost bounded).
+	const int blockPx = (to.w / 40 > 8) ? to.w / 40 : 8;
+	const uint32 start = g_system->getMillis();
+	for (;;) {
+		const uint32 now = g_system->getMillis();
+		float t = (now - start) / (float)durationMs;
+		bool last = false;
+		if (t >= 1.0f) { t = 1.0f; last = true; }
+		switch (fam) {
+		case kFxDissolve: blendDissolve(*from.surfacePtr(), *to.surfacePtr(), *scratch.surfacePtr(), t, blockPx); break;
+		case kFxFade:
+		default:          blendFadeThroughBlack(*from.surfacePtr(), *to.surfacePtr(), *scratch.surfacePtr(), t); break;
+		}
+		_bgRebuilt = true;          // force full present for this effect frame
+		presentToOverlay(scratch);
+		g_system->updateScreen();
+		if (last) break;
+		g_system->delayMillis(2);
+	}
+}
+
+void RogerCompositor::runShake(Graphics::ManagedSurface &scene, Graphics::ManagedSurface &scratch,
+                               int shakeCount, int directions, int magnitudePx) {
+	if (shakeCount < 1) shakeCount = 1;
+	if (magnitudePx < 1) magnitudePx = 1;
+	const int dx = (directions & 2) ? magnitudePx : 0; // bit1 = horizontal
+	const int dy = (directions & 1) ? magnitudePx : 0; // bit0 = vertical (default)
+	for (int i = 0; i < shakeCount; i++) {
+		// Jolt: draw the scene shifted by (dx,dy), then back to rest. Each half ~20ms.
+		for (int phase = 0; phase < 2; phase++) {
+			const int ox = phase ? 0 : dx;
+			const int oy = phase ? 0 : dy;
+			scratch.fillRect(Common::Rect(0, 0, scratch.w, scratch.h),
+			                 scratch.surfacePtr()->format.ARGBToColor(255, 0, 0, 0));
+			scratch.blitFrom(*scene.surfacePtr(), Common::Rect(0, 0, scene.w, scene.h),
+			                 Common::Point((int16)ox, (int16)oy));
+			_bgRebuilt = true;
+			presentToOverlay(scratch);
+			g_system->updateScreen();
+			g_system->delayMillis(20);
+		}
+	}
+	// Restore the un-shaken scene.
+	_bgRebuilt = true;
+	presentToOverlay(scene);
+	g_system->updateScreen();
+}
+
 } // namespace Roger
 } // namespace Sci
