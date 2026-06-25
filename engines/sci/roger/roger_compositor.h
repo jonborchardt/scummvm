@@ -105,6 +105,12 @@ private:
 	Graphics::ManagedSurface *_bgCache;
 	Graphics::Surface *_bgPlate;   // plate the cache was built from (re-validate within a room)
 	Common::Rect _bgPicRect, _bgGameRect;
+
+	// Temporary perf instrumentation: per-frame render vs present cost, averaged and
+	// logged every kPerfWindow frames so we target the real bottleneck instead of
+	// guessing. Remove once tuning is done.
+	uint32 _renderMs = 0, _accRenderMs = 0, _accPresentMs = 0;
+	int _perfFrames = 0;
 };
 
 } // namespace Roger

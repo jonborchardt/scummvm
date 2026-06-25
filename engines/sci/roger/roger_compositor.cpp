@@ -67,6 +67,7 @@ void RogerCompositor::setPriorityMask(const byte *priority, int priW, int priH) 
 
 void RogerCompositor::renderScene(Graphics::ManagedSurface &dest, const Common::Array<Sprite> &sprites,
                                   const Common::Rect &gameRect) {
+	const uint32 _perfT0 = g_system ? g_system->getMillis() : 0; // temp perf timing
 	const int W = dest.w, H = dest.h;
 
 	// The picture (plate + sprites) is drawn into _pictureDest — the overlay-space
@@ -231,6 +232,9 @@ void RogerCompositor::renderScene(Graphics::ManagedSurface &dest, const Common::
 			}
 		}
 	}
+
+	if (g_system)
+		_renderMs = g_system->getMillis() - _perfT0; // temp perf timing
 }
 
 void RogerCompositor::presentToOverlay(Graphics::ManagedSurface &scene) {
@@ -248,6 +252,7 @@ void RogerCompositor::presentToOverlay(Graphics::ManagedSurface &scene) {
 	const int OH = g_system->getOverlayHeight();
 	if (OW <= 0 || OH <= 0)
 		return;
+	const uint32 _perfT0 = g_system->getMillis(); // temp perf timing
 	if (s->format == overlayFmt) {
 		const int w = s->w < OW ? s->w : OW;
 		const int h = s->h < OH ? s->h : OH;
@@ -263,6 +268,18 @@ void RogerCompositor::presentToOverlay(Graphics::ManagedSurface &scene) {
 		}
 	}
 	g_system->showOverlay(false);
+
+	// Temp perf instrumentation: average renderScene vs present cost over a window so we
+	// target the real per-frame bottleneck. Logged via warning so it shows without flags.
+	const int kPerfWindow = 240;
+	_accRenderMs += _renderMs;
+	_accPresentMs += (g_system->getMillis() - _perfT0);
+	if (++_perfFrames >= kPerfWindow) {
+		warning("ROGER perf (avg over %d frames): renderScene %.2f ms, present %.2f ms",
+		        kPerfWindow, (double)_accRenderMs / kPerfWindow, (double)_accPresentMs / kPerfWindow);
+		_accRenderMs = _accPresentMs = 0;
+		_perfFrames = 0;
+	}
 }
 
 void RogerCompositor::renderUiLayer(Graphics::ManagedSurface &dest,
