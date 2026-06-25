@@ -104,6 +104,7 @@ void RogerCompositor::renderScene(Graphics::ManagedSurface &dest, const Common::
 	if (bgValid) {
 		dest.copyFrom(*_bgCache); // memcpy-class seed instead of clear + plate rescale
 	} else {
+		_bgRebuilt = true; // letterbox redrawn this frame -> present full overlay once
 		if (gameRect.isEmpty()) {
 			dest.clear(black); // no geometry (unit tests): whole surface is a solid blocker
 		} else {
@@ -253,16 +254,31 @@ void RogerCompositor::presentToOverlay(Graphics::ManagedSurface &scene) {
 	if (OW <= 0 || OH <= 0)
 		return;
 	const uint32 _perfT0 = g_system->getMillis(); // temp perf timing
+
+	// Push only the region that can contain dynamic content. Everything that changes
+	// frame-to-frame (sprites, dialogs, the composited cursor) is inside gameRect; the
+	// letterbox outside it is static black, so it only needs pushing when the background
+	// was just (re)built (_bgRebuilt: room/geometry change / first frame). Converting and
+	// pushing just gameRect each frame skips the letterbox area on the kAnimate path.
+	const Common::Rect fullRect(0, 0, (int16)(s->w < OW ? s->w : OW), (int16)(s->h < OH ? s->h : OH));
+	Common::Rect region = fullRect;
+	if (!_bgRebuilt && !_bgGameRect.isEmpty()) {
+		region = _bgGameRect;
+		region.clip(fullRect);
+		if (region.isEmpty())
+			region = fullRect; // safety: never skip the whole frame
+	}
+	_bgRebuilt = false;
+
 	if (s->format == overlayFmt) {
-		const int w = s->w < OW ? s->w : OW;
-		const int h = s->h < OH ? s->h : OH;
-		g_system->copyRectToOverlay(s->getPixels(), s->pitch, 0, 0, w, h);
+		g_system->copyRectToOverlay(s->getBasePtr(region.left, region.top), s->pitch,
+		                            region.left, region.top, region.width(), region.height());
 	} else {
-		Graphics::Surface *conv = s->convertTo(overlayFmt);
+		Graphics::Surface sub = scene.surfacePtr()->getSubArea(region); // view, no copy
+		Graphics::Surface *conv = sub.convertTo(overlayFmt);
 		if (conv) {
-			const int w = conv->w < OW ? conv->w : OW;
-			const int h = conv->h < OH ? conv->h : OH;
-			g_system->copyRectToOverlay(conv->getPixels(), conv->pitch, 0, 0, w, h);
+			g_system->copyRectToOverlay(conv->getPixels(), conv->pitch,
+			                            region.left, region.top, region.width(), region.height());
 			conv->free();
 			delete conv;
 		}

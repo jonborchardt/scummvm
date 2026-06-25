@@ -105,6 +105,12 @@ private:
 	Graphics::ManagedSurface *_bgCache;
 	Graphics::Surface *_bgPlate;   // plate the cache was built from (re-validate within a room)
 	Common::Rect _bgPicRect, _bgGameRect;
+	// Set when renderScene (re)draws the static background this frame (room/geometry
+	// change). presentToOverlay then pushes the FULL overlay to lay down the letterbox;
+	// otherwise it pushes only the game region (everything dynamic — sprites, dialogs,
+	// cursor — is inside gameRect, so the static black letterbox needn't be re-converted
+	// and re-pushed every frame).
+	bool _bgRebuilt = false;
 
 	// Temporary perf instrumentation: per-frame render vs present cost, averaged and
 	// logged every kPerfWindow frames so we target the real bottleneck instead of
