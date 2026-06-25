@@ -39,9 +39,32 @@ TransitionFamily transitionFamilyFor(int sciType) {
 }
 
 TransitionFamily effectiveFamily(TransitionFamily f) {
-	if (f == kFxWipe || f == kFxScroll)
-		return kFxDissolve; // Phase 1 collapse
-	return f;
+	return f; // no collapse; each family renders faithfully
+}
+
+int wipeDirectionFor(int sciType) {
+	switch (sciType) {
+	// Reveal from right: wipe moves left exposing new content on the right side
+	case 2:   // STRAIGHT_FROM_RIGHT
+	case 0:   // VERTICALROLL_FROMCENTER
+	case 300: // VERTICALROLL_TOCENTER
+	case 6:   // DIAGONALROLL_TOCENTER
+	case 7:   // DIAGONALROLL_FROMCENTER
+		return 0;
+	// Reveal from left
+	case 3:   // STRAIGHT_FROM_LEFT
+	case 1:   // HORIZONTALROLL_FROMCENTER
+	case 301: // HORIZONTALROLL_TOCENTER
+		return 1;
+	// Reveal from bottom
+	case 5:   // STRAIGHT_FROM_BOTTOM
+		return 2;
+	// Reveal from top
+	case 4:   // STRAIGHT_FROM_TOP
+		return 3;
+	default:
+		return 0; // safe default: right
+	}
 }
 
 int defaultDurationMs(TransitionFamily f) {
@@ -100,6 +123,35 @@ void blendDissolve(const Graphics::Surface &from, const Graphics::Surface &to,
 			const float threshold = (kBayer4[by * 4 + bx] + 0.5f) / 16.0f;
 			const Graphics::Surface &src = (t >= threshold) ? to : from;
 			out.setPixel(x, y, src.getPixel(x, y));
+		}
+	}
+}
+
+void blendWipe(const Graphics::Surface &from, const Graphics::Surface &to,
+               Graphics::Surface &out, float t, int direction) {
+	if (!sameRGBA(from, to) || !sameRGBA(from, out))
+		return;
+	t = CLIP(t, 0.0f, 1.0f);
+	const int W = out.w, H = out.h;
+	for (int y = 0; y < H; y++) {
+		for (int x = 0; x < W; x++) {
+			float threshold;
+			switch (direction) {
+			case 1:  // reveal from left: threshold increases left->right
+				threshold = (float)x / W;
+				break;
+			case 2:  // reveal from bottom: threshold increases bottom->top
+				threshold = 1.0f - (float)y / H;
+				break;
+			case 3:  // reveal from top: threshold increases top->bottom
+				threshold = (float)y / H;
+				break;
+			case 0:  // reveal from right: threshold increases right->left
+			default:
+				threshold = 1.0f - (float)x / W;
+				break;
+			}
+			out.setPixel(x, y, (t >= threshold) ? to.getPixel(x, y) : from.getPixel(x, y));
 		}
 	}
 }

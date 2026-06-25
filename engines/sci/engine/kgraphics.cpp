@@ -1259,8 +1259,9 @@ reg_t kShakeScreen(EngineState *s, int argc, reg_t *argv) {
 	int16 directions = (argc > 1) ? argv[1].toUint16() : 1;
 
 	// Roger overlay: mirror the shake in the hires overlay and skip the native shake
-	// (invisible under the opaque overlay; avoids double-blocking). Gated.
-	if (g_sciRogerProvider && g_sciRogerProvider->enabled) {
+	// (invisible under the opaque overlay; avoids double-blocking). Gated; falls back
+	// to native shake when the overlay is hidden (F10 A/B toggle).
+	if (g_sciRogerProvider && g_sciRogerProvider->enabled && g_sciRogerProvider->isOverlayVisible()) {
 		g_sciRogerProvider->onShake(shakeCount, directions);
 		return s->r_acc;
 	}

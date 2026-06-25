@@ -45,13 +45,51 @@ public:
 		TS_ASSERT_EQUALS(transitionFamilyFor(100), kFxNone);  // NONE
 		TS_ASSERT_EQUALS(transitionFamilyFor(9999), kFxFade); // unknown -> safe default
 	}
-	void test_phase1_collapse() {
-		// Phase 1: Wipe/Scroll temporarily render as Dissolve; Fade/Dissolve/None unchanged.
-		TS_ASSERT_EQUALS(effectiveFamily(kFxWipe),     kFxDissolve);
-		TS_ASSERT_EQUALS(effectiveFamily(kFxScroll),   kFxDissolve);
+	void test_effectiveFamily_identity() {
+		// effectiveFamily is now an identity — each family renders faithfully.
+		TS_ASSERT_EQUALS(effectiveFamily(kFxWipe),     kFxWipe);
+		TS_ASSERT_EQUALS(effectiveFamily(kFxScroll),   kFxScroll);
 		TS_ASSERT_EQUALS(effectiveFamily(kFxFade),     kFxFade);
 		TS_ASSERT_EQUALS(effectiveFamily(kFxDissolve), kFxDissolve);
 		TS_ASSERT_EQUALS(effectiveFamily(kFxNone),     kFxNone);
+	}
+	void test_wipeDirectionFor() {
+		TS_ASSERT_EQUALS(wipeDirectionFor(2),   0); // STRAIGHT_FROM_RIGHT -> right
+		TS_ASSERT_EQUALS(wipeDirectionFor(0),   0); // VERTICALROLL_FROMCENTER -> right
+		TS_ASSERT_EQUALS(wipeDirectionFor(300), 0); // VERTICALROLL_TOCENTER -> right
+		TS_ASSERT_EQUALS(wipeDirectionFor(6),   0); // DIAGONALROLL_TOCENTER -> right
+		TS_ASSERT_EQUALS(wipeDirectionFor(7),   0); // DIAGONALROLL_FROMCENTER -> right
+		TS_ASSERT_EQUALS(wipeDirectionFor(3),   1); // STRAIGHT_FROM_LEFT -> left
+		TS_ASSERT_EQUALS(wipeDirectionFor(1),   1); // HORIZONTALROLL_FROMCENTER -> left
+		TS_ASSERT_EQUALS(wipeDirectionFor(301), 1); // HORIZONTALROLL_TOCENTER -> left
+		TS_ASSERT_EQUALS(wipeDirectionFor(5),   2); // STRAIGHT_FROM_BOTTOM -> bottom
+		TS_ASSERT_EQUALS(wipeDirectionFor(4),   3); // STRAIGHT_FROM_TOP -> top
+		TS_ASSERT_EQUALS(wipeDirectionFor(9999), 0); // unknown -> safe default (right)
+	}
+	void test_blendWipe_endpoints() {
+		// At t=0 the output must equal 'from'; at t=1 it must equal 'to'.
+		// Test all four directions.
+		for (int dir = 0; dir < 4; dir++) {
+			Graphics::Surface *from = solid(16, 16, 255, 0, 0);   // red
+			Graphics::Surface *to   = solid(16, 16, 0, 0, 255);   // blue
+			const Graphics::PixelFormat rgba(4, 8, 8, 8, 8, 24, 16, 8, 0);
+			Graphics::Surface out; out.create(16, 16, rgba);
+			uint8 a, r, g, b;
+
+			blendWipe(*from, *to, out, 0.0f, dir);
+			// At t=0 all pixels should be 'from' (red)
+			out.format.colorToARGB(out.getPixel(0, 0), a, r, g, b);
+			TS_ASSERT_EQUALS((int)r, 255);
+			TS_ASSERT_EQUALS((int)b, 0);
+
+			blendWipe(*from, *to, out, 1.0f, dir);
+			// At t=1 all pixels should be 'to' (blue)
+			out.format.colorToARGB(out.getPixel(0, 0), a, r, g, b);
+			TS_ASSERT_EQUALS((int)r, 0);
+			TS_ASSERT_EQUALS((int)b, 255);
+
+			from->free(); delete from; to->free(); delete to; out.free();
+		}
 	}
 	void test_fade_endpoints_and_midpoint() {
 		Graphics::Surface *from = solid(4, 4, 200, 0, 0);   // red

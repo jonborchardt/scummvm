@@ -44,6 +44,7 @@ public:
 	FileRogerArtProvider(const Common::String &gameId, const Common::Path &gamePath);
 	~FileRogerArtProvider();
 
+	bool isOverlayVisible() const override;
 	bool hasBackground(GuiResourceId pictureId) const override;
 	void precacheAll() override;
 	void pushHiresBackground(GuiResourceId pictureId) override;

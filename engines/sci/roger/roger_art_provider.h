@@ -146,6 +146,12 @@ public:
 	// rebuild the body text renderer live (for judging fonts in-game). No-op in base.
 	virtual void cycleBodyFont() {}
 
+	// Returns true when the hires overlay is currently visible (i.e. F10 has not
+	// hidden it). Used to gate overlay-specific effects (transitions, shake): when
+	// the overlay is hidden the user is viewing the native 320x200 render, so native
+	// SCI transitions and shake should run instead of being suppressed.
+	virtual bool isOverlayVisible() const { return false; }
+
 	// Set to false to disable Roger without destroying the provider.
 	// ScummVM native rendering is used when false.
 	bool enabled;

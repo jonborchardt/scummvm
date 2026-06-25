@@ -32,12 +32,19 @@ enum TransitionFamily { kFxNone, kFxFade, kFxDissolve, kFxWipe, kFxScroll };
 // Unknown values default to kFxFade (a safe, always-correct effect).
 TransitionFamily transitionFamilyFor(int sciType);
 
-// Phase-1 collapse: Wipe and Scroll are temporarily rendered as Dissolve until
-// the directional reveals land (see plan "Out of scope"). Identity otherwise.
+// Identity: each family renders faithfully (no Phase-1 collapse).
 TransitionFamily effectiveFamily(TransitionFamily f);
 
 // Default per-family effect duration in milliseconds (tuned from SCI's timing).
 int defaultDurationMs(TransitionFamily f);
+
+// Wipe direction from a raw SCI transition type. Returns 0-3:
+//   0 = reveal from right  (new content appears from the right edge)
+//   1 = reveal from left
+//   2 = reveal from bottom
+//   3 = reveal from top
+// Used by runTransition when fam == kFxWipe.
+int wipeDirectionFor(int sciType);
 
 // Blend functions: cross-fade two RGBA32 surfaces.
 // All three surfaces must share dimensions and RGBA32 format; no-op on mismatch.
@@ -49,6 +56,11 @@ void blendFadeThroughBlack(const Graphics::Surface &from, const Graphics::Surfac
 // Ordered (Bayer) dissolve: each blockPx×blockPx cell shows 'to' once threshold ≤ t, else 'from'.
 void blendDissolve(const Graphics::Surface &from, const Graphics::Surface &to,
                    Graphics::Surface &out, float t, int blockPx);
+
+// Directional wipe: reveals 'to' over 'from' as t goes 0->1.
+// direction: 0=from right, 1=from left, 2=from bottom, 3=from top.
+void blendWipe(const Graphics::Surface &from, const Graphics::Surface &to,
+               Graphics::Surface &out, float t, int direction);
 
 } // namespace Roger
 } // namespace Sci

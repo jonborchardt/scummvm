@@ -133,6 +133,10 @@ FileRogerArtProvider::FileRogerArtProvider(const Common::String &gameId,
 
 }
 
+bool FileRogerArtProvider::isOverlayVisible() const {
+	return _overlayActive;
+}
+
 bool FileRogerArtProvider::hasBackground(GuiResourceId pictureId) const {
 	if (!enabled)
 		return false;
@@ -1182,7 +1186,7 @@ void FileRogerArtProvider::onTransition(int sciType, const Common::Rect & /*picR
 	Graphics::ManagedSurface to(OW, OH, rgba);
 	composeRoomScene(to);
 	Graphics::ManagedSurface &scratch = *scratchScene(OW, OH);
-	_compositor->runTransition(from, to, scratch, fam, Roger::defaultDurationMs(fam));
+	_compositor->runTransition(from, to, scratch, fam, Roger::defaultDurationMs(fam), sciType);
 	// Leave _sceneCache holding the new background so the next kAnimate frame's dirty
 	// present builds on it correctly.
 	if (!_sceneCache || _sceneCache->w != OW || _sceneCache->h != OH) {
