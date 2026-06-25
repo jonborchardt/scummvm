@@ -275,6 +275,7 @@ SciEvent EventManager::getScummVMEvent() {
 	//   Ctrl+Shift+. - add a line pass
 	//   Ctrl+Shift+, - remove a line pass
 	//   Ctrl+Shift+R - reload roger_omyac_passes from ConfMan and regenerate
+	//   Ctrl+Shift+F - cycle the dialog/body font through the in-engine shortlist
 	if (ev.type == Common::EVENT_KEYDOWN && g_sciRogerProvider) {
 		const Common::KeyCode kc = ev.kbd.keycode;
 		const bool ctrlShift = (ev.kbd.flags & Common::KBD_CTRL) && (ev.kbd.flags & Common::KBD_SHIFT);
@@ -312,6 +313,10 @@ SciEvent EventManager::getScummVMEvent() {
 		}
 		if (ctrlShift && kc == Common::KEYCODE_r) {
 			g_sciRogerProvider->reloadGenConfig();
+			return noEvent;
+		}
+		if (ctrlShift && kc == Common::KEYCODE_f) {
+			g_sciRogerProvider->cycleBodyFont();
 			return noEvent;
 		}
 	}

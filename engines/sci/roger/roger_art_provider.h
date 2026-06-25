@@ -133,6 +133,10 @@ public:
 	virtual void tuneEnhancePasses(int delta, int which) {}
 	virtual void reloadGenConfig() {}
 
+	// Ctrl+Shift+F: rotate the dialog/body font through the in-engine shortlist and
+	// rebuild the body text renderer live (for judging fonts in-game). No-op in base.
+	virtual void cycleBodyFont() {}
+
 	// Set to false to disable Roger without destroying the provider.
 	// ScummVM native rendering is used when false.
 	bool enabled;

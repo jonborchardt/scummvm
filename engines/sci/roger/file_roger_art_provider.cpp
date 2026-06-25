@@ -912,6 +912,48 @@ void FileRogerArtProvider::toggleDebugLog() {
 	warning("ROGER: debug logging %s", _debugLog ? "ON" : "OFF");
 }
 
+// Period-appropriate body fonts, all shipping in ScummVM's fonts.dat. Ctrl+Shift+F
+// rotates through these live so candidates can be judged in-game; the header/menu
+// font stays config-only (roger_ui_header_font). See docs/roger.md.
+static const char *const kBodyFontShortlist[] = {
+	"ms_sans_serif.ttf",            // clean Win9x UI sans (period feel)
+	"LiberationSans-Regular.ttf",   // neutral sans (current default)
+	"NotoSans-Regular.ttf",         // neutral sans
+	"LiberationSerif-Regular.ttf",  // storybook / manual feel
+	"GoMono-Regular.ttf",           // DOS/terminal monospace
+	"LiberationMono-Regular.ttf",   // DOS/terminal monospace (Courier-metric)
+	"SourceCodeVariable-Roman.ttf", // monospace
+};
+static const int kBodyFontShortlistLen =
+	(int)(sizeof(kBodyFontShortlist) / sizeof(kBodyFontShortlist[0]));
+
+void FileRogerArtProvider::cycleBodyFont() {
+	_bodyFontIdx = (_bodyFontIdx + 1) % kBodyFontShortlistLen;
+	const char *next = kBodyFontShortlist[_bodyFontIdx];
+
+	// Same size ladder as ensureUi().
+	Common::Array<int> sizes;
+	sizes.push_back(18); sizes.push_back(24); sizes.push_back(32);
+	sizes.push_back(42); sizes.push_back(56); sizes.push_back(72);
+	sizes.push_back(96); sizes.push_back(120); sizes.push_back(160);
+
+	int scale = 100;
+	if (ConfMan.hasKey("roger_ui_font_scale"))
+		scale = ConfMan.getInt("roger_ui_font_scale");
+
+	Roger::RogerTextRenderer *rebuilt = new Roger::RogerTextRenderer(Common::String(next), sizes);
+	rebuilt->setGlobalScale(scale);
+	delete _textRenderer;
+	_textRenderer = rebuilt;
+
+	warning("ROGER: body font -> '%s' (%d/%d)%s", next, _bodyFontIdx + 1,
+	        kBodyFontShortlistLen, _textRenderer->ttfLoaded() ? "" : " [FAILED -> bitmap fallback]");
+
+	// Redraw any open dialog/list with the new font, and restore the banner.
+	if (_haveScene) presentWithUi();
+	reapplyStatus();
+}
+
 // ---------------------------------------------------------------------------
 // Live enhance-pass tuning helpers
 // ---------------------------------------------------------------------------

@@ -55,6 +55,7 @@ public:
 	void toggleDebugLog() override;  // Ctrl+Shift+L: per-frame Roger diagnostic logging
 	void tuneEnhancePasses(int delta, int which) override; // Ctrl+Shift+]/[ add/remove fill; '/; add/remove all
 	void reloadGenConfig() override; // Ctrl+Shift+R: re-read roger_omyac_passes from ConfMan
+	void cycleBodyFont() override; // Ctrl+Shift+F: rotate dialog font through the shortlist
 
 	// UI display-list capture (Roger hires dialogs) — see roger_art_provider.h.
 	void uiPushWindow(const Common::Rect &globalRect, int backColor, int penColor,
@@ -92,6 +93,7 @@ private:
 	Roger::ViewCache *_viewCache = nullptr;
 	Graphics::Surface *_plate = nullptr;
 	int _loadedPicId = -1;
+	int _bodyFontIdx = -1; // index into the body-font shortlist (-1 = config/default font)
 	bool _overlayActive = true;  // false = show native 320x200 (A/B comparison toggle)
 	bool _debugLog = false;      // per-frame diagnostic logging
 	bool _autoshot = false;      // roger_autoshot: dump the composited scene to PNG on room load (verification harness)
