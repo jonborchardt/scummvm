@@ -322,60 +322,85 @@ void RogerCompositor::presentToOverlay(Graphics::ManagedSurface &scene) {
 		return;
 	const uint32 _perfT0 = g_system->getMillis(); // temp perf timing
 
-	// Push only the region that can contain dynamic content. Everything that changes
-	// frame-to-frame (sprites, dialogs, the composited cursor) is inside gameRect; the
-	// letterbox outside it is static black, so it only needs pushing when the background
-	// was just (re)built (_bgRebuilt: room/geometry change / first frame). Converting and
-	// pushing just gameRect each frame skips the letterbox area on the kAnimate path.
+	uint32 convMs = 0;
+
 	const Common::Rect fullRect(0, 0, (int16)(s->w < OW ? s->w : OW), (int16)(s->h < OH ? s->h : OH));
-	Common::Rect region = fullRect;
-	if (!_bgRebuilt && !_bgGameRect.isEmpty()) {
-		region = _bgGameRect;
-		region.clip(fullRect);
-		if (region.isEmpty())
-			region = fullRect; // safety: never skip the whole frame
+
+	// Decide the regions to push this frame.
+	// Full present when: dirty present is off, the background was just (re)built
+	// (room/geometry/F10/first frame), no game rect yet, or the periodic heal is due
+	// (heals any region a missed dirty rect would have left stale, bounded to ~1s).
+	const int kHealFrames = 60; // ~1s at 60fps; cheap insurance against a missed rect
+	bool full = !_dirtyPresent || _bgRebuilt || _bgGameRect.isEmpty() ||
+	            _framesSinceFullPresent >= kHealFrames;
+
+	Common::Array<Common::Rect> push;
+	if (full) {
+		// Lay the whole game region (or whole overlay on a bg rebuild, to cover letterbox).
+		Common::Rect r = (_bgRebuilt || _bgGameRect.isEmpty()) ? fullRect : _bgGameRect;
+		r.clip(fullRect);
+		if (r.isEmpty())
+			r = fullRect;
+		push.push_back(r);
+		_framesSinceFullPresent = 0;
+	} else {
+		// Push only what changed this frame plus what changed last frame (so a moved
+		// sprite/cursor/closed-dialog repaints the clean background it vacated).
+		Common::Array<Common::Rect> raw;
+		for (uint i = 0; i < _dirtyCur.size(); i++) raw.push_back(_dirtyCur[i]);
+		for (uint i = 0; i < _dirtyPrev.size(); i++) raw.push_back(_dirtyPrev[i]);
+		coalesceDirtyRects(raw, fullRect, push);
+		_framesSinceFullPresent++;
 	}
+
 	_bgRebuilt = false;
 
-	const bool fastPath = (s->format == overlayFmt);
-	uint32 convMs = 0;
-	if (fastPath) {
-		g_system->copyRectToOverlay(s->getBasePtr(region.left, region.top), s->pitch,
-		                            region.left, region.top, region.width(), region.height());
-	} else if (s->format.bytesPerPixel == 4 && overlayFmt.bytesPerPixel == 4) {
-		// Fast path: allocation-free 32->32 channel shuffle into a persistent buffer,
-		// then push only the region. (convertTo allocated/freed a full-overlay surface
-		// every frame — the bulk of present cost at this resolution.)
-		const uint32 tc = g_system->getMillis();
-		if (!_overlayConv || _overlayConv->w != s->w || _overlayConv->h != s->h ||
-		    _overlayConv->format != overlayFmt) {
-			if (_overlayConv) { _overlayConv->free(); delete _overlayConv; }
-			_overlayConv = new Graphics::Surface();
-			_overlayConv->create((uint16)s->w, (uint16)s->h, overlayFmt);
-		}
-		if (_overlayConv->getPixels()) {
-			convert32((byte *)_overlayConv->getBasePtr(region.left, region.top),
-			          (const byte *)s->getBasePtr(region.left, region.top),
-			          _overlayConv->pitch, s->pitch, region.width(), region.height(),
-			          overlayFmt, s->format);
-			convMs = g_system->getMillis() - tc;
-			g_system->copyRectToOverlay(_overlayConv->getBasePtr(region.left, region.top),
-			                            _overlayConv->pitch, region.left, region.top,
-			                            region.width(), region.height());
-		}
-	} else {
-		// Fallback for non-32bpp overlays (e.g. RGB565): generic convertTo.
-		const uint32 tc = g_system->getMillis();
-		Graphics::Surface sub = scene.surfacePtr()->getSubArea(region); // view, no copy
-		Graphics::Surface *conv = sub.convertTo(overlayFmt);
-		convMs = g_system->getMillis() - tc;
-		if (conv) {
-			g_system->copyRectToOverlay(conv->getPixels(), conv->pitch,
+	// Convert + upload each region.
+	for (uint i = 0; i < push.size(); i++) {
+		const Common::Rect &region = push[i];
+		if (region.isEmpty())
+			continue;
+		if (s->format == overlayFmt) {
+			g_system->copyRectToOverlay(s->getBasePtr(region.left, region.top), s->pitch,
 			                            region.left, region.top, region.width(), region.height());
-			conv->free();
-			delete conv;
+		} else if (s->format.bytesPerPixel == 4 && overlayFmt.bytesPerPixel == 4) {
+			if (!_overlayConv || _overlayConv->w != s->w || _overlayConv->h != s->h ||
+			    _overlayConv->format != overlayFmt) {
+				if (_overlayConv) { _overlayConv->free(); delete _overlayConv; }
+				_overlayConv = new Graphics::Surface();
+				_overlayConv->create((uint16)s->w, (uint16)s->h, overlayFmt);
+			}
+			if (_overlayConv->getPixels()) {
+				const uint32 tc = g_system->getMillis();
+				convert32((byte *)_overlayConv->getBasePtr(region.left, region.top),
+				          (const byte *)s->getBasePtr(region.left, region.top),
+				          _overlayConv->pitch, s->pitch, region.width(), region.height(),
+				          overlayFmt, s->format);
+				convMs += g_system->getMillis() - tc;
+				g_system->copyRectToOverlay(_overlayConv->getBasePtr(region.left, region.top),
+				                            _overlayConv->pitch, region.left, region.top,
+				                            region.width(), region.height());
+			}
+		} else {
+			const uint32 tc = g_system->getMillis();
+			Graphics::Surface sub = scene.surfacePtr()->getSubArea(region);
+			Graphics::Surface *conv = sub.convertTo(overlayFmt);
+			convMs += g_system->getMillis() - tc;
+			if (conv) {
+				g_system->copyRectToOverlay(conv->getPixels(), conv->pitch,
+				                            region.left, region.top, region.width(), region.height());
+				conv->free();
+				delete conv;
+			}
 		}
 	}
+
+	// Roll this frame's dirty set into "previous" and clear for the next frame.
+	_dirtyPrev.clear();
+	for (uint i = 0; i < _dirtyCur.size(); i++)
+		_dirtyPrev.push_back(_dirtyCur[i]);
+	_dirtyCur.clear();
+
 	g_system->showOverlay(false);
 
 	// Temp perf instrumentation: average renderScene vs present, split into convert vs
@@ -387,11 +412,10 @@ void RogerCompositor::presentToOverlay(Graphics::ManagedSurface &scene) {
 	_accConvertMs += convMs;
 	_accPushMs += (presentMs - convMs); // copyRectToOverlay + showOverlay + setup
 	if (++_perfFrames >= kPerfWindow) {
-		warning("ROGER perf (%d-frame avg): render %.2f / present %.2f ms [convert %.2f, push %.2f]  overlay %dx%d bpp%d region %dx%d %s",
+		warning("ROGER perf (%d-frame avg): render %.2f / present %.2f ms [convert %.2f, push %.2f]  overlay %dx%d bpp%d regions=%d",
 		        kPerfWindow, (double)_accRenderMs / kPerfWindow, (double)_accPresentMs / kPerfWindow,
 		        (double)_accConvertMs / kPerfWindow, (double)_accPushMs / kPerfWindow,
-		        OW, OH, overlayFmt.bytesPerPixel, region.width(), region.height(),
-		        fastPath ? "fmt-match" : "convert");
+		        OW, OH, overlayFmt.bytesPerPixel, (int)push.size());
 		_accRenderMs = _accPresentMs = _accConvertMs = _accPushMs = 0;
 		_perfFrames = 0;
 	}
