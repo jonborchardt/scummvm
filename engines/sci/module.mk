@@ -111,6 +111,7 @@ MODULE_OBJS += \
 	roger/roger_effects.o \
 	roger/roger_ega_blend.o \
 	roger/roger_omyac.o \
+	roger/roger_palette_remap.o \
 	roger/roger_pic_native.o \
 	roger/roger_pic_parser.o \
 	roger/roger_scale.o \
