@@ -318,8 +318,11 @@ void RogerCompositor::presentToOverlay(Graphics::ManagedSurface &scene) {
 	// the per-present rescale in the providers.
 	const int OW = g_system->getOverlayWidth();
 	const int OH = g_system->getOverlayHeight();
-	if (OW <= 0 || OH <= 0)
+	if (OW <= 0 || OH <= 0) {
+		_dirtyCur.clear();
+		_dirtyPrev.clear();
 		return;
+	}
 	const uint32 _perfT0 = g_system->getMillis(); // temp perf timing
 
 	uint32 convMs = 0;
