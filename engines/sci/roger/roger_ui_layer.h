@@ -66,10 +66,13 @@ struct UiElement {
 	int  textRole;    // UiTextRole: body vs heading target size
 	bool useAltFont;   // render with the header/menu font instead of the dialog font
 	bool vAlignTop;    // draw text from the top of the box (SCI native text-edit position)
+	int  nativeFontH;  // SCI font cell height (px, 320x200 space); 0 = unknown -> role/box fallback
+	int  nativeTextW;  // native single-line string width (px); 0 = multi-line/unknown -> no width cap
 
 	UiElement() : type(kUiText), backColor(-1), penColor(0), fontId(0), style(0),
 		align(0), cursorPos(0), hasFrame(false), iconSurface(nullptr), token(0),
-		textRole(kRoleBody), useAltFont(false), vAlignTop(false) {}
+		textRole(kRoleBody), useAltFont(false), vAlignTop(false),
+		nativeFontH(0), nativeTextW(0) {}
 };
 
 class RogerUiLayer {

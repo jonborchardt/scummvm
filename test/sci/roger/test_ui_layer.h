@@ -65,4 +65,10 @@ public:
 		layer.clearAll();
 		TS_ASSERT(layer.empty());
 	}
+
+	void test_ui_element_native_metrics_default_to_zero() {
+		Sci::Roger::UiElement e;
+		TS_ASSERT_EQUALS(e.nativeFontH, 0);
+		TS_ASSERT_EQUALS(e.nativeTextW, 0);
+	}
 };
