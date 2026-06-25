@@ -41,6 +41,13 @@ struct Sprite {
 	const Graphics::Surface *celOverride = nullptr; // optional pre-rendered native cel (RGBA), borrowed; used when no hires cel
 };
 
+// Clamp each rect in `in` to `bounds`, drop empties, and merge any that intersect into
+// their bounding union (repeated until no two output rects intersect). Output rects are
+// all inside `bounds`. Used to turn a frame's collected dynamic rects into the minimal
+// set of regions to convert+push.
+void coalesceDirtyRects(const Common::Array<Common::Rect> &in, const Common::Rect &bounds,
+                        Common::Array<Common::Rect> &out);
+
 class RogerCompositor {
 public:
 	RogerCompositor() : _plate(nullptr), _views(nullptr),

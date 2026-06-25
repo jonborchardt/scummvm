@@ -147,4 +147,28 @@ public:
 		plate.free();
 		cel.free();
 	}
+
+	void test_coalesce_clamps_drops_and_merges() {
+		Common::Array<Common::Rect> in, out;
+		const Common::Rect bounds(0, 0, 100, 100);
+		// (a) out-of-bounds rect is clipped to bounds
+		in.push_back(Common::Rect(-10, -10, 20, 20));
+		// (b) fully-outside rect is dropped
+		in.push_back(Common::Rect(200, 200, 300, 300));
+		// (c) two overlapping rects merge into their union
+		in.push_back(Common::Rect(50, 50, 70, 70));
+		in.push_back(Common::Rect(60, 60, 80, 80));
+		Sci::Roger::coalesceDirtyRects(in, bounds, out);
+		// Expect: clipped (0,0,20,20) and merged (50,50,80,80) — the outside one gone.
+		TS_ASSERT_EQUALS(out.size(), (uint)2);
+		bool hasClip = false, hasMerge = false;
+		for (uint i = 0; i < out.size(); i++) {
+			if (out[i] == Common::Rect(0, 0, 20, 20)) hasClip = true;
+			if (out[i] == Common::Rect(50, 50, 80, 80)) hasMerge = true;
+			// every output rect is within bounds
+			TS_ASSERT(out[i].left >= 0 && out[i].top >= 0 && out[i].right <= 100 && out[i].bottom <= 100);
+		}
+		TS_ASSERT(hasClip);
+		TS_ASSERT(hasMerge);
+	}
 };

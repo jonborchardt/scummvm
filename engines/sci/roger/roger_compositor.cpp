@@ -30,6 +30,33 @@
 namespace Sci {
 namespace Roger {
 
+void coalesceDirtyRects(const Common::Array<Common::Rect> &in, const Common::Rect &bounds,
+                        Common::Array<Common::Rect> &out) {
+	out.clear();
+	// 1) clamp to bounds, drop empties
+	for (uint i = 0; i < in.size(); i++) {
+		Common::Rect r = in[i];
+		r.clip(bounds);
+		if (!r.isEmpty())
+			out.push_back(r);
+	}
+	// 2) merge intersecting rects into their union, repeat until stable. n is small
+	//    (a handful of sprites + cursor + dialog), so O(n^2) per pass is fine.
+	bool merged = true;
+	while (merged) {
+		merged = false;
+		for (uint i = 0; i < out.size() && !merged; i++) {
+			for (uint j = i + 1; j < out.size() && !merged; j++) {
+				if (out[i].intersects(out[j])) {
+					out[i].extend(out[j]);     // out[i] becomes the bounding union
+					out.remove_at(j);
+					merged = true;
+				}
+			}
+		}
+	}
+}
+
 RogerCompositor::~RogerCompositor() {
 	if (_bgCache) {
 		_bgCache->free();
