@@ -22,19 +22,60 @@
 #include "graphics/surface.h"
 #include "common/util.h"
 
+// Normalized SCI transition enum values from engines/sci/graphics/transitions.h.
+// GfxTransitions::doit() translates raw game-script IDs into these normalized
+// values in-place (mutates _number) before our hook fires, so sciType here is
+// always a normalized value, never a raw SCI0 script ID.
+// Keep these in sync with the SCI_TRANSITIONS_* enum in transitions.h.
+namespace {
+	enum {
+		kSciTrVerticalRollFromCenter   = 0,
+		kSciTrHorizontalRollFromCenter = 1,
+		kSciTrStraightFromRight        = 2,
+		kSciTrStraightFromLeft         = 3,
+		kSciTrStraightFromBottom       = 4,
+		kSciTrStraightFromTop          = 5,
+		kSciTrDiagonalRollToCenter     = 6,
+		kSciTrDiagonalRollFromCenter   = 7,
+		kSciTrBlocks                   = 8,
+		kSciTrPixelation               = 9,
+		kSciTrFadePalette              = 10,
+		kSciTrScrollRight              = 11,
+		kSciTrScrollLeft               = 12,
+		kSciTrScrollUp                 = 13,
+		kSciTrScrollDown               = 14,
+		kSciTrNoneLongbow              = 15,
+		kSciTrNone                     = 100,
+		kSciTrVerticalRollToCenter     = 300,
+		kSciTrHorizontalRollToCenter   = 301
+	};
+}
+
 namespace Sci {
 namespace Roger {
 
 TransitionFamily transitionFamilyFor(int sciType) {
 	switch (sciType) {
-	case 10:                      return kFxFade;     // FADEPALETTE
-	case 8: case 9:               return kFxDissolve; // BLOCKS, PIXELATION
-	case 2: case 3: case 4: case 5:                   // STRAIGHT_FROM_*
-	case 0: case 1: case 6: case 7:                   // ROLL_*_FROMCENTER / DIAGONAL
-	case 300: case 301:           return kFxWipe;     // ROLL_*_TOCENTER
-	case 11: case 12: case 13: case 14: return kFxScroll; // SCROLL_*
-	case 15: case 100:            return kFxNone;     // NONE_LONGBOW, NONE
-	default:                      return kFxFade;     // unknown -> safe default
+	case kSciTrFadePalette:                                                    return kFxFade;
+	case kSciTrBlocks:
+	case kSciTrPixelation:                                                     return kFxDissolve;
+	case kSciTrStraightFromRight:
+	case kSciTrStraightFromLeft:
+	case kSciTrStraightFromBottom:
+	case kSciTrStraightFromTop:
+	case kSciTrVerticalRollFromCenter:
+	case kSciTrHorizontalRollFromCenter:
+	case kSciTrDiagonalRollToCenter:
+	case kSciTrDiagonalRollFromCenter:
+	case kSciTrVerticalRollToCenter:
+	case kSciTrHorizontalRollToCenter:                                         return kFxWipe;
+	case kSciTrScrollRight:
+	case kSciTrScrollLeft:
+	case kSciTrScrollUp:
+	case kSciTrScrollDown:                                                     return kFxScroll;
+	case kSciTrNoneLongbow:
+	case kSciTrNone:                                                           return kFxNone;
+	default:                                                                   return kFxFade; // unknown -> safe default
 	}
 }
 
@@ -45,22 +86,22 @@ TransitionFamily effectiveFamily(TransitionFamily f) {
 int wipeDirectionFor(int sciType) {
 	switch (sciType) {
 	// Reveal from right: wipe moves left exposing new content on the right side
-	case 2:   // STRAIGHT_FROM_RIGHT
-	case 0:   // VERTICALROLL_FROMCENTER
-	case 300: // VERTICALROLL_TOCENTER
-	case 6:   // DIAGONALROLL_TOCENTER
-	case 7:   // DIAGONALROLL_FROMCENTER
+	case kSciTrStraightFromRight:
+	case kSciTrVerticalRollFromCenter:
+	case kSciTrVerticalRollToCenter:
+	case kSciTrDiagonalRollToCenter:
+	case kSciTrDiagonalRollFromCenter:
 		return 0;
 	// Reveal from left
-	case 3:   // STRAIGHT_FROM_LEFT
-	case 1:   // HORIZONTALROLL_FROMCENTER
-	case 301: // HORIZONTALROLL_TOCENTER
+	case kSciTrStraightFromLeft:
+	case kSciTrHorizontalRollFromCenter:
+	case kSciTrHorizontalRollToCenter:
 		return 1;
-	// Reveal from bottom
-	case 5:   // STRAIGHT_FROM_BOTTOM
+	// Reveal from bottom (new screen enters from the bottom edge, moves up)
+	case kSciTrStraightFromBottom:
 		return 2;
-	// Reveal from top
-	case 4:   // STRAIGHT_FROM_TOP
+	// Reveal from top (new screen enters from the top edge, moves down)
+	case kSciTrStraightFromTop:
 		return 3;
 	default:
 		return 0; // safe default: right

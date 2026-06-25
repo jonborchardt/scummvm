@@ -62,8 +62,8 @@ public:
 		TS_ASSERT_EQUALS(wipeDirectionFor(3),   1); // STRAIGHT_FROM_LEFT -> left
 		TS_ASSERT_EQUALS(wipeDirectionFor(1),   1); // HORIZONTALROLL_FROMCENTER -> left
 		TS_ASSERT_EQUALS(wipeDirectionFor(301), 1); // HORIZONTALROLL_TOCENTER -> left
-		TS_ASSERT_EQUALS(wipeDirectionFor(5),   2); // STRAIGHT_FROM_BOTTOM -> bottom
-		TS_ASSERT_EQUALS(wipeDirectionFor(4),   3); // STRAIGHT_FROM_TOP -> top
+		TS_ASSERT_EQUALS(wipeDirectionFor(4),   2); // STRAIGHT_FROM_BOTTOM (normalized=4) -> bottom
+		TS_ASSERT_EQUALS(wipeDirectionFor(5),   3); // STRAIGHT_FROM_TOP    (normalized=5) -> top
 		TS_ASSERT_EQUALS(wipeDirectionFor(9999), 0); // unknown -> safe default (right)
 	}
 	void test_blendWipe_endpoints() {

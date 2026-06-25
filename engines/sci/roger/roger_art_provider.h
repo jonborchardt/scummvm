@@ -95,7 +95,9 @@ public:
 	// Called from GfxTransitions::doit() when a room transition is about to run (gated on
 	// g_sciRogerProvider + enabled). The provider mirrors the effect in the overlay; SCI's
 	// native transition is then finalized instantly (invisible under the opaque overlay).
-	// sciType is the transitions.h enum value; picRect is the 320x200 picture rect.
+	// sciType is the *normalized* transitions.h enum value (SCI_TRANSITIONS_*) — raw
+	// game-script IDs have already been translated by GfxTransitions::doit() before this
+	// hook fires. picRect is the 320x200 picture rect.
 	virtual void onTransition(int sciType, const Common::Rect &picRect) {}
 	// Called from kShakeScreen (gated). shakeCount jolts; directions bit0=vertical,
 	// bit1=horizontal. The provider jolts the overlay; native shake is skipped.

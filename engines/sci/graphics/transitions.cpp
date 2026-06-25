@@ -198,6 +198,8 @@ void GfxTransitions::doit(Common::Rect picRect) {
 	// native screen instantly (invisible under the opaque overlay). Skips SCI's animated
 	// transition to avoid double-blocking. Gated; no-op when Roger is inactive or the
 	// overlay is hidden (F10 A/B toggle) so the user sees the native SCI transition.
+	// _number is the *normalized* SCI_TRANSITIONS_* value at this point — the
+	// _translationTable block above has already translated any old SCI0 raw IDs in-place.
 	if (g_sciRogerProvider && g_sciRogerProvider->enabled && g_sciRogerProvider->isOverlayVisible()) {
 		g_sciRogerProvider->onTransition(_number, picRect);
 		setNewScreen(_blackoutFlag); // instant final pixels (the NONE path)
