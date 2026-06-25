@@ -225,6 +225,7 @@ void RogerCompositor::renderScene(Graphics::ManagedSurface &dest, const Common::
 			(int16)(picRect.top  + (int)s.celRect.top    * GH / PIC_H),
 			(int16)(picRect.left + (int)s.celRect.right  * GW / PIC_W),
 			(int16)(picRect.top  + (int)s.celRect.bottom * GH / PIC_H));
+		addDirtyRect(dst); // sprite changed this region (dirty-rect present)
 		// Alpha-aware blit: respects each pixel's alpha so transparent non-black
 		// pixels (common in exported spritesheets) do not render opaque (halos).
 		dest.blendBlitFrom(*cel, Common::Rect(0, 0, cel->w, cel->h), dst,
@@ -422,6 +423,7 @@ void RogerCompositor::renderUiLayer(Graphics::ManagedSurface &dest,
 			nr.grow(2); // a little padding so controls are not flush against the border
 		}
 		const Common::Rect d = sciRectToDest(nr, gameRect);
+		addDirtyRect(d); // UI element region (dirty-rect present)
 		if (d.isEmpty())
 			continue;
 		// Pick the font renderer for this element (header/menu use the alt font).

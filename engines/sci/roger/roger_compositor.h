@@ -76,6 +76,14 @@ public:
 	// left unset (empty), renderScene falls back to the full destination surface.
 	void setPictureDest(const Common::Rect &r) { _pictureDest = r; }
 
+	// Dirty-rect present: record a dest-space rect that changed this frame. renderScene
+	// (sprites) and renderUiLayer (UI) call this internally; the provider calls it for
+	// the composited cursor. presentToOverlay (Task 3) pushes only these (∪ last frame's).
+	void addDirtyRect(const Common::Rect &destRect) { if (!destRect.isEmpty()) _dirtyCur.push_back(destRect); }
+	// Enable/disable dirty present (roger_dirty_present knob). When off, presentToOverlay
+	// always does a full region push (the pre-dirty behavior).
+	void setDirtyPresent(bool enabled) { _dirtyPresent = enabled; }
+
 	// Compose dest = plate + sprites (back-to-front) with per-pixel priority occlusion.
 	// gameRect (overlay-space, from computeGameRect) bounds the displayed game: the area
 	// OUTSIDE it (the letterbox) is filled opaque black so the native render/cursor cannot
@@ -121,6 +129,14 @@ private:
 	// Persistent overlay-format buffer for presentToOverlay's RGBA32->overlay conversion,
 	// so we don't allocate+free a full-overlay surface every frame (convertTo did).
 	Graphics::Surface *_overlayConv;
+
+	// Dirty-rect present accumulators (dest/overlay space). _dirtyCur is filled each frame
+	// as the scene is composited; presentToOverlay pushes _dirtyCur ∪ _dirtyPrev (last
+	// frame's, so a moved sprite/cursor repaints the clean background it vacated), then
+	// rolls _dirtyCur into _dirtyPrev and clears _dirtyCur. Off by default until wired.
+	Common::Array<Common::Rect> _dirtyCur, _dirtyPrev;
+	bool _dirtyPresent = false;
+	int _framesSinceFullPresent = 0; // periodic full-present heal counter
 
 	// Temporary perf instrumentation: per-frame render vs present cost, averaged and
 	// logged every kPerfWindow frames so we target the real bottleneck instead of
