@@ -131,6 +131,12 @@ static reg_t kSetCursorSci0(EngineState *s, int argc, reg_t *argv) {
 	}
 
 	g_sci->_gfxCursor->kernelSetShape(cursorId);
+	if (g_sciRogerProvider && g_sciRogerProvider->enabled) {
+		if (cursorId < 0)
+			g_sciRogerProvider->onCursorHidden(true);
+		else
+			g_sciRogerProvider->onCursorShape(cursorId);
+	}
 	return s->r_acc;
 }
 
@@ -143,6 +149,8 @@ static reg_t kSetCursorSci11(EngineState *s, int argc, reg_t *argv) {
 		switch (argv[0].toSint16()) {
 		case 0:
 			g_sci->_gfxCursor->kernelHide();
+			if (g_sciRogerProvider && g_sciRogerProvider->enabled)
+				g_sciRogerProvider->onCursorHidden(true);
 			break;
 		case -1:
 			g_sci->_gfxCursor->kernelClearZoomZone();
@@ -152,6 +160,8 @@ static reg_t kSetCursorSci11(EngineState *s, int argc, reg_t *argv) {
 			break;
 		default:
 			g_sci->_gfxCursor->kernelShow();
+			if (g_sciRogerProvider && g_sciRogerProvider->enabled)
+				g_sciRogerProvider->onCursorHidden(false);
 			break;
 		}
 		break;
@@ -197,6 +207,9 @@ static reg_t kSetCursorSci11(EngineState *s, int argc, reg_t *argv) {
 			g_sci->_gfxCursor->kernelSetMacCursor(argv[0].toUint16(), argv[1].toUint16(), argv[2].toUint16());
 		} else {
 			g_sci->_gfxCursor->kernelSetView(argv[0].toUint16(), argv[1].toUint16(), argv[2].toUint16(), hotspot);
+			if (g_sciRogerProvider && g_sciRogerProvider->enabled)
+				g_sciRogerProvider->onCursorView(
+					argv[0].toUint16(), argv[1].toSint16(), argv[2].toSint16());
 		}
 		break;
 	case 10:

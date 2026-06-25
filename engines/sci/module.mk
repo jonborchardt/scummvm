@@ -108,6 +108,7 @@ MODULE_OBJS += \
 	roger/roger_art_provider.o \
 	roger/roger_asset_gen.o \
 	roger/roger_compositor.o \
+	roger/roger_cursor.o \
 	roger/roger_effects.o \
 	roger/roger_ega_blend.o \
 	roger/roger_omyac.o \

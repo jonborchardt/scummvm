@@ -54,6 +54,9 @@ public:
 	void onDrawCel(const Common::Rect &globalRect, int viewId, int loopNo, int celNo) override;
 	void onTransition(int sciType, const Common::Rect &picRect) override;
 	void onShake(int shakeCount, int directions) override;
+	void onCursorShape(int cursorId) override;
+	void onCursorHidden(bool hidden) override;
+	void onCursorView(int viewId, int loopNo, int celNo) override;
 	void toggleOverlay() override;   // Ctrl+Shift+U: upscaled overlay <-> original native
 	void toggleDebugLog() override;  // Ctrl+Shift+L: per-frame Roger diagnostic logging
 	void tuneEnhancePasses(int delta, int which) override; // Ctrl+Shift+]/[ add/remove fill; '/; add/remove all
@@ -130,8 +133,16 @@ private:
 	// roger_palette_live is off or no index map is resident.
 	void observeLivePalette();
 	Graphics::Surface *_cursorSurf = nullptr;        // smooth hires arrow cursor (RGBA, owned)
+	int _cursorShapeId = -1;   // last SCI0 cursor resource id received; -1 = unknown
+	bool _cursorVisible = true; // false when the game called kernelHide()
 	void ensureCursor();                             // build _cursorSurf once
 	void compositeCursor(Graphics::ManagedSurface &scene, const Common::Rect &gameRect);
+	// Decode the SCI0 cursor resource cursorId from g_sci->_resMan, scale 5x, store
+	// result in _cursorSurf + hotspot in _cursorHotspot. No-op if resource unavailable.
+	void buildCursorForShape(int cursorId);
+	// Render native VIEW cel via renderNativeCel(), scale 5x (inline RGBA nearest-neighbour),
+	// store in _cursorSurf. Hotspot computed from GfxView cel displaceX/displaceY.
+	void buildCursorFromView(int viewId, int loopNo, int celNo);
 	// Cursor-only fast redraw (composite cache). Holds scene+UI with no cursor baked in.
 	// Rebuilt on scene/UI change; patched in-place on cursor-only moves.
 	Graphics::ManagedSurface *_compositeCache = nullptr;  // scene+UI, no cursor

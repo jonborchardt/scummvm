@@ -103,6 +103,17 @@ public:
 	// bit1=horizontal. The provider jolts the overlay; native shake is skipped.
 	virtual void onShake(int shakeCount, int directions) {}
 
+	// Called when SCI sets a new cursor shape (SCI0 kSetCursor resourceId).
+	// The provider decodes the resource and rebuilds the hires cursor surface.
+	// cursorId < 0 -> treat as hidden. No-op in base.
+	virtual void onCursorShape(int cursorId) {}
+	// Called when SCI shows or hides the cursor (kSetCursor hide/show paths).
+	// When hidden the composited cursor is not drawn. No-op in base.
+	virtual void onCursorHidden(bool hidden) {}
+	// Called when SCI sets a VIEW-based cursor (SCI1 kSetCursor argc=3 path).
+	// Provider renders the native cel scaled 5x and stores it as the cursor surface.
+	virtual void onCursorView(int viewId, int loopNo, int celNo) {}
+
 	// UI display-list capture (Roger hires dialogs). SCI's high-level UI draw calls
 	// push resolution-independent elements (global 320x200 rects) here; the provider
 	// composites them over the cached hires scene. All default to no-op so the base

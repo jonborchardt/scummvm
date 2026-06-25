@@ -19,6 +19,7 @@
  */
 
 #include "sci/roger/file_roger_art_provider.h"
+#include "sci/roger/roger_cursor.h"
 #include "sci/roger/png_loader.h"
 #include "sci/roger/roger_asset_gen.h"
 #include "sci/roger/roger_palette_remap.h"
@@ -556,6 +557,78 @@ void FileRogerArtProvider::ensureCursor() {
 	_cursorHotspot = Common::Point(2, 2); // tip is 2px from top-left corner of the surface
 }
 
+void FileRogerArtProvider::onCursorShape(int cursorId) {
+	if (cursorId == _cursorShapeId)
+		return;
+	_cursorShapeId = cursorId;
+	buildCursorForShape(cursorId);
+}
+
+void FileRogerArtProvider::onCursorHidden(bool hidden) {
+	_cursorVisible = !hidden;
+}
+
+void FileRogerArtProvider::onCursorView(int viewId, int loopNo, int celNo) {
+	buildCursorFromView(viewId, loopNo, celNo);
+}
+
+void FileRogerArtProvider::buildCursorForShape(int cursorId) {
+	if (_cursorSurf) { _cursorSurf->free(); delete _cursorSurf; _cursorSurf = nullptr; }
+	_cursorHotspot = Common::Point(2, 2); // fallback: arrow hotspot if resource missing
+
+	if (!g_sci || !g_sci->_resMan || cursorId < 0)
+		return;
+
+	Resource *res = g_sci->_resMan->findResource(
+		ResourceId(kResourceTypeCursor, (uint16)cursorId), false);
+	if (!res || (int)res->size() != 68)
+		return;
+
+	Common::Point hs;
+	_cursorSurf = Roger::decodeSci0Cursor(res->data(), (int)res->size(), hs);
+	_cursorHotspot = hs;
+	_compositeCacheValid = false; // cursor surface changed -> next present is full rebuild
+}
+
+void FileRogerArtProvider::buildCursorFromView(int viewId, int loopNo, int celNo) {
+	if (_cursorSurf) { _cursorSurf->free(); delete _cursorSurf; _cursorSurf = nullptr; }
+	_cursorHotspot = Common::Point(0, 0);
+
+	if (!g_sci || !g_sci->_gfxCache) return;
+	GfxView *view = g_sci->_gfxCache->getView((GuiResourceId)viewId);
+	if (!view) return;
+
+	const CelInfo *ci = view->getCelInfo((int16)loopNo, (int16)celNo);
+	if (!ci) return;
+	const int16 w = ci->width, h = ci->height;
+	const int16 dx = ci->displaceX, dy = ci->displaceY;
+
+	Graphics::Surface *native = renderNativeCel(viewId, loopNo, celNo);
+	if (!native) return;
+
+	const int kScale = 5;
+	const int W = native->w * kScale, H = native->h * kScale;
+	const Graphics::PixelFormat rgba(4, 8, 8, 8, 8, 24, 16, 8, 0);
+	_cursorSurf = new Graphics::Surface();
+	_cursorSurf->create(W, H, rgba);
+	for (int y = 0; y < native->h; y++) {
+		for (int x = 0; x < native->w; x++) {
+			const uint32 px = native->getPixel(x, y);
+			for (int sy = 0; sy < kScale; sy++)
+				for (int sx = 0; sx < kScale; sx++)
+					_cursorSurf->setPixel(x * kScale + sx, y * kScale + sy, px);
+		}
+	}
+	// Hotspot from VIEW cel metadata (matches GfxCursor::kernelSetView formula), scaled.
+	_cursorHotspot = Common::Point(
+		(int)(w / 2 - dx) * kScale,
+		(int)(h - dy - 1) * kScale
+	);
+	_compositeCacheValid = false;
+
+	native->free(); delete native;
+}
+
 void FileRogerArtProvider::compositeCursor(Graphics::ManagedSurface &scene,
                                            const Common::Rect &gameRect) {
 	// The native OS cursor is invisible over the OSystem overlay, so draw our own
@@ -565,6 +638,8 @@ void FileRogerArtProvider::compositeCursor(Graphics::ManagedSurface &scene,
 		return;
 	if (_useHwCursor)
 		return; // native hardware cursor is shown over the overlay instead (preferred)
+	if (!_cursorVisible)
+		return; // game hid the cursor; do not draw anything
 	ensureCursor();
 	if (!_cursorSurf)
 		return;
