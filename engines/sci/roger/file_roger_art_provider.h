@@ -51,6 +51,8 @@ public:
 	void onNativePicture() override;
 	void onMouseMoved() override;
 	void onDrawCel(const Common::Rect &globalRect, int viewId, int loopNo, int celNo) override;
+	void onTransition(int sciType, const Common::Rect &picRect) override;
+	void onShake(int shakeCount, int directions) override;
 	void toggleOverlay() override;   // Ctrl+Shift+U: upscaled overlay <-> original native
 	void toggleDebugLog() override;  // Ctrl+Shift+L: per-frame Roger diagnostic logging
 	void tuneEnhancePasses(int delta, int which) override; // Ctrl+Shift+]/[ add/remove fill; '/; add/remove all
@@ -112,8 +114,11 @@ private:
 	// Return a persistent scratch surface of (w,h) in RGBA32, reallocated only when
 	// the overlay size changes — avoids a fresh ManagedSurface alloc/free every frame.
 	Graphics::ManagedSurface *scratchScene(int w, int h);
+	// Compose the current room background (plate, no sprites) into `out` at full overlay size.
+	void composeRoomScene(Graphics::ManagedSurface &out);
 	Common::Array<Graphics::Surface *> _uiIcons;     // owned native-cel surfaces for kUiIcon
 	bool _haveScene = false;                         // _sceneCache valid this room
+	bool _transitionsEnabled = true;                 // roger_transitions knob (default on)
 	Graphics::Surface *_cursorSurf = nullptr;        // smooth hires arrow cursor (RGBA, owned)
 	void ensureCursor();                             // build _cursorSurf once
 	void compositeCursor(Graphics::ManagedSurface &scene, const Common::Rect &gameRect);

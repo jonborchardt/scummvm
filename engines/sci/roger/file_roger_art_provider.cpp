@@ -91,6 +91,10 @@ FileRogerArtProvider::FileRogerArtProvider(const Common::String &gameId,
 	if (ConfMan.hasKey("roger_hw_cursor"))
 		_useHwCursor = ConfMan.getBool("roger_hw_cursor");
 
+	// roger_transitions: mirror SCI room transitions + shake in the overlay (default on).
+	if (ConfMan.hasKey("roger_transitions"))
+		_transitionsEnabled = ConfMan.getBool("roger_transitions");
+
 	// roger_gen_mode: controls on-the-fly art generation. Default "cache" =>
 	// generate on a miss, load from the content cache on a hit (in-engine generation
 	// is the art path). "prebuilt" is the off-switch (native-only render). Other
@@ -1078,6 +1082,61 @@ void FileRogerArtProvider::onMouseMoved() {
 	// cursor follows the pointer. Cheap when idle (a memcpy + overlay push); only
 	// fires when the mouse moved. presentWithUi no-ops if there is no scene/overlay.
 	presentWithUi();
+}
+
+void FileRogerArtProvider::composeRoomScene(Graphics::ManagedSurface &out) {
+	// Reuse the same geometry renderFrame uses, with an empty sprite list.
+	const bool aspect = g_system->getFeatureState(OSystem::kFeatureAspectRatioCorrection);
+	const int OW = g_system->getOverlayWidth(), OH = g_system->getOverlayHeight();
+	const Common::Rect gameRect = Roger::computeGameRect(OW, OH, aspect);
+	const Common::Rect picRect = Roger::computePictureRect(gameRect, _statusBarH);
+	_compositor->setPictureDest(picRect);
+	Common::Array<Roger::Sprite> none;
+	_compositor->renderScene(out, none, gameRect);
+}
+
+void FileRogerArtProvider::onTransition(int sciType, const Common::Rect & /*picRect*/) {
+	if (!_transitionsEnabled || !_overlayActive || !_compositor || !_plate)
+		return;
+	const Roger::TransitionFamily fam = Roger::transitionFamilyFor(sciType);
+	if (fam == Roger::kFxNone)
+		return; // instant cut: the deferred first-frame present (existing path) handles it
+	const Graphics::PixelFormat rgba(4, 8, 8, 8, 8, 24, 16, 8, 0);
+	const int OW = g_system->getOverlayWidth(), OH = g_system->getOverlayHeight();
+	if (OW <= 0 || OH <= 0)
+		return;
+	// `from` = the previous room's last composed scene (still in _sceneCache). If there
+	// is none (first room of the session), fade up from black.
+	Graphics::ManagedSurface from(OW, OH, rgba);
+	if (_haveScene && _sceneCache && _sceneCache->w == OW && _sceneCache->h == OH)
+		from.copyFrom(*_sceneCache);
+	else
+		from.fillRect(Common::Rect(0, 0, (int16)OW, (int16)OH), rgba.ARGBToColor(255, 0, 0, 0));
+	// `to` = the new room background (no sprites yet).
+	Graphics::ManagedSurface to(OW, OH, rgba);
+	composeRoomScene(to);
+	Graphics::ManagedSurface &scratch = *scratchScene(OW, OH);
+	_compositor->runTransition(from, to, scratch, fam, Roger::defaultDurationMs(fam));
+	// Leave _sceneCache holding the new background so the next kAnimate frame's dirty
+	// present builds on it correctly.
+	if (!_sceneCache || _sceneCache->w != OW || _sceneCache->h != OH) {
+		delete _sceneCache;
+		_sceneCache = new Graphics::ManagedSurface(OW, OH, rgba);
+	}
+	_sceneCache->copyFrom(to);
+	_haveScene = true;
+}
+
+void FileRogerArtProvider::onShake(int shakeCount, int directions) {
+	if (!_transitionsEnabled || !_overlayActive || !_compositor || !_haveScene || !_sceneCache)
+		return;
+	const int OW = g_system->getOverlayWidth(), OH = g_system->getOverlayHeight();
+	if (OW <= 0 || OH <= 0 || _sceneCache->w != OW || _sceneCache->h != OH)
+		return;
+	// Native SCI shake is ~10px of 200 rows; scale into overlay space.
+	const int mag = (10 * OH) / 200;
+	Graphics::ManagedSurface &scratch = *scratchScene(OW, OH);
+	_compositor->runShake(*_sceneCache, scratch, shakeCount, directions, mag);
 }
 
 FileRogerArtProvider::~FileRogerArtProvider() {
