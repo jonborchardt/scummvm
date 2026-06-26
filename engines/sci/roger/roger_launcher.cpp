@@ -123,6 +123,7 @@ bool RogerLauncher::handleLaunch() {
 		Common::Event e;
 		e.type = Common::EVENT_RETURN_TO_LAUNCHER;
 		g_system->getEventManager()->pushEvent(e);
+		_switchTriggered = true;
 		return false; // caller returns Common::kNoError
 	}
 	return true;
@@ -183,11 +184,11 @@ bool RogerLauncher::run() {
 	discoverGames();
 	if (_state.games.empty()) return true;
 	loadSettingsForSelected();
-	for (uint i = 0; i < _state.games.size(); ++i)
-		warning("ROGER launcher: [%u] %s pics=%d views=%d",
-		        i, _state.games[i].description.c_str(),
-		        _state.games[i].cache.picCount, _state.games[i].cache.viewCount);
-	return true; // dialog call added in Task 4
+
+	RogerLauncherDialog dialog(*this);
+	dialog.runModal();
+
+	return !_switchTriggered;
 }
 
 } // namespace Roger

@@ -67,13 +67,16 @@ public:
 	// Returns false and pushes EVENT_RETURN_TO_LAUNCHER if switching games.
 	bool handleLaunch();
 
+	// Public so the dialog can refresh counts after precaching.
+	void inspectCacheStatus(GameEntry &entry) const;
+
+	// Public so Task 5 Add Game can trigger re-discovery.
+	void discoverGames();
+
 private:
 	RogerArtProvider   *_provider;
 	LauncherState       _state;
 	bool                _switchTriggered = false;
-
-	void discoverGames();
-	void inspectCacheStatus(GameEntry &entry) const;
 };
 
 } // namespace Roger
