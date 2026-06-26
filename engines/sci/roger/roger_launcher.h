@@ -77,6 +77,10 @@ private:
 	RogerArtProvider   *_provider;
 	LauncherState       _state;
 	bool                _switchTriggered = false;
+
+	// Add one game to _state.games, creating the roger dir if needed.
+	void tryAddEntry(const Common::String &dom, const Common::Path &gamePath,
+	                 const Common::String &gameId, const Common::String &desc);
 };
 
 } // namespace Roger

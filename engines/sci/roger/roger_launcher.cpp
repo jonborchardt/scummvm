@@ -15,8 +15,36 @@ namespace Roger {
 RogerLauncher::RogerLauncher(RogerArtProvider *provider)
 	: _provider(provider) {}
 
+// Helper: add one game entry if it's a valid SCI game at gamePath with domain dom.
+// rogerPath is created if it doesn't exist. No-ops if already in _state.games.
+void RogerLauncher::tryAddEntry(const Common::String &dom,
+                                const Common::Path &gamePath,
+                                const Common::String &gameId,
+                                const Common::String &desc) {
+	if (dom.empty() || gamePath.empty() || gameId.empty()) return;
+	for (uint i = 0; i < _state.games.size(); ++i)
+		if (_state.games[i].targetName == dom) return; // deduplicate
+
+	Common::Path rogerPath = gamePath.getParent().appendComponent(gameId + "-roger");
+	// Create the roger directory if it doesn't exist yet (best-effort; silently ignore failure).
+	Common::FSNode rogerNode(rogerPath);
+	if (!rogerNode.exists())
+		rogerNode.createDirectory();
+
+	GameEntry entry;
+	entry.targetName  = dom;
+	entry.gameId      = gameId;
+	entry.gamePath    = gamePath;
+	entry.rogerPath   = rogerPath;
+	entry.description = desc.empty() ? gameId : desc;
+	inspectCacheStatus(entry);
+	_state.games.push_back(entry);
+}
+
 void RogerLauncher::discoverGames() {
 	_state.games.clear();
+
+	// Persistent game domains from scummvm.ini.
 	const Common::ConfigManager::DomainMap &domains = ConfMan.getGameDomains();
 	for (Common::ConfigManager::DomainMap::const_iterator it = domains.begin();
 	     it != domains.end(); ++it) {
@@ -25,47 +53,22 @@ void RogerLauncher::discoverGames() {
 			continue;
 		if (!ConfMan.hasKey("path", dom))
 			continue;
-		Common::Path gamePath = ConfMan.getPath("path", dom);
-		Common::String gameId = ConfMan.get("gameid", dom);
-		Common::Path rogerPath = gamePath.getParent().appendComponent(gameId + "-roger");
-		Common::FSNode rogerNode(rogerPath);
-		if (!rogerNode.exists() || !rogerNode.isDirectory())
-			continue;
-
-		GameEntry entry;
-		entry.targetName  = dom;
-		entry.gameId      = gameId;
-		entry.gamePath    = gamePath;
-		entry.rogerPath   = rogerPath;
-		entry.description = ConfMan.hasKey("description", dom)
-		                  ? ConfMan.get("description", dom) : gameId;
-		inspectCacheStatus(entry);
-		_state.games.push_back(entry);
+		tryAddEntry(dom,
+		            ConfMan.getPath("path", dom),
+		            ConfMan.hasKey("gameid", dom) ? ConfMan.get("gameid", dom) : dom,
+		            ConfMan.hasKey("description", dom) ? ConfMan.get("description", dom) : "");
 	}
 
-	// Also check the active domain (handles command-line games not persisted in scummvm.ini).
+	// Also check the active domain — handles command-line games not persisted in scummvm.ini.
 	// When launched as "scummvm -p /path gameid", getGameDomains() returns empty because
 	// the domain only exists in memory; ConfMan.hasKey("path") reads from the active chain.
 	{
 		const Common::String active = ConfMan.getActiveDomainName();
-		bool alreadyAdded = false;
-		for (uint i = 0; i < _state.games.size(); ++i)
-			if (_state.games[i].targetName == active) { alreadyAdded = true; break; }
-		if (!active.empty() && !alreadyAdded && ConfMan.hasKey("path")) {
-			Common::Path gamePath = ConfMan.getPath("path");
-			Common::String gameId = ConfMan.hasKey("gameid") ? ConfMan.get("gameid") : active;
-			Common::Path rogerPath = gamePath.getParent().appendComponent(gameId + "-roger");
-			Common::FSNode rogerNode(rogerPath);
-			if (rogerNode.exists() && rogerNode.isDirectory()) {
-				GameEntry entry;
-				entry.targetName  = active;
-				entry.gameId      = gameId;
-				entry.gamePath    = gamePath;
-				entry.rogerPath   = rogerPath;
-				entry.description = ConfMan.hasKey("description") ? ConfMan.get("description") : gameId;
-				inspectCacheStatus(entry);
-				_state.games.push_back(entry);
-			}
+		if (!active.empty() && ConfMan.hasKey("path")) {
+			tryAddEntry(active,
+			            ConfMan.getPath("path"),
+			            ConfMan.hasKey("gameid") ? ConfMan.get("gameid") : active,
+			            ConfMan.hasKey("description") ? ConfMan.get("description") : "");
 		}
 	}
 
