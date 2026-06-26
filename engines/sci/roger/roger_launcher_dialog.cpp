@@ -223,7 +223,7 @@ void RogerLauncherDialog::handleCommand(GUI::CommandSender *sender, uint32 cmd, 
 
 		// 5. Add to ConfMan.
 		Common::String newTarget = EngineMan.createTargetForGame(chosen);
-		ConfMan.set("path", dir.getPath().toString('/'), newTarget);
+		ConfMan.setPath("path", dir.getPath(), newTarget);
 
 		// 6. Create <gameid>-roger/ sibling directory.
 		Common::Path rogerPath = dir.getPath().getParent()
