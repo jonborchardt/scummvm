@@ -43,6 +43,32 @@ void RogerLauncher::discoverGames() {
 		_state.games.push_back(entry);
 	}
 
+	// Also check the active domain (handles command-line games not persisted in scummvm.ini).
+	// When launched as "scummvm -p /path gameid", getGameDomains() returns empty because
+	// the domain only exists in memory; ConfMan.hasKey("path") reads from the active chain.
+	{
+		const Common::String active = ConfMan.getActiveDomainName();
+		bool alreadyAdded = false;
+		for (uint i = 0; i < _state.games.size(); ++i)
+			if (_state.games[i].targetName == active) { alreadyAdded = true; break; }
+		if (!active.empty() && !alreadyAdded && ConfMan.hasKey("path")) {
+			Common::Path gamePath = ConfMan.getPath("path");
+			Common::String gameId = ConfMan.hasKey("gameid") ? ConfMan.get("gameid") : active;
+			Common::Path rogerPath = gamePath.getParent().appendComponent(gameId + "-roger");
+			Common::FSNode rogerNode(rogerPath);
+			if (rogerNode.exists() && rogerNode.isDirectory()) {
+				GameEntry entry;
+				entry.targetName  = active;
+				entry.gameId      = gameId;
+				entry.gamePath    = gamePath;
+				entry.rogerPath   = rogerPath;
+				entry.description = ConfMan.hasKey("description") ? ConfMan.get("description") : gameId;
+				inspectCacheStatus(entry);
+				_state.games.push_back(entry);
+			}
+		}
+	}
+
 	// Sort active domain first.
 	const Common::String &active = ConfMan.getActiveDomainName();
 	for (uint i = 1; i < _state.games.size(); ++i) {
