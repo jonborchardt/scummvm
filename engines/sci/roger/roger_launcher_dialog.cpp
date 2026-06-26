@@ -3,9 +3,14 @@
 #include "gui/widget.h"
 #include "gui/widgets/list.h"
 #include "gui/widgets/popup.h"
+#include "gui/browser.h"
+#include "gui/message.h"
 #include "common/system.h"
 #include "common/str.h"
 #include "common/translation.h"
+#include "common/config-manager.h"
+#include "common/fs.h"
+#include "engines/metaengine.h"
 
 namespace Sci {
 namespace Roger {
@@ -178,9 +183,60 @@ void RogerLauncherDialog::handleCommand(GUI::CommandSender *sender, uint32 cmd, 
 			g_gui.scheduleTopDialogRedraw();
 		}
 		break;
-	case kAddGameCmd:
-		// Handled in Task 6.
+	case kAddGameCmd: {
+		// 1. Open directory browser.
+		GUI::BrowserDialog browser(Common::U32String("Select SCI Game Directory"), true);
+		if (browser.runModal() <= 0)
+			break;
+
+		const Common::FSNode &dir = browser.getResult();
+		if (!dir.isDirectory())
+			break;
+
+		// 2. List directory contents for detection.
+		Common::FSList files;
+		if (!dir.getChildren(files, Common::FSNode::kListAll)) {
+			GUI::MessageDialog err(Common::U32String("Could not open the selected directory."));
+			err.runModal();
+			break;
+		}
+
+		// 3. Detect games in the chosen directory.
+		DetectionResults detectionResults = EngineMan.detectGames(files);
+		DetectedGames candidates = detectionResults.listDetectedGames();
+
+		// 4. Find first SCI game in the results.
+		bool foundSci = false;
+		DetectedGame chosen;
+		for (uint i = 0; i < candidates.size(); ++i) {
+			if (candidates[i].engineId == "sci") {
+				chosen = candidates[i];
+				foundSci = true;
+				break;
+			}
+		}
+		if (!foundSci) {
+			GUI::MessageDialog err(Common::U32String("No SCI game detected in that directory."));
+			err.runModal();
+			break;
+		}
+
+		// 5. Add to ConfMan.
+		Common::String newTarget = EngineMan.createTargetForGame(chosen);
+		ConfMan.set("path", dir.getPath().toString('/'), newTarget);
+
+		// 6. Create <gameid>-roger/ sibling directory.
+		Common::Path rogerPath = dir.getPath().getParent()
+		                             .appendComponent(chosen.gameId + "-roger");
+		Common::FSNode(rogerPath).createDirectory();
+
+		// 7. Persist and refresh.
+		ConfMan.flushToDisk();
+		_launcher.discoverGames();
+		rebuildGameList();
+		g_gui.scheduleTopDialogRedraw();
 		break;
+	}
 	case kGameSelCmd:
 		_launcher.selectGame(_gameList->getSelected());
 		rebuildSettings();
