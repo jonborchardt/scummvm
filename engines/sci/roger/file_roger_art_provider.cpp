@@ -224,6 +224,36 @@ void FileRogerArtProvider::precacheAll() {
 	warning("ROGER precache: done in %u ms total", g_system->getMillis() - t0);
 }
 
+bool FileRogerArtProvider::precacheOnePic(GuiResourceId picId, uint32 &ms) {
+	if (!_assetGen || _assetGen->mode() == Roger::kGenPrebuilt) return false;
+	Graphics::Surface *s = _assetGen->generatePlate(picId, ms);
+	if (s) { s->free(); delete s; }
+	uint32 pms = 0;
+	Common::Array<byte> bands; int bw = 0, bh = 0;
+	_assetGen->generatePriorityMap(picId, bands, bw, bh, pms);
+	return true;
+}
+
+bool FileRogerArtProvider::precacheOneView(int viewId) {
+	if (!_assetGen || _assetGen->mode() == Roger::kGenPrebuilt) return false;
+	if (!g_sci || !g_sci->_gfxCache) return false;
+	GfxView *view = g_sci->_gfxCache->getView((GuiResourceId)viewId);
+	if (!view) return false;
+	const int loopCount = (int)view->getLoopCount();
+	Common::Array<int> celCounts;
+	for (int lp = 0; lp < loopCount; ++lp)
+		celCounts.push_back((int)view->getCelCount((int16)lp));
+	view = nullptr;
+	for (int lp = 0; lp < loopCount; ++lp) {
+		for (int cl = 0; cl < celCounts[lp]; ++cl) {
+			uint32 ms = 0;
+			Graphics::Surface *s = _assetGen->generateViewCel(viewId, lp, cl, ms);
+			if (s) { s->free(); delete s; }
+		}
+	}
+	return true;
+}
+
 void FileRogerArtProvider::pushHiresBackground(GuiResourceId pictureId) {
 	if (_loadedPicId == pictureId && _plate)
 		return; // already loaded for this room

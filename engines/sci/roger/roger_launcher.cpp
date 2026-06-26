@@ -1,6 +1,8 @@
 #include "sci/roger/roger_launcher.h"
 #include "sci/roger/roger_launcher_dialog.h"
 #include "sci/roger/roger_art_provider.h"
+#include "sci/sci.h"
+#include "sci/resource/resource.h"
 #include "common/config-manager.h"
 #include "common/fs.h"
 #include "common/events.h"
@@ -126,8 +128,56 @@ bool RogerLauncher::handleLaunch() {
 	return true;
 }
 
-void RogerLauncher::buildPrecacheQueues() {}
-bool RogerLauncher::precacheStep() { return false; }
+void RogerLauncher::buildPrecacheQueues() {
+	_state.picQueue.clear();
+	_state.viewQueue.clear();
+	if (!g_sci) return;
+	ResourceManager *resMan = g_sci->getResMan();
+	if (!resMan) return;
+
+	const LauncherSettings &s = _state.settings;
+	const bool doPics  = (s.precache == "all" || s.precache == "pics");
+	const bool doViews = (s.precache == "all" || s.precache == "views");
+
+	if (doPics) {
+		Common::List<ResourceId> pics = resMan->listResources(kResourceTypePic);
+		for (Common::List<ResourceId>::const_iterator it = pics.begin(); it != pics.end(); ++it)
+			_state.picQueue.push_back((GuiResourceId)it->getNumber());
+	}
+	if (doViews) {
+		Common::List<ResourceId> views = resMan->listResources(kResourceTypeView);
+		for (Common::List<ResourceId>::const_iterator it = views.begin(); it != views.end(); ++it)
+			_state.viewQueue.push_back((int)it->getNumber());
+	}
+	_state.precacheDone  = 0;
+	_state.precacheTotal = (int)(_state.picQueue.size() + _state.viewQueue.size());
+	_state.precaching    = true;
+	_state.cancelPrecache = false;
+}
+
+bool RogerLauncher::precacheStep() {
+	if (_state.cancelPrecache) {
+		_state.picQueue.clear();
+		_state.viewQueue.clear();
+	}
+	if (!_state.picQueue.empty()) {
+		GuiResourceId id = _state.picQueue.front();
+		_state.picQueue.remove_at(0);
+		uint32 ms = 0;
+		_provider->precacheOnePic(id, ms);
+		++_state.precacheDone;
+		return true; // more to do
+	}
+	if (!_state.viewQueue.empty()) {
+		int id = _state.viewQueue.front();
+		_state.viewQueue.remove_at(0);
+		_provider->precacheOneView(id);
+		++_state.precacheDone;
+		return true;
+	}
+	_state.precaching = false;
+	return false; // done
+}
 
 bool RogerLauncher::run() {
 	discoverGames();
