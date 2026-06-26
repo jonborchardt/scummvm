@@ -201,36 +201,71 @@ void RogerLauncherDialog::handleCommand(GUI::CommandSender *sender, uint32 cmd, 
 			break;
 		}
 
-		// 3. Detect games in the chosen directory.
-		DetectionResults detectionResults = EngineMan.detectGames(files);
-		DetectedGames candidates = detectionResults.listDetectedGames();
+		Common::String gameId;
+		Common::String targetDomain;
 
-		// 4. Find first SCI game in the results.
-		bool foundSci = false;
-		DetectedGame chosen;
-		for (uint i = 0; i < candidates.size(); ++i) {
-			if (candidates[i].engineId == "sci") {
-				chosen = candidates[i];
-				foundSci = true;
-				break;
+		// 3. Try engine-level detection (MD5 matching).
+		//    SCI's fallback detector calls assert(!g_sci), so it can fail during
+		//    engine execution. MD5-based detection still works for known versions.
+		{
+			DetectionResults detectionResults = EngineMan.detectGames(files);
+			DetectedGames candidates = detectionResults.listDetectedGames();
+			for (uint i = 0; i < candidates.size(); ++i) {
+				if (candidates[i].engineId == "sci") {
+					targetDomain = EngineMan.createTargetForGame(candidates[i]);
+					ConfMan.setPath("path", dir.getPath(), targetDomain);
+					gameId = candidates[i].gameId;
+					break;
+				}
 			}
 		}
-		if (!foundSci) {
-			GUI::MessageDialog err(Common::U32String("No SCI game detected in that directory."));
-			err.runModal();
-			break;
+
+		// 4. If engine detection found nothing, check for SCI resource files directly.
+		//    SCI games always have resource.map + resource.001 (or equivalent).
+		if (gameId.empty()) {
+			bool hasResMap = false, hasResVol = false;
+			for (uint i = 0; i < files.size(); ++i) {
+				const Common::String n = files[i].getName();
+				if (n.equalsIgnoreCase("resource.map") ||
+				    n.equalsIgnoreCase("resmap.000")   ||
+				    n.equalsIgnoreCase("resmap.001"))
+					hasResMap = true;
+				if (n.equalsIgnoreCase("resource.000") ||
+				    n.equalsIgnoreCase("resource.001") ||
+				    n.equalsIgnoreCase("ressci.000")   ||
+				    n.equalsIgnoreCase("ressci.001"))
+					hasResVol = true;
+			}
+			if (!hasResMap || !hasResVol) {
+				GUI::MessageDialog err(Common::U32String(
+					"No SCI game found in that directory.\n"
+					"Please select the folder that contains resource.map."));
+				err.runModal();
+				break;
+			}
+			// Use directory name as game ID (lowercased).
+			gameId = dir.getName();
+			gameId.toLowercase();
+			if (gameId.empty()) gameId = "sci_game";
+			// Generate unique ConfMan domain.
+			Common::String baseDomain = gameId;
+			int suffix = 1;
+			targetDomain = baseDomain;
+			while (ConfMan.hasGameDomain(targetDomain))
+				targetDomain = Common::String::format("%s-%d", baseDomain.c_str(), suffix++);
+			ConfMan.addGameDomain(targetDomain);
+			ConfMan.set("engineid",    "sci",         targetDomain);
+			ConfMan.set("gameid",      gameId,         targetDomain);
+			ConfMan.set("description", dir.getName(),  targetDomain);
+			ConfMan.setPath("path",    dir.getPath(),  targetDomain);
 		}
 
-		// 5. Add to ConfMan.
-		Common::String newTarget = EngineMan.createTargetForGame(chosen);
-		ConfMan.setPath("path", dir.getPath(), newTarget);
-
-		// 6. Create <gameid>-roger/ sibling directory.
+		// 5. Create <gameid>-roger/ sibling directory.
 		Common::Path rogerPath = dir.getPath().getParent()
-		                             .appendComponent(chosen.gameId + "-roger");
+		                             .appendComponent(gameId + "-roger");
 		Common::FSNode(rogerPath).createDirectory();
 
-		// 7. Persist and refresh.
+		// 6. Persist and refresh.
 		ConfMan.flushToDisk();
 		_launcher.discoverGames();
 		rebuildGameList();
