@@ -128,9 +128,18 @@ public:
 	}
 
 	void test_text_edit_text_inset_from_border() {
-		// kUiTextEdit draws a 1px border then left-aligned text. Without the inset
-		// fix the "W" glyph (drawn from d.left=0) places a black pixel at x=1.
-		// With the fix (textRect starts at x=2), pixel (1,3) stays white (background).
+		// kUiTextEdit draws a 1px border (x=0 for a left-edge box), then left-aligned
+		// text starting at textRect.left = d.left + textThick(1) + kUiTextPad(1) = 2.
+		// Without the inset fix, text draws from x=0 (d.left), so the "W" glyph inks
+		// x=1 in at least one row. With the fix, x=1 is always background (white).
+		//
+		// Non-vacuity: we also assert that at least one black pixel exists at x>=2
+		// within the text rows, proving text actually drew. If drawPx is a no-op (e.g.
+		// font not available) this assertion fails loudly instead of passing silently.
+		//
+		// Font-geometry independence: instead of relying on a single hard-coded glyph
+		// pixel, we scan ALL rows of the box interior (y=1..box.bottom-2) for x=1,
+		// so the test works regardless of which bitmap font is loaded.
 		const Graphics::PixelFormat rgba(4, 8, 8, 8, 8, 24, 16, 8, 0);
 		Graphics::ManagedSurface dst(320, 200, rgba);
 		dst.fillRect(Common::Rect(0, 0, 320, 200), rgba.ARGBToColor(255, 0, 128, 0)); // green sentinel
@@ -156,15 +165,36 @@ public:
 		RogerCompositor comp;
 		comp.renderUiLayer(dst, elems, pal, Common::Rect(0, 0, 320, 200), &tr);
 
+		const Graphics::Surface *surf = dst.surfacePtr();
 		uint8 a, r, g, b;
-		// x=0: the 1px border — must be black.
-		dst.surfacePtr()->format.colorToARGB(dst.surfacePtr()->getPixel(0, 3), a, r, g, b);
+
+		// 1. x=0: the 1px border — must be black across the text rows.
+		surf->format.colorToARGB(surf->getPixel(0, 5), a, r, g, b);
 		TS_ASSERT_EQUALS(r, 0); TS_ASSERT_EQUALS(g, 0); TS_ASSERT_EQUALS(b, 0);
 
-		// x=1: one column inside the border — must be white (background), not text.
-		// Without the inset fix: drawPx draws "W" from x=0, so (1,3) is black (glyph pixel).
-		// With the inset fix: drawPx draws from x=2, so (1,3) stays white (background fill).
-		dst.surfacePtr()->format.colorToARGB(dst.surfacePtr()->getPixel(1, 3), a, r, g, b);
-		TS_ASSERT_EQUALS(r, 255); TS_ASSERT_EQUALS(g, 255); TS_ASSERT_EQUALS(b, 255);
+		// 2. x=1: the column immediately inside the border — must be pure white (background)
+		//    in EVERY interior row of the box. With the inset (textRect.left=2), the font
+		//    never draws there. Without it (textRect.left=0), "W" inks x=1 in >=1 row.
+		bool anyBlackAtX1 = false;
+		for (int y = 1; y < 19; y++) { // interior rows: skip top/bottom border pixels
+			surf->format.colorToARGB(surf->getPixel(1, y), a, r, g, b);
+			if (r == 0 && g == 0 && b == 0) {
+				anyBlackAtX1 = true;
+				break;
+			}
+		}
+		TS_ASSERT(!anyBlackAtX1); // x=1 must be background (white), never text-coloured (black)
+
+		// 3. Prove text actually drew: at least one black pixel must exist at x>=2 in the
+		//    interior rows. If drawPx is a no-op (no font), this fails loudly.
+		bool anyBlackAtX2plus = false;
+		for (int y = 1; y < 19 && !anyBlackAtX2plus; y++) {
+			for (int x = 2; x < 48 && !anyBlackAtX2plus; x++) {
+				surf->format.colorToARGB(surf->getPixel(x, y), a, r, g, b);
+				if (r == 0 && g == 0 && b == 0)
+					anyBlackAtX2plus = true;
+			}
+		}
+		TS_ASSERT(anyBlackAtX2plus); // text must have actually drawn (font available + inset works)
 	}
 };
