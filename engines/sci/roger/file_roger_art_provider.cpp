@@ -30,6 +30,7 @@
 #include "sci/roger/roger_text.h"
 #include "sci/roger/view_cache.h"
 #include "sci/roger/slice_set.h"
+#include "sci/roger/roger_pic_parser.h"
 // animate.h references these SCI engine types in GfxAnimate's interface but does
 // not declare them itself. This translation unit includes animate.h (to iterate
 // the AnimateList in renderFromAnimateList) without first pulling in the full
@@ -174,10 +175,24 @@ void FileRogerArtProvider::precacheAll() {
 	if (doPics) {
 		Common::List<ResourceId> pics = resMan->listResources(kResourceTypePic);
 		const int total = (int)pics.size();
-		int done = 0;
+		int done = 0, skipped = 0;
+		const bool isEga = (resMan->getViewType() == kViewEga);
 		warning("ROGER precache: warming %d pic plates (mode=%d)...", total, (int)_assetGen->mode());
 		for (Common::List<ResourceId>::const_iterator it = pics.begin(); it != pics.end(); ++it) {
 			GuiResourceId id = (GuiResourceId)it->getNumber();
+
+			// Skip non-EGA pics. SCI1.1 generates on-demand (native screen path).
+			// SCI1.0 VGA vector not yet supported.
+			Resource *picRes = resMan->findResource(ResourceId(kResourceTypePic, (uint16)id), false);
+			if (picRes && picRes->size() >= 2) {
+				const Roger::PicFormat picFmt = Roger::picResourceFormat(
+					picRes->data(), (uint32)picRes->size(), isEga);
+				if (picFmt != Roger::kPicSci0Ega) {
+					++skipped;
+					continue;
+				}
+			}
+
 			uint32 ms = 0;
 			Graphics::Surface *s = _assetGen->generatePlate(id, ms); // cache mode writes the PNG
 			if (s) { s->free(); delete s; }                          // we only wanted it on disk
@@ -187,7 +202,7 @@ void FileRogerArtProvider::precacheAll() {
 			++done;
 			warning("ROGER precache: pic %d (%d/%d) plate %u ms, prio %u ms", id, done, total, ms, pms);
 		}
-		warning("ROGER precache: %d pic plates warmed", done);
+		warning("ROGER precache: %d pic plates warmed, %d non-EGA skipped", done, skipped);
 	}
 
 	if (doViews && g_sci->_gfxCache) {
