@@ -148,6 +148,17 @@ Common::String RogerAssetGen::cacheKey(const char *transform, uint32 resourceHas
 }
 
 // -------------------------------------------------------------------------
+// engineIsEga — true when the engine is rendering in EGA (4-bit palette) mode.
+// -------------------------------------------------------------------------
+
+#ifdef ENABLE_SCI
+static bool engineIsEga() {
+	return g_sci && g_sci->getResMan() &&
+		   g_sci->getResMan()->getViewType() == kViewEga;
+}
+#endif // ENABLE_SCI
+
+// -------------------------------------------------------------------------
 // generatePlate — thin wrapper; delegates to generatePlateWithIndex
 // -------------------------------------------------------------------------
 
@@ -183,6 +194,15 @@ Graphics::Surface *RogerAssetGen::generatePlateWithIndex(int id, Common::Array<b
 	Resource *res = resMan->findResource(ResourceId(kResourceTypePic, (uint16)id), false);
 	if (!res || res->size() == 0)
 		return nullptr;
+
+	// Detect pic format. SCI1.0 VGA vector is currently unsupported (omyac is
+	// EGA-specific); return nullptr so the native SCI render shows. SCI1.1 VGA
+	// cel pics use a separate generation path added in Task 3.
+	const PicFormat fmt = picResourceFormat(res->data(), (uint32)res->size(), engineIsEga());
+	if (fmt == kPicSci1VgaVector)
+		return nullptr; // SCI1.0 VGA vector: native render shows (future work)
+	if (fmt == kPicSci11VgaCel)
+		return nullptr; // placeholder — Task 3 replaces this with the native-screen path
 
 	// Hash the raw bytes for the cache key.
 	uint32 hash = fnv1a32(res->data(), (uint32)res->size());
@@ -249,6 +269,9 @@ bool RogerAssetGen::priorityBands(int picId, Common::Array<byte> &outBands, int 
 	if (!resMan) return false;
 	Resource *res = resMan->findResource(ResourceId(kResourceTypePic, (uint16)picId), false);
 	if (!res || res->size() == 0) return false;
+	const PicFormat fmt = picResourceFormat(res->data(), (uint32)res->size(), engineIsEga());
+	if (fmt != kPicSci0Ega)
+		return false; // only the EGA path produces native priority bands
 	Common::Array<DrawCommand> cmds = parsePic(res->data(), (uint32)res->size());
 	NativeRef ref = nativePreRender(cmds);
 	if (ref.priority.empty()) return false;
@@ -426,6 +449,13 @@ bool RogerAssetGen::generatePriorityMap(int picId, Common::Array<byte> &outBands
 	Resource *res = resMan->findResource(ResourceId(kResourceTypePic, (uint16)picId), false);
 	if (!res || res->size() == 0)
 		return false;
+
+	// Non-EGA pics: no omyac priority map. SCI1.1 handled by Task 3.
+	const PicFormat fmt = picResourceFormat(res->data(), (uint32)res->size(), engineIsEga());
+	if (fmt == kPicSci1VgaVector)
+		return false;
+	if (fmt == kPicSci11VgaCel)
+		return false; // Task 3 replaces with native priority screen path
 
 	uint32 hash = fnv1a32(res->data(), (uint32)res->size());
 	Common::String key = cacheKey("omyacprio", hash);
