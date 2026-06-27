@@ -182,7 +182,9 @@ void RogerLauncherDialog::handleCommand(GUI::CommandSender *sender, uint32 cmd, 
 	}
 	case kPrecacheCmd:
 		if (_state.precaching) {
+			_launchAfterPrecache = false;
 			_state.cancelPrecache = true;
+			_precacheBtn->setLabel(Common::U32String("Precache Now"));
 		} else {
 			_launcher.buildPrecacheQueues();
 			_precacheBtn->setLabel(Common::U32String("Cancel"));
@@ -300,8 +302,10 @@ void RogerLauncherDialog::handleCommand(GUI::CommandSender *sender, uint32 cmd, 
 		ConfMan.flushToDisk();
 		_launcher.discoverGames();
 		rebuildGameList();
-		rebuildSettings();
 		bool hasGames = !_state.games.empty();
+		if (hasGames)
+			_launcher.selectGame(0);
+		rebuildSettings();
 		_launchBtn->setEnabled(hasGames);
 		_deleteBtn->setEnabled(hasGames);
 		g_gui.scheduleTopDialogRedraw();
