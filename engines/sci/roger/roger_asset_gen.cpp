@@ -39,6 +39,7 @@
 #include "sci/sci.h"
 #include "sci/resource/resource.h"
 #include "sci/graphics/cache.h"
+#include "sci/graphics/screen.h"
 #include "sci/graphics/view.h"
 #include "sci/graphics/palette16.h"
 #include "sci/graphics/scifont.h"
@@ -158,6 +159,98 @@ static bool engineIsEga() {
 }
 #endif // ENABLE_SCI
 
+#ifdef ENABLE_SCI
+// Generate a 1920x1140 RGBA32 plate for a SCI1.1 VGA pic by reading the native
+// visual screen (populated by GfxPicture::drawSci11Vga(), which already ran before
+// pushHiresBackground() called us). Nearest-neighbour 6x upscale.
+// Returns nullptr on any failure. `id` used only for cache key.
+static Graphics::Surface *generatePlateSci11(
+		const Common::String &gameId, const Common::String &cacheDir, GenMode mode,
+		int id, uint32 resourceHash, uint32 &outMs) {
+	outMs = 0;
+	if (!g_sci || !g_sci->_gfxScreen || !g_sci->_gfxPalette16)
+		return nullptr;
+
+	const Common::String key = Common::String::format(
+		"%s.sci11scale6x.v%d.%08x", gameId.c_str(), kTransformVersion, resourceHash);
+	const Common::String cachePath = cacheDir + "/" + key + ".png";
+
+	if (mode == kGenCache) {
+		Graphics::Surface *cached = loadSurfaceRGBA(cachePath);
+		if (cached)
+			return cached;
+	}
+
+	const uint32 t0 = g_system->getMillis();
+
+	// Read 320x190 native visual screen (game area below the status bar).
+	// getVisual(x, y) returns a palette index 0-255.
+	const int NW = OMYAC_NATIVE_W, NH = OMYAC_NATIVE_H; // 320, 190
+	const int SW = OMYAC_HYBRID_W, SH = OMYAC_HYBRID_H; // 1920, 1140
+	const int SCALE = OMYAC_SCALE;                        // 6
+
+	// Build a 320x190 IndexImage with 8-bit palette indices.
+	IndexImage idx;
+	idx.w = NW; idx.h = NH;
+	idx.pixels.resize((uint32)(NW * NH));
+	for (int y = 0; y < NH; y++)
+		for (int x = 0; x < NW; x++)
+			idx.pixels[(uint32)(y * NW + x)] = g_sci->_gfxScreen->getVisual((int16)x, (int16)y);
+
+	// Scale 6x with nearest-neighbour (reuses existing roger_scale machinery).
+	IndexImage scaled = scaleNearest(idx, SCALE);
+	if (scaled.w != SW || scaled.h != SH)
+		return nullptr;
+
+	// Map 256-color indices through the system palette to RGBA32.
+	const Graphics::PixelFormat fmt(4, 8, 8, 8, 8, 24, 16, 8, 0);
+	Graphics::Surface *plate = new Graphics::Surface();
+	plate->create((uint16)SW, (uint16)SH, fmt);
+	if (!plate->getPixels()) { delete plate; return nullptr; }
+
+	const Palette &pal = g_sci->_gfxPalette16->_sysPalette;
+	for (int y = 0; y < SH; y++) {
+		uint32 *dst = (uint32 *)plate->getBasePtr(0, y);
+		for (int x = 0; x < SW; x++) {
+			const byte palIdx = scaled.pixels[(uint32)(y * SW + x)];
+			const Color &c = pal.colors[palIdx];
+			dst[x] = fmt.ARGBToColor(255, c.r, c.g, c.b);
+		}
+	}
+
+	outMs = g_system->getMillis() - t0;
+
+	if (mode == kGenCache || mode == kGenAlways) {
+		ensureCacheDir(cacheDir);
+		dumpSurfacePng(*plate, cachePath);
+	}
+
+	return plate;
+}
+
+// Build a 1920x1140 priority band map for a SCI1.1 VGA pic by reading the native
+// priority screen (populated by GfxPicture::drawSci11Vga()). Nearest-neighbour 6x.
+static bool generatePriorityMapSci11(Common::Array<byte> &outBands, int &outW, int &outH) {
+	outBands.clear(); outW = 0; outH = 0;
+	if (!g_sci || !g_sci->_gfxScreen)
+		return false;
+
+	const int SW = OMYAC_HYBRID_W, SH = OMYAC_HYBRID_H;
+	const int SCALE = OMYAC_SCALE;
+
+	outBands.resize((uint32)(SW * SH));
+	for (int y = 0; y < SH; y++) {
+		for (int x = 0; x < SW; x++) {
+			// nearest-neighbour: map hires pixel back to native pixel
+			const int nx = x / SCALE, ny = y / SCALE;
+			outBands[(uint32)(y * SW + x)] = g_sci->_gfxScreen->getPriority((int16)nx, (int16)ny);
+		}
+	}
+	outW = SW; outH = SH;
+	return true;
+}
+#endif // ENABLE_SCI
+
 // -------------------------------------------------------------------------
 // generatePlate — thin wrapper; delegates to generatePlateWithIndex
 // -------------------------------------------------------------------------
@@ -201,8 +294,12 @@ Graphics::Surface *RogerAssetGen::generatePlateWithIndex(int id, Common::Array<b
 	const PicFormat fmt = picResourceFormat(res->data(), (uint32)res->size(), engineIsEga());
 	if (fmt == kPicSci1VgaVector)
 		return nullptr; // SCI1.0 VGA vector: native render shows (future work)
-	if (fmt == kPicSci11VgaCel)
-		return nullptr; // placeholder — Task 3 replaces this with the native-screen path
+	if (fmt == kPicSci11VgaCel) {
+		// Native screen already rendered by GfxPicture::drawSci11Vga() before we run.
+		// outIndex stays empty (no EGA doubled-nibble index; live palette re-apply skips).
+		uint32 hash = fnv1a32(res->data(), (uint32)res->size());
+		return generatePlateSci11(_gameId, _cacheDir, _mode, id, hash, outMs);
+	}
 
 	// Hash the raw bytes for the cache key.
 	uint32 hash = fnv1a32(res->data(), (uint32)res->size());
@@ -455,7 +552,7 @@ bool RogerAssetGen::generatePriorityMap(int picId, Common::Array<byte> &outBands
 	if (fmt == kPicSci1VgaVector)
 		return false;
 	if (fmt == kPicSci11VgaCel)
-		return false; // Task 3 replaces with native priority screen path
+		return generatePriorityMapSci11(outBands, outW, outH);
 
 	uint32 hash = fnv1a32(res->data(), (uint32)res->size());
 	Common::String key = cacheKey("omyacprio", hash);
