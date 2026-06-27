@@ -155,7 +155,9 @@ void FileRogerArtProvider::precacheAll() {
 	// live engine for its pic/view resources.
 	if (!_assetGen || _assetGen->mode() == Roger::kGenPrebuilt)
 		return;
-	Common::String scope = "all";
+	// Default "off": precache is opt-in via the Roger launcher per-game settings.
+	// Games configured via the launcher will have roger_precache set explicitly.
+	Common::String scope = "off";
 	if (ConfMan.hasKey("roger_precache"))
 		scope = ConfMan.get("roger_precache");
 	if (scope == "off")
