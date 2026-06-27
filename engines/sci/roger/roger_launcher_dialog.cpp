@@ -123,6 +123,9 @@ void RogerLauncherDialog::open() {
 	GUI::Dialog::open();
 	rebuildGameList();
 	rebuildSettings();
+	bool hasGames = !_state.games.empty();
+	_launchBtn->setEnabled(hasGames);
+	_deleteBtn->setEnabled(hasGames);
 }
 
 void RogerLauncherDialog::rebuildGameList() {
@@ -276,10 +279,17 @@ void RogerLauncherDialog::handleCommand(GUI::CommandSender *sender, uint32 cmd, 
 		g_gui.scheduleTopDialogRedraw();
 		break;
 	}
-	case kGameSelCmd:
-		_launcher.selectGame(_gameList->getSelected());
-		rebuildSettings();
+	case kGameSelCmd: {
+		int sel = _gameList->getSelected();
+		if (sel >= 0) {
+			_launcher.selectGame(sel);
+			rebuildSettings();
+			_launchBtn->setEnabled(true);
+			_deleteBtn->setEnabled(true);
+		}
+		g_gui.scheduleTopDialogRedraw();
 		break;
+	}
 	case kPrecachePopCmd: {
 		uint32 tag = _precachePop->getSelectedTag();
 		if (tag < 4) _state.settings.precache = kPrecacheVals[tag];
