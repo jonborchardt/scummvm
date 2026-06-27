@@ -103,6 +103,26 @@ MODULE_OBJS := \
 	sound/drivers/pc9801.o \
 	video/seq_decoder.o
 
+# Roger art replacement
+MODULE_OBJS += \
+	roger/roger_art_provider.o \
+	roger/roger_asset_gen.o \
+	roger/roger_compositor.o \
+	roger/roger_cursor.o \
+	roger/roger_effects.o \
+	roger/roger_ega_blend.o \
+	roger/roger_omyac.o \
+	roger/roger_palette_remap.o \
+	roger/roger_pic_native.o \
+	roger/roger_pic_parser.o \
+	roger/roger_scale.o \
+	roger/roger_text.o \
+	roger/roger_ui_layer.o \
+	roger/file_roger_art_provider.o \
+	roger/png_loader.o \
+	roger/slice_set.o \
+	roger/view_cache.o
+
 
 ifdef ENABLE_SCI32
 MODULE_OBJS += \

@@ -25,6 +25,7 @@
 #include "common/translation.h"
 
 #include "engines/advancedDetector.h"
+#include "engines/metaengine.h"
 #include "engines/util.h"
 
 #include "sci/sci.h"
@@ -67,6 +68,7 @@
 #include "sci/graphics/screen.h"
 #include "sci/graphics/text16.h"
 #include "sci/graphics/transitions.h"
+#include "sci/roger/file_roger_art_provider.h"
 
 #ifdef ENABLE_SCI32
 #include "sci/graphics/controls32.h"
@@ -218,6 +220,8 @@ SciEngine::SciEngine(OSystem *syst, const ADGameDescription *desc, SciGameId gam
 }
 
 SciEngine::~SciEngine() {
+	delete g_sciRogerProvider;
+	g_sciRogerProvider = nullptr;
 #ifdef ENABLE_SCI32
 	delete _gfxControls32;
 	delete _gfxPaint32;
@@ -386,6 +390,24 @@ Common::Error SciEngine::run() {
 
 	// Initialize all graphics related subsystems
 	initGraphics();
+
+	// Set the OS window caption to the game's full canonical title. main.cpp sets
+	// it once from the stored "description" config key, which can be a stale or
+	// series-level string (e.g. "Space Quest" with no "III"). findTarget() re-derives
+	// the title from the detection plugin's game table by gameid, so this is the full
+	// name for any SCI game and uses no hardcoded strings. Leave the caption untouched
+	// if lookup fails, so we never regress to blank.
+	{
+		QualifiedGameDescriptor qgd = EngineMan.findTarget(ConfMan.getActiveDomainName());
+		if (!qgd.description.empty())
+			_system->setWindowCaption(qgd.description.decode());
+	}
+
+	g_sciRogerProvider = new FileRogerArtProvider(getGameIdStr(), ConfMan.getPath("path"));
+	// Optional: warm the content cache up front (roger_precache) so in-game room
+	// entry is all cache hits. No-op unless roger_precache is set and a generating
+	// roger_gen_mode is active.
+	g_sciRogerProvider->precacheAll();
 
 	// Sound must be initialized after graphics because SysEx transfers at the
 	// start of the game must pump the event loop to avoid making the OS think

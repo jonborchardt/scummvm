@@ -256,6 +256,9 @@ ScummVM.cxxflags
 dists/msvc/**
 !dists/msvc/create_project.bat
 
+#Ignore the generated MSVC tests solution (built by build_tests.ps1)
+dists/msvc-tests/
+
 #Ignore bison debug output
 *.output
 
@@ -311,7 +314,15 @@ __pycache__/
 
 #Ignore vcpkg generated files
 /vcpkg_installed/
+/vcpkg-configuration.json
 
 #Ignore Claude instruction files
-CLAUDE.md
 .claude
+.superpowers
+/docs
+/plans
+
+!build_and_run.ps1
+
+# Superpowers SDD session scratch (ledger, briefs, reports, review diffs)
+.superpowers/

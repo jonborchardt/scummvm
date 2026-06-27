@@ -36,6 +36,7 @@
 #include "sci/graphics/text16.h"
 #include "sci/graphics/screen.h"
 #include "sci/graphics/menu.h"
+#include "sci/roger/roger_art_provider.h"
 
 namespace Sci {
 
@@ -368,6 +369,11 @@ void GfxMenu::drawBar() {
 	else
 		_ports->moveTo(_screen->getWidth() - 8, 1);
 
+	// Roger: collect each bar title (global coords) so the bar can be composited
+	// into the overlay as hires header text (it would otherwise show through the
+	// reserved status strip as the native bitmap font).
+	_rogerBarTitles.clear();
+
 	listIterator = _list.begin();
 	while (listIterator != listEnd) {
 		GuiMenuEntry *listEntry = *listIterator;
@@ -379,10 +385,66 @@ void GfxMenu::drawBar() {
 		}
 		int16 origCurLeft = _ports->_curPort->curLeft;
 		_text16->DrawString(listEntry->textSplit.c_str());
+
+		// Capture this title spanning from its start x to wherever DrawString left
+		// the pen, across the full bar-strip height.
+		RogerMenuRow rr;
+		const int16 lo = origCurLeft < _ports->_curPort->curLeft ? origCurLeft : _ports->_curPort->curLeft;
+		const int16 hi = origCurLeft < _ports->_curPort->curLeft ? _ports->_curPort->curLeft : origCurLeft;
+		rr.rect = Common::Rect(lo, _ports->_menuBarRect.top, hi, _ports->_menuBarRect.bottom);
+		rr.text = listEntry->textSplit;
+		rr.id = 0;
+		_rogerBarTitles.push_back(rr);
+
 		if (g_sci->isLanguageRTL())
 			_ports->_curPort->curLeft = origCurLeft;
 
 		listIterator++;
+	}
+
+	rogerPushBarOverlay();
+}
+
+// A menu-bar title is plain text we can render with the TTF header font only if every
+// character is printable ASCII. The leftmost SQ3 menu's title is a graphical "Sierra"
+// glyph (a control/high-bit char) the TTF lacks, so it is left for the native bar.
+static bool rogerTitleIsText(const Common::String &s) {
+	if (s.empty())
+		return false;
+	for (uint i = 0; i < s.size(); i++) {
+		const byte c = (byte)s[i];
+		if (c < 0x20 || c >= 0x7f)
+			return false;
+	}
+	return true;
+}
+
+void GfxMenu::rogerPushBarOverlay() {
+	if (!g_sciRogerProvider || !g_sciRogerProvider->enabled)
+		return;
+	// The menu bar shares the top strip with the score/title banner and they are
+	// mutually exclusive in time, so they use the SAME clear-token: pushing the bar
+	// replaces the banner, and the next kernelDrawStatus replaces the bar back.
+	const uint32 tok = 0x10000000u;
+	g_sciRogerProvider->uiClearToken(tok);
+	// Opaque white bar (matches the native white menu bar), no frame, spanning the FULL
+	// bar width. Earlier this started to the right of a leading graphical-glyph title so
+	// the native icon could show through the transparent gap — but that gap also let the
+	// native bar (e.g. the leftmost "Score:" text) bleed through and overlap the hires
+	// titles. Covering the whole bar keeps it clean; the leftmost graphical menu is still
+	// clickable, it just renders as the white bar rather than its native glyph.
+	Common::Rect barRect = _ports->_menuBarRect;
+	g_sciRogerProvider->uiPushWindow(barRect, _screen->getColorWhite(), 0,
+	                                 2 /*SCI_WINDOWMGR_STYLE_NOFRAME*/, tok);
+	for (uint i = 0; i < _rogerBarTitles.size(); i++) {
+		const RogerMenuRow &t = _rogerBarTitles[i];
+		if (!rogerTitleIsText(t.text))
+			continue; // graphical glyph (Sierra icon) -> leave the native bar showing
+		int16 nfw = 0, nfh = 0;
+		_text16->StringWidth(t.text, 0, nfw, nfh);
+		g_sciRogerProvider->uiPushText(t.rect, t.text.c_str(), 0 /*black*/, -1 /*no fill*/, 0,
+		                               SCI_TEXT16_ALIGNMENT_LEFT, tok, 1 /*heading*/, true /*alt font*/,
+		                               nfh, nfw);
 	}
 }
 
@@ -534,6 +596,8 @@ reg_t GfxMenu::kernelSelect(reg_t eventObject, bool pauseSound) {
 		_paint16->bitsShow(_ports->_menuRect);
 		_barSaveHandle = NULL_REG;
 	}
+	// Roger: the menu has closed — drop the composited dropdown from the overlay.
+	rogerClearMenuOverlay();
 	if (_oldPort) {
 		_ports->setPort(_oldPort);
 		_oldPort = nullptr;
@@ -666,6 +730,13 @@ void GfxMenu::drawMenu(uint16 oldMenuId, uint16 newMenuId) {
 	// Save background
 	_menuSaveHandle = _paint16->bitsSave(_menuRect, GFX_SCREEN_MASK_VISUAL);
 
+	// Roger hires dialogs: remember the full dropdown box (global coords, before the
+	// draw-time inset mutations) and collect each row below, so the dropdown can be
+	// composited into the overlay (it is drawn straight to the screen, not via a
+	// window, so it would otherwise be hidden behind the hires overlay).
+	_rogerMenuBox = _menuRect;
+	_rogerMenuRows.clear();
+
 	// Do the drawing
 	_paint16->fillRect(_menuRect, GFX_SCREEN_MASK_VISUAL, 0);
 	_menuRect.left++; _menuRect.right--; _menuRect.bottom--;
@@ -693,6 +764,13 @@ void GfxMenu::drawMenu(uint16 oldMenuId, uint16 newMenuId) {
 					_ports->moveTo(_menuRect.right - listItemEntry->textWidth, topPos);
 					_text16->DrawString(listItemEntry->textSplit.c_str());
 				}
+				// Roger: capture this menu row (global coords) for the overlay.
+				RogerMenuRow rr;
+				rr.rect = Common::Rect(_menuRect.left, topPos,
+				                       _menuRect.right, topPos + _ports->_curPort->fontHeight);
+				rr.text = listItemEntry->textSplit;
+				rr.id = listItemEntry->id;
+				_rogerMenuRows.push_back(rr);
 			} else {
 				// We dont 100% follow sierra here, we draw the line from left to right. Looks better
 				// BTW. SCI1.1 seems to put 2 pixels and then skip one, we don't do this at all (lsl6)
@@ -723,10 +801,48 @@ void GfxMenu::drawMenu(uint16 oldMenuId, uint16 newMenuId) {
 	}
 	_menuRect.bottom++;
 	_paint16->bitsShow(_menuRect);
+
+	// Roger: composite the freshly drawn dropdown into the overlay (no highlight yet;
+	// the caller follows up with invertMenuSelection to set the active row).
+	_rogerMenuHighlight = 0;
+	rogerPushMenuOverlay();
+}
+
+void GfxMenu::rogerPushMenuOverlay() {
+	if (!g_sciRogerProvider || !g_sciRogerProvider->enabled)
+		return;
+	const uint32 tok = 0x20000000u; // single open dropdown at a time
+	g_sciRogerProvider->uiClearToken(tok);
+	// Opaque white box with a frame (matches SCI's black-bordered white dropdown).
+	g_sciRogerProvider->uiPushWindow(_rogerMenuBox, _screen->getColorWhite(), 0, 0, tok);
+	for (uint i = 0; i < _rogerMenuRows.size(); i++) {
+		const RogerMenuRow &r = _rogerMenuRows[i];
+		const bool sel = (r.id == _rogerMenuHighlight);
+		const int pen = sel ? _screen->getColorWhite() : 0;
+		const int back = sel ? 0 : -1; // selected row drawn inverted (white on black)
+		int16 nfw = 0, nfh = 0;
+		_text16->StringWidth(r.text, 0, nfw, nfh);
+		g_sciRogerProvider->uiPushText(r.rect, r.text.c_str(), pen, back, 0,
+		                               SCI_TEXT16_ALIGNMENT_LEFT, tok, 0 /*body*/, true,
+		                               nfh, nfw);
+	}
+}
+
+void GfxMenu::rogerClearMenuOverlay() {
+	if (g_sciRogerProvider && g_sciRogerProvider->enabled)
+		g_sciRogerProvider->uiClearToken(0x20000000u);
+	_rogerMenuRows.clear();
 }
 
 void GfxMenu::invertMenuSelection(uint16 itemId) {
 	Common::Rect itemRect = _menuRect;
+
+	// Roger: track the highlighted row and re-push the dropdown so the overlay's
+	// selection follows the cursor (the native invert is hidden under the overlay).
+	if (itemId != 0) {
+		_rogerMenuHighlight = itemId;
+		rogerPushMenuOverlay();
+	}
 
 	if (itemId == 0)
 		return;
@@ -744,6 +860,9 @@ void GfxMenu::interactiveStart(bool pauseSound) {
 	_cursor->kernelShow();
 	if (pauseSound)
 		g_sci->_soundCmd->pauseAll(true);
+	// Roger hires dialogs: the overlay stays up; the menu bar shows through the
+	// reserved status strip and the dropdown is composited via rogerPushMenuOverlay
+	// (drawMenu / invertMenuSelection). No longer hide the overlay here.
 }
 
 void GfxMenu::interactiveEnd(bool pauseSound) {
@@ -1042,6 +1161,16 @@ void GfxMenu::kernelDrawStatus(const char *text, int16 colorPen, int16 colorBack
 	// achieving the same effect.
 	_paint16->fillRect(_ports->_menuLine, 1, 0);
 	_paint16->bitsShow(_ports->_menuLine);
+
+	// Roger hires dialogs: render the score/title banner into the overlay's top strip
+	// (opaque, exact-fit) so it appears hires instead of the native bar showing through.
+	if (g_sciRogerProvider && g_sciRogerProvider->enabled) {
+		int16 nfw = 0, nfh = 0;
+		_text16->StringWidth(text, _text16->GetFontId(), nfw, nfh);
+		g_sciRogerProvider->uiPushStatus(_ports->_menuBarRect, text, _text16->GetFontId(),
+		                                 colorPen, colorBack, 0x10000000u, nfh, nfw);
+	}
+
 	_ports->setPort(oldPort);
 }
 

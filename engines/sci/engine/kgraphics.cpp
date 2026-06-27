@@ -55,6 +55,7 @@
 #ifdef ENABLE_SCI32
 #include "sci/graphics/text32.h"
 #endif
+#include "sci/roger/roger_art_provider.h"
 
 namespace Sci {
 
@@ -130,6 +131,12 @@ static reg_t kSetCursorSci0(EngineState *s, int argc, reg_t *argv) {
 	}
 
 	g_sci->_gfxCursor->kernelSetShape(cursorId);
+	if (g_sciRogerProvider && g_sciRogerProvider->enabled) {
+		if (cursorId < 0)
+			g_sciRogerProvider->onCursorHidden(true);
+		else
+			g_sciRogerProvider->onCursorShape(cursorId);
+	}
 	return s->r_acc;
 }
 
@@ -142,6 +149,8 @@ static reg_t kSetCursorSci11(EngineState *s, int argc, reg_t *argv) {
 		switch (argv[0].toSint16()) {
 		case 0:
 			g_sci->_gfxCursor->kernelHide();
+			if (g_sciRogerProvider && g_sciRogerProvider->enabled)
+				g_sciRogerProvider->onCursorHidden(true);
 			break;
 		case -1:
 			g_sci->_gfxCursor->kernelClearZoomZone();
@@ -151,6 +160,8 @@ static reg_t kSetCursorSci11(EngineState *s, int argc, reg_t *argv) {
 			break;
 		default:
 			g_sci->_gfxCursor->kernelShow();
+			if (g_sciRogerProvider && g_sciRogerProvider->enabled)
+				g_sciRogerProvider->onCursorHidden(false);
 			break;
 		}
 		break;
@@ -196,6 +207,9 @@ static reg_t kSetCursorSci11(EngineState *s, int argc, reg_t *argv) {
 			g_sci->_gfxCursor->kernelSetMacCursor(argv[0].toUint16(), argv[1].toUint16(), argv[2].toUint16());
 		} else {
 			g_sci->_gfxCursor->kernelSetView(argv[0].toUint16(), argv[1].toUint16(), argv[2].toUint16(), hotspot);
+			if (g_sciRogerProvider && g_sciRogerProvider->enabled)
+				g_sciRogerProvider->onCursorView(
+					argv[0].toUint16(), argv[1].toSint16(), argv[2].toSint16());
 		}
 		break;
 	case 10:
@@ -1257,11 +1271,23 @@ reg_t kShakeScreen(EngineState *s, int argc, reg_t *argv) {
 	int16 shakeCount = (argc > 0) ? argv[0].toUint16() : 1;
 	int16 directions = (argc > 1) ? argv[1].toUint16() : 1;
 
+	// Roger overlay: mirror the shake in the hires overlay and skip the native shake
+	// (invisible under the opaque overlay; avoids double-blocking). Gated; falls back
+	// to native shake when the overlay is hidden (F10 A/B toggle).
+	if (g_sciRogerProvider && g_sciRogerProvider->enabled && g_sciRogerProvider->isOverlayVisible()) {
+		g_sciRogerProvider->onShake(shakeCount, directions);
+		return s->r_acc;
+	}
+
 	g_sci->_gfxScreen->kernelShakeScreen(shakeCount, directions);
 	return s->r_acc;
 }
 
 reg_t kDisplay(EngineState *s, int argc, reg_t *argv) {
+	// Roger hires dialogs: the overlay is no longer hidden for text. Blocking text is
+	// composited into the overlay (GfxPaint16::kernelDisplay captures the save-under
+	// box); when there is no hires scene the capture override returns early, leaving
+	// the native render visible.
 	reg_t textp = argv[0];
 	int index = (argc > 1) ? argv[1].toUint16() : 0;
 

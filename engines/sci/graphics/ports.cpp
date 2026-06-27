@@ -34,6 +34,7 @@
 #include "sci/graphics/animate.h"
 #include "sci/graphics/text16.h"
 #include "sci/graphics/ports.h"
+#include "sci/roger/roger_art_provider.h"
 
 namespace Sci {
 
@@ -520,12 +521,36 @@ void GfxPorts::drawWindow(Window *pWnd) {
 		if (!(wndStyle & SCI_WINDOWMGR_STYLE_TRANSPARENT))
 			_paint16->fillRect(r, GFX_SCREEN_MASK_VISUAL, pWnd->backClr);
 
+		if (g_sciRogerProvider && g_sciRogerProvider->enabled) {
+			const uint32 tok = 0x40000000u | (uint32)pWnd->id;
+			g_sciRogerProvider->uiPushWindow(pWnd->dims, pWnd->backClr, pWnd->penClr,
+			                                 wndStyle, tok);
+			// A titled window (e.g. the inventory's "You are carrying:") draws its title in
+			// a titlebar strip that uiPushWindow does not reproduce. Capture it so the hires
+			// overlay shows the title too: a dark titlebar (grey for SCI0, black later) with
+			// centered white text, matching the native bar.
+			if ((wndStyle & SCI_WINDOWMGR_STYLE_TITLE) && !pWnd->title.empty()) {
+				Common::Rect titleRect(pWnd->dims.left, pWnd->dims.top,
+				                       pWnd->dims.right, (int16)(pWnd->dims.top + 10));
+				const int titleBack = (getSciVersion() <= SCI_VERSION_0_LATE) ? 8 : 0;
+				int16 nfw = 0, nfh = 0;
+				_text16->StringWidth(pWnd->title, 0, nfw, nfh);
+				g_sciRogerProvider->uiPushText(titleRect, pWnd->title.c_str(),
+				                               _screen->getColorWhite(), titleBack, 0,
+				                               SCI_TEXT16_ALIGNMENT_CENTER, tok,
+				                               0, false, nfh, nfw);
+			}
+		}
+
 		_paint16->bitsShow(pWnd->dims);
 	}
 	setPort(oldport);
 }
 
 void GfxPorts::removeWindow(Window *pWnd, bool reanimate) {
+	if (g_sciRogerProvider && g_sciRogerProvider->enabled)
+		g_sciRogerProvider->uiClearToken(0x40000000u | (uint32)pWnd->id);
+
 	setPort(_wmgrPort);
 	_paint16->bitsRestore(pWnd->hSaved1);
 	pWnd->hSaved1 = NULL_REG;

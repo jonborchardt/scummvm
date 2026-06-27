@@ -34,6 +34,7 @@
 #include "sci/graphics/frameout.h"
 #endif
 #include "sci/graphics/screen.h"
+#include "sci/roger/roger_art_provider.h"
 
 namespace Sci {
 
@@ -202,9 +203,20 @@ SciEvent EventManager::getScummVMEvent() {
 	// current mouse position on every event, including non-mouse events), so
 	// skip past all mousemove events in the event queue
 	bool found;
+	bool sawMouseMove = false;
 	do {
 		found = em->pollEvent(ev);
+		if (found && ev.type == Common::EVENT_MOUSEMOVE)
+			sawMouseMove = true;
 	} while (found && ev.type == Common::EVENT_MOUSEMOVE);
+
+	// Roger draws its cursor INTO the hires overlay (the native cursor is not usable
+	// over it), so the overlay must be re-presented on mouse movement or the cursor
+	// freezes - badly during blocking dialogs/inventory/menus, which do not tick
+	// kernelAnimate. SCI discards mouse-move events above, so this is the one place
+	// that sees them. Re-present so the composited cursor tracks the real pointer.
+	if (sawMouseMove && g_sciRogerProvider && g_sciRogerProvider->enabled)
+		g_sciRogerProvider->onMouseMoved();
 
 	Common::Point mousePos;
 
@@ -249,6 +261,64 @@ SciEvent EventManager::getScummVMEvent() {
 	if (ev.type == Common::EVENT_QUIT || ev.type == Common::EVENT_RETURN_TO_LAUNCHER) {
 		input.type = kSciEventQuit;
 		return input;
+	}
+
+	// Roger debug hotkeys (consumed, not passed to the game). Bound to plain
+	// F-keys (most likely to reach the engine - Ctrl+Shift+* was being eaten
+	// before SCI saw it) plus the Ctrl+Shift variants as a fallback:
+	//   F10 / Ctrl+Shift+U - toggle the upscaled hires overlay vs the original
+	//   F11 / Ctrl+Shift+L - toggle per-frame Roger diagnostic logging
+	//   Ctrl+Shift+] - add a fill pass (omyac enhance-pass live tuning)
+	//   Ctrl+Shift+[ - remove a fill pass
+	//   Ctrl+Shift+' - add an all pass
+	//   Ctrl+Shift+; - remove an all pass
+	//   Ctrl+Shift+. - add a line pass
+	//   Ctrl+Shift+, - remove a line pass
+	//   Ctrl+Shift+R - reload roger_omyac_passes from ConfMan and regenerate
+	//   Ctrl+Shift+F - cycle the dialog/body font through the in-engine shortlist
+	if (ev.type == Common::EVENT_KEYDOWN && g_sciRogerProvider) {
+		const Common::KeyCode kc = ev.kbd.keycode;
+		const bool ctrlShift = (ev.kbd.flags & Common::KBD_CTRL) && (ev.kbd.flags & Common::KBD_SHIFT);
+		if (kc == Common::KEYCODE_F10 || (ctrlShift && kc == Common::KEYCODE_u)) {
+			g_sciRogerProvider->toggleOverlay();
+			return noEvent;
+		}
+		if (kc == Common::KEYCODE_F11 || (ctrlShift && kc == Common::KEYCODE_l)) {
+			g_sciRogerProvider->toggleDebugLog();
+			return noEvent;
+		}
+		if (ctrlShift && kc == Common::KEYCODE_RIGHTBRACKET) {
+			g_sciRogerProvider->tuneEnhancePasses(+1, 0); // add fill
+			return noEvent;
+		}
+		if (ctrlShift && kc == Common::KEYCODE_LEFTBRACKET) {
+			g_sciRogerProvider->tuneEnhancePasses(-1, 0); // remove fill
+			return noEvent;
+		}
+		if (ctrlShift && kc == Common::KEYCODE_QUOTE) {
+			g_sciRogerProvider->tuneEnhancePasses(+1, 2); // add all
+			return noEvent;
+		}
+		if (ctrlShift && kc == Common::KEYCODE_SEMICOLON) {
+			g_sciRogerProvider->tuneEnhancePasses(-1, 2); // remove all
+			return noEvent;
+		}
+		if (ctrlShift && kc == Common::KEYCODE_PERIOD) {
+			g_sciRogerProvider->tuneEnhancePasses(+1, 1); // add line
+			return noEvent;
+		}
+		if (ctrlShift && kc == Common::KEYCODE_COMMA) {
+			g_sciRogerProvider->tuneEnhancePasses(-1, 1); // remove line
+			return noEvent;
+		}
+		if (ctrlShift && kc == Common::KEYCODE_r) {
+			g_sciRogerProvider->reloadGenConfig();
+			return noEvent;
+		}
+		if (ctrlShift && kc == Common::KEYCODE_f) {
+			g_sciRogerProvider->cycleBodyFont();
+			return noEvent;
+		}
 	}
 
 	int scummVMKeyFlags;

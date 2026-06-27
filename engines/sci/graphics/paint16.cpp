@@ -40,6 +40,7 @@
 #include "sci/graphics/transitions.h"
 
 #include "sci/graphics/scifx.h"
+#include "sci/roger/roger_art_provider.h"
 
 namespace Sci {
 
@@ -88,6 +89,21 @@ void GfxPaint16::debugSetEGAdrawingVisualize(bool state) {
 }
 
 void GfxPaint16::drawPicture(GuiResourceId pictureId, bool mirroredFlag, bool addToFlag, GuiResourceId paletteId) {
+	// Roger art replacement. We still render the NATIVE (original low-res) picture
+	// below, so the real room exists in the game surface as a fallback whenever the
+	// hires overlay is hidden (toggled off, or behind a text box / menu). After the
+	// native draw we overwrite priority/control with Roger's maps (so game logic +
+	// occlusion use them) and cache the hires plate for the overlay compositor.
+	const bool rogerReplace = g_sciRogerProvider && g_sciRogerProvider->enabled
+			&& g_sciRogerProvider->hasBackground(pictureId);
+	if (rogerReplace) {
+		g_sciRogerProvider->prefetch(pictureId);
+	} else if (!addToFlag && g_sciRogerProvider && g_sciRogerProvider->enabled) {
+		// Full-screen room with no replacement: drop any stale overlay from the
+		// previous room (Hard Constraint 6). addToPic overlays must not evict it.
+		g_sciRogerProvider->onNativePicture();
+	}
+
 	// Set up custom per-picture palette mod
 	doCustomPicPalette(_screen, pictureId);
 
@@ -106,6 +122,15 @@ void GfxPaint16::drawPicture(GuiResourceId pictureId, bool mirroredFlag, bool ad
 
 	// Reset custom per-picture palette mod
 	_screen->setCurPaletteMapValue(0);
+
+	// Roger: cache the hires plate (and the overlay's own occlusion priority map)
+	// for the OSystem overlay compositor. We deliberately do NOT overwrite SCI's
+	// priority/control buffers here - the native picture just filled them with the
+	// game's ORIGINAL maps, which are correct for walkability and native occlusion.
+	// (The overlay's per-pixel occlusion uses its own priority map, loaded inside
+	// pushHiresBackground.)
+	if (rogerReplace)
+		g_sciRogerProvider->pushHiresBackground(pictureId);
 }
 
 // This one is the only one that updates screen!
@@ -358,6 +383,16 @@ void GfxPaint16::bitsGetRect(reg_t memoryHandle, Common::Rect *destRect) {
 }
 
 void GfxPaint16::bitsRestore(reg_t memoryHandle) {
+	// Roger hires dialogs: SCI restores the region under a save-under text box when it
+	// is dismissed; clear the captured message keyed by the same handle.
+	if (g_sciRogerProvider && g_sciRogerProvider->enabled && !memoryHandle.isNull()) {
+		const uint32 tok = ((uint32)memoryHandle.getSegment() << 16) | memoryHandle.getOffset();
+		g_sciRogerProvider->uiClearToken(tok);
+		// Also drop any standalone hires cel (inventory close-up) when a window/region
+		// is restored — that is how the look-at screen is dismissed.
+		g_sciRogerProvider->uiClearToken(0x50000000u);
+	}
+
 	if (!memoryHandle.isNull()) {
 		byte *memoryPtr = _segMan->getHunkPointer(memoryHandle);
 
@@ -404,6 +439,18 @@ void GfxPaint16::kernelDrawCel(GuiResourceId viewId, int16 loopNo, int16 celNo, 
 	// some calls are hiresMode even under kq6 DOS, that's why we check for hires caps here
 	if (!hiresMode || !_screen->gfxDriver()->supportsHiResGraphics()) {
 		drawCelAndShow(viewId, loopNo, celNo, leftPos, topPos, priority, paletteNo, scaleX, scaleY);
+		// Roger: a standalone cel (e.g. an inventory item's "look at" close-up). If an
+		// upscaled cel exists, composite it hires into the overlay over the native draw.
+		if (g_sciRogerProvider && g_sciRogerProvider->enabled) {
+			GfxView *celView = _cache->getView(viewId);
+			if (celView) {
+				Common::Rect g(leftPos, topPos,
+				               leftPos + celView->getWidth(loopNo, celNo),
+				               topPos + celView->getHeight(loopNo, celNo));
+				_ports->offsetRect(g);
+				g_sciRogerProvider->onDrawCel(g, viewId, loopNo, celNo);
+			}
+		}
 	} else {
 		drawHiresCelAndShow(viewId, loopNo, celNo, leftPos, topPos, priority, paletteNo, hiresHandle, true);
 	}
@@ -571,6 +618,19 @@ reg_t GfxPaint16::kernelDisplay(const char *text, uint16 languageSplitter, int a
 
 	if (doSaveUnder)
 		result = bitsSave(rect, GFX_SCREEN_MASK_VISUAL);
+
+	// Roger hires dialogs: capture the blocking message box (gated on doSaveUnder so
+	// only blocking text is composited; transient non-blocking text does not flicker
+	// the overlay). rect here is already global/offset for the display path.
+	if (doSaveUnder && g_sciRogerProvider && g_sciRogerProvider->enabled) {
+		const uint32 tok = ((uint32)result.getSegment() << 16) | result.getOffset();
+		int16 nfw = 0, nfh = 0;
+		_text16->StringWidth(text, _text16->GetFontId(), nfw, nfh);
+		g_sciRogerProvider->uiPushText(rect, text, colorPen >= 0 ? colorPen : 0,
+		                               colorBack, -1, alignment, tok,
+		                               0 /*body*/, false, nfh, 0 /*multi-line: no width cap*/);
+	}
+
 	if (colorBack != -1)
 		fillRect(rect, GFX_SCREEN_MASK_VISUAL, colorBack, 0, 0);
 

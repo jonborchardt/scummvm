@@ -39,6 +39,7 @@
 #include "sci/graphics/screen.h"
 #include "sci/graphics/text16.h"
 #include "sci/graphics/controls16.h"
+#include "sci/roger/roger_art_provider.h"
 
 namespace Sci {
 
@@ -111,6 +112,25 @@ void GfxControls16::drawListControl(Common::Rect rect, reg_t obj, int16 maxChars
 			_text16->Draw(textString.c_str(), 0, MIN<int16>(maxChars, listEntry.size()), oldFontId, oldPenColor);
 			if ((!isAlias) && (i == cursorPos)) {
 				_paint16->invertRect(workerRect);
+			}
+
+			// Roger hires dialogs: capture this list row as text on top of the list
+			// window (already captured by drawWindow). The selected row is rendered
+			// inverted (white on black). Token = active window id, so disposing the
+			// inventory window clears the rows too.
+			if (g_sciRogerProvider && g_sciRogerProvider->enabled) {
+				Common::Rect g = workerRect;
+				_ports->offsetRect(g);
+				const Port *p = _ports->getPort();
+				const uint32 tok = 0x40000000u | (uint32)(p ? p->id : 0);
+				const bool sel = (!isAlias) && (i == cursorPos);
+				const int pen = sel ? 15 : (p ? p->penClr : 0);
+				const int back = sel ? 0 : -1;
+				int16 nfw = 0, nfh = 0;
+				_text16->StringWidth(textString, fontId, nfw, nfh);
+				g_sciRogerProvider->uiPushText(g, textString.c_str(), pen, back, fontId,
+				                               SCI_TEXT16_ALIGNMENT_LEFT, tok, 0 /*body*/, false,
+				                               nfh, nfw);
 			}
 		}
 		workerRect.translate(0, fontSize);
@@ -272,8 +292,12 @@ void GfxControls16::kernelTexteditChange(reg_t controlObject, reg_t eventObject)
 				textWidth += _text16->_font->getCharWidth((byte)*textPtr++);
 			textWidth += _text16->_font->getCharWidth(eventKey);
 
-			// Does it fit?
-			if (textWidth >= rect.width()) {
+			// Does it fit? SCI caps input at the native nsRect pixel width. With the
+			// Roger hires overlay the field is rendered far wider, so this native cap
+			// would stop typing after only a few characters (the buffer is still bound
+			// by maxChars, checked above). Relax it while Roger is active.
+			const bool rogerActive = g_sciRogerProvider && g_sciRogerProvider->enabled;
+			if (!rogerActive && textWidth >= rect.width()) {
 				_text16->SetFont(oldFontId);
 				return;
 			}
@@ -293,6 +317,21 @@ void GfxControls16::kernelTexteditChange(reg_t controlObject, reg_t eventObject)
 		_text16->SetFont(oldFontId);
 		// Write back string
 		_segMan->strcpy_(textReference, text.c_str());
+
+		// Roger hires dialogs: live typing redraws here (not via kernelDrawTextEdit),
+		// so push the updated buffer + caret so the hires field tracks each keystroke.
+		// Same token+rect as kernelDrawTextEdit => replaces that element in place.
+		if (g_sciRogerProvider && g_sciRogerProvider->enabled) {
+			Common::Rect g = rect;
+			_ports->offsetRect(g);
+			const Port *p = _ports->getPort();
+			const uint32 tok = 0x40000000u | (uint32)(p ? p->id : 0);
+			const int16 editStyle = readSelectorValue(_segMan, controlObject, SELECTOR(state));
+			int16 nfw = 0, nfh = 0;
+			_text16->StringWidth(text, fontId, nfw, nfh);
+			g_sciRogerProvider->uiPushTextEdit(g, text.c_str(), fontId, editStyle, cursorPos, tok,
+			                                   nfh, nfw);
+		}
 	} else {
 		if (g_system->getMillis() >= _texteditBlinkTime) {
 			_paint16->invertRect(_texteditCursorRect);
@@ -313,6 +352,16 @@ int GfxControls16::getPicNotValid() {
 
 void GfxControls16::kernelDrawButton(Common::Rect rect, reg_t obj, const char *text, uint16 languageSplitter, int16 fontId, int16 style, bool hilite) {
 	g_sci->_tts->button(text);
+
+	if (g_sciRogerProvider && g_sciRogerProvider->enabled) {
+		Common::Rect g = rect;
+		_ports->offsetRect(g);
+		const Port *p = _ports->getPort();
+		const uint32 tok = 0x40000000u | (uint32)(p ? p->id : 0);
+		int16 nfw = 0, nfh = 0;
+		_text16->StringWidth(text, fontId, nfw, nfh);
+		g_sciRogerProvider->uiPushButton(g, text, fontId, style, tok, nfh, nfw);
+	}
 
 	if (!hilite) {
 		int16 sci0EarlyPen = 0, sci0EarlyBack = 0;
@@ -392,6 +441,17 @@ void GfxControls16::kernelDrawButton(Common::Rect rect, reg_t obj, const char *t
 void GfxControls16::kernelDrawText(Common::Rect rect, reg_t obj, const char *text, uint16 languageSplitter, int16 fontId, TextAlignment alignment, int16 style, bool hilite) {
 	g_sci->_tts->text(text);
 
+	if (g_sciRogerProvider && g_sciRogerProvider->enabled) {
+		Common::Rect g = rect;
+		_ports->offsetRect(g);
+		const Port *p = _ports->getPort();
+		const uint32 tok = 0x40000000u | (uint32)(p ? p->id : 0);
+		int16 nfw = 0, nfh = 0;
+		_text16->StringWidth(text, fontId, nfw, nfh);
+		g_sciRogerProvider->uiPushText(g, text, p ? p->penClr : 0, p ? p->backClr : -1,
+		                               fontId, alignment, tok, 0, false, nfh, nfw);
+	}
+
 	if (!hilite) {
 		rect.grow(1);
 		_paint16->eraseRect(rect);
@@ -428,6 +488,16 @@ void GfxControls16::kernelDrawText(Common::Rect rect, reg_t obj, const char *tex
 }
 
 void GfxControls16::kernelDrawTextEdit(Common::Rect rect, reg_t obj, const char *text, uint16 languageSplitter, int16 fontId, int16 mode, int16 style, int16 cursorPos, int16 maxChars, bool hilite) {
+	if (g_sciRogerProvider && g_sciRogerProvider->enabled) {
+		Common::Rect g = rect;
+		_ports->offsetRect(g);
+		const Port *p = _ports->getPort();
+		const uint32 tok = 0x40000000u | (uint32)(p ? p->id : 0);
+		int16 nfw = 0, nfh = 0;
+		_text16->StringWidth(text, fontId, nfw, nfh);
+		g_sciRogerProvider->uiPushTextEdit(g, text, fontId, style, cursorPos, tok, nfh, nfw);
+	}
+
 	Common::Rect textRect = rect;
 	uint16 oldFontId = _text16->GetFontId();
 
@@ -455,6 +525,14 @@ void GfxControls16::kernelDrawTextEdit(Common::Rect rect, reg_t obj, const char 
 }
 
 void GfxControls16::kernelDrawIcon(Common::Rect rect, reg_t obj, GuiResourceId viewId, int16 loopNo, int16 celNo, int16 priority, int16 style, bool hilite) {
+	if (g_sciRogerProvider && g_sciRogerProvider->enabled) {
+		Common::Rect g = rect;
+		_ports->offsetRect(g);
+		const Port *p = _ports->getPort();
+		const uint32 tok = 0x40000000u | (uint32)(p ? p->id : 0);
+		g_sciRogerProvider->uiPushIcon(g, viewId, loopNo, celNo, tok);
+	}
+
 	if (!hilite) {
 		_paint16->drawCelAndShow(viewId, loopNo, celNo, rect.left, rect.top, priority, 0);
 		if (style & 0x20) {

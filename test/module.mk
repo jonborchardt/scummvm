@@ -60,6 +60,12 @@ endif
 #
 TEST_FLAGS   := --runner=StdioPrinter --no-std --no-eh
 TEST_CFLAGS  := $(CFLAGS) -I$(srcdir)/test/cxxtest
+
+ifeq ($(ENABLE_SCI), STATIC_PLUGIN)
+	TESTS += $(srcdir)/test/sci/roger/*.h
+	TEST_LIBS += engines/sci/libsci.a
+	TEST_CFLAGS += -DFIXTURE_DIR=\"$(srcdir)/test/sci/roger/fixtures\"
+endif
 TEST_LDFLAGS := $(LDFLAGS) $(LIBS)
 TEST_CXXFLAGS  := $(filter-out -Wglobal-constructors,$(CXXFLAGS))
 TEST_CXXFLAGS += -Wno-self-assign-overloaded
