@@ -161,12 +161,25 @@ void RogerLauncherDialog::rebuildSettings() {
 
 void RogerLauncherDialog::handleCommand(GUI::CommandSender *sender, uint32 cmd, uint32 data) {
 	switch (cmd) {
-	case kLaunchCmd:
-		if (_launcher.handleLaunch())
-			close();
-		else
-			close(); // game switch: dialog closes, caller returns kNoError
+	case kLaunchCmd: {
+		if (_state.games.empty()) break;
+		const GameEntry &g    = _state.games[_state.selectedIndex];
+		const bool isCurrent  = (g.targetName == ConfMan.getActiveDomainName());
+		const bool noCache    = (g.cache.picCount == 0 && g.cache.viewCount == 0);
+		if (isCurrent && noCache) {
+			_launchAfterPrecache = true;
+			_launcher.buildPrecacheQueues();
+			_precacheBtn->setLabel(Common::U32String("Cancel"));
+			updateProgress();
+			g_gui.scheduleTopDialogRedraw();
+		} else {
+			if (_launcher.handleLaunch())
+				close();
+			else
+				close();
+		}
 		break;
+	}
 	case kPrecacheCmd:
 		if (_state.precaching) {
 			_state.cancelPrecache = true;
@@ -337,11 +350,17 @@ void RogerLauncherDialog::handleTickle() {
 		g_gui.scheduleTopDialogRedraw();
 		if (!more) {
 			_precacheBtn->setLabel(Common::U32String("Precache Now"));
-			// Refresh cache counts for all games.
 			for (uint i = 0; i < _state.games.size(); ++i)
 				_launcher.inspectCacheStatus(_state.games[i]);
 			rebuildGameList();
 			g_gui.scheduleTopDialogRedraw();
+			if (_launchAfterPrecache) {
+				_launchAfterPrecache = false;
+				if (_launcher.handleLaunch())
+					close();
+				else
+					close();
+			}
 		}
 	}
 	GUI::Dialog::handleTickle();

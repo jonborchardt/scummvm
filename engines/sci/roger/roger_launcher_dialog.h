@@ -38,6 +38,8 @@ private:
 	GUI::PopUpWidget     *_fallbackPop  = nullptr;
 	GUI::StaticTextWidget *_progressLbl = nullptr;
 
+	bool _launchAfterPrecache = false;
+
 	void rebuildGameList();
 	void rebuildSettings();
 	void updateProgress();
