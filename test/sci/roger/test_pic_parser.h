@@ -55,7 +55,7 @@ public:
 
 	void test_format_empty() {
 		// Empty resource: treat as EGA (caller will fail to parse, returns empty)
-		const byte data[] = { 0x00 };
+		const byte *data = nullptr;
 		TS_ASSERT_EQUALS((int)picResourceFormat(data, 0), (int)kPicSci0Ega);
 	}
 };
