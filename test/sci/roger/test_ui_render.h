@@ -22,6 +22,7 @@
 #include "sci/roger/roger_compositor.h"
 #include "sci/roger/roger_coords.h"
 #include "sci/roger/roger_ui_layer.h"
+#include "sci/roger/roger_text.h"
 #include "graphics/managed_surface.h"
 #include "graphics/surface.h"
 #include "common/array.h"
@@ -124,5 +125,46 @@ public:
 		// left border sits at x=8 (10 - 2) for this lone window.
 		dest.surfacePtr()->format.colorToARGB(dest.surfacePtr()->getPixel(8, 35), a, r, g, b);
 		TS_ASSERT_EQUALS(r, 0); TS_ASSERT_EQUALS(g, 0); TS_ASSERT_EQUALS(b, 0); // black border
+	}
+
+	void test_text_edit_text_inset_from_border() {
+		// kUiTextEdit draws a 1px border then left-aligned text. Without the inset
+		// fix the "W" glyph (drawn from d.left=0) places a black pixel at x=1.
+		// With the fix (textRect starts at x=2), pixel (1,3) stays white (background).
+		const Graphics::PixelFormat rgba(4, 8, 8, 8, 8, 24, 16, 8, 0);
+		Graphics::ManagedSurface dst(320, 200, rgba);
+		dst.fillRect(Common::Rect(0, 0, 320, 200), rgba.ARGBToColor(255, 0, 128, 0)); // green sentinel
+
+		byte pal[256 * 3] = {};
+		pal[15*3+0] = pal[15*3+1] = pal[15*3+2] = 255; // index 15 = white (edit bg)
+		// palette[0] = black (zero-initialised) — used for border AND text
+
+		UiElement e;
+		e.type       = kUiTextEdit;
+		e.nativeRect = Common::Rect(0, 0, 50, 20);
+		e.backColor  = 15;   // white fill
+		e.penColor   = 0;    // black border + text
+		e.text       = "WWWWWWWWWWWW"; // wide text so leftmost glyph columns are filled
+		e.align      = 0;    // left
+		e.vAlignTop  = true; // SCI text-edit position
+		e.style      = 0;    // no caret
+		Common::Array<UiElement> elems;
+		elems.push_back(e);
+
+		Common::Array<int> sizes;
+		RogerTextRenderer tr("", sizes); // bitmap fallback — no game files needed
+		RogerCompositor comp;
+		comp.renderUiLayer(dst, elems, pal, Common::Rect(0, 0, 320, 200), &tr);
+
+		uint8 a, r, g, b;
+		// x=0: the 1px border — must be black.
+		dst.surfacePtr()->format.colorToARGB(dst.surfacePtr()->getPixel(0, 3), a, r, g, b);
+		TS_ASSERT_EQUALS(r, 0); TS_ASSERT_EQUALS(g, 0); TS_ASSERT_EQUALS(b, 0);
+
+		// x=1: one column inside the border — must be white (background), not text.
+		// Without the inset fix: drawPx draws "W" from x=0, so (1,3) is black (glyph pixel).
+		// With the inset fix: drawPx draws from x=2, so (1,3) stays white (background fill).
+		dst.surfacePtr()->format.colorToARGB(dst.surfacePtr()->getPixel(1, 3), a, r, g, b);
+		TS_ASSERT_EQUALS(r, 255); TS_ASSERT_EQUALS(g, 255); TS_ASSERT_EQUALS(b, 255);
 	}
 };

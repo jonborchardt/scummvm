@@ -99,6 +99,10 @@ static void convert32(byte *dstP, const byte *srcP, int dstPitch, int srcPitch,
 // banner and menu titles. The user's roger_ui_font_scale multiplies both.
 static const int kRoleBodyNativeH    = 9;
 static const int kRoleHeadingNativeH = 11;
+// Minimum clearance (dest pixels) between text/caret and the inner edge of a
+// frame border, applied in addition to the border thickness so text never
+// touches the border regardless of overlay resolution.
+static const int kUiTextPad = 1;
 
 void RogerCompositor::setRoom(Graphics::Surface *cleanPlate, ViewCache *views) {
 	_plate = cleanPlate;
@@ -490,23 +494,30 @@ void RogerCompositor::renderUiLayer(Graphics::ManagedSurface &dest,
 			}
 		}
 
+		// Inner text rect: inset d by border thickness + kUiTextPad so text and
+		// caret never render into the frame border. Non-window frames are always
+		// 1px in dest pixels; kUiWindow never reaches the text+caret path.
+		const int textThick = (frame && e.type != kUiWindow) ? 1 : 0;
+		Common::Rect textRect = d;
+		textRect.grow(-(textThick + kUiTextPad));
+
 		// Text + caret.
 		if (tr && (e.type == kUiText || e.type == kUiButton || e.type == kUiTextEdit)
-		    && !e.text.empty()) {
+		    && !e.text.empty() && !textRect.isEmpty()) {
 			const byte *pc = palette ? palette + (e.penColor >= 0 ? e.penColor : 0) * 3 : nullptr;
 			const uint32 col = pc ? fmt.ARGBToColor(255, pc[0], pc[1], pc[2])
 			                      : fmt.ARGBToColor(255, 255, 255, 255);
 			// Native single-line width cap, scaled to the overlay (0 => multi-line: box width).
 			const int wCap = e.nativeTextW > 0 ? e.nativeTextW * overlayH / 200 : 0;
-			tr->drawPx(dest, e.text, d, col, e.align, targetPx, e.vAlignTop, &e.glyphs, wCap);
+			tr->drawPx(dest, e.text, textRect, col, e.align, targetPx, e.vAlignTop, &e.glyphs, wCap);
 		}
-		if (tr && e.type == kUiTextEdit && (e.style & 0x8)) { // SELECTED -> caret
+		if (tr && e.type == kUiTextEdit && (e.style & 0x8) && !textRect.isEmpty()) { // SELECTED -> caret
 			const int wCap = e.nativeTextW > 0 ? e.nativeTextW * overlayH / 200 : 0;
-			const int cx = d.left + tr->caretPx(e.text, e.cursorPos, d, targetPx, wCap);
+			const int cx = textRect.left + tr->caretPx(e.text, e.cursorPos, textRect, targetPx, wCap);
 			const byte *pc = palette ? palette + (e.penColor >= 0 ? e.penColor : 0) * 3 : nullptr;
 			const uint32 col = pc ? fmt.ARGBToColor(255, pc[0], pc[1], pc[2])
 			                      : fmt.ARGBToColor(255, 255, 255, 255);
-			dest.vLine(cx, d.top + 1, d.bottom - 2, col);
+			dest.vLine(cx, textRect.top + 1, textRect.bottom - 2, col);
 		}
 	}
 }
