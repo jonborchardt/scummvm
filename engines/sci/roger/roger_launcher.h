@@ -43,6 +43,7 @@ struct LauncherState {
 	int precacheTotal = 0;
 	bool precaching   = false;
 	bool cancelPrecache = false;
+	Common::String precacheStatus;  // human-readable current step, shown in the dialog
 };
 
 class RogerLauncher {

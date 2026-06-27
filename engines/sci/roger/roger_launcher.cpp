@@ -8,6 +8,7 @@
 #include "common/events.h"
 #include "common/system.h"
 #include "common/textconsole.h"
+#include "engines/engine.h"      // ChainedGamesMan (engine-initiated game switch)
 #include "engines/metaengine.h"
 
 namespace Sci {
@@ -162,8 +163,12 @@ bool RogerLauncher::handleLaunch() {
 	const Common::String &selected = _state.games[_state.selectedIndex].targetName;
 	flushSettingsForSelected();
 	if (selected != active) {
-		ConfMan.setActiveDomain(selected);
-		ConfMan.flushToDisk();
+		// Switch to a different game. setActiveDomain() alone does NOT work here:
+		// after this engine returns, base/main.cpp's post-run cleanup calls
+		// setActiveDomain("") and drops to the GUI launcher. The engine-initiated
+		// switch path is ChainedGamesMan — main.cpp pops it (after the
+		// return-to-launcher event) and runs it as the next game.
+		ChainedGamesMan.push(selected);
 		Common::Event e;
 		e.type = Common::EVENT_RETURN_TO_LAUNCHER;
 		g_system->getEventManager()->pushEvent(e);
@@ -201,6 +206,9 @@ void RogerLauncher::buildPrecacheQueues() {
 	_state.precacheTotal = (int)(_state.picQueue.size() + _state.viewQueue.size());
 	_state.precaching    = true;
 	_state.cancelPrecache = false;
+	_state.precacheStatus = Common::String::format(
+		"Caching %d items...", _state.precacheTotal);
+	warning("ROGER launcher precache: starting (%d items)", _state.precacheTotal);
 }
 
 bool RogerLauncher::precacheStep() {
@@ -214,6 +222,10 @@ bool RogerLauncher::precacheStep() {
 		uint32 ms = 0;
 		_provider->precacheOnePic(id, ms);
 		++_state.precacheDone;
+		_state.precacheStatus = Common::String::format(
+			"Caching pic %d  (%d / %d)", (int)id, _state.precacheDone, _state.precacheTotal);
+		warning("ROGER launcher precache: pic %d (%d/%d) %u ms",
+		        (int)id, _state.precacheDone, _state.precacheTotal, ms);
 		return true; // more to do
 	}
 	if (!_state.viewQueue.empty()) {
@@ -221,9 +233,16 @@ bool RogerLauncher::precacheStep() {
 		_state.viewQueue.remove_at(0);  // O(n) but view counts stay well under 200
 		_provider->precacheOneView(id);
 		++_state.precacheDone;
+		_state.precacheStatus = Common::String::format(
+			"Caching view %d  (%d / %d)", id, _state.precacheDone, _state.precacheTotal);
+		warning("ROGER launcher precache: view %d (%d/%d)",
+		        id, _state.precacheDone, _state.precacheTotal);
 		return true;
 	}
 	_state.precaching = false;
+	_state.precacheStatus = Common::String::format(
+		"Caching complete: %d items", _state.precacheDone);
+	warning("ROGER launcher precache: complete (%d items)", _state.precacheDone);
 	return false; // done
 }
 

@@ -9,6 +9,7 @@ namespace GUI {
 	class ButtonWidget;
 	class StaticTextWidget;
 	class PopUpWidget;
+	class SliderWidget;
 }
 
 namespace Sci {
@@ -37,6 +38,7 @@ private:
 	GUI::PopUpWidget     *_fontPop      = nullptr;
 	GUI::PopUpWidget     *_fallbackPop  = nullptr;
 	GUI::StaticTextWidget *_progressLbl = nullptr;
+	GUI::SliderWidget     *_progressBar = nullptr;
 
 	bool _launchAfterPrecache = false;
 

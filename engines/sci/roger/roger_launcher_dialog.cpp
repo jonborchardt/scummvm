@@ -3,6 +3,7 @@
 #include "gui/widget.h"
 #include "gui/widgets/list.h"
 #include "gui/widgets/popup.h"
+#include "common/util.h"  // CLIP
 #include "gui/browser.h"
 #include "gui/message.h"
 #include "common/system.h"
@@ -14,6 +15,18 @@
 
 namespace Sci {
 namespace Roger {
+
+// Read-only progress bar: a SliderWidget that draws a themed track + fill
+// (drawSlider) but ignores all mouse input so the user cannot drag it.
+class ProgressBarWidget : public GUI::SliderWidget {
+public:
+	ProgressBarWidget(GUI::GuiObject *boss, int x, int y, int w, int h)
+		: GUI::SliderWidget(boss, x, y, w, h) {}
+	void handleMouseMoved(int, int, int) override {}
+	void handleMouseDown(int, int, int, int) override {}
+	void handleMouseUp(int, int, int, int) override {}
+	void handleMouseWheel(int, int, int) override {}
+};
 
 static const char *kPrecacheVals[] = { "off", "pics", "views", "all" };
 static const char *kEnhanceVals[]  = { "off", "fast", "balanced", "quality" };
@@ -91,6 +104,18 @@ RogerLauncherDialog::RogerLauncherDialog(RogerLauncher &launcher)
 	_precacheBtn = new GUI::ButtonWidget(this, M, btnY, W/5, LH,
 	                                     Common::U32String("Precache Now"),
 	                                     Common::U32String(), kPrecacheCmd);
+
+	// Progress bar immediately to the right of the Precache button, vertically
+	// centered against the button. Hidden until precaching is active.
+	const int barX = M + W/5 + M/2;
+	const int barH = LH / 2;
+	const int barW = (W - M - W/6) - barX - M;   // up to the Launch button
+	_progressBar = new ProgressBarWidget(this, barX, btnY + (LH - barH) / 2, barW, barH);
+	_progressBar->setMinValue(0);
+	_progressBar->setMaxValue(1);
+	_progressBar->setValue(0);
+	_progressBar->setVisible(false);
+
 	_launchBtn   = new GUI::ButtonWidget(this, W - M - W/6, btnY, W/6, LH,
 	                                     Common::U32String("Launch"),
 	                                     Common::U32String(), kLaunchCmd);
@@ -311,6 +336,11 @@ void RogerLauncherDialog::handleCommand(GUI::CommandSender *sender, uint32 cmd, 
 		g_gui.scheduleTopDialogRedraw();
 		break;
 	}
+	// ListWidget emits kListSelectionChangedCmd on selection (NOT the _cmd we
+	// passed at construction), so listen for the real command here. Without this
+	// the selected game never updated: settings stayed frozen and Launch always
+	// fired on the active game (index 0).
+	case GUI::kListSelectionChangedCmd:
 	case kGameSelCmd: {
 		int sel = _gameList->getSelected();
 		if (sel >= 0) {
@@ -320,6 +350,17 @@ void RogerLauncherDialog::handleCommand(GUI::CommandSender *sender, uint32 cmd, 
 			_deleteBtn->setEnabled(true);
 		}
 		g_gui.scheduleTopDialogRedraw();
+		break;
+	}
+	// Double-click or Enter on a game selects it and launches.
+	case GUI::kListItemDoubleClickedCmd:
+	case GUI::kListItemActivatedCmd: {
+		int sel = _gameList->getSelected();
+		if (sel >= 0) {
+			_launcher.selectGame(sel);
+			rebuildSettings();
+			handleCommand(sender, kLaunchCmd, 0);
+		}
 		break;
 	}
 	case kPrecachePopCmd: {
@@ -373,11 +414,18 @@ void RogerLauncherDialog::handleTickle() {
 void RogerLauncherDialog::updateProgress() {
 	if (!_state.precaching && _state.precacheDone == 0) {
 		_progressLbl->setLabel(Common::U32String(""));
+		_progressBar->setVisible(false);
 		return;
 	}
-	const Common::String s = Common::String::format(
-		"Caching: %d / %d", _state.precacheDone, _state.precacheTotal);
+	Common::String s = _state.precacheStatus;
+	if (s.empty())
+		s = Common::String::format("Caching: %d / %d", _state.precacheDone, _state.precacheTotal);
 	_progressLbl->setLabel(Common::U32String(s));
+
+	const int total = _state.precacheTotal > 0 ? _state.precacheTotal : 1;
+	_progressBar->setMaxValue(total);
+	_progressBar->setValue(CLIP(_state.precacheDone, 0, total));
+	_progressBar->setVisible(true);
 }
 
 void RogerLauncherDialog::reflowLayout() {
