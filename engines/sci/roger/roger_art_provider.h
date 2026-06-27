@@ -58,6 +58,13 @@ public:
 	// (no first-visit generation stall). No-op otherwise.
 	virtual void precacheAll() {}
 
+	// Single-step generation — called by the launcher's handleTickle() precache loop.
+	// Generates (or cache-loads) one pic plate. Returns false if the provider cannot
+	// generate (prebuilt mode or no asset gen). ms is generation time in milliseconds.
+	virtual bool precacheOnePic(GuiResourceId /*picId*/, uint32 & /*ms*/) { return false; }
+	// Generates one view's cels (all loops×cels for viewId). Returns false on failure.
+	virtual bool precacheOneView(int /*viewId*/) { return false; }
+
 	// Returns true if replacement assets exist for this picture resource.
 	virtual bool hasBackground(GuiResourceId pictureId) const = 0;
 

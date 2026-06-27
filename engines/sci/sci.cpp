@@ -69,6 +69,7 @@
 #include "sci/graphics/text16.h"
 #include "sci/graphics/transitions.h"
 #include "sci/roger/file_roger_art_provider.h"
+#include "sci/roger/roger_launcher.h"
 
 #ifdef ENABLE_SCI32
 #include "sci/graphics/controls32.h"
@@ -404,10 +405,20 @@ Common::Error SciEngine::run() {
 	}
 
 	g_sciRogerProvider = new FileRogerArtProvider(getGameIdStr(), ConfMan.getPath("path"));
-	// Optional: warm the content cache up front (roger_precache) so in-game room
-	// entry is all cache hits. No-op unless roger_precache is set and a generating
-	// roger_gen_mode is active.
-	g_sciRogerProvider->precacheAll();
+
+	if (!ConfMan.hasKey("roger_no_launcher") || !ConfMan.getBool("roger_no_launcher")) {
+		// The launcher owns precaching and shows on-screen progress + a per-item
+		// log. Do NOT run the synchronous startup warm-up here — it would do all
+		// the work (potentially many seconds, fully blocking) before the dialog
+		// ever appears, with no visible progress.
+		Roger::RogerLauncher launcher(g_sciRogerProvider);
+		if (!launcher.run())
+			return Common::kNoError; // game-switch pushed; ScummVM restarts engine
+	} else {
+		// No launcher: fall back to the synchronous warm-up (roger_precache).
+		// No-op unless roger_precache is set and a generating roger_gen_mode is active.
+		g_sciRogerProvider->precacheAll();
+	}
 
 	// Sound must be initialized after graphics because SysEx transfers at the
 	// start of the game must pump the event loop to avoid making the OS think

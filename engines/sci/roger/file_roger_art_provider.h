@@ -47,6 +47,8 @@ public:
 	bool isOverlayVisible() const override;
 	bool hasBackground(GuiResourceId pictureId) const override;
 	void precacheAll() override;
+	bool precacheOnePic(GuiResourceId picId, uint32 &ms) override;
+	bool precacheOneView(int viewId) override;
 	void pushHiresBackground(GuiResourceId pictureId) override;
 	void renderFromAnimateList(const AnimateList &list) override;
 	void onNativePicture() override;

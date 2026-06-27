@@ -30,6 +30,7 @@
 #include "sci/roger/roger_text.h"
 #include "sci/roger/view_cache.h"
 #include "sci/roger/slice_set.h"
+#include "sci/roger/roger_pic_parser.h"
 // animate.h references these SCI engine types in GfxAnimate's interface but does
 // not declare them itself. This translation unit includes animate.h (to iterate
 // the AnimateList in renderFromAnimateList) without first pulling in the full
@@ -141,9 +142,9 @@ bool FileRogerArtProvider::isOverlayVisible() const {
 bool FileRogerArtProvider::hasBackground(GuiResourceId pictureId) const {
 	if (!enabled)
 		return false;
-	// Generation is the art path. Activate for any pic when a generating mode is
-	// set; no prebuilt file is required (the visual + occlusion are generated, and
-	// SCI's own native render still fills priority/control for walkability).
+	// Roger only supports EGA games. Reject silently for VGA (precacheAll warns once).
+	if (!g_sci || !g_sci->getResMan() || g_sci->getResMan()->getViewType() != kViewEga)
+		return false;
 	return _assetGen && _assetGen->mode() != Roger::kGenPrebuilt;
 }
 
@@ -154,7 +155,9 @@ void FileRogerArtProvider::precacheAll() {
 	// live engine for its pic/view resources.
 	if (!_assetGen || _assetGen->mode() == Roger::kGenPrebuilt)
 		return;
-	Common::String scope = "all";
+	// Default "off": precache is opt-in via the Roger launcher per-game settings.
+	// Games configured via the launcher will have roger_precache set explicitly.
+	Common::String scope = "off";
 	if (ConfMan.hasKey("roger_precache"))
 		scope = ConfMan.get("roger_precache");
 	if (scope == "off")
@@ -169,15 +172,35 @@ void FileRogerArtProvider::precacheAll() {
 	if (!resMan)
 		return;
 
+	// Roger supports EGA games only. Warn and disable for VGA.
+	if (resMan->getViewType() != kViewEga) {
+		warning("ROGER: VGA game detected — Roger art replacement supports EGA games only. Overlay disabled.");
+		enabled = false;
+		return;
+	}
+
 	uint32 t0 = g_system->getMillis();
 
 	if (doPics) {
 		Common::List<ResourceId> pics = resMan->listResources(kResourceTypePic);
 		const int total = (int)pics.size();
-		int done = 0;
+		int done = 0, skipped = 0;
+		const bool isEga = (resMan->getViewType() == kViewEga);
 		warning("ROGER precache: warming %d pic plates (mode=%d)...", total, (int)_assetGen->mode());
 		for (Common::List<ResourceId>::const_iterator it = pics.begin(); it != pics.end(); ++it) {
 			GuiResourceId id = (GuiResourceId)it->getNumber();
+
+			// Skip non-EGA pics — Roger only processes EGA pics via omyac.
+			Resource *picRes = resMan->findResource(ResourceId(kResourceTypePic, (uint16)id), false);
+			if (picRes && picRes->size() >= 2) {
+				const Roger::PicFormat picFmt = Roger::picResourceFormat(
+					picRes->data(), (uint32)picRes->size(), isEga);
+				if (picFmt != Roger::kPicSci0Ega) {
+					++skipped;
+					continue;
+				}
+			}
+
 			uint32 ms = 0;
 			Graphics::Surface *s = _assetGen->generatePlate(id, ms); // cache mode writes the PNG
 			if (s) { s->free(); delete s; }                          // we only wanted it on disk
@@ -187,7 +210,7 @@ void FileRogerArtProvider::precacheAll() {
 			++done;
 			warning("ROGER precache: pic %d (%d/%d) plate %u ms, prio %u ms", id, done, total, ms, pms);
 		}
-		warning("ROGER precache: %d pic plates warmed", done);
+		warning("ROGER precache: %d pic plates warmed, %d non-EGA skipped", done, skipped);
 	}
 
 	if (doViews && g_sci->_gfxCache) {
@@ -222,6 +245,49 @@ void FileRogerArtProvider::precacheAll() {
 	}
 
 	warning("ROGER precache: done in %u ms total", g_system->getMillis() - t0);
+}
+
+bool FileRogerArtProvider::precacheOnePic(GuiResourceId picId, uint32 &ms) {
+	if (!_assetGen || _assetGen->mode() == Roger::kGenPrebuilt) return false;
+	// Skip non-EGA pics — only EGA pics have the omyac path.
+	ResourceManager *resMan = g_sci ? g_sci->getResMan() : nullptr;
+	if (resMan) {
+		Resource *picRes = resMan->findResource(ResourceId(kResourceTypePic, (uint16)picId), false);
+		if (picRes && picRes->size() >= 2) {
+			const bool isEga = (resMan->getViewType() == kViewEga);
+			if (Roger::picResourceFormat(picRes->data(), (uint32)picRes->size(), isEga)
+			        != Roger::kPicSci0Ega) {
+				ms = 0;
+				return false; // not cached; generates on-demand
+			}
+		}
+	}
+	Graphics::Surface *s = _assetGen->generatePlate(picId, ms);
+	if (s) { s->free(); delete s; }
+	uint32 pms = 0;
+	Common::Array<byte> bands; int bw = 0, bh = 0;
+	_assetGen->generatePriorityMap(picId, bands, bw, bh, pms);
+	return true;
+}
+
+bool FileRogerArtProvider::precacheOneView(int viewId) {
+	if (!_assetGen || _assetGen->mode() == Roger::kGenPrebuilt) return false;
+	if (!g_sci || !g_sci->_gfxCache) return false;
+	GfxView *view = g_sci->_gfxCache->getView((GuiResourceId)viewId);
+	if (!view) return false;
+	const int loopCount = (int)view->getLoopCount();
+	Common::Array<int> celCounts;
+	for (int lp = 0; lp < loopCount; ++lp)
+		celCounts.push_back((int)view->getCelCount((int16)lp));
+	view = nullptr;
+	for (int lp = 0; lp < loopCount; ++lp) {
+		for (int cl = 0; cl < celCounts[lp]; ++cl) {
+			uint32 ms = 0;
+			Graphics::Surface *s = _assetGen->generateViewCel(viewId, lp, cl, ms);
+			if (s) { s->free(); delete s; }
+		}
+	}
+	return true;
 }
 
 void FileRogerArtProvider::pushHiresBackground(GuiResourceId pictureId) {
