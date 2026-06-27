@@ -8,6 +8,7 @@
 #include "common/events.h"
 #include "common/system.h"
 #include "common/textconsole.h"
+#include "engines/metaengine.h"
 
 namespace Sci {
 namespace Roger {
@@ -44,6 +45,16 @@ void RogerLauncher::tryAddEntry(const Common::String &dom,
 void RogerLauncher::discoverGames() {
 	_state.games.clear();
 
+	// Resolve a friendly description: prefer the ConfMan value, fall back to
+	// EngineMan for command-line launches where no "description" key was written.
+	auto resolveDesc = [](const Common::String &gameId,
+	                       const Common::String &confDesc) -> Common::String {
+		if (!confDesc.empty()) return confDesc;
+		QualifiedGameList matches = EngineMan.findGamesMatching("sci", gameId);
+		if (!matches.empty()) return matches[0].description;
+		return gameId;  // last resort: raw gameId
+	};
+
 	// Persistent game domains from scummvm.ini.
 	const Common::ConfigManager::DomainMap &domains = ConfMan.getGameDomains();
 	for (Common::ConfigManager::DomainMap::const_iterator it = domains.begin();
@@ -56,7 +67,9 @@ void RogerLauncher::discoverGames() {
 		tryAddEntry(dom,
 		            ConfMan.getPath("path", dom),
 		            ConfMan.hasKey("gameid", dom) ? ConfMan.get("gameid", dom) : dom,
-		            ConfMan.hasKey("description", dom) ? ConfMan.get("description", dom) : "");
+		            resolveDesc(
+		                ConfMan.hasKey("gameid", dom) ? ConfMan.get("gameid", dom) : dom,
+		                ConfMan.hasKey("description", dom) ? ConfMan.get("description", dom) : ""));
 	}
 
 	// Also check the active domain — handles command-line games not persisted in scummvm.ini.
@@ -65,10 +78,12 @@ void RogerLauncher::discoverGames() {
 	{
 		const Common::String active = ConfMan.getActiveDomainName();
 		if (!active.empty() && ConfMan.hasKey("path")) {
+			const Common::String activeGameId = ConfMan.hasKey("gameid") ? ConfMan.get("gameid") : active;
 			tryAddEntry(active,
 			            ConfMan.getPath("path"),
-			            ConfMan.hasKey("gameid") ? ConfMan.get("gameid") : active,
-			            ConfMan.hasKey("description") ? ConfMan.get("description") : "");
+			            activeGameId,
+			            resolveDesc(activeGameId,
+			                        ConfMan.hasKey("description") ? ConfMan.get("description") : ""));
 		}
 	}
 
