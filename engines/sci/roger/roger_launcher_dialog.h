@@ -41,6 +41,7 @@ private:
 	void rebuildGameList();
 	void rebuildSettings();
 	void updateProgress();
+	GUI::PopUpWidget *addSettingsRow(int y, int M, int LH, const char *label, uint32 cmd);
 
 	enum {
 		kLaunchCmd   = 'RLNC',

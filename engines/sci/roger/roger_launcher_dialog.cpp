@@ -15,9 +15,28 @@
 namespace Sci {
 namespace Roger {
 
+static const char *kPrecacheVals[] = { "off", "pics", "views", "all" };
+static const char *kEnhanceVals[]  = { "off", "fast", "balanced", "quality" };
+static const char *kFontVals[]     = {
+	"ms_sans_serif.ttf", "LiberationSans-Regular.ttf", "NotoSans-Regular.ttf",
+	"LiberationSerif-Regular.ttf", "GoMono-Regular.ttf",
+	"LiberationMono-Regular.ttf", "SourceCodeVariable-Roman.ttf"
+};
+static const char *kFallbackVals[] = { "prebuilt", "cache", "memory", "always" };
+
 // Layout helpers: all coordinates are overlay pixels.
 static int gW() { return g_system->getOverlayWidth(); }
 static int gH() { return g_system->getOverlayHeight(); }
+
+GUI::PopUpWidget *RogerLauncherDialog::addSettingsRow(int y, int M, int LH,
+                                                       const char *label, uint32 cmd) {
+	const int labelW = _w / 5;
+	const int popW   = _w / 4;
+	new GUI::StaticTextWidget(this, M, y, labelW, LH,
+	                          Common::U32String(label), Graphics::kTextAlignLeft);
+	return new GUI::PopUpWidget(this, M + labelW + M/2, y, popW, LH,
+	                            Common::U32String(), cmd);
+}
 
 RogerLauncherDialog::RogerLauncherDialog(RogerLauncher &launcher)
 	: GUI::Dialog(gW() / 10, gH() / 10, gW() * 8 / 10, gH() * 8 / 10),
@@ -56,38 +75,21 @@ RogerLauncherDialog::RogerLauncherDialog(RogerLauncher &launcher)
 	                          Common::U32String("SETTINGS"), Graphics::kTextAlignLeft);
 
 	// Four settings rows: label + popup.
-	const int labelW = W / 5, popW = W / 4;
-	const char *labels[] = { "Pre-cache", "Enhancement", "Font", "Fallback" };
-	GUI::PopUpWidget **pops[] = { &_precachePop, &_enhancePop, &_fontPop, &_fallbackPop };
-	const uint32 popCmds[] = { kPrecachePopCmd, kEnhancePopCmd, kFontPopCmd, kFallbackPopCmd };
-
-	for (int i = 0; i < 4; ++i) {
-		const int rowY = settTop + LH + i * (LH + M/3);
-		new GUI::StaticTextWidget(this, M, rowY, labelW, LH,
-		                          Common::U32String(labels[i]), Graphics::kTextAlignLeft);
-		*pops[i] = new GUI::PopUpWidget(this, M + labelW + M/2, rowY, popW, LH,
-		                                Common::U32String(), popCmds[i]);
-	}
+	_precachePop = addSettingsRow(settTop + LH + 0*(LH + M/3), M, LH, "Pre-cache",   kPrecachePopCmd);
+	_enhancePop  = addSettingsRow(settTop + LH + 1*(LH + M/3), M, LH, "Enhancement", kEnhancePopCmd);
+	_fontPop     = addSettingsRow(settTop + LH + 2*(LH + M/3), M, LH, "Font",        kFontPopCmd);
+	_fallbackPop = addSettingsRow(settTop + LH + 3*(LH + M/3), M, LH, "Fallback",    kFallbackPopCmd);
 
 	// Populate popup options.
 	// Tags are used as indices so we can use setSelectedTag() for matching.
-	_precachePop->appendEntry(Common::U32String("off"),   0);
-	_precachePop->appendEntry(Common::U32String("pics"),  1);
-	_precachePop->appendEntry(Common::U32String("views"), 2);
-	_precachePop->appendEntry(Common::U32String("all"),   3);
+	for (int i = 0; i < 4; ++i)
+		_precachePop->appendEntry(Common::U32String(kPrecacheVals[i]), (uint32)i);
 
-	_enhancePop->appendEntry(Common::U32String("off"),      0);
-	_enhancePop->appendEntry(Common::U32String("fast"),     1);
-	_enhancePop->appendEntry(Common::U32String("balanced"), 2);
-	_enhancePop->appendEntry(Common::U32String("quality"),  3);
+	for (int i = 0; i < 4; ++i)
+		_enhancePop->appendEntry(Common::U32String(kEnhanceVals[i]), (uint32)i);
 
-	static const char *kFontShortlist[] = {
-		"ms_sans_serif.ttf", "LiberationSans-Regular.ttf", "NotoSans-Regular.ttf",
-		"LiberationSerif-Regular.ttf", "GoMono-Regular.ttf",
-		"LiberationMono-Regular.ttf", "SourceCodeVariable-Roman.ttf"
-	};
 	for (int i = 0; i < 7; ++i)
-		_fontPop->appendEntry(Common::U32String(kFontShortlist[i]), (uint32)i);
+		_fontPop->appendEntry(Common::U32String(kFontVals[i]), (uint32)i);
 
 	// Fallback popup: tag encodes index for mapping back to string.
 	_fallbackPop->appendEntry(Common::U32String("native (prebuilt)"), 0);
@@ -136,30 +138,14 @@ void RogerLauncherDialog::rebuildGameList() {
 void RogerLauncherDialog::rebuildSettings() {
 	const LauncherSettings &s = _state.settings;
 
-	// Precache: match by string value to tag index.
-	static const char *precacheVals[] = { "off", "pics", "views", "all" };
 	for (int i = 0; i < 4; ++i)
-		if (s.precache == precacheVals[i]) { _precachePop->setSelectedTag((uint32)i); break; }
-
-	// Enhancement: match by string value to tag index.
-	static const char *enhanceVals[] = { "off", "fast", "balanced", "quality" };
+		if (s.precache == kPrecacheVals[i]) { _precachePop->setSelectedTag((uint32)i); break; }
 	for (int i = 0; i < 4; ++i)
-		if (s.enhancement == enhanceVals[i]) { _enhancePop->setSelectedTag((uint32)i); break; }
-
-	// Font: match by string value to tag index.
-	static const char *fontVals[] = {
-		"ms_sans_serif.ttf", "LiberationSans-Regular.ttf", "NotoSans-Regular.ttf",
-		"LiberationSerif-Regular.ttf", "GoMono-Regular.ttf",
-		"LiberationMono-Regular.ttf", "SourceCodeVariable-Roman.ttf"
-	};
+		if (s.enhancement == kEnhanceVals[i]) { _enhancePop->setSelectedTag((uint32)i); break; }
 	for (int i = 0; i < 7; ++i)
-		if (s.font == fontVals[i]) { _fontPop->setSelectedTag((uint32)i); break; }
-
-	// Fallback: match by string value to tag index.
-	// Note: ConfMan stores "prebuilt" but display shows "native (prebuilt)".
-	static const char *fbVals[] = { "prebuilt", "cache", "memory", "always" };
+		if (s.font == kFontVals[i]) { _fontPop->setSelectedTag((uint32)i); break; }
 	for (int i = 0; i < 4; ++i)
-		if (s.fallback == fbVals[i]) { _fallbackPop->setSelectedTag((uint32)i); break; }
+		if (s.fallback == kFallbackVals[i]) { _fallbackPop->setSelectedTag((uint32)i); break; }
 }
 
 void RogerLauncherDialog::handleCommand(GUI::CommandSender *sender, uint32 cmd, uint32 data) {
@@ -290,32 +276,23 @@ void RogerLauncherDialog::handleCommand(GUI::CommandSender *sender, uint32 cmd, 
 		rebuildSettings();
 		break;
 	case kPrecachePopCmd: {
-		// Map selected tag (== index) back to string value.
-		static const char *precacheVals[] = { "off", "pics", "views", "all" };
 		uint32 tag = _precachePop->getSelectedTag();
-		if (tag < 4) _state.settings.precache = precacheVals[tag];
+		if (tag < 4) _state.settings.precache = kPrecacheVals[tag];
 		break;
 	}
 	case kEnhancePopCmd: {
-		static const char *enhanceVals[] = { "off", "fast", "balanced", "quality" };
 		uint32 tag = _enhancePop->getSelectedTag();
-		if (tag < 4) _state.settings.enhancement = enhanceVals[tag];
+		if (tag < 4) _state.settings.enhancement = kEnhanceVals[tag];
 		break;
 	}
 	case kFontPopCmd: {
-		static const char *fontVals[] = {
-			"ms_sans_serif.ttf", "LiberationSans-Regular.ttf", "NotoSans-Regular.ttf",
-			"LiberationSerif-Regular.ttf", "GoMono-Regular.ttf",
-			"LiberationMono-Regular.ttf", "SourceCodeVariable-Roman.ttf"
-		};
 		uint32 tag = _fontPop->getSelectedTag();
-		if (tag < 7) _state.settings.font = fontVals[tag];
+		if (tag < 7) _state.settings.font = kFontVals[tag];
 		break;
 	}
 	case kFallbackPopCmd: {
-		static const char *fbVals[] = { "prebuilt", "cache", "memory", "always" };
 		uint32 tag = _fallbackPop->getSelectedTag();
-		if (tag < 4) _state.settings.fallback = fbVals[tag];
+		if (tag < 4) _state.settings.fallback = kFallbackVals[tag];
 		break;
 	}
 	default:
