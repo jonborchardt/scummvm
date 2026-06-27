@@ -279,6 +279,21 @@ void RogerLauncherDialog::handleCommand(GUI::CommandSender *sender, uint32 cmd, 
 		g_gui.scheduleTopDialogRedraw();
 		break;
 	}
+	case kDeleteCmd: {
+		if (_state.selectedIndex < 0 ||
+			_state.selectedIndex >= (int)_state.games.size()) break;
+		const Common::String dom = _state.games[_state.selectedIndex].targetName;
+		ConfMan.removeGameDomain(dom);
+		ConfMan.flushToDisk();
+		_launcher.discoverGames();
+		rebuildGameList();
+		rebuildSettings();
+		bool hasGames = !_state.games.empty();
+		_launchBtn->setEnabled(hasGames);
+		_deleteBtn->setEnabled(hasGames);
+		g_gui.scheduleTopDialogRedraw();
+		break;
+	}
 	case kGameSelCmd: {
 		int sel = _gameList->getSelected();
 		if (sel >= 0) {
