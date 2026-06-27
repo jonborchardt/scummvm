@@ -59,14 +59,14 @@ This fork adds the **Roger** art replacement system for SCI0 games (SQ3, QFG1 EG
 
 Hook at top of `GfxPaint16::drawPicture()` checks `g_sciRogerProvider`. When non-null and `hasBackground()` returns true (i.e. a generating `roger_gen_mode` is active), it lets SCI's **native picture render run** — which fills SCI's own 320×200 priority + control buffers, so walkability and native occlusion stay correct — then calls `pushHiresBackground()`. That generates (or loads from the content cache) the hires plate for the pic and presents it to the OSystem overlay. The overlay's per-pixel sprite occlusion is derived **in-engine** by rendering SCI's **priority screen** through the *same* omyac pipeline as the visual (`RogerAssetGen::generatePriorityMap()`, the `omyacprio` cache) — priority codes are EGA colours, so the output is a colour EGA priority view, upscaled/edge-enhanced exactly like the plate; the occlusion bands are recovered from that render (nearest EGA colour → code), not from any prebuilt map.
 
-**Status: implemented + verified.** Generation activates with zero prebuilt files; `pushHiresBackground()` presents the generated plate to the overlay immediately on room load (no native→hires "pop"). Walkability/native occlusion ride SCI's native buffers; overlay sprite occlusion uses the omyac-rendered priority screen (`omyacprio`, colour).
+**Status: implemented + verified.** Supports SCI0 EGA games (SQ3, QFG1 EGA) with omyac upscaling, and SCI1.1 VGA games (e.g. QFG1 VGA) with 6x nearest-neighbour upscaling. Generation activates with zero prebuilt files; `pushHiresBackground()` presents the generated plate to the overlay immediately on room load (no native→hires "pop"). Walkability/native occlusion ride SCI's native buffers; overlay sprite occlusion uses the priority screen upscaled (omyac-rendered for EGA, 6x for VGA).
 
 **Key files:**
 
 | File | Role |
 |------|------|
 | `engines/sci/roger/roger_art_provider.h` | Abstract interface + `g_sciRogerProvider` global |
-| `engines/sci/roger/roger_asset_gen.h/cpp` | In-engine generation: `generatePlate()` (omyac plate), `generateViewCel()` (scale6x cel), `generatePriorityMap()` (renders SCI's priority screen through omyac as a colour EGA priority view; overlay occlusion bands recovered from it), `priorityBands()` (legacy native occlusion bands), `generateTextSurface()` (renders one native-font glyph via `scaleNearest` → RGBA, for the hybrid text path), backed by a content-hash disk cache (`kTransformVersion`-keyed) |
+| `engines/sci/roger/roger_asset_gen.h/cpp` | In-engine generation: `generatePlate()` (omyac plate for EGA, 6x upscale for VGA), `generateViewCel()` (scale6x cel), `generatePriorityMap()` (renders SCI's priority screen through omyac for EGA or 6x upscale for VGA; overlay occlusion bands recovered from it), `priorityBands()` (legacy native occlusion bands), `generateTextSurface()` (renders one native-font glyph via `scaleNearest` → RGBA, for the hybrid text path), backed by a content-hash disk cache (`kTransformVersion`-keyed) |
 | `engines/sci/roger/roger_pic_native.{h,cpp}` + `roger_pic_parser` / `roger_omyac` / `roger_scale` / `roger_ega_blend` | The omyac pipeline: parse pic → native pre-render (exposes `NativeRef::priority`) → enhance passes → RGBA plate; scale6x for VIEW cels |
 | `engines/sci/roger/file_roger_art_provider.h/cpp` | Provider: `hasBackground()` (generating-mode gate), `pushHiresBackground()` (generates+presents the plate, routes occlusion through `generatePriorityMap()` — hires omyac-aligned), `precacheAll()`, scene/UI capture (incl. `buildGlyphs()` — pre-renders each non-ASCII byte from the game font for the hybrid text path), status-banner cache, cursor policy |
 | `engines/sci/roger/roger_compositor.h/cpp` | Composites plate + sprites (priority-masked) and the UI display-list (dialogs/banner/buttons/edit/icons) into the overlay; opaque-black letterbox; black dialog borders |
@@ -84,6 +84,7 @@ sq3-roger/
     <gameid>.omyac.v<ver>.<hash>.<passes>.png    ← generated hires plate (per pic, content-keyed)
     <gameid>.scale6x.v<ver>.<hash>.<passes>.png  ← generated hires VIEW cel (per view/loop/cel)
     <gameid>.omyacprio.v<ver>.<hash>.<passes>.png ← priority screen rendered through omyac, colour EGA priority view (per pic, content-keyed)
+    <gameid>.sci11scale6x.v<ver>.<hash>.png ← 6x upscale of native VGA screen for SCI1.1 pics (generated lazily on room visit)
 ```
 Plates and VIEW cels are generated in-engine from the SCI resources and written here on a cache miss (modes `cache`/`always`); `memory` generates without writing. The cache key embeds `kTransformVersion`, so a pipeline change invalidates stale files automatically.
 
