@@ -196,6 +196,8 @@ void RogerTextRenderer::drawPx(Graphics::ManagedSurface &dst, const Common::Stri
 	const int lh = f->getFontHeight();
 	int y = firstLineTop(rect.top, rect.height(), (int)lines.size(), lh, vAlignTop);
 	for (uint i = 0; i < lines.size(); i++) {
+		if (y + lh > rect.bottom)
+			break; // line starts below the box — clip silently
 		if (lineHasGlyph(lines[i], glyphs)) {
 			// Mixed TTF + native-glyph layout: lay out left->right, drawing ASCII runs
 			// with the TTF font and blitting each non-ASCII glyph scaled to the line

@@ -103,4 +103,36 @@ public:
 		// Unknown native height -> 0 (caller falls back to role/box).
 		TS_ASSERT_EQUALS(rogerTargetPx(0, 2000, 100), 0);
 	}
+
+	void test_draw_px_clips_to_rect_bottom() {
+		// Build a renderer using the bitmap fallback (no game files needed).
+		Common::Array<int> sizes;
+		RogerTextRenderer tr("", sizes);
+		TS_ASSERT(tr.ok());
+
+		const Graphics::PixelFormat rgba(4, 8, 8, 8, 8, 24, 16, 8, 0);
+		Graphics::ManagedSurface dst(200, 100, rgba);
+		const uint32 black = rgba.ARGBToColor(255, 0,   0,   0);
+		const uint32 white = rgba.ARGBToColor(255, 255, 255, 255);
+		dst.fillRect(Common::Rect(0, 0, 200, 100), black);
+
+		// Long text into only the top 30 rows. With word-wrap this produces more
+		// lines than fit in 30 px, so without the clip fix some rows below 30 turn white.
+		Common::Rect textRect(0, 0, 200, 30);
+		tr.drawPx(dst,
+		          "word word word word word word word word word word word word word word word",
+		          textRect, white, 0 /*left*/, 0 /*targetPx=fill box*/);
+
+		// No pixel in rows 30..99 should be white (the text color).
+		for (int y = 30; y < 100; y++) {
+			for (int x = 0; x < 200; x++) {
+				uint8 a, r, g, b;
+				dst.surfacePtr()->format.colorToARGB(dst.surfacePtr()->getPixel(x, y), a, r, g, b);
+				if (r != 0 || g != 0 || b != 0) {
+					TS_FAIL("drawPx rendered text past rect.bottom");
+					return;
+				}
+			}
+		}
+	}
 };
