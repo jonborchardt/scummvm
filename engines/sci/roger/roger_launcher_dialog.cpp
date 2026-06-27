@@ -43,72 +43,80 @@ RogerLauncherDialog::RogerLauncherDialog(RogerLauncher &launcher)
 	  _launcher(launcher), _state(launcher.state()) {
 
 	const int W = _w, H = _h;
-	const int M = W / 30;    // margin
-	const int LH = H / 20;  // line height
+	const int M  = W / 30;   // margin
+	const int LH = H / 20;   // line height
 
-	// Title: "ROGER" static label.
+	// ── Title ─────────────────────────────────────────────────────────────────
 	new GUI::StaticTextWidget(this, M, M, W / 4, LH,
 	                          Common::U32String("ROGER"), Graphics::kTextAlignLeft);
 
-	// [Skip] button — top-right.
-	_skipBtn = new GUI::ButtonWidget(this, W - M - W/8, M, W/8, LH,
-	                                 Common::U32String("Skip"), Common::U32String(), kSkipCmd);
-
-	// GAMES section header.
+	// ── Games section ─────────────────────────────────────────────────────────
 	const int listTop = M + LH + M;
 	const int listH   = H * 2 / 5;
-	new GUI::StaticTextWidget(this, M, listTop, W/4, LH,
+	const int btnColW = W / 5;                       // width of Add/Delete buttons
+	const int listW   = W - 2*M - btnColW - M;       // list narrowed for right column
+
+	new GUI::StaticTextWidget(this, M, listTop, W / 4, LH,
 	                          Common::U32String("GAMES"), Graphics::kTextAlignLeft);
 
-	// Game list.
-	_gameList = new GUI::ListWidget(this, M, listTop + LH, W - 2*M, listH - LH,
+	_gameList = new GUI::ListWidget(this, M, listTop + LH, listW, listH - LH,
 	                                Common::U32String(), kGameSelCmd);
 
-	// [+ Add Game] button below game list.
-	const int addY = listTop + listH + M/2;
-	_addGameBtn = new GUI::ButtonWidget(this, M, addY, W/5, LH,
-	                                    Common::U32String("+ Add Game"), Common::U32String(), kAddGameCmd);
+	// Right column: stacked Add / Delete buttons flush with list top.
+	const int rightX = M + listW + M;
+	_addGameBtn = new GUI::ButtonWidget(this, rightX, listTop + LH, btnColW, LH,
+	                                    Common::U32String("+ Add Game"),
+	                                    Common::U32String(), kAddGameCmd);
+	_deleteBtn  = new GUI::ButtonWidget(this, rightX, listTop + LH*2 + M/2, btnColW, LH,
+	                                    Common::U32String("Delete"),
+	                                    Common::U32String(), kDeleteCmd);
 
-	// SETTINGS section header.
-	const int settTop = addY + LH + M;
+	// ── Settings section ──────────────────────────────────────────────────────
+	const int settTop = listTop + listH + M;
 	new GUI::StaticTextWidget(this, M, settTop, W - 2*M, LH,
 	                          Common::U32String("SETTINGS"), Graphics::kTextAlignLeft);
 
-	// Four settings rows: label + popup.
 	_precachePop = addSettingsRow(settTop + LH + 0*(LH + M/3), M, LH, "Pre-cache",   kPrecachePopCmd);
 	_enhancePop  = addSettingsRow(settTop + LH + 1*(LH + M/3), M, LH, "Enhancement", kEnhancePopCmd);
 	_fontPop     = addSettingsRow(settTop + LH + 2*(LH + M/3), M, LH, "Font",        kFontPopCmd);
 	_fallbackPop = addSettingsRow(settTop + LH + 3*(LH + M/3), M, LH, "Fallback",    kFallbackPopCmd);
 
-	// Populate popup options.
-	// Tags are used as indices so we can use setSelectedTag() for matching.
-	for (int i = 0; i < 4; ++i)
-		_precachePop->appendEntry(Common::U32String(kPrecacheVals[i]), (uint32)i);
+	// ── Bottom row ────────────────────────────────────────────────────────────
+	const int btnY = H - M - LH;
 
-	for (int i = 0; i < 4; ++i)
-		_enhancePop->appendEntry(Common::U32String(kEnhanceVals[i]), (uint32)i);
+	// Progress label sits in its own row above the buttons.
+	_progressLbl = new GUI::StaticTextWidget(this, M, btnY - LH - M/2, W - 2*M, LH,
+	                                         Common::U32String(""), Graphics::kTextAlignLeft);
+
+	_precacheBtn = new GUI::ButtonWidget(this, M, btnY, W/5, LH,
+	                                     Common::U32String("Precache Now"),
+	                                     Common::U32String(), kPrecacheCmd);
+	_launchBtn   = new GUI::ButtonWidget(this, W - M - W/6, btnY, W/6, LH,
+	                                     Common::U32String("Launch"),
+	                                     Common::U32String(), kLaunchCmd);
+
+	// ── Populate popup options ─────────────────────────────────────────────────
+	_precachePop->appendEntry(Common::U32String("off"),   0);
+	_precachePop->appendEntry(Common::U32String("pics"),  1);
+	_precachePop->appendEntry(Common::U32String("views"), 2);
+	_precachePop->appendEntry(Common::U32String("all"),   3);
+
+	_enhancePop->appendEntry(Common::U32String("off"),      0);
+	_enhancePop->appendEntry(Common::U32String("fast"),     1);
+	_enhancePop->appendEntry(Common::U32String("balanced"), 2);
+	_enhancePop->appendEntry(Common::U32String("quality"),  3);
 
 	for (int i = 0; i < 7; ++i)
 		_fontPop->appendEntry(Common::U32String(kFontVals[i]), (uint32)i);
 
-	// Fallback popup: tag encodes index for mapping back to string.
 	_fallbackPop->appendEntry(Common::U32String("native (prebuilt)"), 0);
 	_fallbackPop->appendEntry(Common::U32String("cache"),             1);
 	_fallbackPop->appendEntry(Common::U32String("memory"),            2);
 	_fallbackPop->appendEntry(Common::U32String("always"),            3);
 
-	// Bottom buttons.
-	const int btnY = H - M - LH;
-	_precacheBtn = new GUI::ButtonWidget(this, M, btnY, W/5, LH,
-	                                     Common::U32String("Precache Now"),
-	                                     Common::U32String(), kPrecacheCmd);
-	_launchBtn = new GUI::ButtonWidget(this, W - M - W/6, btnY, W/6, LH,
-	                                   Common::U32String("Launch"),
-	                                   Common::U32String(), kLaunchCmd);
-
-	// Progress label (hidden until precaching starts).
-	_progressLbl = new GUI::StaticTextWidget(this, M, btnY - LH - M/2, W - 2*M, LH,
-	                                         Common::U32String(""), Graphics::kTextAlignLeft);
+	// Launch and Delete start disabled; enabled on game selection.
+	_launchBtn->setEnabled(false);
+	_deleteBtn->setEnabled(false);
 }
 
 void RogerLauncherDialog::open() {
@@ -155,9 +163,6 @@ void RogerLauncherDialog::handleCommand(GUI::CommandSender *sender, uint32 cmd, 
 			close();
 		else
 			close(); // game switch: dialog closes, caller returns kNoError
-		break;
-	case kSkipCmd:
-		close();
 		break;
 	case kPrecacheCmd:
 		if (_state.precaching) {

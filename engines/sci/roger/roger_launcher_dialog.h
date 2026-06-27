@@ -29,9 +29,9 @@ private:
 
 	GUI::ListWidget      *_gameList     = nullptr;
 	GUI::ButtonWidget    *_launchBtn    = nullptr;
-	GUI::ButtonWidget    *_skipBtn      = nullptr;
 	GUI::ButtonWidget    *_precacheBtn  = nullptr;
 	GUI::ButtonWidget    *_addGameBtn   = nullptr;
+	GUI::ButtonWidget    *_deleteBtn    = nullptr;
 	GUI::PopUpWidget     *_precachePop  = nullptr;
 	GUI::PopUpWidget     *_enhancePop   = nullptr;
 	GUI::PopUpWidget     *_fontPop      = nullptr;
@@ -45,7 +45,7 @@ private:
 
 	enum {
 		kLaunchCmd   = 'RLNC',
-		kSkipCmd     = 'RSKP',
+		kDeleteCmd   = 'RDEL',
 		kPrecacheCmd = 'RPRC',
 		kAddGameCmd  = 'RADG',
 		kGameSelCmd  = 'RGSL',
