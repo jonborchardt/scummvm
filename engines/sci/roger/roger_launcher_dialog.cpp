@@ -207,17 +207,30 @@ void RogerLauncherDialog::handleCommand(GUI::CommandSender *sender, uint32 cmd, 
 		// 3. Try engine-level detection (MD5 matching).
 		//    SCI's fallback detector calls assert(!g_sci), so it can fail during
 		//    engine execution. MD5-based detection still works for known versions.
+		bool vgaBlocked = false;
 		{
 			DetectionResults detectionResults = EngineMan.detectGames(files);
 			DetectedGames candidates = detectionResults.listDetectedGames();
 			for (uint i = 0; i < candidates.size(); ++i) {
 				if (candidates[i].engineId == "sci") {
-					targetDomain = EngineMan.createTargetForGame(candidates[i]);
-					ConfMan.setPath("path", dir.getPath(), targetDomain);
-					gameId = candidates[i].gameId;
+					// Roger is EGA-only. Block VGA games at add-time.
+					if (candidates[i].getGUIOptions().contains("vga")) {
+						vgaBlocked = true;
+					} else {
+						targetDomain = EngineMan.createTargetForGame(candidates[i]);
+						ConfMan.setPath("path", dir.getPath(), targetDomain);
+						gameId = candidates[i].gameId;
+					}
 					break;
 				}
 			}
+		}
+		if (vgaBlocked) {
+			GUI::MessageDialog err(Common::U32String(
+				"Roger supports EGA SCI games only.\n"
+				"This game requires VGA graphics and cannot be added."));
+			err.runModal();
+			break;
 		}
 
 		// 4. If engine detection found nothing, check for SCI resource files directly.
