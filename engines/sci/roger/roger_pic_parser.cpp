@@ -24,6 +24,20 @@
 namespace Sci {
 namespace Roger {
 
+PicFormat picResourceFormat(const byte *data, uint32 size, bool isEga) {
+	if (size < 2)
+		return kPicSci0Ega; // too short; safe fallback
+	// SCI1.1 VGA cel pics: first 2 bytes are LE word 0x0026 (38).
+	const uint16 header = (uint16)(data[0] | (data[1] << 8));
+	if (header == 0x0026)
+		return kPicSci11VgaCel;
+	// If the engine is in VGA (non-EGA) mode and the resource is vector-format
+	// (first byte is an opcode >= 0xF0 or data byte < 0xF0), it's SCI1.0 VGA vector.
+	if (!isEga)
+		return kPicSci1VgaVector;
+	return kPicSci0Ega;
+}
+
 // op-codes.ts (== ScummVM PIC_OP_*)
 enum {
 	OP_SET_VISUAL    = 0xf0,
