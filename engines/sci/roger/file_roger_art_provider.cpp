@@ -142,9 +142,8 @@ bool FileRogerArtProvider::isOverlayVisible() const {
 bool FileRogerArtProvider::hasBackground(GuiResourceId pictureId) const {
 	if (!enabled)
 		return false;
-	// Roger only supports EGA games. Reject silently for VGA (precacheAll warns once).
-	if (!g_sci || !g_sci->getResMan() || g_sci->getResMan()->getViewType() != kViewEga)
-		return false;
+	// VGA games are rejected at add-time in the launcher (loading screen); no
+	// per-frame view-type check here — it stays off the runtime render path.
 	return _assetGen && _assetGen->mode() != Roger::kGenPrebuilt;
 }
 

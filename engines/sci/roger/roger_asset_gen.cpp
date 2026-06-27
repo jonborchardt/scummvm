@@ -39,7 +39,6 @@
 #include "sci/sci.h"
 #include "sci/resource/resource.h"
 #include "sci/graphics/cache.h"
-#include "sci/graphics/screen.h"
 #include "sci/graphics/view.h"
 #include "sci/graphics/palette16.h"
 #include "sci/graphics/scifont.h"
@@ -149,17 +148,6 @@ Common::String RogerAssetGen::cacheKey(const char *transform, uint32 resourceHas
 }
 
 // -------------------------------------------------------------------------
-// engineIsEga — true when the engine is rendering in EGA (4-bit palette) mode.
-// -------------------------------------------------------------------------
-
-#ifdef ENABLE_SCI
-static bool engineIsEga() {
-	return g_sci && g_sci->getResMan() &&
-		   g_sci->getResMan()->getViewType() == kViewEga;
-}
-#endif // ENABLE_SCI
-
-// -------------------------------------------------------------------------
 // generatePlate — thin wrapper; delegates to generatePlateWithIndex
 // -------------------------------------------------------------------------
 
@@ -194,12 +182,6 @@ Graphics::Surface *RogerAssetGen::generatePlateWithIndex(int id, Common::Array<b
 	// Fetch the raw pic resource bytes.
 	Resource *res = resMan->findResource(ResourceId(kResourceTypePic, (uint16)id), false);
 	if (!res || res->size() == 0)
-		return nullptr;
-
-	// Roger only processes EGA pics. VGA formats (SCI1.0 vector, SCI1.1 cel)
-	// are not supported — return nullptr so the native SCI render shows.
-	const PicFormat fmt = picResourceFormat(res->data(), (uint32)res->size(), engineIsEga());
-	if (fmt != kPicSci0Ega)
 		return nullptr;
 
 	// Hash the raw bytes for the cache key.
@@ -267,9 +249,6 @@ bool RogerAssetGen::priorityBands(int picId, Common::Array<byte> &outBands, int 
 	if (!resMan) return false;
 	Resource *res = resMan->findResource(ResourceId(kResourceTypePic, (uint16)picId), false);
 	if (!res || res->size() == 0) return false;
-	const PicFormat fmt = picResourceFormat(res->data(), (uint32)res->size(), engineIsEga());
-	if (fmt != kPicSci0Ega)
-		return false; // only the EGA path produces native priority bands
 	Common::Array<DrawCommand> cmds = parsePic(res->data(), (uint32)res->size());
 	NativeRef ref = nativePreRender(cmds);
 	if (ref.priority.empty()) return false;
@@ -293,10 +272,6 @@ Graphics::Surface *RogerAssetGen::generateViewCel(int viewId, int loopNo, int ce
 
 #ifdef ENABLE_SCI
 	if (!g_sci)
-		return nullptr;
-	// VGA views use 256-color cel data — the EGA omyac pipeline produces wrong output.
-	// Return nullptr to fall back to native SCI cel rendering for VGA sprites.
-	if (g_sci->getResMan() && g_sci->getResMan()->getViewType() != kViewEga)
 		return nullptr;
 	GfxCache *gfxCache = g_sci->_gfxCache;
 	if (!gfxCache)
@@ -450,11 +425,6 @@ bool RogerAssetGen::generatePriorityMap(int picId, Common::Array<byte> &outBands
 		return false;
 	Resource *res = resMan->findResource(ResourceId(kResourceTypePic, (uint16)picId), false);
 	if (!res || res->size() == 0)
-		return false;
-
-	// Non-EGA pics: no omyac priority map.
-	const PicFormat fmt = picResourceFormat(res->data(), (uint32)res->size(), engineIsEga());
-	if (fmt != kPicSci0Ega)
 		return false;
 
 	uint32 hash = fnv1a32(res->data(), (uint32)res->size());
