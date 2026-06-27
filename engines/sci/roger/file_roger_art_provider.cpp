@@ -241,6 +241,19 @@ void FileRogerArtProvider::precacheAll() {
 
 bool FileRogerArtProvider::precacheOnePic(GuiResourceId picId, uint32 &ms) {
 	if (!_assetGen || _assetGen->mode() == Roger::kGenPrebuilt) return false;
+	// Skip non-EGA pics — SCI1.1 VGA generates on-demand from the live screen.
+	ResourceManager *resMan = g_sci ? g_sci->getResMan() : nullptr;
+	if (resMan) {
+		Resource *picRes = resMan->findResource(ResourceId(kResourceTypePic, (uint16)picId), false);
+		if (picRes && picRes->size() >= 2) {
+			const bool isEga = (resMan->getViewType() == kViewEga);
+			if (Roger::picResourceFormat(picRes->data(), (uint32)picRes->size(), isEga)
+			        != Roger::kPicSci0Ega) {
+				ms = 0;
+				return false; // not cached; generates on-demand
+			}
+		}
+	}
 	Graphics::Surface *s = _assetGen->generatePlate(picId, ms);
 	if (s) { s->free(); delete s; }
 	uint32 pms = 0;
@@ -291,7 +304,11 @@ void FileRogerArtProvider::pushHiresBackground(GuiResourceId pictureId) {
 	uint32 tAcq0 = g_system->getMillis();
 	if (_assetGen && _assetGen->mode() != Roger::kGenPrebuilt) {
 		_plateIndex.clear();
-		_plate = _assetGen->generatePlateWithIndex(pictureId, _plateIndex, genMs);
+		// Try the live-screen path for SCI1.1 VGA first (reads visual screen post-draw).
+		// Falls back to the omyac path for EGA pics.
+		_plate = _assetGen->generatePlateFromScreen(pictureId, genMs);
+		if (!_plate)
+			_plate = _assetGen->generatePlateWithIndex(pictureId, _plateIndex, genMs);
 		if (_plate)
 			plateSrc = genMs ? "generated(miss)" : "cache-hit";
 	}

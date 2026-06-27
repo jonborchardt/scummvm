@@ -252,6 +252,30 @@ static bool generatePriorityMapSci11(Common::Array<byte> &outBands, int &outW, i
 #endif // ENABLE_SCI
 
 // -------------------------------------------------------------------------
+// generatePlateFromScreen — SCI1.1 VGA live-screen path (public)
+// -------------------------------------------------------------------------
+
+Graphics::Surface *RogerAssetGen::generatePlateFromScreen(int id, uint32 &outMs) {
+	outMs = 0;
+	if (_mode == kGenPrebuilt)
+		return nullptr;
+#ifdef ENABLE_SCI
+	if (!g_sci || !g_sci->getResMan())
+		return nullptr;
+	ResourceManager *resMan = g_sci->getResMan();
+	Resource *res = resMan->findResource(ResourceId(kResourceTypePic, (uint16)id), false);
+	if (!res || res->size() < 2)
+		return nullptr;
+	if (picResourceFormat(res->data(), (uint32)res->size(), engineIsEga()) != kPicSci11VgaCel)
+		return nullptr;
+	uint32 hash = fnv1a32(res->data(), (uint32)res->size());
+	return generatePlateSci11(_gameId, _cacheDir, _mode, id, hash, outMs);
+#else
+	return nullptr;
+#endif
+}
+
+// -------------------------------------------------------------------------
 // generatePlate — thin wrapper; delegates to generatePlateWithIndex
 // -------------------------------------------------------------------------
 
@@ -294,12 +318,8 @@ Graphics::Surface *RogerAssetGen::generatePlateWithIndex(int id, Common::Array<b
 	const PicFormat fmt = picResourceFormat(res->data(), (uint32)res->size(), engineIsEga());
 	if (fmt == kPicSci1VgaVector)
 		return nullptr; // SCI1.0 VGA vector: native render shows (future work)
-	if (fmt == kPicSci11VgaCel) {
-		// Native screen already rendered by GfxPicture::drawSci11Vga() before we run.
-		// outIndex stays empty (no EGA doubled-nibble index; live palette re-apply skips).
-		uint32 hash = fnv1a32(res->data(), (uint32)res->size());
-		return generatePlateSci11(_gameId, _cacheDir, _mode, id, hash, outMs);
-	}
+	if (fmt == kPicSci11VgaCel)
+		return nullptr; // on-demand only via generatePlateFromScreen; never from precache
 
 	// Hash the raw bytes for the cache key.
 	uint32 hash = fnv1a32(res->data(), (uint32)res->size());
@@ -392,6 +412,10 @@ Graphics::Surface *RogerAssetGen::generateViewCel(int viewId, int loopNo, int ce
 
 #ifdef ENABLE_SCI
 	if (!g_sci)
+		return nullptr;
+	// VGA views use 256-color cel data — the EGA omyac pipeline produces wrong output.
+	// Return nullptr to fall back to native SCI cel rendering for VGA sprites.
+	if (g_sci->getResMan() && g_sci->getResMan()->getViewType() != kViewEga)
 		return nullptr;
 	GfxCache *gfxCache = g_sci->_gfxCache;
 	if (!gfxCache)
