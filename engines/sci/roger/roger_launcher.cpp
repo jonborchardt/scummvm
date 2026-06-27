@@ -176,7 +176,10 @@ bool RogerLauncher::handleLaunch() {
 void RogerLauncher::buildPrecacheQueues() {
 	_state.picQueue.clear();
 	_state.viewQueue.clear();
-	if (!g_sci) return;
+	if (!g_sci) {
+		warning("RogerLauncher::buildPrecacheQueues: g_sci is null, queues not built");
+		return;
+	}
 	ResourceManager *resMan = g_sci->getResMan();
 	if (!resMan) return;
 
@@ -207,7 +210,7 @@ bool RogerLauncher::precacheStep() {
 	}
 	if (!_state.picQueue.empty()) {
 		GuiResourceId id = _state.picQueue.front();
-		_state.picQueue.remove_at(0);
+		_state.picQueue.remove_at(0);  // O(n) but pic counts stay well under 200
 		uint32 ms = 0;
 		_provider->precacheOnePic(id, ms);
 		++_state.precacheDone;
@@ -215,7 +218,7 @@ bool RogerLauncher::precacheStep() {
 	}
 	if (!_state.viewQueue.empty()) {
 		int id = _state.viewQueue.front();
-		_state.viewQueue.remove_at(0);
+		_state.viewQueue.remove_at(0);  // O(n) but view counts stay well under 200
 		_provider->precacheOneView(id);
 		++_state.precacheDone;
 		return true;
