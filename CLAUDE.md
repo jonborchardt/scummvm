@@ -77,6 +77,8 @@ Hook at top of `GfxPaint16::drawPicture()` checks `g_sciRogerProvider`. When non
 | `engines/sci/graphics/{paint16,controls16,menu,event}.cpp` | Hook sites: picture replace, dialog/control capture, status/menu bar, F10 toggle |
 | `engines/sci/sci.cpp` | Provider instantiated after `initGraphics()` (with `ConfMan.getPath("path")`), destroyed in destructor |
 
+**Launcher:** `engines/sci/roger/roger_launcher.{h,cpp}` + `roger_launcher_dialog.{h,cpp}`. `RogerLauncher` discovers SCI game domains from ConfMan, manages the `LauncherState` (selected game, precache queues, settings), and is called at engine startup via `FileRogerArtProvider`. `RogerLauncherDialog` is a `GUI::Dialog` that presents the game list, per-game settings, and precaching controls. On launch with no cache, precaching runs automatically in `handleTickle` before `handleLaunch` is called.
+
 **Asset layout** (`sq3-roger` is a sibling of the `sq3` game directory). Nothing is *consumed* from disk anymore — the only on-disk artifacts are the content-hash generation cache:
 ```
 sq3-roger/
