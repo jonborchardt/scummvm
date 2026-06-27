@@ -142,9 +142,9 @@ bool FileRogerArtProvider::isOverlayVisible() const {
 bool FileRogerArtProvider::hasBackground(GuiResourceId pictureId) const {
 	if (!enabled)
 		return false;
-	// Generation is the art path. Activate for any pic when a generating mode is
-	// set; no prebuilt file is required (the visual + occlusion are generated, and
-	// SCI's own native render still fills priority/control for walkability).
+	// Roger only supports EGA games. Reject silently for VGA (precacheAll warns once).
+	if (!g_sci || !g_sci->getResMan() || g_sci->getResMan()->getViewType() != kViewEga)
+		return false;
 	return _assetGen && _assetGen->mode() != Roger::kGenPrebuilt;
 }
 
@@ -170,6 +170,13 @@ void FileRogerArtProvider::precacheAll() {
 	if (!resMan)
 		return;
 
+	// Roger supports EGA games only. Warn and disable for VGA.
+	if (resMan->getViewType() != kViewEga) {
+		warning("ROGER: VGA game detected — Roger art replacement supports EGA games only. Overlay disabled.");
+		enabled = false;
+		return;
+	}
+
 	uint32 t0 = g_system->getMillis();
 
 	if (doPics) {
@@ -181,8 +188,7 @@ void FileRogerArtProvider::precacheAll() {
 		for (Common::List<ResourceId>::const_iterator it = pics.begin(); it != pics.end(); ++it) {
 			GuiResourceId id = (GuiResourceId)it->getNumber();
 
-			// Skip non-EGA pics. SCI1.1 generates on-demand (native screen path).
-			// SCI1.0 VGA vector not yet supported.
+			// Skip non-EGA pics — Roger only processes EGA pics via omyac.
 			Resource *picRes = resMan->findResource(ResourceId(kResourceTypePic, (uint16)id), false);
 			if (picRes && picRes->size() >= 2) {
 				const Roger::PicFormat picFmt = Roger::picResourceFormat(
@@ -241,7 +247,7 @@ void FileRogerArtProvider::precacheAll() {
 
 bool FileRogerArtProvider::precacheOnePic(GuiResourceId picId, uint32 &ms) {
 	if (!_assetGen || _assetGen->mode() == Roger::kGenPrebuilt) return false;
-	// Skip non-EGA pics — SCI1.1 VGA generates on-demand from the live screen.
+	// Skip non-EGA pics — only EGA pics have the omyac path.
 	ResourceManager *resMan = g_sci ? g_sci->getResMan() : nullptr;
 	if (resMan) {
 		Resource *picRes = resMan->findResource(ResourceId(kResourceTypePic, (uint16)picId), false);
@@ -304,11 +310,7 @@ void FileRogerArtProvider::pushHiresBackground(GuiResourceId pictureId) {
 	uint32 tAcq0 = g_system->getMillis();
 	if (_assetGen && _assetGen->mode() != Roger::kGenPrebuilt) {
 		_plateIndex.clear();
-		// Try the live-screen path for SCI1.1 VGA first (reads visual screen post-draw).
-		// Falls back to the omyac path for EGA pics.
-		_plate = _assetGen->generatePlateFromScreen(pictureId, genMs);
-		if (!_plate)
-			_plate = _assetGen->generatePlateWithIndex(pictureId, _plateIndex, genMs);
+		_plate = _assetGen->generatePlateWithIndex(pictureId, _plateIndex, genMs);
 		if (_plate)
 			plateSrc = genMs ? "generated(miss)" : "cache-hit";
 	}

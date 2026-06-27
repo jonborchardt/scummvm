@@ -99,13 +99,7 @@ public:
 	// (OMYAC_HYBRID_W*OMYAC_HYBRID_H) in outIndex — the pre-blend color source used by
 	// live palette re-apply. outIndex is cleared on any failure / cache-only path where
 	// the index is unavailable (caller must check !outIndex.empty()).
-	// NOTE: returns nullptr for SCI1.1 VGA pics — use generatePlateFromScreen instead.
 	Graphics::Surface *generatePlateWithIndex(int id, Common::Array<byte> &outIndex, uint32 &outMs);
-
-	// SCI1.1 VGA only: generate hires plate from the current live visual screen.
-	// Must be called AFTER GfxPicture::drawSci11Vga() has rendered the room.
-	// Returns nullptr if the engine is not in SCI1.1 VGA mode or generation is disabled.
-	Graphics::Surface *generatePlateFromScreen(int id, uint32 &outMs);
 
 	/**
 	 * Generate a scale6x RGBA cel from the native GfxView cel.
