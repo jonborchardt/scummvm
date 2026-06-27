@@ -326,3 +326,5 @@ __pycache__/
 
 # Superpowers SDD session scratch (ledger, briefs, reports, review diffs)
 .superpowers/
+dists/
+Releasex64/
