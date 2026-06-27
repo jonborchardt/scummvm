@@ -439,14 +439,24 @@ void RogerCompositor::renderUiLayer(Graphics::ManagedSurface &dest,
 		const UiElement &e = elems[i];
 		Common::Rect nr = e.nativeRect;
 		if (e.type == kUiWindow && e.hasFrame) {
-			// SCI often positions a dialog's controls (buttons, edit fields, message
-			// text) flush with — or a few rows past — the window's own dims rect. Expand
-			// the drawn window to the union of every element sharing its token so the box
-			// and its bold border actually contain them.
+			// Union of the controls (text/buttons/edit/icons) sharing this window's token.
+			Common::Rect content;
+			bool haveContent = false;
 			for (uint j = 0; j < elems.size(); j++) {
-				if (j != i && elems[j].token == e.token)
-					nr.extend(elems[j].nativeRect);
+				if (j != i && elems[j].token == e.token) {
+					if (!haveContent) { content = elems[j].nativeRect; haveContent = true; }
+					else content.extend(elems[j].nativeRect);
+				}
 			}
+			// SCI dialog/message windows (GfxPorts windows, token bit 0x40000000) reserve
+			// more vertical space than their text needs — SCI's window dims sit well above
+			// the text, leaving a large empty band. Shrink-wrap the box to its actual
+			// content so it hugs the text like a native SCI message window. The status/menu
+			// bar (token 0x10000000) keeps its full SCI dims (it must span the screen).
+			if (haveContent && (e.token & 0x40000000u))
+				nr = content;          // hug the controls; ignore SCI's oversized window dims
+			else if (haveContent)
+				nr.extend(content);    // status/menu bar etc.: window dims ∪ controls
 			nr.grow(2); // a little padding so controls are not flush against the border
 		}
 		const Common::Rect d = sciRectToDest(nr, gameRect);
