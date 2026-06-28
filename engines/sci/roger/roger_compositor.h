@@ -163,9 +163,6 @@ public:
 	int picH() const { return _picH; }
 	int picScreenTop() const { return _picScreenTop; }
 
-	// Make the NEXT presentToOverlay a full present (whole overlay). Used by the
-	// whole-palette re-apply path so a global color change is laid down completely.
-	void forceFullPresentNext() { _bgRebuilt = true; }
 	// Invalidate the static-background cache so the next renderScene rebuilds it from
 	// the (now-mutated) plate. Call after any in-place plate pixel mutation (e.g. live
 	// palette re-blend) so the stale pre-mutation copy isn't re-used next frame.
