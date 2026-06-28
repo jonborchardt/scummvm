@@ -215,7 +215,7 @@ if ($NoLaunch) {
 
 # Build the save-slot argument shared by both launch paths.
 $saveArgs = @()
-if ($SaveSlot -ge 0) { $saveArgs = @("-x", "$SaveSlot") }
+if ($SaveSlot -ge 0) { $saveArgs = @("--save-slot=$SaveSlot") }
 
 if ($Game) {
     # Launch a configured target by id (uses scummvm.ini: game path + Roger settings).
