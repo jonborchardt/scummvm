@@ -432,8 +432,8 @@ void RogerCompositor::presentToOverlay(Graphics::ManagedSurface &scene) {
 	// Decide the regions to push this frame.
 	// Full present when: dirty present is off, the background was just (re)built
 	// (room/geometry/F10/first frame), no game rect yet, or the periodic heal is due
-	// (heals any region a missed dirty rect would have left stale, bounded to ~1s).
-	const int kHealFrames = 60; // ~1s at 60fps; cheap insurance against a missed rect
+	// (heals any region a missed dirty rect would have left stale, bounded to ~5s).
+	const int kHealFrames = 300; // ~5s at 60fps; cheap insurance against a missed rect
 	bool full = !_dirtyPresent || _bgRebuilt || _bgGameRect.isEmpty() ||
 	            _framesSinceFullPresent >= kHealFrames;
 

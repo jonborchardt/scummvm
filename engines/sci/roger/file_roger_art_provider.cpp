@@ -493,11 +493,13 @@ void FileRogerArtProvider::renderFrame(const Common::Array<Roger::Sprite> &sprit
 
 	// Cache the composed room+sprite scene so a UI-only change can be re-presented
 	// cheaply (blocking dialogs do not tick kernelAnimate).
-	if (!_sceneCache || _sceneCache->w != OW || _sceneCache->h != OH) {
+	if (!_sceneCache || _sceneCache->w != scene.w || _sceneCache->h != scene.h ||
+	    _sceneCache->format != scene.format) {
 		delete _sceneCache;
-		_sceneCache = new Graphics::ManagedSurface(OW, OH, rgba);
+		_sceneCache = new Graphics::ManagedSurface(scene.w, scene.h, scene.format);
 	}
-	_sceneCache->copyFrom(scene);
+	// Copy into the existing allocation (no per-frame free+malloc, unlike copyFrom).
+	_sceneCache->copyRectToSurface(scene.rawSurface(), 0, 0, Common::Rect(0, 0, scene.w, scene.h));
 	_haveScene = true;
 	_lastGameRect = gameRect;
 
@@ -509,7 +511,8 @@ void FileRogerArtProvider::renderFrame(const Common::Array<Roger::Sprite> &sprit
 	}
 	// Snapshot scene+UI (no cursor) — cursor-only onMouseMoved restores from here.
 	ensureCompositeCache(OW, OH);
-	_compositeCache->copyFrom(scene);
+	// Copy into the existing allocation (no per-frame free+malloc, unlike copyFrom).
+	_compositeCache->copyRectToSurface(scene.rawSurface(), 0, 0, Common::Rect(0, 0, scene.w, scene.h));
 	_compositeCacheValid = true;
 	compositeCursor(scene, gameRect);
 	_compositor->presentToOverlay(scene);
@@ -1245,12 +1248,16 @@ void FileRogerArtProvider::renderFromAnimateList(const AnimateList &list) {
 		s.priority = it->priority;
 		s.mirror   = false; // mirror refinement deferred to a later task
 
-		// Provide a native-cel fallback for sprites that have no hires view art.
-		// The compositor will use it only when getCel() returns nullptr.
-		Graphics::Surface *nativeSurf = renderNativeCel(it->viewId, it->loopNo, it->celNo);
-		s.celOverride = nativeSurf; // borrowed by the sprite (freed below)
-		if (nativeSurf)
-			nativeSurfaces.push_back(nativeSurf);
+		// Provide a native-cel fallback only for sprites that have no hires view art.
+		// renderScene consults getCel() first and ignores celOverride when a hires cel
+		// exists, so rendering the fallback in that case is wasted work — skip it. getCel
+		// is cheap (cached, incl. cached known-missing).
+		if (!_viewCache || !_viewCache->getCel(it->viewId, it->loopNo, it->celNo)) {
+			Graphics::Surface *nativeSurf = renderNativeCel(it->viewId, it->loopNo, it->celNo);
+			s.celOverride = nativeSurf; // borrowed by the sprite (freed below)
+			if (nativeSurf)
+				nativeSurfaces.push_back(nativeSurf);
+		}
 
 		sprites.push_back(s);
 	}
@@ -1264,6 +1271,9 @@ void FileRogerArtProvider::renderFromAnimateList(const AnimateList &list) {
 	// for the merged entries that lack a celOverride and are not in the animate list.
 	for (uint i = 0; i < merged.size(); i++) {
 		if (merged[i].celOverride)
+			continue;
+		// Skip the native fallback when a hires cel exists (renderScene would ignore it).
+		if (_viewCache && _viewCache->getCel(merged[i].viewId, merged[i].loopNo, merged[i].celNo))
 			continue;
 		Graphics::Surface *nativeSurf = renderNativeCel(merged[i].viewId, merged[i].loopNo, merged[i].celNo);
 		if (nativeSurf) {
