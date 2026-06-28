@@ -180,7 +180,8 @@ void FileRogerArtProvider::precacheAll() {
 	if (!resMan)
 		return;
 
-	// Roger supports EGA games only. Warn and disable for VGA.
+	// EGA SCI0 only — by design, permanently. VGA/SCI1 is out of scope (not deferred);
+	// the omyac pipeline is EGA-specific. Reject cleanly and fall back to native render.
 	if (resMan->getViewType() != kViewEga) {
 		warning("ROGER: VGA game detected — Roger art replacement supports EGA games only. Overlay disabled.");
 		enabled = false;
@@ -299,11 +300,11 @@ bool FileRogerArtProvider::precacheOneView(int viewId) {
 }
 
 void FileRogerArtProvider::pushHiresBackground(GuiResourceId pictureId) {
-	// Roger supports EGA SCI games only. The launcher blocks VGA games at add-time, but a
-	// target configured another way (manual ConfMan / normal ScummVM launcher) can still
-	// reach here. Feeding VGA pics through the EGA omyac pipeline renders garbage, so on
-	// the first non-EGA picture we disable the overlay with a message instead. Setting
-	// enabled = false makes hasBackground() return false from here on, so this fires once.
+	// EGA SCI0 only — by design, permanently. VGA/SCI1 is out of scope (not deferred);
+	// the omyac pipeline is EGA-specific. Reject cleanly and fall back to native render.
+	// The launcher blocks VGA games at add-time, but a target configured another way
+	// (manual ConfMan / normal ScummVM launcher) can still reach here. Setting enabled = false
+	// makes hasBackground() return false from here on, so this fires once per engine instance.
 	if (g_sci && g_sci->getResMan() && g_sci->getResMan()->getViewType() != kViewEga) {
 		warning("ROGER: not an EGA SCI game - Roger art replacement supports EGA games only. "
 		        "Disabling the hires overlay.");
