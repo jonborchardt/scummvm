@@ -310,6 +310,9 @@ void FileRogerArtProvider::pushHiresBackground(GuiResourceId pictureId) {
 	if (_loadedPicId == pictureId && _plate)
 		return; // already loaded for this room
 
+	// New room: drop the previous room's captured addToPic cels (Feeder A).
+	_staticSprites.clear();
+
 	uint32 tEnter = g_system->getMillis();
 
 	// New room: drop any dialogs/icons left from the previous room so they do not
@@ -1125,6 +1128,19 @@ Graphics::Surface *FileRogerArtProvider::renderNativeCel(int viewId, int loopNo,
 	return surf;
 }
 
+void FileRogerArtProvider::onAddToPicCel(int viewId, int loopNo, int celNo,
+                                         const Common::Rect &celRect, int priority) {
+	Roger::Sprite s;
+	s.viewId = viewId;
+	s.loopNo = loopNo;
+	s.celNo = celNo;
+	s.celRect = celRect;
+	s.priority = priority;
+	s.mirror = false;
+	s.celOverride = nullptr;
+	_staticSprites.push_back(s);
+}
+
 void FileRogerArtProvider::renderFromAnimateList(const AnimateList &list) {
 	Common::Array<Roger::Sprite> sprites;
 	Common::Array<Graphics::Surface *> nativeSurfaces;
@@ -1152,15 +1168,29 @@ void FileRogerArtProvider::renderFromAnimateList(const AnimateList &list) {
 		sprites.push_back(s);
 	}
 
-	// One concise per-frame line when diagnostics are on (Ctrl+Shift+L, or
-	// roger_debug=true). Per-sprite spam was removed; this is the heartbeat.
-	if (dbg)
-		warning("ROGER: pic=%d sprites=%u plate=%dx%d overlay=%s prioBytes=%u",
-		        _loadedPicId, (unsigned)sprites.size(), _plate ? _plate->w : -1,
-		        _plate ? _plate->h : -1, _overlayActive ? "on" : "off", _priorityMap.size());
+	// Merge captured addToPic cels (Feeder A) with the animate cast, priority-sorted,
+	// so static props occlude/are-occluded correctly against the ego.
+	Common::Array<Roger::Sprite> merged;
+	Roger::mergeSpritesByPriority(sprites, _staticSprites, merged);
 
-	// renderFrame composites synchronously; free native surfaces after it returns.
-	renderFrame(sprites);
+	// Static cels need a native-cel fallback too (when no hires cel exists). Build them
+	// for the merged entries that lack a celOverride and are not in the animate list.
+	for (uint i = 0; i < merged.size(); i++) {
+		if (merged[i].celOverride)
+			continue;
+		Graphics::Surface *nativeSurf = renderNativeCel(merged[i].viewId, merged[i].loopNo, merged[i].celNo);
+		if (nativeSurf) {
+			merged[i].celOverride = nativeSurf;
+			nativeSurfaces.push_back(nativeSurf);
+		}
+	}
+
+	if (dbg)
+		warning("ROGER: pic=%d sprites=%u (+%u addToPic) plate=%dx%d overlay=%s",
+		        _loadedPicId, (unsigned)sprites.size(), (unsigned)_staticSprites.size(),
+		        _plate ? _plate->w : -1, _plate ? _plate->h : -1, _overlayActive ? "on" : "off");
+
+	renderFrame(merged);
 
 	for (uint i = 0; i < nativeSurfaces.size(); i++) {
 		nativeSurfaces[i]->free();
@@ -1337,6 +1367,7 @@ void FileRogerArtProvider::onNativePicture() {
 	if (_uiLayer) _uiLayer->clearAll();
 	for (uint i = 0; i < _uiIcons.size(); i++) { _uiIcons[i]->free(); delete _uiIcons[i]; }
 	_uiIcons.clear();
+	_staticSprites.clear();
 	_haveScene = false;
 	_loadedPicId = -1;
 	g_system->hideOverlay();

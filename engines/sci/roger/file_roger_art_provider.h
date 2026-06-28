@@ -24,6 +24,7 @@
 #include "sci/roger/roger_art_provider.h"
 #include "sci/roger/null_roger_art_provider.h"
 #include "sci/roger/roger_asset_gen.h"
+#include "sci/roger/roger_compositor.h"
 #include "sci/roger/roger_ui_layer.h"
 #include "common/array.h"
 #include "common/str.h"
@@ -54,6 +55,8 @@ public:
 	void onNativePicture() override;
 	void onMouseMoved() override;
 	void onDrawCel(const Common::Rect &globalRect, int viewId, int loopNo, int celNo) override;
+	void onAddToPicCel(int viewId, int loopNo, int celNo,
+	                   const Common::Rect &celRect, int priority) override;
 	void onTransition(int sciType, const Common::Rect &picRect) override;
 	void onShake(int shakeCount, int directions) override;
 	void onCursorShape(int cursorId) override;
@@ -123,6 +126,9 @@ private:
 	// Compose the current room background (plate, no sprites) into `out` at full overlay size.
 	void composeRoomScene(Graphics::ManagedSurface &out);
 	Common::Array<Graphics::Surface *> _uiIcons;     // owned native-cel surfaces for kUiIcon
+	// addToPic cels captured for the current room (Feeder A). Cleared on room change;
+	// merged with the animate list each frame and drawn via the hires Sprite path.
+	Common::Array<Roger::Sprite> _staticSprites;
 	bool _haveScene = false;                         // _sceneCache valid this room
 	bool _transitionsEnabled = true;                 // roger_transitions knob (default on)
 	bool _paletteLive = true;                        // roger_palette_live knob (default on)

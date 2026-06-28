@@ -99,6 +99,13 @@ public:
 	// into the overlay at globalRect (320x200 space); otherwise no-op (native shows).
 	virtual void onDrawCel(const Common::Rect &globalRect, int viewId, int loopNo, int celNo) {}
 
+	// addToPic cel (kAddToPic) — a static view baked into the room's native picture.
+	// Roger captures it as a persistent per-room sprite so it appears in the overlay at
+	// hires (it is NOT part of the omyac plate and NOT in the animate list). celRect is
+	// picture-window-local 320x190 space (same as animate Sprite::celRect). No-op in base.
+	virtual void onAddToPicCel(int viewId, int loopNo, int celNo,
+	                           const Common::Rect &celRect, int priority) {}
+
 	// Called from GfxTransitions::doit() when a room transition is about to run (gated on
 	// g_sciRogerProvider + enabled). The provider mirrors the effect in the overlay; SCI's
 	// native transition is then finalized instantly (invisible under the opaque overlay).
