@@ -122,4 +122,50 @@ public:
 		TS_ASSERT_EQUALS((int)g, 255); // all `to` at t=1
 		from->free(); delete from; to->free(); delete to; out.free();
 	}
+	void test_scrollDirectionFor() {
+		// kSciTrScrollDown=14, Up=13, Right=11, Left=12  (from transitions.h enum)
+		TS_ASSERT_EQUALS(scrollDirectionFor(14), 3); // ScrollDown: new enters from top
+		TS_ASSERT_EQUALS(scrollDirectionFor(13), 2); // ScrollUp: new enters from bottom
+		TS_ASSERT_EQUALS(scrollDirectionFor(11), 0); // ScrollRight: new enters from right
+		TS_ASSERT_EQUALS(scrollDirectionFor(12), 1); // ScrollLeft: new enters from left
+		TS_ASSERT_EQUALS(scrollDirectionFor(9999), 3); // unknown -> safe default (top)
+	}
+	void test_blendScroll_endpoints() {
+		// At t=0 the output must equal 'from'; at t=1 it must equal 'to'.
+		const Graphics::PixelFormat rgba(4, 8, 8, 8, 8, 24, 16, 8, 0);
+		for (int dir = 0; dir < 4; dir++) {
+			Graphics::Surface *from = solid(16, 16, 255, 0, 0); // red
+			Graphics::Surface *to   = solid(16, 16, 0, 0, 255); // blue
+			Graphics::Surface out;  out.create(16, 16, rgba);
+			uint8 a, r, g, b;
+
+			blendScroll(*from, *to, out, 0.0f, dir);
+			out.format.colorToARGB(out.getPixel(0, 0), a, r, g, b);
+			TS_ASSERT_EQUALS((int)r, 255); TS_ASSERT_EQUALS((int)b, 0);   // == from
+
+			blendScroll(*from, *to, out, 1.0f, dir);
+			out.format.colorToARGB(out.getPixel(0, 0), a, r, g, b);
+			TS_ASSERT_EQUALS((int)r, 0);   TS_ASSERT_EQUALS((int)b, 255); // == to
+
+			from->free(); delete from; to->free(); delete to; out.free();
+		}
+	}
+	void test_blendScroll_midpoint_has_both_frames() {
+		// At t=0.5, direction=3 (new enters from top): the top half of the output
+		// comes from 'to' (new frame, entering from top) and the bottom half comes
+		// from 'from' (old frame, exiting downward).
+		const Graphics::PixelFormat rgba(4, 8, 8, 8, 8, 24, 16, 8, 0);
+		Graphics::Surface *from = solid(4, 4, 255, 0, 0); // red (old)
+		Graphics::Surface *to   = solid(4, 4, 0, 0, 255); // blue (new)
+		Graphics::Surface out;  out.create(4, 4, rgba);
+		blendScroll(*from, *to, out, 0.5f, 3); // new from top
+		uint8 a, r, g, b;
+		// Top pixel (y=0): comes from the new frame (blue)
+		out.format.colorToARGB(out.getPixel(0, 0), a, r, g, b);
+		TS_ASSERT_EQUALS((int)b, 255);
+		// Bottom pixel (y=3): comes from the old frame (red)
+		out.format.colorToARGB(out.getPixel(0, 3), a, r, g, b);
+		TS_ASSERT_EQUALS((int)r, 255);
+		from->free(); delete from; to->free(); delete to; out.free();
+	}
 };

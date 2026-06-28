@@ -695,7 +695,8 @@ void RogerCompositor::runTransition(Graphics::ManagedSurface &from, Graphics::Ma
 		switch (fam) {
 		case kFxDissolve: blendDissolve(*from.surfacePtr(), *to.surfacePtr(), *scratch.surfacePtr(), t, blockPx); break;
 		case kFxWipe:     blendWipe(*from.surfacePtr(), *to.surfacePtr(), *scratch.surfacePtr(), t, wipeDir); break;
-		case kFxScroll:   blendWipe(*from.surfacePtr(), *to.surfacePtr(), *scratch.surfacePtr(), t, wipeDir); break;
+		case kFxScroll:   blendScroll(*from.surfacePtr(), *to.surfacePtr(), *scratch.surfacePtr(), t,
+		                              scrollDirectionFor(sciTypeHint)); break;
 		case kFxFade:
 		default:          blendFadeThroughBlack(*from.surfacePtr(), *to.surfacePtr(), *scratch.surfacePtr(), t); break;
 		}

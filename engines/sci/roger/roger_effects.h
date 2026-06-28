@@ -62,6 +62,15 @@ void blendDissolve(const Graphics::Surface &from, const Graphics::Surface &to,
 void blendWipe(const Graphics::Surface &from, const Graphics::Surface &to,
                Graphics::Surface &out, float t, int direction);
 
+// Slide-scroll: old frame slides off in `direction`, new frame enters from the opposite edge.
+// direction uses the same 0–3 convention as blendWipe (the edge the NEW scene enters from:
+//   0=right, 1=left, 2=bottom, 3=top).
+void blendScroll(const Graphics::Surface &from, const Graphics::Surface &to,
+                 Graphics::Surface &out, float t, int direction);
+
+// Map a scroll SCI transition type to a scroll direction (0=right,1=left,2=bottom,3=top).
+int scrollDirectionFor(int sciType);
+
 } // namespace Roger
 } // namespace Sci
 #endif
