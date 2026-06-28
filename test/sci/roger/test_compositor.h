@@ -268,4 +268,31 @@ public:
 			totalArea += result[i].width() * result[i].height();
 		TS_ASSERT_LESS_THAN(totalArea, bounds.width() * bounds.height() / 10);
 	}
+
+	void test_merge_sprites_by_priority_orders_and_is_stable() {
+		using namespace Sci::Roger;
+		auto mk = [](int view, int prio) {
+			Sprite s; s.viewId = view; s.loopNo = 0; s.celNo = 0;
+			s.priority = prio; s.mirror = false; s.celOverride = nullptr;
+			s.celRect = Common::Rect(0, 0, 1, 1);
+			return s;
+		};
+		Common::Array<Sprite> animate, statics, out;
+		// animate: priorities 2 then 5; static: priority 5 then 0.
+		animate.push_back(mk(10, 2));
+		animate.push_back(mk(11, 5));
+		statics.push_back(mk(20, 5));
+		statics.push_back(mk(21, 0));
+
+		mergeSpritesByPriority(animate, statics, out);
+
+		TS_ASSERT_EQUALS(out.size(), (uint)4);
+		// Ascending priority: 0,2,5,5.
+		TS_ASSERT_EQUALS(out[0].viewId, 21); // prio 0
+		TS_ASSERT_EQUALS(out[1].viewId, 10); // prio 2
+		// Two prio-5 entries: static (20) keeps its place BEFORE animate (11) — stable,
+		// and static was appended first.
+		TS_ASSERT_EQUALS(out[2].viewId, 20); // prio 5, static
+		TS_ASSERT_EQUALS(out[3].viewId, 11); // prio 5, animate
+	}
 };

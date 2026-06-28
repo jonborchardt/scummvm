@@ -49,6 +49,14 @@ struct Sprite {
 void coalesceDirtyRects(const Common::Array<Common::Rect> &in, const Common::Rect &bounds,
                         Common::Array<Common::Rect> &out);
 
+// Merge addToPic (static) and animate sprites into one back-to-front draw list:
+// static first, then animate, then a STABLE sort by ascending priority. Stable ⇒ at
+// equal priority addToPic draws before animate (native bakes addToPic into the pic
+// first). n is small (a handful of sprites), so insertion sort is fine.
+void mergeSpritesByPriority(const Common::Array<Sprite> &animate,
+                            const Common::Array<Sprite> &staticSprites,
+                            Common::Array<Sprite> &out);
+
 class RogerCompositor {
 public:
 	RogerCompositor() : _plate(nullptr), _views(nullptr),

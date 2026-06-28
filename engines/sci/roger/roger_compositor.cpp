@@ -57,6 +57,26 @@ void coalesceDirtyRects(const Common::Array<Common::Rect> &in, const Common::Rec
 	}
 }
 
+void mergeSpritesByPriority(const Common::Array<Sprite> &animate,
+                            const Common::Array<Sprite> &staticSprites,
+                            Common::Array<Sprite> &out) {
+	out.clear();
+	for (uint i = 0; i < staticSprites.size(); i++)
+		out.push_back(staticSprites[i]);
+	for (uint i = 0; i < animate.size(); i++)
+		out.push_back(animate[i]);
+	// Stable insertion sort by ascending priority.
+	for (uint i = 1; i < out.size(); i++) {
+		Sprite key = out[i];
+		int j = (int)i - 1;
+		while (j >= 0 && out[j].priority > key.priority) {
+			out[j + 1] = out[j];
+			j--;
+		}
+		out[j + 1] = key;
+	}
+}
+
 RogerCompositor::~RogerCompositor() {
 	if (_bgCache) {
 		_bgCache->free();
