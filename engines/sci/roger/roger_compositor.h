@@ -23,6 +23,7 @@
 
 #include "common/array.h"
 #include "common/rect.h"
+#include "sci/roger/roger_capabilities.h"
 #include "sci/roger/roger_ui_layer.h"
 #include "sci/roger/roger_effects.h"
 
@@ -82,6 +83,9 @@ public:
 		_picW(320), _picH(190), _priority(nullptr), _priorityW(0), _priorityH(0), _picScreenTop(0),
 		_bgCache(nullptr), _bgPlate(nullptr), _overlayConv(nullptr) {}
 	~RogerCompositor();
+
+	// Store probed game capabilities (called once per room load by the provider).
+	void setCapabilities(const RogerCapabilities &caps) { _caps = caps; }
 
 	// Borrowed pointers; lifetime managed by the caller (the provider).
 	void setRoom(Graphics::Surface *cleanPlate, ViewCache *views);
@@ -179,6 +183,7 @@ public:
 	bool lastSceneWasFull() const { return _lastSceneFull; }
 
 private:
+	RogerCapabilities _caps;   // set by setCapabilities(); read by render methods (Task 3+)
 	Graphics::Surface *_plate;
 	ViewCache *_views;
 	int _picW, _picH;          // logical SCI picture size (cel-rect coordinate space)

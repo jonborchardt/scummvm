@@ -24,6 +24,7 @@
 #include "sci/roger/roger_art_provider.h"
 #include "sci/roger/null_roger_art_provider.h"
 #include "sci/roger/roger_asset_gen.h"
+#include "sci/roger/roger_capabilities.h"
 #include "sci/roger/roger_compositor.h"
 #include "sci/roger/roger_ui_layer.h"
 #include "common/array.h"
@@ -109,6 +110,8 @@ private:
 	Graphics::Surface *_plate = nullptr;
 	int _loadedPicId = -1;
 	int _bodyFontIdx = -1; // index into the body-font shortlist (-1 = config/default font)
+	Roger::RogerCapabilities _caps;   // probed once on first room load; read-only after
+	bool _capsProbed = false;
 	bool _overlayActive = true;  // false = show native 320x200 (A/B comparison toggle)
 	bool _debugLog = false;      // per-frame diagnostic logging
 	bool _autoshot = false;      // roger_autoshot: dump the composited scene to PNG on room load (verification harness)

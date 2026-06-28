@@ -361,6 +361,15 @@ void FileRogerArtProvider::pushHiresBackground(GuiResourceId pictureId) {
 	}
 	if (!_compositor)
 		_compositor = new Roger::RogerCompositor();
+	if (!_capsProbed) {
+		_caps = Roger::RogerCapabilities::probe();
+		_capsProbed = true;
+		if (_debugLog)
+			warning("ROGER caps[%s]: ega=%d rows=%d statusBar=%d parser=%d",
+			        g_sci ? g_sci->getGameIdStr() : "?",
+			        _caps.isEga, _caps.screenRows, _caps.statusBarRows, _caps.hasParser);
+	}
+	_compositor->setCapabilities(_caps);
 	// roger_dirty_present (default on): convert+push only changed regions each frame.
 	bool dirtyPresent = true;
 	if (ConfMan.hasKey("roger_dirty_present"))
