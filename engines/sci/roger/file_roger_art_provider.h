@@ -112,6 +112,7 @@ private:
 	bool _overlayActive = true;  // false = show native 320x200 (A/B comparison toggle)
 	bool _debugLog = false;      // per-frame diagnostic logging
 	bool _autoshot = false;      // roger_autoshot: dump the composited scene to PNG on room load (verification harness)
+	bool _diffBackstop = false;  // roger_diff_backstop: Feeder B pixel-diff backstop (default off; per-frame full-buffer diff is costly and can stamp blocky native pixels over the plate around moving sprites)
 	bool _useHwCursor = false;   // roger_hw_cursor: try the native HW cursor over the overlay (invisible in practice); default false = composited arrow
 	int _autoshotPicId = -1;     // last pic id already auto-shot (so we dump once per room, not per frame)
 	uint32 _lastUiSig = 0;       // signature of the last -ui autoshot's UI layer (throttle: dump only on change)

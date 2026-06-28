@@ -81,6 +81,11 @@ FileRogerArtProvider::FileRogerArtProvider(const Common::String &gameId,
 	// This is how the dev loop captures the hires overlay deterministically without
 	// keystrokes/focus — injected Alt+s/F10 never reach SDL (Win32 menu keys).
 	_autoshot = ConfMan.hasKey("roger_autoshot") && ConfMan.getBool("roger_autoshot");
+	// roger_diff_backstop: Feeder B per-frame full-buffer pixel diff (default off). When off
+	// snapshotNativeBaseline() returns immediately, keeping _haveBaseline false so the costly
+	// 320x200 buffer read + 64K diff never runs. The bitsShow-hook path (onNativeShowRect) and
+	// addToPic capture (Feeder A) remain on regardless.
+	_diffBackstop = ConfMan.hasKey("roger_diff_backstop") && ConfMan.getBool("roger_diff_backstop");
 	// roger_debug: per-frame + per-UI-element diagnostic logging (also toggled in-game
 	// with Ctrl+Shift+L). Read it here so the documented config knob actually works.
 	_debugLog = ConfMan.hasKey("roger_debug") && ConfMan.getBool("roger_debug");
@@ -1146,14 +1151,15 @@ void FileRogerArtProvider::beginNativeDraw() { _nativeDrawDepth++; }
 void FileRogerArtProvider::endNativeDraw()   { if (_nativeDrawDepth > 0) _nativeDrawDepth--; }
 
 void FileRogerArtProvider::onNativeShowRect(const Common::Rect &screenRect) {
-	if (!_overlayActive || _nativeDrawDepth > 0)
-		return; // overlay off, or already covered by a semantic Roger draw
+	if (!_overlayActive || _nativeDrawDepth > 0 || !_plate)
+		return; // overlay off, inside a Roger-handled draw, or no hires plate (plate-less rooms never call drawGenericRegions)
 	if (screenRect.isEmpty())
 		return;
 	_genRegions.push_back(screenRect);
 }
 
 void FileRogerArtProvider::snapshotNativeBaseline() {
+	if (!_diffBackstop) return; // backstop off (default): skip the costly per-frame snapshot
 	if (!_overlayActive || !g_sci || !g_sci->_gfxScreen)
 		return;
 	GfxScreen *screen = g_sci->_gfxScreen;
@@ -1188,7 +1194,9 @@ void FileRogerArtProvider::drawGenericRegions(Graphics::ManagedSurface &scene,
 
 	// Diff backstop: any native pixels that differ from the last known baseline and were
 	// not already recorded by a bitsShow hook this frame are captured too.
-	if (_haveBaseline && _nativeBaseline.size() == vis.size()) {
+	// Belt-and-suspenders: _diffBackstop must be on (snapshotNativeBaseline also guards it,
+	// keeping _haveBaseline false when the knob is off, but guard explicitly here too).
+	if (_diffBackstop && _haveBaseline && _nativeBaseline.size() == vis.size()) {
 		Common::Array<Common::Rect> changed;
 		Roger::extractChangedBoxes(_nativeBaseline.begin(), vis.begin(), sw, sh, changed);
 		for (uint i = 0; i < changed.size(); i++)
@@ -1451,6 +1459,7 @@ void FileRogerArtProvider::onNativePicture() {
 	for (uint i = 0; i < _uiIcons.size(); i++) { _uiIcons[i]->free(); delete _uiIcons[i]; }
 	_uiIcons.clear();
 	_staticSprites.clear();
+	_genRegions.clear(); // drop any stale Feeder B rects from the departing room (drawGenericRegions won't run if _plate is null)
 	_haveScene = false;
 	_loadedPicId = -1;
 	g_system->hideOverlay();
