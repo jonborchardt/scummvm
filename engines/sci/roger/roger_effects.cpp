@@ -20,6 +20,7 @@
 
 #include "sci/roger/roger_effects.h"
 #include "graphics/surface.h"
+#include "common/array.h"
 #include "common/util.h"
 
 // Normalized SCI transition enum values from engines/sci/graphics/transitions.h.
@@ -62,13 +63,13 @@ TransitionFamily transitionFamilyFor(int sciType) {
 	case kSciTrStraightFromRight:
 	case kSciTrStraightFromLeft:
 	case kSciTrStraightFromBottom:
-	case kSciTrStraightFromTop:
+	case kSciTrStraightFromTop:                                                return kFxWipe;
 	case kSciTrVerticalRollFromCenter:
+	case kSciTrVerticalRollToCenter:                                           return kFxSplitV;
 	case kSciTrHorizontalRollFromCenter:
-	case kSciTrDiagonalRollToCenter:
+	case kSciTrHorizontalRollToCenter:                                         return kFxSplitH;
 	case kSciTrDiagonalRollFromCenter:
-	case kSciTrVerticalRollToCenter:
-	case kSciTrHorizontalRollToCenter:                                         return kFxWipe;
+	case kSciTrDiagonalRollToCenter:                                           return kFxDiagonal;
 	case kSciTrScrollRight:
 	case kSciTrScrollLeft:
 	case kSciTrScrollUp:
@@ -81,6 +82,21 @@ TransitionFamily transitionFamilyFor(int sciType) {
 
 TransitionFamily effectiveFamily(TransitionFamily f) {
 	return f; // no collapse; each family renders faithfully
+}
+
+bool splitFromCenter(int sciType) {
+	switch (sciType) {
+	case kSciTrVerticalRollFromCenter:
+	case kSciTrHorizontalRollFromCenter:
+	case kSciTrDiagonalRollFromCenter:
+		return true;
+	default:
+		return false; // ToCenter types and unknowns
+	}
+}
+
+int blockPxForSciType(int sciType) {
+	return (sciType == kSciTrPixelation) ? 8 : 24;
 }
 
 int wipeDirectionFor(int sciType) {
@@ -114,6 +130,9 @@ int defaultDurationMs(TransitionFamily f) {
 	case kFxDissolve: return 350;
 	case kFxWipe:     return 300;
 	case kFxScroll:   return 300;
+	case kFxSplitV:   return 300;
+	case kFxSplitH:   return 300;
+	case kFxDiagonal: return 300;
 	default:          return 0;
 	}
 }
@@ -148,8 +167,13 @@ void blendFadeThroughBlack(const Graphics::Surface &from, const Graphics::Surfac
 		scaleRGB(to, out, (t - 0.5f) * 2.0f);    // black -> to
 }
 
-// 4x4 ordered (Bayer) matrix, values 0..15 -> thresholds 0..1.
-static const int kBayer4[16] = { 0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5 };
+static uint32 blockHash(int bx, int by) {
+	uint32 h = (uint32)bx * 2246822519u ^ (uint32)by * 2654435761u;
+	h ^= h >> 17;
+	h *= 0x45d9f3bu;
+	h ^= h >> 16;
+	return h;
+}
 
 void blendDissolve(const Graphics::Surface &from, const Graphics::Surface &to,
                    Graphics::Surface &out, float t, int blockPx) {
@@ -157,11 +181,17 @@ void blendDissolve(const Graphics::Surface &from, const Graphics::Surface &to,
 		return;
 	if (blockPx < 1) blockPx = 1;
 	t = CLIP(t, 0.0f, 1.0f);
+	const int bcx = (from.w + blockPx - 1) / blockPx;
+	const int bcy = (from.h + blockPx - 1) / blockPx;
+	// Precompute per-block thresholds once; reuse across all pixels.
+	// Threshold in (0,1) open so t=0->all from and t=1->all to are exact.
+	Common::Array<float> thresholds((uint32)(bcx * bcy));
+	for (int by = 0; by < bcy; by++)
+		for (int bx = 0; bx < bcx; bx++)
+			thresholds[by * bcx + bx] = ((blockHash(bx, by) & 0xffffu) + 0.5f) / 65536.0f;
 	for (int y = 0; y < from.h; y++) {
 		for (int x = 0; x < from.w; x++) {
-			const int bx = (x / blockPx) & 3;
-			const int by = (y / blockPx) & 3;
-			const float threshold = (kBayer4[by * 4 + bx] + 0.5f) / 16.0f;
+			const float threshold = thresholds[(y / blockPx) * bcx + (x / blockPx)];
 			const Graphics::Surface &src = (t >= threshold) ? to : from;
 			out.setPixel(x, y, src.getPixel(x, y));
 		}
@@ -192,6 +222,100 @@ void blendWipe(const Graphics::Surface &from, const Graphics::Surface &to,
 				threshold = 1.0f - (float)x / W;
 				break;
 			}
+			out.setPixel(x, y, (t >= threshold) ? to.getPixel(x, y) : from.getPixel(x, y));
+		}
+	}
+}
+
+void blendScroll(const Graphics::Surface &from, const Graphics::Surface &to,
+                 Graphics::Surface &out, float t, int direction) {
+	if (!sameRGBA(from, to) || !sameRGBA(from, out))
+		return;
+	t = CLIP(t, 0.0f, 1.0f);
+	const int W = out.w, H = out.h;
+	for (int y = 0; y < H; y++) {
+		for (int x = 0; x < W; x++) {
+			uint32 px;
+			switch (direction) {
+			case 0: { // new enters from right: old slides left, new enters from right edge
+				const int srcX = x + (int)(t * W);
+				px = (srcX < W) ? from.getPixel(srcX, y) : to.getPixel(srcX - W, y);
+				break;
+			}
+			case 1: { // new enters from left: old slides right, new enters from left edge
+				const int srcX = x - (int)(t * W);
+				px = (srcX >= 0) ? from.getPixel(srcX, y) : to.getPixel(srcX + W, y);
+				break;
+			}
+			case 2: { // new enters from bottom: old slides up, new enters from bottom edge
+				const int srcY = y + (int)(t * H);
+				px = (srcY < H) ? from.getPixel(x, srcY) : to.getPixel(x, srcY - H);
+				break;
+			}
+			case 3: // new enters from top: old slides down, new enters from top edge
+			default: {
+				const int srcY = y - (int)(t * H);
+				px = (srcY >= 0) ? from.getPixel(x, srcY) : to.getPixel(x, srcY + H);
+				break;
+			}
+			}
+			out.setPixel(x, y, px);
+		}
+	}
+}
+
+int scrollDirectionFor(int sciType) {
+	switch (sciType) {
+	case kSciTrScrollDown:  return 3; // new enters from top (content moves down)
+	case kSciTrScrollUp:    return 2; // new enters from bottom (content moves up)
+	case kSciTrScrollRight: return 0; // new enters from right (content moves right)
+	case kSciTrScrollLeft:  return 1; // new enters from left (content moves left)
+	default:                return 3; // safe default
+	}
+}
+
+void blendSplitVertical(const Graphics::Surface &from, const Graphics::Surface &to,
+                        Graphics::Surface &out, float t, bool fromCenter) {
+	if (!sameRGBA(from, to) || !sameRGBA(from, out))
+		return;
+	t = CLIP(t, 0.0f, 1.0f);
+	const float fW = (float)out.w;
+	for (int y = 0; y < out.h; y++) {
+		for (int x = 0; x < out.w; x++) {
+			const float d = fabsf(2.0f * x / fW - 1.0f);
+			const float threshold = fromCenter ? d : 1.0f - d;
+			out.setPixel(x, y, (t >= threshold) ? to.getPixel(x, y) : from.getPixel(x, y));
+		}
+	}
+}
+
+void blendSplitHorizontal(const Graphics::Surface &from, const Graphics::Surface &to,
+                          Graphics::Surface &out, float t, bool fromCenter) {
+	if (!sameRGBA(from, to) || !sameRGBA(from, out))
+		return;
+	t = CLIP(t, 0.0f, 1.0f);
+	const float fH = (float)out.h;
+	for (int y = 0; y < out.h; y++) {
+		const float d = fabsf(2.0f * y / fH - 1.0f);
+		const float threshold = fromCenter ? d : 1.0f - d;
+		for (int x = 0; x < out.w; x++)
+			out.setPixel(x, y, (t >= threshold) ? to.getPixel(x, y) : from.getPixel(x, y));
+	}
+}
+
+void blendDiagonal(const Graphics::Surface &from, const Graphics::Surface &to,
+                   Graphics::Surface &out, float t, bool fromCenter) {
+	if (!sameRGBA(from, to) || !sameRGBA(from, out))
+		return;
+	t = CLIP(t, 0.0f, 1.0f);
+	const float fW = (float)out.w;
+	const float fH = (float)out.h;
+	for (int y = 0; y < out.h; y++) {
+		const float dy = fabsf(2.0f * y / fH - 1.0f);
+		for (int x = 0; x < out.w; x++) {
+			const float dx = fabsf(2.0f * x / fW - 1.0f);
+			const float L = dx > dy ? dx : dy;  // L∞ norm from center
+			const float threshold = fromCenter ? L : 1.0f - L;
 			out.setPixel(x, y, (t >= threshold) ? to.getPixel(x, y) : from.getPixel(x, y));
 		}
 	}

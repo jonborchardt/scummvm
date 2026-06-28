@@ -681,9 +681,7 @@ void RogerCompositor::runTransition(Graphics::ManagedSurface &from, Graphics::Ma
 		g_system->updateScreen();
 		return;
 	}
-	// Dissolve block size: ~1/40th of overlay width, min 8px (coarse blocks read as a
-	// classic SCI mosaic and keep the per-step setPixel cost bounded).
-	const int blockPx = (to.w / 40 > 8) ? to.w / 40 : 8;
+	const int blockPx = blockPxForSciType(sciTypeHint);
 	// Wipe direction derived from the raw SCI type so directional transitions are faithful.
 	const int wipeDir = wipeDirectionFor(sciTypeHint);
 	const uint32 start = g_system->getMillis();
@@ -695,7 +693,14 @@ void RogerCompositor::runTransition(Graphics::ManagedSurface &from, Graphics::Ma
 		switch (fam) {
 		case kFxDissolve: blendDissolve(*from.surfacePtr(), *to.surfacePtr(), *scratch.surfacePtr(), t, blockPx); break;
 		case kFxWipe:     blendWipe(*from.surfacePtr(), *to.surfacePtr(), *scratch.surfacePtr(), t, wipeDir); break;
-		case kFxScroll:   blendWipe(*from.surfacePtr(), *to.surfacePtr(), *scratch.surfacePtr(), t, wipeDir); break;
+		case kFxScroll:   blendScroll(*from.surfacePtr(), *to.surfacePtr(), *scratch.surfacePtr(), t,
+		                              scrollDirectionFor(sciTypeHint)); break;
+		case kFxSplitV:   blendSplitVertical(*from.surfacePtr(), *to.surfacePtr(), *scratch.surfacePtr(), t,
+		                                     splitFromCenter(sciTypeHint)); break;
+		case kFxSplitH:   blendSplitHorizontal(*from.surfacePtr(), *to.surfacePtr(), *scratch.surfacePtr(), t,
+		                                       splitFromCenter(sciTypeHint)); break;
+		case kFxDiagonal: blendDiagonal(*from.surfacePtr(), *to.surfacePtr(), *scratch.surfacePtr(), t,
+		                                splitFromCenter(sciTypeHint)); break;
 		case kFxFade:
 		default:          blendFadeThroughBlack(*from.surfacePtr(), *to.surfacePtr(), *scratch.surfacePtr(), t); break;
 		}

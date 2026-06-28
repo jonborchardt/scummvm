@@ -26,7 +26,16 @@
 namespace Sci {
 namespace Roger {
 
-enum TransitionFamily { kFxNone, kFxFade, kFxDissolve, kFxWipe, kFxScroll };
+enum TransitionFamily {
+	kFxNone,
+	kFxFade,
+	kFxDissolve,
+	kFxWipe,
+	kFxScroll,
+	kFxSplitV,    // two vertical strips expand/contract from/to horizontal center
+	kFxSplitH,    // two horizontal bands expand/contract from/to vertical center
+	kFxDiagonal   // L∞ corner-curtain expands from / contracts to center
+};
 
 // Map an SCI transition type (transitions.h enum values) to an overlay family.
 // Unknown values default to kFxFade (a safe, always-correct effect).
@@ -46,14 +55,24 @@ int defaultDurationMs(TransitionFamily f);
 // Used by runTransition when fam == kFxWipe.
 int wipeDirectionFor(int sciType);
 
+// True for FromCenter SCI types (0, 1, 7); false for ToCenter (300, 301, 6).
+// Used by runTransition to pass the direction parameter to split/diagonal blends.
+bool splitFromCenter(int sciType);
+
+// Returns the dissolve block size in overlay pixels for the given SCI type.
+// PIXELATION (9) -> 8 px (~90K blocks); all others -> 24 px (~10K blocks).
+int blockPxForSciType(int sciType);
+
 // Blend functions: cross-fade two RGBA32 surfaces.
-// All three surfaces must share dimensions and RGBA32 format; no-op on mismatch.
+// All surfaces must share dimensions and RGBA32 format; no-op on mismatch.
 
 // Fade through black: t<0.5 fades from->black, t>=0.5 black->to.
 void blendFadeThroughBlack(const Graphics::Surface &from, const Graphics::Surface &to,
                            Graphics::Surface &out, float t);
 
-// Ordered (Bayer) dissolve: each blockPx×blockPx cell shows 'to' once threshold ≤ t, else 'from'.
+// Hash-ordered dissolve: each blockPx×blockPx cell reveals 'to' at a pseudo-random
+// threshold, giving an organic mosaic feel matching the original SCI LFSR ordering.
+// t=0->all from, t=1->all to.
 void blendDissolve(const Graphics::Surface &from, const Graphics::Surface &to,
                    Graphics::Surface &out, float t, int blockPx);
 
@@ -61,6 +80,30 @@ void blendDissolve(const Graphics::Surface &from, const Graphics::Surface &to,
 // direction: 0=from right, 1=from left, 2=from bottom, 3=from top.
 void blendWipe(const Graphics::Surface &from, const Graphics::Surface &to,
                Graphics::Surface &out, float t, int direction);
+
+// Slide-scroll: old frame slides off in `direction`, new frame enters from the opposite edge.
+// direction uses the same 0-3 convention as blendWipe (the edge the NEW scene enters from).
+void blendScroll(const Graphics::Surface &from, const Graphics::Surface &to,
+                 Graphics::Surface &out, float t, int direction);
+
+// Map a scroll SCI transition type to a scroll direction (0=right,1=left,2=bottom,3=top).
+int scrollDirectionFor(int sciType);
+
+// Split-vertical curtain: reveals 'to' from the horizontal center outward (fromCenter=true)
+// or from the edges inward (fromCenter=false).
+// threshold per pixel: fromCenter=abs(2*x/W-1), toCenter=1-abs(2*x/W-1).
+void blendSplitVertical(const Graphics::Surface &from, const Graphics::Surface &to,
+                        Graphics::Surface &out, float t, bool fromCenter);
+
+// Split-horizontal curtain: same formula on the Y axis.
+void blendSplitHorizontal(const Graphics::Surface &from, const Graphics::Surface &to,
+                          Graphics::Surface &out, float t, bool fromCenter);
+
+// Corner-curtain diagonal: L∞ norm from center as threshold.
+//   fromCenter=true:  center (L∞=0) reveals first, corners (L∞=1) reveal last.
+//   fromCenter=false: corners reveal first, center reveals last.
+void blendDiagonal(const Graphics::Surface &from, const Graphics::Surface &to,
+                   Graphics::Surface &out, float t, bool fromCenter);
 
 } // namespace Roger
 } // namespace Sci
