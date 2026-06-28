@@ -1071,13 +1071,25 @@ void FileRogerArtProvider::uiPushIcon(const Common::Rect &r, int viewId, int loo
 void FileRogerArtProvider::onDrawCel(const Common::Rect &r, int viewId, int loopNo, int celNo) {
 	if (!_overlayActive || !_plate || !_viewCache) return;
 	const Graphics::Surface *hi = _viewCache->getCel(viewId, loopNo, celNo);
-	if (!hi) return; // no upscaled art for this cel -> leave the native draw showing
 	ensureUi();
-	const uint32 tok = 0x50000000u; // standalone hires cel (e.g. inventory close-up)
-	_uiLayer->clearToken(tok);      // keep only the latest standalone cel
+	const uint32 tok = 0x50000000u;
+	_uiLayer->clearToken(tok);
+
 	Roger::UiElement e;
 	e.type = Roger::kUiIcon; e.nativeRect = r; e.token = tok;
-	e.iconSurface = hi; // borrowed from the ViewCache
+
+	if (hi) {
+		e.iconSurface = hi; // borrowed from the ViewCache (hires path)
+	} else {
+		// No hires art: fall back to a rendered native cel so it stays visible under
+		// the opaque overlay. beginNativeDraw suppressed bitsShow, so Feeder B won't
+		// pick this up — we must inject it here. renderNativeCel already bakes mirroring.
+		if (_drawCelNativeSurf) { _drawCelNativeSurf->free(); delete _drawCelNativeSurf; }
+		_drawCelNativeSurf = renderNativeCel(viewId, loopNo, celNo);
+		if (!_drawCelNativeSurf) return; // render failed; silently skip
+		e.iconSurface = _drawCelNativeSurf; // owned by _drawCelNativeSurf; UiLayer borrows
+	}
+
 	_uiLayer->push(e);
 	presentWithUi();
 }
@@ -1212,7 +1224,11 @@ void FileRogerArtProvider::onAddToPicCel(int viewId, int loopNo, int celNo,
 	s.celNo = celNo;
 	s.celRect = celRect;
 	s.priority = priority;
-	s.mirror = false;
+	{
+		GfxView *view = g_sci && g_sci->_gfxCache
+		                ? g_sci->_gfxCache->getView(viewId) : nullptr;
+		s.mirror = view ? view->isLoopMirrored(loopNo) : false;
+	}
 	s.celOverride = nullptr;
 	_staticSprites.push_back(s);
 }
@@ -1316,7 +1332,14 @@ void FileRogerArtProvider::renderFromAnimateList(const AnimateList &list) {
 		s.celNo    = it->celNo;
 		s.celRect  = it->celRect;
 		s.priority = it->priority;
-		s.mirror   = false; // mirror refinement deferred to a later task
+		// Mirror: read the loop's flag from the VIEW resource. The native fallback
+		// (celOverride) is already mirrored by GfxView::draw; only the hires ViewCache
+		// path needs this (compositor handles it via Graphics::FLIP_H).
+		{
+			GfxView *view = g_sci && g_sci->_gfxCache
+			                ? g_sci->_gfxCache->getView(it->viewId) : nullptr;
+			s.mirror = view ? view->isLoopMirrored(it->loopNo) : false;
+		}
 
 		// Provide a native-cel fallback only for sprites that have no hires view art.
 		// renderScene consults getCel() first and ignores celOverride when a hires cel
@@ -1638,6 +1661,7 @@ FileRogerArtProvider::~FileRogerArtProvider() {
 	if (_sceneCache) { delete _sceneCache; _sceneCache = nullptr; }
 	if (_scratchScene) { delete _scratchScene; _scratchScene = nullptr; }
 	if (_compositeCache) { delete _compositeCache; _compositeCache = nullptr; }
+	if (_drawCelNativeSurf) { _drawCelNativeSurf->free(); delete _drawCelNativeSurf; _drawCelNativeSurf = nullptr; }
 	if (_cursorSurf) { _cursorSurf->free(); delete _cursorSurf; _cursorSurf = nullptr; }
 	for (uint i = 0; i < _uiIcons.size(); i++) { _uiIcons[i]->free(); delete _uiIcons[i]; }
 	_uiIcons.clear();

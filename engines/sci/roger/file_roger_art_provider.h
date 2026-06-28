@@ -153,6 +153,7 @@ private:
 	// (dirty present), whole change -> throttled full re-blend + full present. No-op if
 	// roger_palette_live is off or no index map is resident.
 	void observeLivePalette();
+	Graphics::Surface *_drawCelNativeSurf = nullptr; // native fallback for kDrawCel with no hires art; at most one live per room
 	Graphics::Surface *_cursorSurf = nullptr;        // smooth hires arrow cursor (RGBA, owned)
 	int _cursorShapeId = -1;   // last SCI0 cursor resource id received; -1 = unknown
 	bool _cursorVisible = true; // false when the game called kernelHide()

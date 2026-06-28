@@ -72,6 +72,7 @@ public:
 	void draw(const Common::Rect &rect, const Common::Rect &clipRect, const Common::Rect &clipRectTranslated, int16 loopNo, int16 celNo, byte priority, uint16 EGAmappingNr, bool upscaledHires, uint16 scaleSignal = 0);
 	void drawScaled(const Common::Rect &rect, const Common::Rect &clipRect, const Common::Rect &clipRectTranslated, int16 loopNo, int16 celNo, byte priority, int16 scaleX, int16 scaleY, uint16 scaleSignal = 0);
 	uint16 getLoopCount() const { return _loop.size(); }
+	bool isLoopMirrored(int16 loopNo) const;
 	uint16 getCelCount(int16 loopNo) const;
 	Palette *getPalette();
 
