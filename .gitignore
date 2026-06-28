@@ -184,6 +184,9 @@ project.xcworkspace
 # never commit these; point screenshotpath here and keep them out of the repo root.
 /screenshots/
 
+# Throwaway performance spike (north-star measurement; not shipped)
+/perf_spike/
+
 *.lnk
 #Ignore thumbnails created by Windows
 Thumbs.db
