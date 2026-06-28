@@ -490,6 +490,12 @@ void GfxAnimate::updateScreen(byte oldPicNotValid) {
 	Common::Rect lsRect;
 	Common::Rect workerRect;
 
+	// Roger hires overlay: these bitsShow calls redraw animate cels that
+	// renderFromAnimateList composites semantically as hires sprites — exclude them
+	// from Feeder B's generic native-draw capture (avoids double-compositing).
+	if (g_sciRogerProvider && g_sciRogerProvider->enabled)
+		g_sciRogerProvider->beginNativeDraw();
+
 	for (it = _list.begin(); it != end; ++it) {
 		if (it->showBitsFlag || !(it->signal & (kSignalRemoveView | kSignalNoUpdate) ||
 										(!(it->signal & kSignalRemoveView) && (it->signal & kSignalNoUpdate) && oldPicNotValid))) {
@@ -522,6 +528,9 @@ void GfxAnimate::updateScreen(byte oldPicNotValid) {
 	}
 	// use this for debug purposes
 	// _screen->copyToScreen();
+
+	if (g_sciRogerProvider && g_sciRogerProvider->enabled)
+		g_sciRogerProvider->endNativeDraw();
 }
 
 void GfxAnimate::restoreAndDelete(int argc, reg_t *argv) {
@@ -554,6 +563,12 @@ void GfxAnimate::restoreAndDelete(int argc, reg_t *argv) {
 }
 
 void GfxAnimate::reAnimate(Common::Rect rect) {
+	// Roger hires overlay: these bitsShow calls redraw animate cels that
+	// renderFromAnimateList composites semantically as hires sprites — exclude them
+	// from Feeder B's generic native-draw capture (avoids double-compositing).
+	if (g_sciRogerProvider && g_sciRogerProvider->enabled)
+		g_sciRogerProvider->beginNativeDraw();
+
 	if (!_lastCastData.empty()) {
 		AnimateArray::iterator it;
 		AnimateArray::iterator end = _lastCastData.end();
@@ -570,6 +585,9 @@ void GfxAnimate::reAnimate(Common::Rect rect) {
 	} else {
 		_paint16->bitsShow(rect);
 	}
+
+	if (g_sciRogerProvider && g_sciRogerProvider->enabled)
+		g_sciRogerProvider->endNativeDraw();
 
 	// Roger hires overlay: re-composite after the background is restored (e.g. after a dialog dismissal).
 	if (g_sciRogerProvider && g_sciRogerProvider->enabled)
