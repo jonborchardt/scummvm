@@ -22,6 +22,7 @@
 #include "common/util.h"
 #include "common/stack.h"
 #include "common/system.h" // TEMPORARY PERF (localize-ablate spike): g_system->getMillis
+#include "common/config-manager.h" // TEMPORARY PERF (localize-ablate spike)
 #include "graphics/primitives.h"
 
 #include "sci/console.h"
@@ -753,7 +754,9 @@ void GfxAnimate::kernelAnimate(reg_t listReference, bool cycle, int argc, reg_t 
 	// Roger hires overlay: composite the sorted cast into the OSystem overlay.
 	{
 		const uint32 _t = g_system->getMillis();          // TEMPORARY PERF
-		if (g_sciRogerProvider && g_sciRogerProvider->enabled)
+		static int s_ablSkipComposite = -1;               // TEMPORARY PERF
+		if (s_ablSkipComposite < 0) s_ablSkipComposite = (ConfMan.hasKey("roger_abl_skip_composite") && ConfMan.getBool("roger_abl_skip_composite")) ? 1 : 0;
+		if (!s_ablSkipComposite && g_sciRogerProvider && g_sciRogerProvider->enabled)
 			g_sciRogerProvider->renderFromAnimateList(_list);
 		s_pRFAL += g_system->getMillis() - _t;            // TEMPORARY PERF
 	}

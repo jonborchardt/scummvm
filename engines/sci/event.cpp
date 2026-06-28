@@ -22,6 +22,7 @@
 #include "common/system.h"
 #include "common/events.h"
 #include "common/file.h"
+#include "common/config-manager.h" // TEMPORARY PERF (localize-ablate spike)
 
 #include "sci/sci.h"
 #include "sci/event.h"
@@ -500,6 +501,17 @@ void EventManager::updateScreen() {
 	// Throttle the screen update rate to 60fps.
 	EngineState *s = g_sci->getEngineState();
 	if (g_system->getMillis() - s->_screenUpdateTime >= 1000 / 60) {
+		// TEMPORARY PERF (localize-ablate spike): ablation knobs (cached once).
+		static int s_ablSkipPresent = -1, s_ablDecouple = -1;
+		if (s_ablSkipPresent < 0) s_ablSkipPresent = (ConfMan.hasKey("roger_abl_skip_present") && ConfMan.getBool("roger_abl_skip_present")) ? 1 : 0;
+		if (s_ablDecouple   < 0) s_ablDecouple    = (ConfMan.hasKey("roger_abl_decouple_present") && ConfMan.getBool("roger_abl_decouple_present")) ? 1 : 0;
+		if (s_ablSkipPresent) { s->_screenUpdateTime = g_system->getMillis(); return; }
+		if (s_ablDecouple) {
+			static uint32 s_lastReal = 0; const uint32 DECOUPLE_MS = 100;
+			const uint32 _n = g_system->getMillis();
+			if (s_lastReal != 0 && _n - s_lastReal < DECOUPLE_MS) { s->_screenUpdateTime = _n; return; }
+			s_lastReal = _n;
+		}
 		// TEMPORARY PERF (localize-ablate spike): backend present cost + actual fire rate.
 		static uint32 s_qSum = 0, s_qWin = 0; static int s_qN = 0;
 		const uint32 _q0 = g_system->getMillis();

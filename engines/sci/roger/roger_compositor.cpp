@@ -26,6 +26,7 @@
 #include "graphics/surface.h"
 #include "common/system.h"
 #include "common/textconsole.h"
+#include "common/config-manager.h" // TEMPORARY PERF (localize-ablate spike)
 
 namespace Sci {
 namespace Roger {
@@ -471,6 +472,10 @@ void RogerCompositor::rollPresentDirty() {
 }
 
 void RogerCompositor::presentToOverlay(Graphics::ManagedSurface &scene) {
+	// TEMPORARY PERF (localize-ablate spike): skip pushing to the overlay (isolate present cost).
+	static int s_ablSkipPush = -1;
+	if (s_ablSkipPush < 0) s_ablSkipPush = (ConfMan.hasKey("roger_abl_skip_overlay_push") && ConfMan.getBool("roger_abl_skip_overlay_push")) ? 1 : 0;
+	if (s_ablSkipPush) return;
 	// The scene is composited in RGBA32 (so the alpha-aware blendBlitFrom works -
 	// it only accepts an RGBA32 destination). The OSystem overlay, however, uses
 	// g_system->getOverlayFormat(), which is often NOT RGBA32 (e.g. RGB565), so
