@@ -1282,6 +1282,10 @@ void FileRogerArtProvider::toggleOverlay() {
 	if (!_overlayActive) {
 		g_system->hideOverlay(); // reveal the native 320x200 render underneath
 	} else {
+		// _nativeBaseline went stale while the overlay was off (snapshotNativeBaseline
+		// early-returns when _overlayActive is false).  Force a fresh snapshot on the
+		// next kernelAnimate before any Feeder-B diff runs.
+		_haveBaseline = false;
 		// Re-show immediately (do not wait for the next kAnimate) and restore the banner.
 		if (_haveScene) presentWithUi();
 		reapplyStatus();
