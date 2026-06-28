@@ -9,7 +9,12 @@
 param(
     [string]$Config   = "Release",
     [string]$Platform = "x64",
-    [switch]$NoLaunch    # build only; skip launching SQ3 (used for compile verification)
+    [switch]$NoLaunch,   # build only; skip launching the game (used for compile verification)
+    [string]$Game     = "",   # launch this configured target id (e.g. "qfg1") instead of SQ3;
+                              # launches by target so the existing scummvm.ini config (Roger
+                              # settings, game path) is used. Empty = default SQ3 via -p path.
+    [int]$SaveSlot    = -1    # auto-load this save slot on startup (ScummVM -x / --save-slot).
+                              # e.g. -SaveSlot 1 boots straight into save 001. -1 = no auto-load.
 )
 
 $ErrorActionPreference = "Stop"
@@ -208,7 +213,24 @@ if ($NoLaunch) {
     return
 }
 
-if (-not (Test-Path $GameDir)) { Write-Error "Game data not found at: $GameDir" }
+# Build the save-slot argument shared by both launch paths.
+$saveArgs = @()
+if ($SaveSlot -ge 0) { $saveArgs = @("-x", "$SaveSlot") }
 
-Write-Host "Launching SQ3..." -ForegroundColor Green
-& $Exe -p $GameDir sq3
+if ($Game) {
+    # Launch a configured target by id (uses scummvm.ini: game path + Roger settings).
+    if ($SaveSlot -ge 0) {
+        Write-Host "Launching target '$Game' (auto-loading save slot $SaveSlot)..." -ForegroundColor Green
+    } else {
+        Write-Host "Launching target '$Game'..." -ForegroundColor Green
+    }
+    & $Exe @saveArgs $Game
+} else {
+    if (-not (Test-Path $GameDir)) { Write-Error "Game data not found at: $GameDir" }
+    if ($SaveSlot -ge 0) {
+        Write-Host "Launching SQ3 (auto-loading save slot $SaveSlot)..." -ForegroundColor Green
+    } else {
+        Write-Host "Launching SQ3..." -ForegroundColor Green
+    }
+    & $Exe -p $GameDir @saveArgs sq3
+}
