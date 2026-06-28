@@ -49,6 +49,11 @@ struct Sprite {
 void coalesceDirtyRects(const Common::Array<Common::Rect> &in, const Common::Rect &bounds,
                         Common::Array<Common::Rect> &out);
 
+// Compare two w*h byte (EGA index) buffers; emit coalesced bounding boxes covering the
+// changed pixels (Feeder B diff backstop). Empty `out` when the buffers are identical.
+void extractChangedBoxes(const byte *prev, const byte *cur, int w, int h,
+                         Common::Array<Common::Rect> &out);
+
 // Merge addToPic (static) and animate sprites into one back-to-front draw list:
 // static first, then animate, then a STABLE sort by ascending priority. Stable ⇒ at
 // equal priority addToPic draws before animate (native bakes addToPic into the pic

@@ -114,6 +114,25 @@ void upscaleNativeRegionNearest(Graphics::Surface &dest, const Common::Rect &ove
 	}
 }
 
+void extractChangedBoxes(const byte *prev, const byte *cur, int w, int h,
+                         Common::Array<Common::Rect> &out) {
+	Common::Array<Common::Rect> runs;
+	for (int y = 0; y < h; y++) {
+		int x = 0;
+		while (x < w) {
+			if (prev[(uint)y * w + x] != cur[(uint)y * w + x]) {
+				const int start = x;
+				while (x < w && prev[(uint)y * w + x] != cur[(uint)y * w + x])
+					x++;
+				runs.push_back(Common::Rect((int16)start, (int16)y, (int16)x, (int16)(y + 1)));
+			} else {
+				x++;
+			}
+		}
+	}
+	coalesceDirtyRects(runs, Common::Rect(0, 0, (int16)w, (int16)h), out);
+}
+
 RogerCompositor::~RogerCompositor() {
 	if (_bgCache) {
 		_bgCache->free();

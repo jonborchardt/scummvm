@@ -342,4 +342,36 @@ public:
 		TS_ASSERT_EQUALS(a, 255);                            // opaque
 		dest.free();
 	}
+
+	void test_extract_changed_boxes() {
+		using namespace Sci::Roger;
+		const int w = 8, h = 8;
+		byte prev[64], cur[64];
+		for (int i = 0; i < 64; i++) { prev[i] = 0; cur[i] = 0; }
+		// Change one pixel at (2,2) and an adjacent (3,2) -> one box.
+		cur[2 * w + 2] = 5; cur[2 * w + 3] = 5;
+		// A far-apart change at (6,6) -> a second box.
+		cur[6 * w + 6] = 7;
+
+		Common::Array<Common::Rect> out;
+		extractChangedBoxes(prev, cur, w, h, out);
+
+		TS_ASSERT_EQUALS(out.size(), (uint)2);
+		bool hasA = false, hasB = false;
+		for (uint i = 0; i < out.size(); i++) {
+			if (out[i].contains(2, 2) && out[i].contains(3, 2)) hasA = true;
+			if (out[i].contains(6, 6)) hasB = true;
+		}
+		TS_ASSERT(hasA);
+		TS_ASSERT(hasB);
+	}
+
+	void test_extract_changed_boxes_identical_is_empty() {
+		using namespace Sci::Roger;
+		byte a[16], b[16];
+		for (int i = 0; i < 16; i++) { a[i] = (byte)i; b[i] = (byte)i; }
+		Common::Array<Common::Rect> out;
+		extractChangedBoxes(a, b, 4, 4, out);
+		TS_ASSERT_EQUALS(out.size(), (uint)0);
+	}
 };
