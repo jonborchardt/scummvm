@@ -144,7 +144,11 @@ bool FileRogerArtProvider::hasBackground(GuiResourceId pictureId) const {
 		return false;
 	// VGA games are rejected at add-time in the launcher (loading screen); no
 	// per-frame view-type check here — it stays off the runtime render path.
-	return _assetGen && _assetGen->mode() != Roger::kGenPrebuilt;
+	const bool r = _assetGen && _assetGen->mode() != Roger::kGenPrebuilt;
+	warning("ROGER hasBackground pic=%d -> %d (enabled=%d mode=%d viewType=%d)",
+	        (int)pictureId, (int)r, (int)enabled, _assetGen ? (int)_assetGen->mode() : -99,
+	        (g_sci && g_sci->getResMan()) ? (int)g_sci->getResMan()->getViewType() : -99);
+	return r;
 }
 
 void FileRogerArtProvider::precacheAll() {
@@ -319,6 +323,9 @@ void FileRogerArtProvider::pushHiresBackground(GuiResourceId pictureId) {
 	// render shows (handled by the !_plate block below).
 	uint32 plateMs = g_system->getMillis() - tAcq0;
 	if (!_plate) {
+		warning("ROGER pushBg pic=%d -> NO PLATE (generatePlateWithIndex returned null); "
+		        "native render shows, overlay bg may be garbage. mode=%d plateMs=%u",
+		        (int)pictureId, _assetGen ? (int)_assetGen->mode() : -99, plateMs);
 		// No hires bg -> native shows. Clear the compositor's borrowed plate pointer
 		// so it does not retain the plate we just deleted above.
 		if (_compositor)
@@ -362,6 +369,9 @@ void FileRogerArtProvider::pushHiresBackground(GuiResourceId pictureId) {
 	else
 		_compositor->setPriorityMask(nullptr, 0, 0); // no bands -> sprites draw without occlusion
 	_loadedPicId = pictureId;
+
+	warning("ROGER pushBg pic=%d OK: plate=%s %dx%d  occ=%d %dx%d  plateMs=%u occMs=%u",
+	        (int)pictureId, plateSrc, _plate->w, _plate->h, (int)haveOcc, prW, prH, plateMs, occMs);
 
 	// Snapshot the room-load EGA palette for live re-apply. The first 16 OSystem palette
 	// entries are the EGA base colors in SCI0 (GfxPalette16::setEGA fills them at indices
@@ -425,17 +435,16 @@ void FileRogerArtProvider::observeLivePalette() {
 		return;
 	}
 
-	// Whole-palette change (fade/flash/day-night): throttle, full re-blend, full present.
+	// Whole-palette change (fade/flash/day-night, e.g. the pod shutting down).
+	// The omyac-enhanced plate contains blended/anti-aliased colors that are NOT pure
+	// EGA palette indices, so a per-pixel reblend through the 16-entry index map
+	// mis-recolors them — on a large palette change the whole plate turns to garbage.
+	// Skip the whole-plate reblend: the plate keeps its room-load colors (no fade on the
+	// hires background) rather than corrupting. The partial color-cycle path above
+	// (n <= kPartialMax) is unaffected, so per-index animations still work.
 	const uint32 now = g_system->getMillis();
 	if (now - _lastPaletteCheckMs < 16)
-		return; // bound to ~60Hz worst case; the static plate shows the prior color meanwhile
-	bool all[16]; for (int i = 0; i < 16; i++) all[i] = true;
-	Common::Rect whole;
-	Roger::reblendChangedPixels(_plateIndex.begin(), Roger::OMYAC_HYBRID_W, Roger::OMYAC_HYBRID_H,
-	                            table, all, *_plate, whole);
-	_compositor->invalidateBackgroundCache(); // plate pixels mutated; force bgCache rebuild
-	_compositor->forceFullPresentNext();
-	for (int i = 0; i < 48; i++) _palSnapshot[i] = live[i];
+		return;
 	_lastPaletteCheckMs = now;
 }
 
@@ -787,8 +796,13 @@ void FileRogerArtProvider::ensureCompositeCache(int w, int h) {
 }
 
 void FileRogerArtProvider::presentWithUi() {
-	if (!_overlayActive || !_compositor || !_haveScene || !_sceneCache)
+	if (!_overlayActive || !_compositor || !_haveScene || !_sceneCache) {
+		static uint32 noopN = 0;
+		if ((noopN++ % 120) == 0)
+			warning("ROGER presentWithUi NOOP #%u: overlayActive=%d compositor=%d haveScene=%d sceneCache=%d",
+			        noopN, (int)_overlayActive, _compositor ? 1 : 0, (int)_haveScene, _sceneCache ? 1 : 0);
 		return;
+	}
 	const Graphics::PixelFormat rgba(4, 8, 8, 8, 8, 24, 16, 8, 0);
 	// The window may have been resized since the scene was cached. A blocking dialog/
 	// menu/inventory does NOT tick kernelAnimate, so renderFrame can't refresh the
@@ -815,17 +829,29 @@ void FileRogerArtProvider::presentWithUi() {
 	if (_uiLayer && !_uiLayer->empty() && _textRenderer) {
 		byte pal[256 * 3];
 		g_system->getPaletteManager()->grabPalette(pal, 0, 256);
-		if (_debugLog) {
+		// Always-on diagnostic dump of the UI element rects, throttled to one dump per
+		// distinct dialog (signature over token/rect/type) so it does not spam per frame.
+		{
 			const Common::Array<Roger::UiElement> &els = _uiLayer->elements();
-			warning("ROGER-UI: gameRect=(%d,%d,%d,%d)", _lastGameRect.left, _lastGameRect.top,
-			        _lastGameRect.right, _lastGameRect.bottom);
+			static uint32 lastDiagSig = 0;
+			uint32 dsig = 2166136261u;
 			for (uint i = 0; i < els.size(); i++) {
-				const Roger::UiElement &e = els[i];
-				const Common::Rect d = Roger::sciRectToDest(e.nativeRect, _lastGameRect);
-				warning("ROGER-UI: [%u] type=%d tok=%08x native=(%d,%d,%d,%d) dest=(%d,%d,%d,%d) text='%.24s'",
-				        i, (int)e.type, e.token, e.nativeRect.left, e.nativeRect.top,
-				        e.nativeRect.right, e.nativeRect.bottom, d.left, d.top, d.right, d.bottom,
-				        e.text.c_str());
+				dsig = (dsig ^ (uint32)els[i].token) * 16777619u;
+				dsig = (dsig ^ (uint32)(els[i].nativeRect.left * 31 + els[i].nativeRect.top)) * 16777619u;
+				dsig = (dsig ^ (uint32)(els[i].type * 7 + els[i].textRole)) * 16777619u;
+			}
+			if (dsig != lastDiagSig) {
+				lastDiagSig = dsig;
+				warning("ROGER-UI: gameRect=(%d,%d,%d,%d)", _lastGameRect.left, _lastGameRect.top,
+				        _lastGameRect.right, _lastGameRect.bottom);
+				for (uint i = 0; i < els.size(); i++) {
+					const Roger::UiElement &e = els[i];
+					const Common::Rect d = Roger::sciRectToDest(e.nativeRect, _lastGameRect);
+					warning("ROGER-UI: [%u] type=%d tok=%08x native=(%d,%d,%d,%d) dest=(%d,%d,%d,%d) text='%.32s'",
+					        i, (int)e.type, e.token, e.nativeRect.left, e.nativeRect.top,
+					        e.nativeRect.right, e.nativeRect.bottom, d.left, d.top, d.right, d.bottom,
+					        e.text.c_str());
+				}
 			}
 		}
 		_compositor->renderUiLayer(scene, _uiLayer->elements(), pal, _lastGameRect, _textRenderer, _altTextRenderer);
