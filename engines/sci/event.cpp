@@ -500,7 +500,19 @@ void EventManager::updateScreen() {
 	// Throttle the screen update rate to 60fps.
 	EngineState *s = g_sci->getEngineState();
 	if (g_system->getMillis() - s->_screenUpdateTime >= 1000 / 60) {
+		// TEMPORARY PERF (localize-ablate spike): backend present cost + actual fire rate.
+		static uint32 s_qSum = 0, s_qWin = 0; static int s_qN = 0;
+		const uint32 _q0 = g_system->getMillis();
 		g_system->updateScreen();
+		const uint32 _q1 = g_system->getMillis();
+		s_qSum += _q1 - _q0; s_qN++;
+		if (s_qWin == 0) s_qWin = _q0;
+		if (s_qN >= 120) {
+			const uint32 _span = g_system->getMillis() - s_qWin;
+			warning("ROGER-PRESENT: avg=%.2fms calls=%d over %ums (=%.1f/sec)",
+			        s_qSum / (float)s_qN, s_qN, _span, s_qN * 1000.0f / (float)(_span ? _span : 1));
+			s_qSum = 0; s_qN = 0; s_qWin = 0;
+		}
 		s->_screenUpdateTime = g_system->getMillis();
 		// Throttle the checking of shouldQuit() to 60fps as well, since
 		// Engine::shouldQuit() invokes 2 virtual functions

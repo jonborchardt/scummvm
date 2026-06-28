@@ -976,10 +976,19 @@ void SciEngine::showQfgImportMessageBox() const {
 			"for Quest for Glory 2. Example: 'qfg2-thief.sav'."));
 }
 
+// TEMPORARY PERF (localize-ablate spike): accumulate real sleep wall-time + call count so
+// kernelAnimate can report busy-vs-sleeping. Drained via perfSleepTake*() below.
+static uint32 s_perfSleepMs = 0;
+static uint32 s_perfSleepCount = 0;
+uint32 SciEngine::perfSleepTakeMs()    { uint32 v = s_perfSleepMs;    s_perfSleepMs = 0;    return v; }
+uint32 SciEngine::perfSleepTakeCount() { uint32 v = s_perfSleepCount; s_perfSleepCount = 0; return v; }
+
 void SciEngine::sleep(uint32 msecs) {
 	if (!msecs) {
 		return;
 	}
+	const uint32 _perfT0 = _system->getMillis(); // TEMPORARY PERF
+	s_perfSleepCount++;                           // TEMPORARY PERF
 
 	const uint32 wakeUpTime = _system->getMillis() + msecs;
 
@@ -989,6 +998,7 @@ void SciEngine::sleep(uint32 msecs) {
 
 		// There is no point in waiting any more if we are just waiting to quit
 		if (shouldQuit()) {
+			s_perfSleepMs += _system->getMillis() - _perfT0; // TEMPORARY PERF
 			return;
 		}
 
@@ -1009,6 +1019,7 @@ void SciEngine::sleep(uint32 msecs) {
 			break;
 		}
 	}
+	s_perfSleepMs += _system->getMillis() - _perfT0; // TEMPORARY PERF
 }
 
 void SciEngine::setLauncherLanguage() {

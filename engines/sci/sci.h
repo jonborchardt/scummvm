@@ -260,6 +260,9 @@ public:
 	 */
 	void sleep(uint32 msecs);
 
+	uint32 perfSleepTakeMs();    // TEMPORARY PERF (localize-ablate spike)
+	uint32 perfSleepTakeCount(); // TEMPORARY PERF (localize-ablate spike)
+
 	void scriptDebug();
 	bool checkExportBreakpoint(uint16 script, uint16 pubfunct);
 	bool checkSelectorBreakpoint(BreakpointType breakpointType, reg_t send_obj, int selector);
