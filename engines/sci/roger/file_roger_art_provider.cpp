@@ -510,10 +510,15 @@ void FileRogerArtProvider::renderFrame(const Common::Array<Roger::Sprite> &sprit
 		_compositor->renderUiLayer(scene, _uiLayer->elements(), pal, gameRect, _textRenderer, _altTextRenderer);
 	}
 	// Snapshot scene+UI (no cursor) — cursor-only onMouseMoved restores from here.
-	ensureCompositeCache(OW, OH);
-	// Copy into the existing allocation (no per-frame free+malloc, unlike copyFrom).
-	_compositeCache->copyRectToSurface(scene.rawSurface(), 0, 0, Common::Rect(0, 0, scene.w, scene.h));
-	_compositeCacheValid = true;
+	// Only the software-cursor onMouseMoved fast path reads _compositeCache; under the
+	// hardware cursor that path early-returns and compositeCursor no-ops, so the cache
+	// has no reader. Skip the ~22 MB copy entirely in the hw-cursor case.
+	if (!_useHwCursor) {
+		ensureCompositeCache(OW, OH);
+		// Copy into the existing allocation (no per-frame free+malloc, unlike copyFrom).
+		_compositeCache->copyRectToSurface(scene.rawSurface(), 0, 0, Common::Rect(0, 0, scene.w, scene.h));
+		_compositeCacheValid = true;
+	}
 	compositeCursor(scene, gameRect);
 	_compositor->presentToOverlay(scene);
 
