@@ -171,6 +171,16 @@ public:
 	// palette re-blend) so the stale pre-mutation copy isn't re-used next frame.
 	void invalidateBackgroundCache() { _bgPlate = nullptr; }
 
+	// Coalesced union (clamped to _bgGameRect) of every sprite's current and just-vacated
+	// dest-rect that renderScene re-seeded the background over this frame. Equal to
+	// coalesce(_sceneDirtyCur ∪ _sceneDirtyPrev). The provider uses this to bound its own
+	// per-frame scene-cache copies to the regions that actually changed.
+	const Common::Array<Common::Rect> &lastSeedUnion() const { return _lastSeedUnion; }
+	// True when the last renderScene re-seeded the WHOLE game region (rebuild, empty
+	// gameRect, or a periodic heal) — in that case lastSeedUnion() is not authoritative and
+	// the caller must do a full-region copy. False => only lastSeedUnion() changed.
+	bool lastSceneWasFull() const { return _lastSceneFull; }
+
 private:
 	Graphics::Surface *_plate;
 	ViewCache *_views;
@@ -212,6 +222,16 @@ private:
 	// vacated even if several UI-only presents happened in between. Without this split, a
 	// mouse-move during an animation clobbered _dirtyPrev and left a shadow of old frames.
 	Common::Array<Common::Rect> _sceneDirtyCur, _sceneDirtyPrev;
+
+	// Bounded background-seed bookkeeping. renderScene re-seeds _bgCache->dest only over the
+	// coalesced union of this frame's + last frame's sprite rects (everything else in the
+	// persistent scratch surface is still correct), instead of the whole ~22MB game region.
+	// _lastSeedUnion is that union; _lastSceneFull records whether a full-region seed ran
+	// instead (rebuild/empty/heal). _framesSinceFullSeed drives a periodic full-seed heal,
+	// independent of presentToOverlay's own present heal (each layer self-heals).
+	Common::Array<Common::Rect> _lastSeedUnion;
+	bool _lastSceneFull = true;
+	int _framesSinceFullSeed = 0;
 };
 
 } // namespace Roger

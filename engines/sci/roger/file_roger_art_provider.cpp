@@ -489,17 +489,31 @@ void FileRogerArtProvider::renderFrame(const Common::Array<Roger::Sprite> &sprit
 	// stale pixels survive between frames.
 	Graphics::ManagedSurface &scene = *scratchScene(OW, OH);
 	_compositor->renderScene(scene, sprites, gameRect);
-	drawGenericRegions(scene, picRect);
+	const bool drewGeneric = drawGenericRegions(scene, picRect);
 
 	// Cache the composed room+sprite scene so a UI-only change can be re-presented
 	// cheaply (blocking dialogs do not tick kernelAnimate).
+	bool sceneCacheRealloc = false;
 	if (!_sceneCache || _sceneCache->w != scene.w || _sceneCache->h != scene.h ||
 	    _sceneCache->format != scene.format) {
 		delete _sceneCache;
 		_sceneCache = new Graphics::ManagedSurface(scene.w, scene.h, scene.format);
+		sceneCacheRealloc = true;
 	}
-	// Copy into the existing allocation (no per-frame free+malloc, unlike copyFrom).
-	_sceneCache->copyRectToSurface(scene.rawSurface(), 0, 0, Common::Rect(0, 0, scene.w, scene.h));
+	// Bound the copy to the regions renderScene re-drew this frame (the sprite-rect union):
+	// the persistent _sceneCache keeps outside-union pixels valid from prior frames, exactly
+	// like the scratch scene's static background. A FULL copy runs on (re)alloc, on any
+	// full-seed frame (rebuild/transition/shake/heal — lastSceneWasFull), and when generic
+	// regions (inventory/close-up upscales) were drawn outside the sprite union — so the cache
+	// is never left partial. Copies into the existing allocation (no per-frame free+malloc).
+	const bool fullSceneCopy = sceneCacheRealloc || _compositor->lastSceneWasFull() || drewGeneric;
+	if (fullSceneCopy) {
+		_sceneCache->copyRectToSurface(scene.rawSurface(), 0, 0, Common::Rect(0, 0, scene.w, scene.h));
+	} else {
+		const Common::Array<Common::Rect> &u = _compositor->lastSeedUnion();
+		for (uint i = 0; i < u.size(); i++)
+			_sceneCache->copyRectToSurface(scene.rawSurface(), u[i].left, u[i].top, u[i]);
+	}
 	_haveScene = true;
 	_lastGameRect = gameRect;
 
@@ -514,9 +528,21 @@ void FileRogerArtProvider::renderFrame(const Common::Array<Roger::Sprite> &sprit
 	// hardware cursor that path early-returns and compositeCursor no-ops, so the cache
 	// has no reader. Skip the ~22 MB copy entirely in the hw-cursor case.
 	if (!_useHwCursor) {
+		// _compositeCacheValid coming in tells us a full cursor-free snapshot from a prior
+		// frame is intact; ensureCompositeCache clears it on (re)alloc. The onMouseMoved fast
+		// path reads arbitrary cursor-position rects from this cache (not just the seed union),
+		// so a bounded copy is only safe when that full prior snapshot exists AND this frame
+		// touched only the union; otherwise (realloc, full-seed, generic regions, or a prior
+		// invalidation) do a full copy. Copies into the existing allocation.
+		const bool priorValid = _compositeCacheValid;
 		ensureCompositeCache(OW, OH);
-		// Copy into the existing allocation (no per-frame free+malloc, unlike copyFrom).
-		_compositeCache->copyRectToSurface(scene.rawSurface(), 0, 0, Common::Rect(0, 0, scene.w, scene.h));
+		if (fullSceneCopy || !priorValid || !_compositeCacheValid) {
+			_compositeCache->copyRectToSurface(scene.rawSurface(), 0, 0, Common::Rect(0, 0, scene.w, scene.h));
+		} else {
+			const Common::Array<Common::Rect> &u = _compositor->lastSeedUnion();
+			for (uint i = 0; i < u.size(); i++)
+				_compositeCache->copyRectToSurface(scene.rawSurface(), u[i].left, u[i].top, u[i]);
+		}
 		_compositeCacheValid = true;
 	}
 	compositeCursor(scene, gameRect);
@@ -1179,13 +1205,13 @@ void FileRogerArtProvider::snapshotNativeBaseline() {
 	_haveBaseline = true;
 }
 
-void FileRogerArtProvider::drawGenericRegions(Graphics::ManagedSurface &scene,
+bool FileRogerArtProvider::drawGenericRegions(Graphics::ManagedSurface &scene,
                                               const Common::Rect &picRect) {
 	if (!g_sci || !g_sci->_gfxScreen)
-		return;
+		return false;
 	// Need either hook-recorded regions or a baseline to diff against; bail cheaply.
 	if (_genRegions.empty() && !_haveBaseline) {
-		return;
+		return false;
 	}
 	GfxScreen *screen = g_sci->_gfxScreen;
 	const int sw = screen->getWidth();    // 320 (SCI0)
@@ -1212,8 +1238,9 @@ void FileRogerArtProvider::drawGenericRegions(Graphics::ManagedSurface &scene,
 	}
 
 	if (_genRegions.empty())
-		return;
+		return false;
 
+	bool drewAny = false;
 	const int picScreenTop = _compositor->picScreenTop();
 	for (uint i = 0; i < _genRegions.size(); i++) {
 		Common::Rect nr = _genRegions[i];
@@ -1232,8 +1259,10 @@ void FileRogerArtProvider::drawGenericRegions(Graphics::ManagedSurface &scene,
 		Roger::upscaleNativeRegionNearest(*scene.surfacePtr(), dst,
 			vis.begin(), sw, nr, pal);
 		_compositor->addDirtyRect(dst); // ensure the region is pushed (and erased next frame)
+		drewAny = true;
 	}
 	_genRegions.clear();
+	return drewAny;
 }
 
 void FileRogerArtProvider::renderFromAnimateList(const AnimateList &list) {

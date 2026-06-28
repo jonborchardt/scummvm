@@ -245,17 +245,85 @@ void RogerCompositor::renderScene(Graphics::ManagedSurface &dest, const Common::
 	const bool bgValid = _bgCache && _bgPlate && _bgPlate == _plate &&
 	                     _bgCache->w == W && _bgCache->h == H && _bgCache->format == fmt &&
 	                     _bgPicRect == picRect && _bgGameRect == gameRect;
+
+	// Pre-pass: compute each sprite's overlay dest-rect BEFORE seeding, so the seed can be
+	// bounded to the union of where sprites are now plus where they were last frame. The dst
+	// math (and the empty/skip rules) is IDENTICAL to the draw loop below — the loop reuses
+	// these exact values (see spriteDst), so _sceneDirtyCur and the drawn pixels are unchanged.
+	const int PIC_W2 = _picW, PIC_H2 = _picH;
+	Common::Array<Common::Rect> spriteDst; // parallel to `sprites`; empty rect == skipped
+	spriteDst.reserve(sprites.size());
+	for (uint i = 0; i < sprites.size(); i++) {
+		const Sprite &s = sprites[i];
+		const Graphics::Surface *cel = _views ? _views->getCel(s.viewId, s.loopNo, s.celNo) : nullptr;
+		if (!cel)
+			cel = s.celOverride;
+		Common::Rect dst; // empty by default (skipped sprites: missing cel / bad PIC dims)
+		if (cel && PIC_W2 > 0 && PIC_H2 > 0) {
+			dst = Common::Rect(
+				(int16)(picRect.left + (int)s.celRect.left   * GW / PIC_W2),
+				(int16)(picRect.top  + (int)s.celRect.top    * GH / PIC_H2),
+				(int16)(picRect.left + (int)s.celRect.right  * GW / PIC_W2),
+				(int16)(picRect.top  + (int)s.celRect.bottom * GH / PIC_H2));
+		}
+		spriteDst.push_back(dst);
+		if (!dst.isEmpty())
+			_sceneDirtyCur.push_back(dst); // sprite region (scene-granularity dirty; see header)
+	}
+
+	// fullSeed: re-seed the WHOLE game region (current behavior) on a static-background
+	// rebuild (room/geometry change), the no-geometry test path, or a periodic heal —
+	// otherwise the persistent scratch background outside the seed union is stale. Each layer
+	// self-heals independently of presentToOverlay's present heal.
+	static const int kSceneHealFrames = 300; // ~5s at 60fps; cheap insurance
+	const bool fullSeed = !bgValid || _bgGameRect.isEmpty() ||
+	                      (_framesSinceFullSeed >= kSceneHealFrames);
+	if (fullSeed)
+		_framesSinceFullSeed = 0;
+	else
+		_framesSinceFullSeed++;
+
+	// Coalesced union (clamped to the game rect by coalesceDirtyRects) of everything that may
+	// hold stale DYNAMIC pixels in the persistent scratch surface and must be re-seeded with
+	// clean background this frame:
+	//   - current + just-vacated sprite rects (_sceneDirtyCur ∪ _sceneDirtyPrev), and
+	//   - the previous present's UI/cursor/generic-region rects (_dirtyPrev) — under the
+	//     SOFTWARE cursor (the default), compositeCursor paints the cursor into this same
+	//     scratch surface AFTER renderScene, so last present's cursor position sits here and
+	//     would trail if not re-seeded. _dirtyCur (this present's) is excluded: those pixels
+	//     are (re)painted later this frame anyway, and the caches are snapshotted cursor-free
+	//     BEFORE compositeCursor, so seeding the vacated rect leaves the right (clean) pixels.
+	// The bounded seed and the provider's scene-cache copies both ride this union.
+	_lastSeedUnion.clear();
+	{
+		Common::Array<Common::Rect> raw;
+		for (uint i = 0; i < _sceneDirtyCur.size(); i++) raw.push_back(_sceneDirtyCur[i]);
+		for (uint i = 0; i < _sceneDirtyPrev.size(); i++) raw.push_back(_sceneDirtyPrev[i]);
+		for (uint i = 0; i < _dirtyPrev.size(); i++) raw.push_back(_dirtyPrev[i]);
+		Common::Rect bounds = _bgGameRect;
+		bounds.clip(Common::Rect(0, 0, (int16)W, (int16)H));
+		coalesceDirtyRects(raw, bounds, _lastSeedUnion);
+	}
+	_lastSceneFull = fullSeed;
+
 	if (bgValid) {
-		// Seed only the game region: the static black letterbox in dest persists from the
-		// last _bgRebuilt frame (this scratch surface is reused, and sprites only draw
-		// inside picRect ⊂ gameRect), so we skip copying the letterbox AND avoid copyFrom's
-		// per-frame free+malloc of the whole overlay. Empty gameRect (tests) -> full copy.
+		// Seed the game region from _bgCache to lay down clean background where sprites are
+		// now and where they were last frame. The static black letterbox AND the untouched
+		// interior of the persistent scratch surface stay correct between frames (this scratch
+		// is reused, the static bg outside the union does not change, and sprites only draw
+		// inside their own dst ⊆ union), so a bounded seed is pixel-identical to the full one.
+		// Empty gameRect (tests) -> full copy. fullSeed -> whole game region (rebuild/heal).
 		if (_bgGameRect.isEmpty()) {
 			dest.copyFrom(*_bgCache);
-		} else {
+		} else if (fullSeed) {
 			Common::Rect gr = _bgGameRect;
 			gr.clip(Common::Rect(0, 0, (int16)W, (int16)H));
 			dest.surfacePtr()->copyRectToSurface(*_bgCache->surfacePtr(), gr.left, gr.top, gr);
+		} else {
+			for (uint i = 0; i < _lastSeedUnion.size(); i++) {
+				const Common::Rect &r = _lastSeedUnion[i]; // already clipped to game rect
+				dest.surfacePtr()->copyRectToSurface(*_bgCache->surfacePtr(), r.left, r.top, r);
+			}
 		}
 	} else {
 		_bgRebuilt = true; // letterbox redrawn this frame -> present full overlay once
@@ -307,14 +375,9 @@ void RogerCompositor::renderScene(Graphics::ManagedSurface &dest, const Common::
 		}
 		if (PIC_W <= 0 || PIC_H <= 0)
 			continue;
-		// Map the picture-window-local cel rect (PIC_W x PIC_H) into the game rect.
-		Common::Rect dst(
-			(int16)(picRect.left + (int)s.celRect.left   * GW / PIC_W),
-			(int16)(picRect.top  + (int)s.celRect.top    * GH / PIC_H),
-			(int16)(picRect.left + (int)s.celRect.right  * GW / PIC_W),
-			(int16)(picRect.top  + (int)s.celRect.bottom * GH / PIC_H));
-		if (!dst.isEmpty())
-			_sceneDirtyCur.push_back(dst); // sprite region (scene-granularity dirty; see header)
+		// Reuse the dest-rect computed in the pre-pass (same integer-scale math as before, and
+		// it was already pushed to _sceneDirtyCur and folded into the bounded background seed).
+		const Common::Rect &dst = spriteDst[i];
 		// Alpha-aware blit: respects each pixel's alpha so transparent non-black
 		// pixels (common in exported spritesheets) do not render opaque (halos).
 		dest.blendBlitFrom(*cel, Common::Rect(0, 0, cel->w, cel->h), dst,

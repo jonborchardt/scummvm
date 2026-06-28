@@ -204,7 +204,10 @@ private:
 	// Feeder B: upscale captured native generic regions (_genRegions) onto scene.
 	// scene is the current frame's composite surface (RGBA32). picRect is the
 	// overlay-space picture rect (computePictureRect). Clears _genRegions after use.
-	void drawGenericRegions(Graphics::ManagedSurface &scene, const Common::Rect &picRect);
+	// Returns true if it upscaled at least one generic region into `scene` this frame. Those
+	// regions are outside the sprite-rect seed union, so a true result forces the scene-cache
+	// copies to be full (otherwise the bounded copy would miss the freshly drawn region).
+	bool drawGenericRegions(Graphics::ManagedSurface &scene, const Common::Rect &picRect);
 
 	// Render a native SCI cel to a new RGBA surface. Caller owns and must free.
 	// Returns nullptr on any failure (guard: sprite will be skipped).
