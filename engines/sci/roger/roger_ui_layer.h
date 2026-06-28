@@ -79,8 +79,8 @@ class RogerUiLayer {
 public:
 	// Append, or replace an existing element with the same type+token+rect.
 	void push(const UiElement &e);
-	// Remove every element carrying this clear-token.
-	void clearToken(uint32 token);
+	// Remove every element carrying this clear-token. Returns true if any element was removed.
+	bool clearToken(uint32 token);
 	void clearAll() { _elems.clear(); }
 	bool empty() const { return _elems.empty(); }
 	const Common::Array<UiElement> &elements() const { return _elems; }

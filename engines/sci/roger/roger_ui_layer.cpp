@@ -34,13 +34,17 @@ void RogerUiLayer::push(const UiElement &e) {
 	_elems.push_back(e);
 }
 
-void RogerUiLayer::clearToken(uint32 token) {
+bool RogerUiLayer::clearToken(uint32 token) {
+	bool removed = false;
 	for (uint i = 0; i < _elems.size();) {
-		if (_elems[i].token == token)
+		if (_elems[i].token == token) {
 			_elems.remove_at(i);
-		else
+			removed = true;
+		} else {
 			i++;
+		}
 	}
+	return removed;
 }
 
 } // namespace Roger

@@ -1099,24 +1099,15 @@ void FileRogerArtProvider::reapplyStatus() {
 }
 
 void FileRogerArtProvider::uiClearToken(uint32 token) {
-	// TEMPORARY PERF (localize-ablate spike): restoreAndDelete → bitsRestore calls this 2×/updated
-	// sprite EVERY cycle; presentWithUi() is a full ~22 MB overlay copy + convert + copyRectToOverlay
-	// and the cache-invalidate forces a full recompose next frame. While walking nothing matches the
-	// token, so this is pure waste — it is the ~196 ms/cycle "restore" wall (§3.1). Knob: only
-	// invalidate + present when clearToken actually removed an element (the scoped workaround).
-	static int s_ablGuard = -1;
-	if (s_ablGuard < 0) s_ablGuard = (ConfMan.hasKey("roger_abl_skip_uiclear_present") && ConfMan.getBool("roger_abl_skip_uiclear_present")) ? 1 : 0;
-	const uint _before = (s_ablGuard && _uiLayer) ? _uiLayer->elements().size() : 0;
-	if (s_ablGuard) {
-		if (_uiLayer) _uiLayer->clearToken(token);
-		if (!_uiLayer || _uiLayer->elements().size() == _before)
-			return; // nothing cleared → skip the cache-invalidate + full present
-		_compositeCacheValid = false;
-		if (_overlayActive && _plate) presentWithUi();
+	// SCI calls this from bitsRestore for every save-under region it restores — which, while
+	// walking, is ~2× per updated sprite EVERY game cycle, almost always for a token that matches
+	// no UI element. presentWithUi() is a full-overlay re-present (copy + convert + copyRectToOverlay)
+	// and the cache-invalidate forces a full recompose next frame, so an unconditional present here
+	// dominated the cycle (~196 ms — the game ran ~2.7× slow). Only invalidate + present when an
+	// element was actually removed (e.g. a dialog/look-at dismissal); otherwise this is a no-op.
+	if (!_uiLayer || !_uiLayer->clearToken(token))
 		return;
-	}
 	_compositeCacheValid = false;
-	if (_uiLayer) _uiLayer->clearToken(token);
 	if (_overlayActive && _plate) presentWithUi();
 }
 
