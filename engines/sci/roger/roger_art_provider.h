@@ -116,6 +116,11 @@ public:
 	// hook semantically. Recorded for the per-frame generic composite. No-op in base.
 	virtual void onNativeShowRect(const Common::Rect &screenRect) {}
 
+	// Feeder B diff backstop: snapshot the native visual buffer as the "known" state
+	// (plate-source + addToPic + animate sprites), taken right after SCI's updateScreen.
+	// A later composite diffs against it to catch native draws no hook recorded. No-op base.
+	virtual void snapshotNativeBaseline() {}
+
 	// Called from GfxTransitions::doit() when a room transition is about to run (gated on
 	// g_sciRogerProvider + enabled). The provider mirrors the effect in the overlay; SCI's
 	// native transition is then finalized instantly (invisible under the opaque overlay).

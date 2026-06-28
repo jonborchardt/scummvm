@@ -1153,10 +1153,26 @@ void FileRogerArtProvider::onNativeShowRect(const Common::Rect &screenRect) {
 	_genRegions.push_back(screenRect);
 }
 
+void FileRogerArtProvider::snapshotNativeBaseline() {
+	if (!_overlayActive || !g_sci || !g_sci->_gfxScreen)
+		return;
+	GfxScreen *screen = g_sci->_gfxScreen;
+	const int sw = screen->getWidth(), sh = screen->getHeight();
+	_nativeBaseline.resize((uint)sw * sh);
+	for (int y = 0; y < sh; y++)
+		for (int x = 0; x < sw; x++)
+			_nativeBaseline[(uint)y * sw + x] = screen->getVisual((int16)x, (int16)y);
+	_haveBaseline = true;
+}
+
 void FileRogerArtProvider::drawGenericRegions(Graphics::ManagedSurface &scene,
                                               const Common::Rect &picRect) {
-	if (_genRegions.empty() || !g_sci || !g_sci->_gfxScreen)
+	if (!g_sci || !g_sci->_gfxScreen)
 		return;
+	// Need either hook-recorded regions or a baseline to diff against; bail cheaply.
+	if (_genRegions.empty() && !_haveBaseline) {
+		return;
+	}
 	GfxScreen *screen = g_sci->_gfxScreen;
 	const int sw = screen->getWidth();    // 320 (SCI0)
 	const int sh = screen->getHeight();   // 200
@@ -1169,6 +1185,18 @@ void FileRogerArtProvider::drawGenericRegions(Graphics::ManagedSurface &scene,
 	for (int y = 0; y < sh; y++)
 		for (int x = 0; x < sw; x++)
 			vis[(uint)y * sw + x] = screen->getVisual((int16)x, (int16)y);
+
+	// Diff backstop: any native pixels that differ from the last known baseline and were
+	// not already recorded by a bitsShow hook this frame are captured too.
+	if (_haveBaseline && _nativeBaseline.size() == vis.size()) {
+		Common::Array<Common::Rect> changed;
+		Roger::extractChangedBoxes(_nativeBaseline.begin(), vis.begin(), sw, sh, changed);
+		for (uint i = 0; i < changed.size(); i++)
+			_genRegions.push_back(changed[i]);
+	}
+
+	if (_genRegions.empty())
+		return;
 
 	const int picScreenTop = _compositor->picScreenTop();
 	for (uint i = 0; i < _genRegions.size(); i++) {

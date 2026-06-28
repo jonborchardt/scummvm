@@ -60,6 +60,7 @@ public:
 	void beginNativeDraw() override;
 	void endNativeDraw() override;
 	void onNativeShowRect(const Common::Rect &screenRect) override;
+	void snapshotNativeBaseline() override;
 	void onTransition(int sciType, const Common::Rect &picRect) override;
 	void onShake(int shakeCount, int directions) override;
 	void onCursorShape(int cursorId) override;
@@ -134,6 +135,8 @@ private:
 	Common::Array<Roger::Sprite> _staticSprites;
 	int _nativeDrawDepth = 0;                 // >0 => inside a Roger-handled draw
 	Common::Array<Common::Rect> _genRegions;  // Feeder B native rects captured this frame
+	Common::Array<byte> _nativeBaseline;      // last "known" native visual buffer (Feeder B diff)
+	bool _haveBaseline = false;
 	bool _haveScene = false;                         // _sceneCache valid this room
 	bool _transitionsEnabled = true;                 // roger_transitions knob (default on)
 	bool _paletteLive = true;                        // roger_palette_live knob (default on)

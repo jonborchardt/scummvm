@@ -729,6 +729,12 @@ void GfxAnimate::kernelAnimate(reg_t listReference, bool cycle, int argc, reg_t 
 		animateShowPic();
 
 	updateScreen(old_picNotValid);
+
+	// Roger Feeder B: the native buffer now holds {pic + addToPic + animate} — the
+	// "known" state. Snapshot it as the diff baseline for unhooked draws this frame.
+	if (g_sciRogerProvider && g_sciRogerProvider->enabled)
+		g_sciRogerProvider->snapshotNativeBaseline();
+
 	restoreAndDelete(argc, argv);
 
 	// Roger hires overlay: composite the sorted cast into the OSystem overlay.
