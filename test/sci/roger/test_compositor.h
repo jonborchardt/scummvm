@@ -295,4 +295,27 @@ public:
 		TS_ASSERT_EQUALS(out[2].viewId, 20); // prio 5, static
 		TS_ASSERT_EQUALS(out[3].viewId, 11); // prio 5, animate
 	}
+
+	void test_map_native_rect_to_overlay() {
+		using namespace Sci::Roger;
+		// picRect = overlay (100,50)-(740,530) i.e. 640x480; picture-window 320x190;
+		// picScreenTop = 10 (SCI0 menu bar). A native rect at screen (0,10)-(320,200)
+		// (the full picture window) maps to the whole picRect.
+		Common::Rect picRect(100, 50, 740, 530);
+		Common::Rect full = mapNativeRectToOverlay(Common::Rect(0, 10, 320, 200),
+		                                            picRect, 320, 190, 10);
+		TS_ASSERT_EQUALS(full.left, 100);
+		TS_ASSERT_EQUALS(full.top, 50);
+		TS_ASSERT_EQUALS(full.right, 740);
+		TS_ASSERT_EQUALS(full.bottom, 530);
+
+		// A native rect covering the left half, top half of the picture window:
+		// screen (0,10)-(160,105) -> local (0,0)-(160,95) -> overlay (100,50)-(420,290).
+		Common::Rect half = mapNativeRectToOverlay(Common::Rect(0, 10, 160, 105),
+		                                            picRect, 320, 190, 10);
+		TS_ASSERT_EQUALS(half.left, 100);
+		TS_ASSERT_EQUALS(half.top, 50);
+		TS_ASSERT_EQUALS(half.right, 420);
+		TS_ASSERT_EQUALS(half.bottom, 290);
+	}
 };

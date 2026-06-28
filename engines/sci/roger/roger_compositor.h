@@ -57,6 +57,13 @@ void mergeSpritesByPriority(const Common::Array<Sprite> &animate,
                             const Common::Array<Sprite> &staticSprites,
                             Common::Array<Sprite> &out);
 
+// Map a native SCI screen-space rect (320x200; picture window starts at row
+// picScreenTop, dims picW x picH) into overlay space, using the SAME integer scaler
+// renderScene uses for cel rects, so a captured native region lines up with the plate.
+Common::Rect mapNativeRectToOverlay(const Common::Rect &nativeRect,
+                                    const Common::Rect &picRect,
+                                    int picW, int picH, int picScreenTop);
+
 class RogerCompositor {
 public:
 	RogerCompositor() : _plate(nullptr), _views(nullptr),

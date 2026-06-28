@@ -77,6 +77,23 @@ void mergeSpritesByPriority(const Common::Array<Sprite> &animate,
 	}
 }
 
+Common::Rect mapNativeRectToOverlay(const Common::Rect &nativeRect,
+                                    const Common::Rect &picRect,
+                                    int picW, int picH, int picScreenTop) {
+	if (picW <= 0 || picH <= 0)
+		return Common::Rect();
+	const int GW = picRect.width(), GH = picRect.height();
+	const int lx0 = nativeRect.left;
+	const int lx1 = nativeRect.right;
+	const int ly0 = nativeRect.top - picScreenTop;
+	const int ly1 = nativeRect.bottom - picScreenTop;
+	return Common::Rect(
+		(int16)(picRect.left + lx0 * GW / picW),
+		(int16)(picRect.top  + ly0 * GH / picH),
+		(int16)(picRect.left + lx1 * GW / picW),
+		(int16)(picRect.top  + ly1 * GH / picH));
+}
+
 RogerCompositor::~RogerCompositor() {
 	if (_bgCache) {
 		_bgCache->free();
