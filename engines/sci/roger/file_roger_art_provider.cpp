@@ -142,8 +142,10 @@ bool FileRogerArtProvider::isOverlayVisible() const {
 bool FileRogerArtProvider::hasBackground(GuiResourceId pictureId) const {
 	if (!enabled)
 		return false;
-	// VGA games are rejected at add-time in the launcher (loading screen); no
-	// per-frame view-type check here — it stays off the runtime render path.
+	// No per-frame view-type check here — it stays off the hot render path. A non-EGA
+	// game that slips past the launcher's add-time VGA block is caught once on its first
+	// pushHiresBackground(), which disables the overlay (enabled=false) so we never reach
+	// here again for it.
 	return _assetGen && _assetGen->mode() != Roger::kGenPrebuilt;
 }
 
@@ -290,6 +292,21 @@ bool FileRogerArtProvider::precacheOneView(int viewId) {
 }
 
 void FileRogerArtProvider::pushHiresBackground(GuiResourceId pictureId) {
+	// Roger supports EGA SCI games only. The launcher blocks VGA games at add-time, but a
+	// target configured another way (manual ConfMan / normal ScummVM launcher) can still
+	// reach here. Feeding VGA pics through the EGA omyac pipeline renders garbage, so on
+	// the first non-EGA picture we disable the overlay with a message instead. Setting
+	// enabled = false makes hasBackground() return false from here on, so this fires once.
+	if (g_sci && g_sci->getResMan() && g_sci->getResMan()->getViewType() != kViewEga) {
+		warning("ROGER: not an EGA SCI game - Roger art replacement supports EGA games only. "
+		        "Disabling the hires overlay.");
+		enabled = false;
+		if (_compositor)
+			_compositor->setRoom(nullptr, nullptr);
+		_loadedPicId = -1;
+		return;
+	}
+
 	if (_loadedPicId == pictureId && _plate)
 		return; // already loaded for this room
 
