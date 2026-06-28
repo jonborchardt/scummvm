@@ -19,6 +19,7 @@
  */
 
 #include "sci/roger/file_roger_art_provider.h"
+#include "sci/roger/roger_selftest.h"
 #include "sci/roger/roger_cursor.h"
 #include "sci/roger/png_loader.h"
 #include "sci/roger/roger_asset_gen.h"
@@ -81,6 +82,7 @@ FileRogerArtProvider::FileRogerArtProvider(const Common::String &gameId,
 	// This is how the dev loop captures the hires overlay deterministically without
 	// keystrokes/focus — injected Alt+s/F10 never reach SDL (Win32 menu keys).
 	_autoshot = ConfMan.hasKey("roger_autoshot") && ConfMan.getBool("roger_autoshot");
+	_selfTest = ConfMan.hasKey("roger_selftest") && ConfMan.getBool("roger_selftest");
 	// roger_diff_backstop: Feeder B per-frame full-buffer pixel diff (default off). When off
 	// snapshotNativeBaseline() returns immediately, keeping _haveBaseline false so the costly
 	// 320x200 buffer read + 64K diff never runs. The bitsShow-hook path (onNativeShowRect) and
@@ -422,6 +424,19 @@ void FileRogerArtProvider::pushHiresBackground(GuiResourceId pictureId) {
 		uint32 totalMs = g_system->getMillis() - tEnter;
 		debug("Roger: enter room %d in %u ms  [plate %u ms (%s), occlusion-map %u ms, rest %u ms]",
 		      pictureId, totalMs, plateMs, plateSrc, occMs, totalMs - plateMs - occMs);
+	}
+
+	if (_selfTest) {
+		Roger::SelfTestInputs in;
+		in.plateGenerated = (_plate != nullptr);
+		in.plateW = _plate ? _plate->w : 0;
+		in.plateH = _plate ? _plate->h : 0;
+		in.expectW = in.plateW;  // plate is the upscale of the pic; the invariant is "non-empty + matches what we built"
+		in.expectH = in.plateH;
+		in.priorityMapPresent = !_priorityMap.empty();
+		in.overlayEnabled = enabled;
+		Roger::SelfTestResult r = Roger::evaluateInvariants(in, _caps);
+		Roger::logSelfTest(g_sci ? g_sci->getGameIdStr() : "?", (int)pictureId, r);
 	}
 }
 

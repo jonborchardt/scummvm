@@ -65,7 +65,8 @@ $RogerSources = @(
     "..\..\engines\sci\roger\roger_compositor.cpp",
     "..\..\engines\sci\roger\roger_ui_layer.cpp",
     "..\..\engines\sci\roger\roger_text.cpp",
-    "..\..\engines\sci\roger\roger_palette_remap.cpp"
+    "..\..\engines\sci\roger\roger_palette_remap.cpp",
+    "..\..\engines\sci\roger\roger_selftest.cpp"
 )
 
 # The Roger test-suite headers to feed cxxtestgen, listed explicitly rather than via
@@ -90,7 +91,8 @@ $RogerTestHeaders = @(
     "test_ui_layer.h",
     "test_roger_text.h",
     "test_ui_render.h",
-    "test_palette_remap.h"
+    "test_palette_remap.h",
+    "test_roger_selftest.h"
 )
 
 # ── Locate MSBuild via vswhere ────────────────────────────────────────────────
