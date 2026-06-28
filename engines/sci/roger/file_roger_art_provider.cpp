@@ -317,6 +317,9 @@ void FileRogerArtProvider::pushHiresBackground(GuiResourceId pictureId) {
 
 	// New room: drop the previous room's captured addToPic cels (Feeder A).
 	_staticSprites.clear();
+	// New room must fully refresh the cursor-restore cache; the transition path pre-validates
+	// _bgCache via composeRoomScene so the first renderFrame may not be a full-seed.
+	_compositeCacheValid = false;
 
 	uint32 tEnter = g_system->getMillis();
 
@@ -1564,6 +1567,9 @@ void FileRogerArtProvider::onTransition(int sciType, const Common::Rect & /*picR
 	// `to` = the new room background (no sprites yet).
 	Graphics::ManagedSurface to(OW, OH, rgba);
 	composeRoomScene(to);
+	// composeRoomScene pre-validates _bgCache; ensure the first post-transition renderFrame
+	// does a full _compositeCache copy so the software-cursor fast path has clean pixels.
+	_compositeCacheValid = false;
 	Graphics::ManagedSurface &scratch = *scratchScene(OW, OH);
 	_compositor->runTransition(from, to, scratch, fam, Roger::defaultDurationMs(fam), sciType);
 	// Leave _sceneCache holding the new background so the next kAnimate frame's dirty
