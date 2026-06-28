@@ -21,7 +21,6 @@
 
 #include "common/system.h"
 #include "common/config-manager.h"
-#include "common/events.h" // TEMPORARY PERF (north-star spike): roger_overlay_blast
 #include "common/debug-channels.h"
 #include "common/translation.h"
 
@@ -403,30 +402,6 @@ Common::Error SciEngine::run() {
 		QualifiedGameDescriptor qgd = EngineMan.findTarget(ConfMan.getActiveDomainName());
 		if (!qgd.description.empty())
 			_system->setWindowCaption(qgd.description.decode());
-	}
-
-	// TEMPORARY PERF (north-star spike): blast the full OSystem overlay every frame to measure
-	// the overlay-path present ceiling (the path Roger uses). Gated; remove after measuring.
-	if (ConfMan.hasKey("roger_overlay_blast") && ConfMan.getBool("roger_overlay_blast")) {
-		g_system->showOverlay();
-		const int ow = g_system->getOverlayWidth(), oh = g_system->getOverlayHeight();
-		const Graphics::PixelFormat fmt = g_system->getOverlayFormat();
-		const int bpp = fmt.bytesPerPixel;
-		byte *buf = (byte *)malloc((size_t)ow * oh * bpp);
-		uint32 s = 0x12345678u;
-		uint32 t0 = g_system->getMillis(); int frames = 0;
-		for (;;) {
-			Common::Event e; while (g_system->getEventManager()->pollEvent(e)) {}
-			for (int i = 0; i < ow * oh * bpp; i++) { s ^= s << 13; s ^= s >> 17; s ^= s << 5; buf[i] = (byte)s; }
-			g_system->copyRectToOverlay(buf, ow * bpp, 0, 0, ow, oh);
-			g_system->updateScreen();
-			if (++frames >= 120) {
-				uint32 dt = g_system->getMillis() - t0;
-				warning("ROGER-BLAST: %d frames / %u ms => %.2f ms/frame, %.1f FPS (overlay %dx%d, %dbpp)",
-				        frames, dt, dt / (float)frames, frames * 1000.0f / dt, ow, oh, bpp);
-				frames = 0; t0 = g_system->getMillis();
-			}
-		}
 	}
 
 	g_sciRogerProvider = new FileRogerArtProvider(getGameIdStr(), ConfMan.getPath("path"));
