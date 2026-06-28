@@ -144,11 +144,7 @@ bool FileRogerArtProvider::hasBackground(GuiResourceId pictureId) const {
 		return false;
 	// VGA games are rejected at add-time in the launcher (loading screen); no
 	// per-frame view-type check here — it stays off the runtime render path.
-	const bool r = _assetGen && _assetGen->mode() != Roger::kGenPrebuilt;
-	warning("ROGER hasBackground pic=%d -> %d (enabled=%d mode=%d viewType=%d)",
-	        (int)pictureId, (int)r, (int)enabled, _assetGen ? (int)_assetGen->mode() : -99,
-	        (g_sci && g_sci->getResMan()) ? (int)g_sci->getResMan()->getViewType() : -99);
-	return r;
+	return _assetGen && _assetGen->mode() != Roger::kGenPrebuilt;
 }
 
 void FileRogerArtProvider::precacheAll() {
@@ -323,9 +319,6 @@ void FileRogerArtProvider::pushHiresBackground(GuiResourceId pictureId) {
 	// render shows (handled by the !_plate block below).
 	uint32 plateMs = g_system->getMillis() - tAcq0;
 	if (!_plate) {
-		warning("ROGER pushBg pic=%d -> NO PLATE (generatePlateWithIndex returned null); "
-		        "native render shows, overlay bg may be garbage. mode=%d plateMs=%u",
-		        (int)pictureId, _assetGen ? (int)_assetGen->mode() : -99, plateMs);
 		// No hires bg -> native shows. Clear the compositor's borrowed plate pointer
 		// so it does not retain the plate we just deleted above.
 		if (_compositor)
@@ -369,9 +362,6 @@ void FileRogerArtProvider::pushHiresBackground(GuiResourceId pictureId) {
 	else
 		_compositor->setPriorityMask(nullptr, 0, 0); // no bands -> sprites draw without occlusion
 	_loadedPicId = pictureId;
-
-	warning("ROGER pushBg pic=%d OK: plate=%s %dx%d  occ=%d %dx%d  plateMs=%u occMs=%u",
-	        (int)pictureId, plateSrc, _plate->w, _plate->h, (int)haveOcc, prW, prH, plateMs, occMs);
 
 	// Snapshot the room-load EGA palette for live re-apply. The first 16 OSystem palette
 	// entries are the EGA base colors in SCI0 (GfxPalette16::setEGA fills them at indices
@@ -746,11 +736,10 @@ void FileRogerArtProvider::ensureUi() {
 		sizes.push_back(42); sizes.push_back(56); sizes.push_back(72);
 		sizes.push_back(96); sizes.push_back(120); sizes.push_back(160);
 		_textRenderer = new Roger::RogerTextRenderer(ttf, sizes);
-		// roger_ui_font_scale: global size multiplier (percent) on the role type scale.
-		// 100 = the role's baseline cell height; larger = bigger text everywhere. Text
-		// word-wraps and is capped to each box, so a larger scale grows text (and wraps)
-		// rather than clipping. Default 100 (native-metric footprint).
-		int scale = 100;
+		// roger_ui_font_scale: global size multiplier (percent) applied to each element's
+		// target cell height. Wrapping text fits its box by height, so a larger scale grows
+		// (and re-wraps) the text rather than clipping. Default 150.
+		int scale = 150;
 		if (ConfMan.hasKey("roger_ui_font_scale"))
 			scale = ConfMan.getInt("roger_ui_font_scale");
 		_textRenderer->setGlobalScale(scale);
@@ -768,7 +757,7 @@ void FileRogerArtProvider::ensureUi() {
 		sizes.push_back(96); sizes.push_back(120); sizes.push_back(160);
 		_altTextRenderer = new Roger::RogerTextRenderer(headerTtf, sizes);
 		// Same global size multiplier so headings scale with the body text.
-		int scale = 100;
+		int scale = 150;
 		if (ConfMan.hasKey("roger_ui_font_scale"))
 			scale = ConfMan.getInt("roger_ui_font_scale");
 		_altTextRenderer->setGlobalScale(scale);
@@ -796,13 +785,8 @@ void FileRogerArtProvider::ensureCompositeCache(int w, int h) {
 }
 
 void FileRogerArtProvider::presentWithUi() {
-	if (!_overlayActive || !_compositor || !_haveScene || !_sceneCache) {
-		static uint32 noopN = 0;
-		if ((noopN++ % 120) == 0)
-			warning("ROGER presentWithUi NOOP #%u: overlayActive=%d compositor=%d haveScene=%d sceneCache=%d",
-			        noopN, (int)_overlayActive, _compositor ? 1 : 0, (int)_haveScene, _sceneCache ? 1 : 0);
+	if (!_overlayActive || !_compositor || !_haveScene || !_sceneCache)
 		return;
-	}
 	const Graphics::PixelFormat rgba(4, 8, 8, 8, 8, 24, 16, 8, 0);
 	// The window may have been resized since the scene was cached. A blocking dialog/
 	// menu/inventory does NOT tick kernelAnimate, so renderFrame can't refresh the
@@ -829,9 +813,9 @@ void FileRogerArtProvider::presentWithUi() {
 	if (_uiLayer && !_uiLayer->empty() && _textRenderer) {
 		byte pal[256 * 3];
 		g_system->getPaletteManager()->grabPalette(pal, 0, 256);
-		// Always-on diagnostic dump of the UI element rects, throttled to one dump per
+		// Diagnostic dump of the UI element rects (roger_debug), throttled to one dump per
 		// distinct dialog (signature over token/rect/type) so it does not spam per frame.
-		{
+		if (_debugLog) {
 			const Common::Array<Roger::UiElement> &els = _uiLayer->elements();
 			static uint32 lastDiagSig = 0;
 			uint32 dsig = 2166136261u;
@@ -1209,7 +1193,7 @@ void FileRogerArtProvider::cycleBodyFont() {
 	sizes.push_back(42); sizes.push_back(56); sizes.push_back(72);
 	sizes.push_back(96); sizes.push_back(120); sizes.push_back(160);
 
-	int scale = 100;
+	int scale = 150;
 	if (ConfMan.hasKey("roger_ui_font_scale"))
 		scale = ConfMan.getInt("roger_ui_font_scale");
 

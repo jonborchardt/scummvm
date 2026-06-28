@@ -165,8 +165,12 @@ void RogerTextRenderer::drawPx(Graphics::ManagedSurface &dst, const Common::Stri
 	int h = targetPx > 0 ? targetPx * _globalScalePct / 100 : rect.height();
 	if (h > rect.height())
 		h = rect.height();
-	// Width cap: the native single-line footprint (0 => fall back to box width).
-	const int wCap = maxTextW > 0 ? maxTextW : rect.width();
+	// Width cap applies only to SINGLE-LINE fields (maxTextW > 0): buttons, text-edit,
+	// status. For wrapping (multi-line) message text we pass 0 — comparing the FULL
+	// unwrapped string width against the box width would reject every usable size and
+	// collapse the text to the smallest font. Instead select by height only and let the
+	// word-wrap + height-fit loop below size it to the box (so the scale knob works too).
+	const int wCap = maxTextW > 0 ? maxTextW : 0;
 	int idx = fitFontIndexByHeightAndWidth(_fonts, text, h, wCap);
 	if (idx < 0)
 		return;
