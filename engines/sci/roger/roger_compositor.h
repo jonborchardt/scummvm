@@ -153,6 +153,11 @@ public:
 	// magnitudePx in overlay pixels. Restores `scene` at rest before returning.
 	void runShake(Graphics::ManagedSurface &scene, Graphics::ManagedSurface &scratch,
 	              int shakeCount, int directions, int magnitudePx);
+	// Geometry accessors (used by FileRogerArtProvider::drawGenericRegions for Feeder B).
+	int picW() const { return _picW; }
+	int picH() const { return _picH; }
+	int picScreenTop() const { return _picScreenTop; }
+
 	// Make the NEXT presentToOverlay a full present (whole overlay). Used by the
 	// whole-palette re-apply path so a global color change is laid down completely.
 	void forceFullPresentNext() { _bgRebuilt = true; }

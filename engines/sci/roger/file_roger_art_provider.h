@@ -57,6 +57,9 @@ public:
 	void onDrawCel(const Common::Rect &globalRect, int viewId, int loopNo, int celNo) override;
 	void onAddToPicCel(int viewId, int loopNo, int celNo,
 	                   const Common::Rect &celRect, int priority) override;
+	void beginNativeDraw() override;
+	void endNativeDraw() override;
+	void onNativeShowRect(const Common::Rect &screenRect) override;
 	void onTransition(int sciType, const Common::Rect &picRect) override;
 	void onShake(int shakeCount, int directions) override;
 	void onCursorShape(int cursorId) override;
@@ -129,6 +132,8 @@ private:
 	// addToPic cels captured for the current room (Feeder A). Cleared on room change;
 	// merged with the animate list each frame and drawn via the hires Sprite path.
 	Common::Array<Roger::Sprite> _staticSprites;
+	int _nativeDrawDepth = 0;                 // >0 => inside a Roger-handled draw
+	Common::Array<Common::Rect> _genRegions;  // Feeder B native rects captured this frame
 	bool _haveScene = false;                         // _sceneCache valid this room
 	bool _transitionsEnabled = true;                 // roger_transitions knob (default on)
 	bool _paletteLive = true;                        // roger_palette_live knob (default on)
@@ -191,6 +196,11 @@ private:
 	// SCI font (fontId, penColor), own it in _uiIcons, and append {byte,surface} to
 	// `out`. ASCII-only text yields an empty list (pure TTF path).
 	void buildGlyphs(const char *text, int fontId, int penColor, Common::Array<Roger::UiGlyph> &out);
+
+	// Feeder B: upscale captured native generic regions (_genRegions) onto scene.
+	// scene is the current frame's composite surface (RGBA32). picRect is the
+	// overlay-space picture rect (computePictureRect). Clears _genRegions after use.
+	void drawGenericRegions(Graphics::ManagedSurface &scene, const Common::Rect &picRect);
 
 	// Render a native SCI cel to a new RGBA surface. Caller owns and must free.
 	// Returns nullptr on any failure (guard: sprite will be skipped).

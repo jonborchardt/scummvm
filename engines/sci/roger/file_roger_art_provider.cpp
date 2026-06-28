@@ -484,6 +484,7 @@ void FileRogerArtProvider::renderFrame(const Common::Array<Roger::Sprite> &sprit
 	// stale pixels survive between frames.
 	Graphics::ManagedSurface &scene = *scratchScene(OW, OH);
 	_compositor->renderScene(scene, sprites, gameRect);
+	drawGenericRegions(scene, picRect);
 
 	// Cache the composed room+sprite scene so a UI-only change can be re-presented
 	// cheaply (blocking dialogs do not tick kernelAnimate).
@@ -1139,6 +1140,56 @@ void FileRogerArtProvider::onAddToPicCel(int viewId, int loopNo, int celNo,
 	s.mirror = false;
 	s.celOverride = nullptr;
 	_staticSprites.push_back(s);
+}
+
+void FileRogerArtProvider::beginNativeDraw() { _nativeDrawDepth++; }
+void FileRogerArtProvider::endNativeDraw()   { if (_nativeDrawDepth > 0) _nativeDrawDepth--; }
+
+void FileRogerArtProvider::onNativeShowRect(const Common::Rect &screenRect) {
+	if (!_overlayActive || _nativeDrawDepth > 0)
+		return; // overlay off, or already covered by a semantic Roger draw
+	if (screenRect.isEmpty())
+		return;
+	_genRegions.push_back(screenRect);
+}
+
+void FileRogerArtProvider::drawGenericRegions(Graphics::ManagedSurface &scene,
+                                              const Common::Rect &picRect) {
+	if (_genRegions.empty() || !g_sci || !g_sci->_gfxScreen)
+		return;
+	GfxScreen *screen = g_sci->_gfxScreen;
+	const int sw = screen->getWidth();    // 320 (SCI0)
+	const int sh = screen->getHeight();   // 200
+	byte pal[256 * 3];
+	g_system->getPaletteManager()->grabPalette(pal, 0, 256);
+
+	// Snapshot the visual buffer once (getVisual is a per-pixel inline read).
+	Common::Array<byte> vis;
+	vis.resize((uint)sw * sh);
+	for (int y = 0; y < sh; y++)
+		for (int x = 0; x < sw; x++)
+			vis[(uint)y * sw + x] = screen->getVisual((int16)x, (int16)y);
+
+	const int picScreenTop = _compositor->picScreenTop();
+	for (uint i = 0; i < _genRegions.size(); i++) {
+		Common::Rect nr = _genRegions[i];
+		nr.clip(Common::Rect(0, 0, (int16)sw, (int16)sh));
+		// Drop the menu-bar strip and anything above the picture window; the banner /
+		// UI display-list owns that region.
+		nr.top    = MAX<int16>(nr.top, (int16)picScreenTop);
+		nr.bottom = MIN<int16>(nr.bottom, (int16)(picScreenTop + _compositor->picH()));
+		if (nr.isEmpty())
+			continue;
+		Common::Rect dst = Roger::mapNativeRectToOverlay(nr, picRect,
+			_compositor->picW(), _compositor->picH(), picScreenTop);
+		dst.clip(picRect);
+		if (dst.isEmpty())
+			continue;
+		Roger::upscaleNativeRegionNearest(*scene.surfacePtr(), dst,
+			vis.begin(), sw, nr, pal);
+		_compositor->addDirtyRect(dst); // ensure the region is pushed (and erased next frame)
+	}
+	_genRegions.clear();
 }
 
 void FileRogerArtProvider::renderFromAnimateList(const AnimateList &list) {

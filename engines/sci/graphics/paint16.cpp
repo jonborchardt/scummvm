@@ -104,6 +104,12 @@ void GfxPaint16::drawPicture(GuiResourceId pictureId, bool mirroredFlag, bool ad
 		g_sciRogerProvider->onNativePicture();
 	}
 
+	// Roger re-entrancy guard: prevent bitsShow calls emitted during this native
+	// picture draw from being captured by Feeder B (they are already composited via
+	// pushHiresBackground / the plate path).
+	if (g_sciRogerProvider && g_sciRogerProvider->enabled)
+		g_sciRogerProvider->beginNativeDraw();
+
 	// Set up custom per-picture palette mod
 	doCustomPicPalette(_screen, pictureId);
 
@@ -131,6 +137,9 @@ void GfxPaint16::drawPicture(GuiResourceId pictureId, bool mirroredFlag, bool ad
 	// pushHiresBackground.)
 	if (rogerReplace)
 		g_sciRogerProvider->pushHiresBackground(pictureId);
+
+	if (g_sciRogerProvider && g_sciRogerProvider->enabled)
+		g_sciRogerProvider->endNativeDraw();
 }
 
 // This one is the only one that updates screen!
@@ -139,6 +148,11 @@ void GfxPaint16::drawCelAndShow(GuiResourceId viewId, int16 loopNo, int16 celNo,
 	Common::Rect celRect;
 
 	if (view) {
+		// Roger re-entrancy guard: cels in the animate list are composited semantically
+		// via renderFromAnimateList; their bitsShow should not be double-captured by Feeder B.
+		if (g_sciRogerProvider && g_sciRogerProvider->enabled)
+			g_sciRogerProvider->beginNativeDraw();
+
 		celRect.left = leftPos;
 		celRect.top = topPos;
 		celRect.right = celRect.left + view->getWidth(loopNo, celNo);
@@ -154,6 +168,9 @@ void GfxPaint16::drawCelAndShow(GuiResourceId viewId, int16 loopNo, int16 celNo,
 			if (!_screen->_picNotValid)
 				bitsShow(celRect);
 		}
+
+		if (g_sciRogerProvider && g_sciRogerProvider->enabled)
+			g_sciRogerProvider->endNativeDraw();
 	}
 }
 
@@ -190,6 +207,11 @@ void GfxPaint16::drawHiresCelAndShow(GuiResourceId viewId, int16 loopNo, int16 c
 		return;
 	}
 
+	// Roger re-entrancy guard: hires cel draws are composited semantically via
+	// onDrawCel; their native shows should not be captured by Feeder B.
+	if (g_sciRogerProvider && g_sciRogerProvider->enabled)
+		g_sciRogerProvider->beginNativeDraw();
+
 	Common::Rect picRect;
 	_screen->bitsGetRect(memoryPtr, &picRect);
 	Common::Rect clipRect(makeHiresRect(picRect));
@@ -207,6 +229,9 @@ void GfxPaint16::drawHiresCelAndShow(GuiResourceId viewId, int16 loopNo, int16 c
 	// a flag to trigger a workaround when restoring the background.
 	if (storeDrawingInfo && !hasHiresDrawObjectAt(leftPos, topPos))
 		_hiresDrawObjs = new HiresDrawData(_hiresDrawObjs, hiresHandle, viewId, loopNo, celNo, leftPos, topPos, paletteNo, priority, picRect.top < _ports->_curPort->top);
+
+	if (g_sciRogerProvider && g_sciRogerProvider->enabled)
+		g_sciRogerProvider->endNativeDraw();
 }
 
 void GfxPaint16::redrawHiresCels() {
@@ -352,6 +377,11 @@ void GfxPaint16::bitsShow(const Common::Rect &rect) {
 	workerRect.right = (workerRect.right + 1) & 0xFFFE; // round up
 
 	_screen->copyRectToScreen(workerRect);
+
+	// Roger hires overlay (Feeder B): record this native show so unhooked draws (kGraph
+	// primitives, etc.) get composited. Ignored when inside a Roger-handled draw.
+	if (g_sciRogerProvider && g_sciRogerProvider->enabled)
+		g_sciRogerProvider->onNativeShowRect(workerRect);
 }
 reg_t GfxPaint16::bitsSave(const Common::Rect &rect, byte screenMask, bool hiresFlag) {
 	Common::Rect workerRect(rect.left, rect.top, rect.right, rect.bottom);
