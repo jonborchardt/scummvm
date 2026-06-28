@@ -21,6 +21,17 @@ A PowerShell script handles everything — installs dependencies via vcpkg, gene
 Game data: `J:\SteamLibrary\steamapps\common\Space Quest Collection\sq3`
 Roger art: `J:\SteamLibrary\steamapps\common\Space Quest Collection\sq3-roger`
 
+To jump straight into another game + save for verification (uses the configured
+target's `scummvm.ini`, so Roger settings apply):
+
+```powershell
+.\build_and_run.ps1 -Game qfg1 -SaveSlot 1   # boots QFG1 and auto-loads save slot 1
+```
+
+**Screenshots:** never write screenshots (or `roger_autoshot` output) to the repo
+root. Point `screenshotpath` at the gitignored `screenshots/` folder (already in
+`.gitignore`) — keep all dev/verification captures there so they are never committed.
+
 ### Configure and build (Linux/macOS)
 ```sh
 ./configure [--enable-engine=<name>] [--disable-engine=<name>]
