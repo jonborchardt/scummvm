@@ -539,6 +539,8 @@ Graphics::Surface *RogerAssetGen::generateTextSurface(const Common::String &text
 	GfxCache *gfxCache = g_sci->_gfxCache;
 	if (!gfxCache)
 		return nullptr;
+	if (fontId < 0)
+		return nullptr; // -1 signals "no native glyph support"; TTF handles the text
 	GfxFont *font = gfxCache->getFont((GuiResourceId)fontId);
 	if (!font)
 		return nullptr;
