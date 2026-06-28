@@ -21,8 +21,6 @@
 
 #include "common/util.h"
 #include "common/stack.h"
-#include "common/system.h" // TEMPORARY PERF (localize-ablate spike): g_system->getMillis
-#include "common/config-manager.h" // TEMPORARY PERF (localize-ablate spike)
 #include "graphics/primitives.h"
 
 #include "sci/console.h"
@@ -679,15 +677,6 @@ void GfxAnimate::animateShowPic() {
 }
 
 void GfxAnimate::kernelAnimate(reg_t listReference, bool cycle, int argc, reg_t *argv) {
-	// TEMPORARY PERF (localize-ablate spike): per-span cost + interval; sleep drained from SciEngine.
-	// gap = interval - inCycle - sleep  (≈ event-poll/other work NOT inside the timed spans).
-	static uint32 s_pPrev = 0, s_pInvoke = 0, s_pDraw = 0, s_pShow = 0, s_pRestore = 0,
-	              s_pRFAL = 0, s_pInterval = 0, s_pInCycle = 0, s_pSleep = 0;
-	static int s_pN = 0;
-	const uint32 _pEntry = g_system->getMillis();
-	if (s_pPrev != 0) { s_pInterval += (_pEntry - s_pPrev); s_pN++; }
-	s_pPrev = _pEntry;
-
 	// If necessary, delay this kAnimate for a running PalVary.
 	// See delayForPalVaryWorkaround() for details.
 	if (_screen->_picNotValid)
@@ -710,10 +699,7 @@ void GfxAnimate::kernelAnimate(reg_t listReference, bool cycle, int argc, reg_t 
 		error("kAnimate called with non-list as parameter");
 
 	if (cycle) {
-		const uint32 _t = g_system->getMillis();          // TEMPORARY PERF
-		const bool _ok = invoke(list, argc, argv);
-		s_pInvoke += g_system->getMillis() - _t;          // TEMPORARY PERF
-		if (!_ok)
+		if (!invoke(list, argc, argv))
 			return;
 
 		// Look up the list again, as it may have been modified
@@ -737,51 +723,29 @@ void GfxAnimate::kernelAnimate(reg_t listReference, bool cycle, int argc, reg_t 
 			_ports->endUpdate(_ports->_picWind);
 	}
 
-	{ const uint32 _t = g_system->getMillis(); drawCels(); s_pDraw += g_system->getMillis() - _t; } // TEMPORARY PERF
+	drawCels();
 
 	if (_screen->_picNotValid)
 		animateShowPic();
 
-	{ const uint32 _t = g_system->getMillis(); updateScreen(old_picNotValid); s_pShow += g_system->getMillis() - _t; } // TEMPORARY PERF
+	updateScreen(old_picNotValid);
 
 	// Roger Feeder B: the native buffer now holds {pic + addToPic + animate} — the
 	// "known" state. Snapshot it as the diff baseline for unhooked draws this frame.
 	if (g_sciRogerProvider && g_sciRogerProvider->enabled)
 		g_sciRogerProvider->snapshotNativeBaseline();
 
-	{ const uint32 _t = g_system->getMillis(); restoreAndDelete(argc, argv); s_pRestore += g_system->getMillis() - _t; } // TEMPORARY PERF
+	restoreAndDelete(argc, argv);
 
 	// Roger hires overlay: composite the sorted cast into the OSystem overlay.
-	{
-		const uint32 _t = g_system->getMillis();          // TEMPORARY PERF
-		static int s_ablSkipComposite = -1;               // TEMPORARY PERF
-		if (s_ablSkipComposite < 0) s_ablSkipComposite = (ConfMan.hasKey("roger_abl_skip_composite") && ConfMan.getBool("roger_abl_skip_composite")) ? 1 : 0;
-		if (!s_ablSkipComposite && g_sciRogerProvider && g_sciRogerProvider->enabled)
-			g_sciRogerProvider->renderFromAnimateList(_list);
-		s_pRFAL += g_system->getMillis() - _t;            // TEMPORARY PERF
-	}
+	if (g_sciRogerProvider && g_sciRogerProvider->enabled)
+		g_sciRogerProvider->renderFromAnimateList(_list);
 
 	// We update the screen here as well, some scenes like EQ1 credits run w/o calling kGetEvent thus we wouldn't update
 	//  screen at all
 	g_sci->getEventManager()->updateScreen();
 
 	_ports->setPort(oldPort);
-
-	// TEMPORARY PERF (localize-ablate spike): emit per-span + sleep averages.
-	{
-		s_pInCycle += g_system->getMillis() - _pEntry;
-		s_pSleep   += g_sci->perfSleepTakeMs();   // real sleep wall-time accrued during this cycle
-		g_sci->perfSleepTakeCount();              // drain the counter (not averaged here)
-		if (s_pN >= 100) {
-			const float inv = 1.0f / s_pN;
-			const float gap = (s_pInterval - s_pInCycle - s_pSleep) * inv;
-			warning("ROGER-SPAN: interval=%.1f inCycle=%.1f sleep=%.1f gap=%.1f | invoke=%.1f draw=%.1f show=%.1f restore=%.1f rfal=%.1f (n=%d)",
-			        s_pInterval * inv, s_pInCycle * inv, s_pSleep * inv, gap,
-			        s_pInvoke * inv, s_pDraw * inv, s_pShow * inv, s_pRestore * inv, s_pRFAL * inv, s_pN);
-			s_pInvoke = s_pDraw = s_pShow = s_pRestore = s_pRFAL = 0;
-			s_pInterval = s_pInCycle = s_pSleep = 0; s_pN = 0;
-		}
-	}
 
 	// Now trigger speed throttler
 	_s->_throttleTrigger = true;
