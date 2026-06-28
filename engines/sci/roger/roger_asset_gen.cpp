@@ -53,20 +53,7 @@
 namespace Sci {
 namespace Roger {
 
-// Bump this whenever the generation pipeline changes in a way that invalidates
-// previously cached files. Cache files whose key contains a different version
-// will simply not be found and will be regenerated.
-//   v1: initial omyac plate + scale6x view-cel pipeline.
-//   v2: in-engine art path (prebuilt visual/occlusion consumption removed;
-//       overlay occlusion derived from the native priority bands). Pipeline
-//       outputs are unchanged, but bumping forces a clean cache to avoid mixing
-//       files written by the superseded prebuilt-era pipeline.
-//   v3: view cels de-undither EGA bytes (egaDeUndither) so dithered cels keep
-//       saturated EGA colours instead of ScummVM's washed-out blend palette.
-//   v4: view cels pack pixels via PixelFormat::ARGBToColor (was a hand-rolled
-//       0xAARRGGBB pack that mismatched the 0xRRGGBBAA format -> alpha in the
-//       wrong byte -> semi-transparent / washed-out sprites).
-static const int kTransformVersion = 4;
+// kTransformVersion is declared in roger_asset_gen.h (Roger namespace).
 
 // -------------------------------------------------------------------------
 // FNV-1a 32-bit hash over an arbitrary byte span.
@@ -123,6 +110,23 @@ void RogerAssetGen::setEnhancePasses(const Common::Array<int> &passes) {
 	_passes = passes;
 }
 
+// Canonical asset identity. The cache key is the COMPLETE set of inputs that
+// affect a generated asset's output bytes. Auditing all inputs:
+//   - gameId        : prevents cross-game collision (same pic/view id, different game).
+//   - transform     : asset kind — "omyac" (visual plate), "omyacprio" (priority view),
+//                     "scale6x" (VIEW cel). Distinct kinds never share a file.
+//   - kTransformVersion : pipeline version; a bump invalidates every stale file.
+//   - resourceHash  : FNV-1a of the source. For pics: the raw pic resource bytes
+//                     (content-keyed). For views: the stable (viewId,loopNo,celNo)
+//                     identity triple (view resources are immutable at runtime; the
+//                     gameId prefix prevents cross-game collision on equal triples).
+//   - passesStr     : enhancement pass list ("p2p0..." / "none"); changes output.
+// Inputs deliberately NOT in the key, with rationale:
+//   - live palette  : the plate is generated palette-neutral; the live EGA palette is
+//                     re-applied per-frame (roger_palette_live), so palette is a render
+//                     input, not a generation input. Including it would thrash the cache
+//                     for zero visual difference.
+// Format: "<gameId>.<transform>.v<ver>.<hashHex>.<passesStr>"
 Common::String RogerAssetGen::cacheKey(const char *transform, uint32 resourceHash) const {
 	// Build passes string: "p0p2p1..." or "none" when empty (empty = wireframe, not default).
 	// The provider always sets a concrete pass list before calling generatePlate:

@@ -39,4 +39,30 @@ public:
 		TS_ASSERT(!g.generatePriorityMap(2, bands, w, h, ms));
 		TS_ASSERT_EQUALS(bands.size(), (uint)0);
 	}
+	void test_gameid_changes_key() {
+		RogerAssetGen a("sq3", "cache", kGenCache);
+		RogerAssetGen b("qfg1", "cache", kGenCache);
+		Common::Array<int> p; p.push_back(2);
+		a.setEnhancePasses(p); b.setEnhancePasses(p);
+		TS_ASSERT_DIFFERS(a.testKey("omyac", 5u), b.testKey("omyac", 5u));
+	}
+	void test_transform_kind_changes_key() {
+		RogerAssetGen g("sq3", "cache", kGenCache);
+		Common::Array<int> p; p.push_back(2); g.setEnhancePasses(p);
+		// Each asset kind (visual/priority/view) must be distinct for one (game,hash).
+		TS_ASSERT_DIFFERS(g.testKey("omyac", 5u),    g.testKey("scale6x", 5u));
+		TS_ASSERT_DIFFERS(g.testKey("omyacprio", 5u), g.testKey("scale6x", 5u));
+	}
+	void test_resource_hash_changes_key() {
+		RogerAssetGen g("sq3", "cache", kGenCache);
+		Common::Array<int> p; p.push_back(2); g.setEnhancePasses(p);
+		TS_ASSERT_DIFFERS(g.testKey("omyac", 1u), g.testKey("omyac", 2u));
+	}
+	void test_version_embedded_in_key() {
+		RogerAssetGen g("sq3", "cache", kGenCache);
+		Common::Array<int> p; p.push_back(2); g.setEnhancePasses(p);
+		Common::String k = g.testKey("omyac", 5u);
+		Common::String tag = Common::String::format("v%d", kTransformVersion);
+		TS_ASSERT(k.contains(tag));   // a pipeline-version bump invalidates stale files
+	}
 };

@@ -56,6 +56,15 @@ enum GenMode {
 	kGenAlways    // Always generate, even when a cache file exists (re-gen + overwrite).
 };
 
+// Pipeline version embedded in every cache key. Bump whenever the generation
+// pipeline changes in a way that invalidates previously cached files — stale
+// files are then simply not found and regenerated on next use.
+//   v1: initial omyac plate + scale6x view-cel pipeline.
+//   v2: in-engine art path; overlay occlusion from native priority bands.
+//   v3: view cels de-undither EGA bytes (egaDeUndither).
+//   v4: view cels pack pixels via PixelFormat::ARGBToColor.
+static const int kTransformVersion = 4;
+
 /**
  * Orchestrates on-the-fly omyac plate generation and scale6x view-cel
  * generation, backed by a content-hash disk cache.
