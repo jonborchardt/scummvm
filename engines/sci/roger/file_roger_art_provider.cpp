@@ -1224,7 +1224,11 @@ void FileRogerArtProvider::onAddToPicCel(int viewId, int loopNo, int celNo,
 	s.celNo = celNo;
 	s.celRect = celRect;
 	s.priority = priority;
-	s.mirror = false;
+	{
+		GfxView *view = g_sci && g_sci->_gfxCache
+		                ? g_sci->_gfxCache->getView(viewId) : nullptr;
+		s.mirror = view ? view->isLoopMirrored(loopNo) : false;
+	}
 	s.celOverride = nullptr;
 	_staticSprites.push_back(s);
 }
@@ -1328,7 +1332,14 @@ void FileRogerArtProvider::renderFromAnimateList(const AnimateList &list) {
 		s.celNo    = it->celNo;
 		s.celRect  = it->celRect;
 		s.priority = it->priority;
-		s.mirror   = false; // mirror refinement deferred to a later task
+		// Mirror: read the loop's flag from the VIEW resource. The native fallback
+		// (celOverride) is already mirrored by GfxView::draw; only the hires ViewCache
+		// path needs this (compositor handles it via Graphics::FLIP_H).
+		{
+			GfxView *view = g_sci && g_sci->_gfxCache
+			                ? g_sci->_gfxCache->getView(it->viewId) : nullptr;
+			s.mirror = view ? view->isLoopMirrored(it->loopNo) : false;
+		}
 
 		// Provide a native-cel fallback only for sprites that have no hires view art.
 		// renderScene consults getCel() first and ignores celOverride when a hires cel
