@@ -197,52 +197,5 @@ void blendWipe(const Graphics::Surface &from, const Graphics::Surface &to,
 	}
 }
 
-void blendScroll(const Graphics::Surface &from, const Graphics::Surface &to,
-                 Graphics::Surface &out, float t, int direction) {
-	if (!sameRGBA(from, to) || !sameRGBA(from, out))
-		return;
-	t = CLIP(t, 0.0f, 1.0f);
-	const int W = out.w, H = out.h;
-	for (int y = 0; y < H; y++) {
-		for (int x = 0; x < W; x++) {
-			uint32 px;
-			switch (direction) {
-			case 0: { // new enters from right: old slides left, new enters from right edge
-				const int srcX = x + (int)(t * W);
-				px = (srcX < W) ? from.getPixel(srcX, y) : to.getPixel(srcX - W, y);
-				break;
-			}
-			case 1: { // new enters from left: old slides right, new enters from left edge
-				const int srcX = x - (int)(t * W);
-				px = (srcX >= 0) ? from.getPixel(srcX, y) : to.getPixel(srcX + W, y);
-				break;
-			}
-			case 2: { // new enters from bottom: old slides up, new enters from bottom edge
-				const int srcY = y + (int)(t * H);
-				px = (srcY < H) ? from.getPixel(x, srcY) : to.getPixel(x, srcY - H);
-				break;
-			}
-			case 3: // new enters from top: old slides down, new enters from top edge
-			default: {
-				const int srcY = y - (int)(t * H);
-				px = (srcY >= 0) ? from.getPixel(x, srcY) : to.getPixel(x, srcY + H);
-				break;
-			}
-			}
-			out.setPixel(x, y, px);
-		}
-	}
-}
-
-int scrollDirectionFor(int sciType) {
-	switch (sciType) {
-	case kSciTrScrollDown:  return 3; // new enters from top (content moves down)
-	case kSciTrScrollUp:    return 2; // new enters from bottom (content moves up)
-	case kSciTrScrollRight: return 0; // new enters from right (content moves right)
-	case kSciTrScrollLeft:  return 1; // new enters from left (content moves left)
-	default:                return 3; // safe default
-	}
-}
-
 } // namespace Roger
 } // namespace Sci

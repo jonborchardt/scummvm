@@ -407,12 +407,6 @@ uint16 GfxView::getCelCount(int16 loopNo) const {
 	return _loop[loopNo].cel.size();
 }
 
-bool GfxView::isLoopMirrored(int16 loopNo) const {
-	if (loopNo < 0 || loopNo >= (int16)_loop.size())
-		return false;
-	return _loop[loopNo].mirrorFlag;
-}
-
 Palette *GfxView::getPalette() {
 	return _embeddedPal ? &_viewPalette : nullptr;
 }
