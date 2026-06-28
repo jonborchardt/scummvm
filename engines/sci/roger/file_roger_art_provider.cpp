@@ -364,6 +364,7 @@ void FileRogerArtProvider::pushHiresBackground(GuiResourceId pictureId) {
 	if (!_capsProbed) {
 		_caps = Roger::RogerCapabilities::probe();
 		_capsProbed = true;
+		_statusBarH = _caps.statusBarRows;   // was hard-coded 10
 		if (_debugLog)
 			warning("ROGER caps[%s]: ega=%d rows=%d statusBar=%d parser=%d",
 			        g_sci ? g_sci->getGameIdStr() : "?",

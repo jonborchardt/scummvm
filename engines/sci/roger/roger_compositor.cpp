@@ -572,8 +572,8 @@ void RogerCompositor::renderUiLayer(Graphics::ManagedSurface &dest,
 	// original. Elements without a captured metric (nativeFontH == 0) fall back to the
 	// legacy role heights so no path regresses.
 	const int overlayH = gameRect.height();
-	const int fallbackBodyPx    = kRoleBodyNativeH    * overlayH / 200;
-	const int fallbackHeadingPx = kRoleHeadingNativeH * overlayH / 200;
+	const int fallbackBodyPx    = nativeRowsToOverlay(kRoleBodyNativeH,    overlayH);
+	const int fallbackHeadingPx = nativeRowsToOverlay(kRoleHeadingNativeH, overlayH);
 	for (uint i = 0; i < elems.size(); i++) {
 		const UiElement &e = elems[i];
 		Common::Rect nr = e.nativeRect;
@@ -634,7 +634,7 @@ void RogerCompositor::renderUiLayer(Graphics::ManagedSurface &dest,
 				col = fmt.ARGBToColor(255, pc[0], pc[1], pc[2]);
 			}
 			// 1 native px scaled to the overlay (min 1) so the border is visible at hires.
-			int thick = isWindow ? (gameRect.height() / 200) : 1;
+			int thick = isWindow ? nativeRowsToOverlay(1, gameRect.height()) : 1;
 			if (thick < 1) thick = 1;
 			for (int t = 0; t < thick; t++) {
 				Common::Rect fr = d; fr.grow(-t);
@@ -657,11 +657,11 @@ void RogerCompositor::renderUiLayer(Graphics::ManagedSurface &dest,
 			const uint32 col = pc ? fmt.ARGBToColor(255, pc[0], pc[1], pc[2])
 			                      : fmt.ARGBToColor(255, 255, 255, 255);
 			// Native single-line width cap, scaled to the overlay (0 => multi-line: box width).
-			const int wCap = e.nativeTextW > 0 ? e.nativeTextW * overlayH / 200 : 0;
+			const int wCap = e.nativeTextW > 0 ? nativeRowsToOverlay(e.nativeTextW, overlayH) : 0;
 			tr->drawPx(dest, e.text, textRect, col, e.align, targetPx, e.vAlignTop, &e.glyphs, wCap);
 		}
 		if (tr && e.type == kUiTextEdit && (e.style & 0x8) && !textRect.isEmpty()) { // SELECTED -> caret
-			const int wCap = e.nativeTextW > 0 ? e.nativeTextW * overlayH / 200 : 0;
+			const int wCap = e.nativeTextW > 0 ? nativeRowsToOverlay(e.nativeTextW, overlayH) : 0;
 			const int cx = textRect.left + tr->caretPx(e.text, e.cursorPos, textRect, targetPx, wCap);
 			const byte *pc = palette ? palette + (e.penColor >= 0 ? e.penColor : 0) * 3 : nullptr;
 			const uint32 col = pc ? fmt.ARGBToColor(255, pc[0], pc[1], pc[2])

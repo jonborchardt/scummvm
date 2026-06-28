@@ -374,4 +374,13 @@ public:
 		extractChangedBoxes(a, b, 4, 4, out);
 		TS_ASSERT_EQUALS(out.size(), (uint)0);
 	}
+
+	void test_native_rows_to_overlay_uses_caps() {
+		Sci::Roger::RogerCompositor c;
+		Sci::Roger::RogerCapabilities caps =
+			Sci::Roger::RogerCapabilities::fromProbes(true, true, 200);
+		c.setCapabilities(caps);
+		// 10 status rows of 200, into a 2000px overlay -> 100px.
+		TS_ASSERT_EQUALS(c.nativeRowsToOverlay(10, 2000), 100);
+	}
 };

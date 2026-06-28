@@ -87,6 +87,12 @@ public:
 	// Store probed game capabilities (called once per room load by the provider).
 	void setCapabilities(const RogerCapabilities &caps) { _caps = caps; }
 
+	// Native (SCI rows) -> overlay px, using the probed screen height. Pure.
+	int nativeRowsToOverlay(int nativeRows, int overlayH) const {
+		const int rows = _caps.screenRows > 0 ? _caps.screenRows : 200;
+		return nativeRows * overlayH / rows;
+	}
+
 	// Borrowed pointers; lifetime managed by the caller (the provider).
 	void setRoom(Graphics::Surface *cleanPlate, ViewCache *views);
 
