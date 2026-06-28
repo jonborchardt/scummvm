@@ -1224,11 +1224,11 @@ void FileRogerArtProvider::onAddToPicCel(int viewId, int loopNo, int celNo,
 	s.celNo = celNo;
 	s.celRect = celRect;
 	s.priority = priority;
-	{
-		GfxView *view = g_sci && g_sci->_gfxCache
-		                ? g_sci->_gfxCache->getView(viewId) : nullptr;
-		s.mirror = view ? view->isLoopMirrored(loopNo) : false;
-	}
+	// Mirror is already baked into every cel source: GfxView::getBitmap() flips the
+	// pixels for a mirrored loop, and both cel paths (renderNativeCel and the hires
+	// ViewCache's generateViewCel) read through getBitmap. So the compositor must NOT
+	// flip again — keep mirror false here.
+	s.mirror = false;
 	s.celOverride = nullptr;
 	_staticSprites.push_back(s);
 }
@@ -1332,14 +1332,11 @@ void FileRogerArtProvider::renderFromAnimateList(const AnimateList &list) {
 		s.celNo    = it->celNo;
 		s.celRect  = it->celRect;
 		s.priority = it->priority;
-		// Mirror: read the loop's flag from the VIEW resource. The native fallback
-		// (celOverride) is already mirrored by GfxView::draw; only the hires ViewCache
-		// path needs this (compositor handles it via Graphics::FLIP_H).
-		{
-			GfxView *view = g_sci && g_sci->_gfxCache
-			                ? g_sci->_gfxCache->getView(it->viewId) : nullptr;
-			s.mirror = view ? view->isLoopMirrored(it->loopNo) : false;
-		}
+		// Mirror is already baked in upstream: GfxView::getBitmap() flips a mirrored
+		// loop's pixels, and BOTH cel sources read through it — renderNativeCel (native
+		// fallback) and the hires ViewCache's generateViewCel. Flipping again in the
+		// compositor double-flips (ego walks backwards), so keep mirror false.
+		s.mirror = false;
 
 		// Provide a native-cel fallback only for sprites that have no hires view art.
 		// renderScene consults getCel() first and ignores celOverride when a hires cel

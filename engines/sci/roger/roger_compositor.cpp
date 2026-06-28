@@ -366,8 +366,9 @@ void RogerCompositor::renderScene(Graphics::ManagedSurface &dest, const Common::
 	//    cel, hiding the sprite. No slices, no flicker.
 	for (uint i = 0; i < sprites.size(); i++) {
 		const Sprite &s = sprites[i];
-		const Graphics::Surface *hirescel = _views ? _views->getCel(s.viewId, s.loopNo, s.celNo) : nullptr;
-		const Graphics::Surface *cel = hirescel ? hirescel : s.celOverride;
+		const Graphics::Surface *cel = _views ? _views->getCel(s.viewId, s.loopNo, s.celNo) : nullptr;
+		if (!cel)
+			cel = s.celOverride;
 		if (!cel) {
 			warning("ROGER: missing hires cel view=%d loop=%d cel=%d (skipped)", s.viewId, s.loopNo, s.celNo);
 			continue;
@@ -379,11 +380,11 @@ void RogerCompositor::renderScene(Graphics::ManagedSurface &dest, const Common::
 		const Common::Rect &dst = spriteDst[i];
 		// Alpha-aware blit: respects each pixel's alpha so transparent non-black
 		// pixels (common in exported spritesheets) do not render opaque (halos).
-		// Mirror: only apply FLIP_H for hires ViewCache cels. The celOverride (native fallback
-		// from renderNativeCel) is already mirrored by GfxView::draw — applying FLIP_H again
-		// would double-flip it, reversing the direction (the "ego walks backwards" bug).
+		// No FLIP_H here: GfxView::getBitmap() already mirrors a mirrored loop's pixels,
+		// and BOTH cel sources (renderNativeCel + the hires ViewCache's generateViewCel)
+		// read through it, so the cel arrives already-mirrored. s.mirror stays false.
 		dest.blendBlitFrom(*cel, Common::Rect(0, 0, cel->w, cel->h), dst,
-		                   (s.mirror && hirescel) ? Graphics::FLIP_H : Graphics::FLIP_NONE);
+		                   s.mirror ? Graphics::FLIP_H : Graphics::FLIP_NONE);
 
 		// Per-pixel priority occlusion against the plate.
 		if (_priority && _plate) {
