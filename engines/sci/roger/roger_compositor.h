@@ -64,6 +64,13 @@ Common::Rect mapNativeRectToOverlay(const Common::Rect &nativeRect,
                                     const Common::Rect &picRect,
                                     int picW, int picH, int picScreenTop);
 
+// Nearest-neighbour upscale of a native EGA region (visual indices, expanded through a
+// 256*3 RGB palette) into dest's overlayRect (RGBA32, opaque). Used by Feeder B to
+// composite native draws Roger has no vector source for.
+void upscaleNativeRegionNearest(Graphics::Surface &dest, const Common::Rect &overlayRect,
+                                const byte *visual, int visualPitch,
+                                const Common::Rect &nativeRect, const byte *palette);
+
 class RogerCompositor {
 public:
 	RogerCompositor() : _plate(nullptr), _views(nullptr),

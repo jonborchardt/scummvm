@@ -318,4 +318,28 @@ public:
 		TS_ASSERT_EQUALS(half.right, 420);
 		TS_ASSERT_EQUALS(half.bottom, 290);
 	}
+
+	void test_upscale_native_region_nearest() {
+		using namespace Sci::Roger;
+		const Graphics::PixelFormat rgba(4, 8, 8, 8, 8, 24, 16, 8, 0);
+		// 2x1 native source: index 1 (red), index 2 (green). Pitch = 2.
+		byte visual[2] = {1, 2};
+		byte palette[256 * 3];
+		for (int i = 0; i < 256 * 3; i++) palette[i] = 0;
+		palette[1 * 3 + 0] = 255; // index 1 -> red
+		palette[2 * 3 + 1] = 255; // index 2 -> green
+
+		Graphics::Surface dest;
+		dest.create(4, 1, rgba); // 2x horizontal upscale
+		upscaleNativeRegionNearest(dest, Common::Rect(0, 0, 4, 1),
+		                           visual, 2, Common::Rect(0, 0, 2, 1), palette);
+
+		uint8 a, r, g, b;
+		dest.format.colorToARGB(dest.getPixel(0, 0), a, r, g, b);
+		TS_ASSERT_EQUALS(r, 255); TS_ASSERT_EQUALS(g, 0);   // left half = index 1 (red)
+		dest.format.colorToARGB(dest.getPixel(3, 0), a, r, g, b);
+		TS_ASSERT_EQUALS(g, 255); TS_ASSERT_EQUALS(r, 0);   // right half = index 2 (green)
+		TS_ASSERT_EQUALS(a, 255);                            // opaque
+		dest.free();
+	}
 };

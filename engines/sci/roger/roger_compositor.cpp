@@ -94,6 +94,26 @@ Common::Rect mapNativeRectToOverlay(const Common::Rect &nativeRect,
 		(int16)(picRect.top  + ly1 * GH / picH));
 }
 
+void upscaleNativeRegionNearest(Graphics::Surface &dest, const Common::Rect &overlayRect,
+                                const byte *visual, int visualPitch,
+                                const Common::Rect &nativeRect, const byte *palette) {
+	const int ow = overlayRect.width(), oh = overlayRect.height();
+	const int nw = nativeRect.width(), nh = nativeRect.height();
+	if (ow <= 0 || oh <= 0 || nw <= 0 || nh <= 0)
+		return;
+	for (int dy = 0; dy < oh; dy++) {
+		const int sy = nativeRect.top + dy * nh / oh;
+		const byte *srcRow = visual + (uint)sy * visualPitch;
+		for (int dx = 0; dx < ow; dx++) {
+			const int sx = nativeRect.left + dx * nw / ow;
+			const byte idx = srcRow[sx];
+			const byte *c = palette + (uint)idx * 3;
+			dest.setPixel(overlayRect.left + dx, overlayRect.top + dy,
+			              dest.format.ARGBToColor(255, c[0], c[1], c[2]));
+		}
+	}
+}
+
 RogerCompositor::~RogerCompositor() {
 	if (_bgCache) {
 		_bgCache->free();
