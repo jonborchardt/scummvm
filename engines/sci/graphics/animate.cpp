@@ -612,6 +612,10 @@ void GfxAnimate::addToPicDrawCels() {
 
 		// draw corresponding cel
 		_paint16->drawCel(view, it->loopNo, it->celNo, it->celRect, it->priority, it->paletteNo, it->scaleX, it->scaleY);
+		// Roger hires overlay: capture this addToPic cel so it appears in the overlay
+		// (it is baked into the native pic and is not in the animate list afterwards).
+		if (g_sciRogerProvider && g_sciRogerProvider->enabled)
+			g_sciRogerProvider->onAddToPicCel(it->viewId, it->loopNo, it->celNo, it->celRect, it->priority);
 		if (!(it->signal & kSignalIgnoreActor)) {
 			it->celRect.top = CLIP<int16>(_ports->kernelPriorityToCoordinate(it->priority) - 1, it->celRect.top, it->celRect.bottom - 1);
 			_paint16->fillRect(it->celRect, GFX_SCREEN_MASK_CONTROL, 0, 0, 15);
@@ -629,6 +633,9 @@ void GfxAnimate::addToPicDrawView(GuiResourceId viewId, int16 loopNo, int16 celN
 	// Create rect according to coordinates and given cel
 	view->getCelRect(loopNo, celNo, x, y, 0, celRect);
 	_paint16->drawCel(view, loopNo, celNo, celRect, priority, 0);
+	// Roger hires overlay: capture this single addToPic view.
+	if (g_sciRogerProvider && g_sciRogerProvider->enabled)
+		g_sciRogerProvider->onAddToPicCel(viewId, loopNo, celNo, celRect, priority);
 
 	if (control != -1) {
 		celRect.top = CLIP<int16>(_ports->kernelPriorityToCoordinate(priority) - 1, celRect.top, celRect.bottom - 1);
