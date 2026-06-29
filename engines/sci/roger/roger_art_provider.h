@@ -127,6 +127,11 @@ public:
 	// hook semantically. Recorded for the per-frame generic composite. No-op in base.
 	virtual void onNativeShowRect(const Common::Rect &screenRect) {}
 
+	// Generic text-out capture (game-agnostic): SCI drew `text` at native `nativeRect`
+	// in font `fontId`, color `penColor`, alignment `align`. Default no-op.
+	virtual void onNativeText(const Common::Rect &nativeRect, const char *text,
+	                          int fontId, int penColor, int align) {}
+
 	// Feeder B diff backstop: snapshot the native visual buffer as the "known" state
 	// (plate-source + addToPic + animate sprites), taken right after SCI's updateScreen.
 	// A later composite diffs against it to catch native draws no hook recorded. No-op base.

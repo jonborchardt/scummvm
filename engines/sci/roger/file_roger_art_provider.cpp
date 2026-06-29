@@ -1348,6 +1348,8 @@ void FileRogerArtProvider::onInitCel(int viewId, int loopNo, int celNo,
 void FileRogerArtProvider::beginNativeDraw() { _nativeDrawDepth++; }
 void FileRogerArtProvider::endNativeDraw()   { if (_nativeDrawDepth > 0) _nativeDrawDepth--; }
 
+static const uint32 GENERIC_TEXT_TOKEN = 0x60000000u; // generic text-out captures (deduped vs controls16/menu)
+
 void FileRogerArtProvider::onNativeShowRect(const Common::Rect &screenRect) {
 	if (!_overlayActive || _nativeDrawDepth > 0 || !_plate)
 		return; // overlay off, inside a Roger-handled draw, or no hires plate
@@ -1357,6 +1359,28 @@ void FileRogerArtProvider::onNativeShowRect(const Common::Rect &screenRect) {
 		warning("ROGER-DIAG[showRect]: pic=%d rect=(%d,%d,%d,%d)", _loadedPicId,
 		        screenRect.left, screenRect.top, screenRect.right, screenRect.bottom);
 	_foregroundRegions.push_back(screenRect); // persistent foreground-sprite capture (was _genRegions)
+}
+
+void FileRogerArtProvider::onNativeText(const Common::Rect &nativeRect, const char *text,
+                                        int fontId, int penColor, int align) {
+	if (!_overlayActive || _nativeDrawDepth > 0 || !_plate)
+		return; // overlay off, inside a Roger-handled draw, or no hires plate
+	if (!text || !*text || nativeRect.isEmpty())
+		return;
+	if (_diag)
+		warning("ROGER-DIAG[nativeText]: pic=%d rect=(%d,%d,%d,%d) font=%d pen=%d \"%s\"",
+		        _loadedPicId, nativeRect.left, nativeRect.top, nativeRect.right, nativeRect.bottom,
+		        fontId, penColor, text);
+	Roger::UiElement e;
+	e.type = Roger::kUiText;
+	e.nativeRect = nativeRect;
+	e.text = text;
+	e.fontId = fontId;
+	e.penColor = penColor;
+	e.backColor = -1;          // no fill: drawn over the plate / window background
+	e.align = align;
+	e.token = GENERIC_TEXT_TOKEN;
+	_genTextPending.push_back(e); // dormant: Task 3 emits these into _uiLayer
 }
 
 void FileRogerArtProvider::snapshotNativeBaseline() {

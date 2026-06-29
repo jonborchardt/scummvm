@@ -63,6 +63,8 @@ public:
 	void beginNativeDraw() override;
 	void endNativeDraw() override;
 	void onNativeShowRect(const Common::Rect &screenRect) override;
+	void onNativeText(const Common::Rect &nativeRect, const char *text,
+	                  int fontId, int penColor, int align) override;
 	void snapshotNativeBaseline() override;
 	void onTransition(int sciType, const Common::Rect &picRect) override;
 	void onShake(int shakeCount, int directions) override;
@@ -154,6 +156,7 @@ private:
 	// into persistent room-scoped sprites so they survive past one frame (Feeder-A style).
 	Common::Array<Common::Rect> _foregroundRegions;   // bitsShow rects pending capture this frame
 	Common::Array<Roger::Sprite> _textSprites;        // persistent captured-foreground sprites (own celOverride)
+	Common::Array<Roger::UiElement> _genTextPending; // generic-text captures pending emit this frame (Task 3 consumes)
 	int _nativeDrawDepth = 0;                 // >0 => inside a Roger-handled draw
 	Common::Array<Common::Rect> _genRegions;  // Feeder B native rects captured this frame
 	Common::Array<byte> _nativeBaseline;      // last "known" native visual buffer (Feeder B diff)

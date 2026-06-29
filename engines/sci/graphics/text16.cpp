@@ -36,6 +36,7 @@
 #include "sci/graphics/scifont.h"
 #include "sci/graphics/screen.h"
 #include "sci/graphics/text16.h"
+#include "sci/roger/roger_art_provider.h"
 
 namespace Sci {
 
@@ -681,6 +682,12 @@ void GfxText16::Box(const char *text, uint16 languageSplitter, bool show, const 
 	}
 	SetFont(previousFontId);
 	_ports->penColor(previousPenColor);
+
+	if (show && g_sciRogerProvider && g_sciRogerProvider->enabled) {
+		// Game-agnostic: hand the whole drawn string + its box to Roger so it can re-render
+		// it crisply. previousPenColor is the color Show() used; rect is the text box.
+		g_sciRogerProvider->onNativeText(rect, text, fontId, previousPenColor, (int)alignment);
+	}
 }
 
 void GfxText16::DrawString(const Common::String &textOrig) {
