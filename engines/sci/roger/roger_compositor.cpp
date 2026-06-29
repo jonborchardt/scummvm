@@ -149,6 +149,31 @@ void filterForegroundCaptureRegions(const Common::Array<Common::Rect> &captured,
 	}
 }
 
+void collectUiTextRects(const Common::Array<UiElement> &elems, uint32 genericToken,
+                        Common::Array<Common::Rect> &out) {
+	(void)genericToken;
+	for (uint i = 0; i < elems.size(); i++)
+		if (elems[i].type == kUiText)
+			out.push_back(elems[i].nativeRect);
+}
+
+void dedupeGenericTextElements(Common::Array<UiElement> &elems, uint32 genericToken) {
+	for (uint i = 0; i < elems.size();) {
+		bool drop = false;
+		if (elems[i].token == genericToken) {
+			for (uint j = 0; j < elems.size(); j++) {
+				if (j == i || elems[j].token == genericToken)
+					continue;
+				if (elems[j].nativeRect.contains(elems[i].nativeRect)) { drop = true; break; }
+			}
+		}
+		if (drop)
+			elems.remove_at(i);
+		else
+			i++;
+	}
+}
+
 RogerCompositor::~RogerCompositor() {
 	if (_bgCache) {
 		_bgCache->free();

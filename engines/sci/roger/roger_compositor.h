@@ -63,6 +63,16 @@ void filterForegroundCaptureRegions(const Common::Array<Common::Rect> &captured,
                                     const Common::Array<Common::Rect> &liveSpriteRects,
                                     Common::Array<Common::Rect> &out);
 
+// Append the nativeRect of every kUiText element (any token) to `out`. Used to scope
+// pixel capture so a region already rendered as crisp captured text is not also pixel-stamped.
+void collectUiTextRects(const Common::Array<UiElement> &elems, uint32 genericToken,
+                        Common::Array<Common::Rect> &out);
+
+// Drop each element tagged with `genericToken` whose rect is contained in a non-generic
+// element's rect, so text controls16/menu already captured semantically is not rendered twice
+// by the generic text-out hook. In-place.
+void dedupeGenericTextElements(Common::Array<UiElement> &elems, uint32 genericToken);
+
 // Merge addToPic (static) and animate sprites into one back-to-front draw list:
 // static first, then animate, then a STABLE sort by ascending priority. Stable ⇒ at
 // equal priority addToPic draws before animate (native bakes addToPic into the pic
