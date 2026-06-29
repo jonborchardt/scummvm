@@ -1259,6 +1259,51 @@ void FileRogerArtProvider::clearTextSprites() {
 	_foregroundRegions.clear();
 }
 
+void FileRogerArtProvider::processForegroundCaptures(const Common::Array<Common::Rect> &liveSpriteRects) {
+	if (_foregroundRegions.empty())
+		return; // nothing newly shown this frame; existing _textSprites persist as-is
+
+	// Scope: drop capture rects overlapping a live animate-cast sprite (moving actors are
+	// drawn by the sprite path; never re-capture them as static foreground).
+	Common::Array<Common::Rect> keep;
+	Roger::filterForegroundCaptureRegions(_foregroundRegions, liveSpriteRects, keep);
+	_foregroundRegions.clear();
+
+	for (uint i = 0; i < keep.size(); i++) {
+		const Common::Rect &nr = keep[i];
+		Graphics::Surface *snap = snapshotNativeRegion(nr);
+		if (!snap)
+			continue;
+		// Insert or update by native rect (a redraw of the same region refreshes the cel).
+		bool updated = false;
+		for (uint j = 0; j < _textSprites.size(); j++) {
+			if (_textSprites[j].celRect == nr) {
+				if (_textSprites[j].celOverride) {
+					_textSprites[j].celOverride->free();
+					delete _textSprites[j].celOverride;
+				}
+				_textSprites[j].celOverride = snap;
+				_textSprites[j].celOverrideOwned = true;
+				updated = true;
+				break;
+			}
+		}
+		if (updated)
+			continue;
+		Roger::Sprite s;
+		s.viewId = -1; s.loopNo = -1; s.celNo = -1; // synthetic: no real view; render reads celOverride
+		s.celRect = nr;
+		s.priority = 255;   // always-on-top UI: never occluded by the plate priority map (compositor:452)
+		s.mirror = false;
+		s.celOverride = snap;
+		s.celOverrideOwned = true;
+		_textSprites.push_back(s);
+		if (_diag)
+			warning("ROGER-DIAG[fgCapture]: pic=%d rect=(%d,%d,%d,%d) now=%u",
+			        _loadedPicId, nr.left, nr.top, nr.right, nr.bottom, (unsigned)_textSprites.size());
+	}
+}
+
 void FileRogerArtProvider::onAddToPicCel(int viewId, int loopNo, int celNo,
                                          const Common::Rect &celRect, int priority) {
 	Roger::Sprite s;
@@ -1451,6 +1496,15 @@ void FileRogerArtProvider::renderFromAnimateList(const AnimateList &list) {
 		if (!dup)
 			statics.push_back(c);
 	}
+
+	// Capture native foreground (menu/stat labels, buttons, software cursor) into persistent
+	// sprites, scoped against the live cast so moving actors are never re-captured.
+	Common::Array<Common::Rect> liveRects;
+	for (uint i = 0; i < sprites.size(); i++)
+		liveRects.push_back(sprites[i].celRect);
+	processForegroundCaptures(liveRects);
+	for (uint i = 0; i < _textSprites.size(); i++)
+		statics.push_back(_textSprites[i]);
 
 	// Merge captured static cels (addToPic + init-baked) with the animate cast, priority-sorted,
 	// so static props occlude/are-occluded correctly against the ego.
