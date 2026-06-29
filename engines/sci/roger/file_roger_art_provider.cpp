@@ -325,6 +325,7 @@ void FileRogerArtProvider::pushHiresBackground(GuiResourceId pictureId) {
 	// New room: drop the previous room's captured addToPic cels (Feeder A) + init-baked cels.
 	_staticSprites.clear();
 	_initCels.clear();
+	clearTextSprites();
 	// New room must fully refresh the cursor-restore cache; the transition path pre-validates
 	// _bgCache via composeRoomScene so the first renderFrame may not be a full-seed.
 	_compositeCacheValid = false;
@@ -1225,6 +1226,40 @@ Graphics::Surface *FileRogerArtProvider::renderNativeCel(int viewId, int loopNo,
 	return surf;
 }
 
+Graphics::Surface *FileRogerArtProvider::snapshotNativeRegion(const Common::Rect &nativeRect) const {
+	if (!g_sci || !g_sci->_gfxScreen || !g_sci->_gfxPalette16)
+		return nullptr;
+	GfxScreen *screen = g_sci->_gfxScreen;
+	Common::Rect r = nativeRect;
+	r.clip(Common::Rect(0, 0, screen->getWidth(), screen->getHeight()));
+	if (r.isEmpty())
+		return nullptr;
+	const Palette &pal = g_sci->_gfxPalette16->_sysPalette;
+	const Graphics::PixelFormat rgba(4, 8, 8, 8, 8, 24, 16, 8, 0);
+	Graphics::Surface *surf = new Graphics::Surface();
+	surf->create(r.width(), r.height(), rgba);
+	for (int16 y = 0; y < r.height(); y++) {
+		for (int16 x = 0; x < r.width(); x++) {
+			const byte idx = screen->getVisual((int16)(r.left + x), (int16)(r.top + y));
+			const Color &c = pal.colors[idx];
+			surf->setPixel(x, y, rgba.ARGBToColor(255, c.r, c.g, c.b));
+		}
+	}
+	return surf;
+}
+
+void FileRogerArtProvider::clearTextSprites() {
+	for (uint i = 0; i < _textSprites.size(); i++) {
+		if (_textSprites[i].celOverride) {
+			Graphics::Surface *owned = const_cast<Graphics::Surface *>(_textSprites[i].celOverride);
+			owned->free();
+			delete owned;
+		}
+	}
+	_textSprites.clear();
+	_foregroundRegions.clear();
+}
+
 void FileRogerArtProvider::onAddToPicCel(int viewId, int loopNo, int celNo,
                                          const Common::Rect &celRect, int priority) {
 	Roger::Sprite s;
@@ -1269,13 +1304,13 @@ void FileRogerArtProvider::endNativeDraw()   { if (_nativeDrawDepth > 0) _native
 
 void FileRogerArtProvider::onNativeShowRect(const Common::Rect &screenRect) {
 	if (!_overlayActive || _nativeDrawDepth > 0 || !_plate)
-		return; // overlay off, inside a Roger-handled draw, or no hires plate (plate-less rooms never call drawGenericRegions)
+		return; // overlay off, inside a Roger-handled draw, or no hires plate
 	if (screenRect.isEmpty())
 		return;
 	if (_diag)
 		warning("ROGER-DIAG[showRect]: pic=%d rect=(%d,%d,%d,%d)", _loadedPicId,
 		        screenRect.left, screenRect.top, screenRect.right, screenRect.bottom);
-	_genRegions.push_back(screenRect);
+	_foregroundRegions.push_back(screenRect); // persistent foreground-sprite capture (was _genRegions)
 }
 
 void FileRogerArtProvider::snapshotNativeBaseline() {
@@ -1641,6 +1676,7 @@ void FileRogerArtProvider::onNativePicture() {
 	_uiIcons.clear();
 	_staticSprites.clear();
 	_initCels.clear();
+	clearTextSprites();
 	_genRegions.clear(); // drop any stale Feeder B rects from the departing room (drawGenericRegions won't run if _plate is null)
 	_haveScene = false;
 	_loadedPicId = -1;

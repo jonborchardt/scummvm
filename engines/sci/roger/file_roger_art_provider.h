@@ -149,6 +149,11 @@ private:
 	// enter the animate list (QFG1 first-visit signs). Cleared on room change; each frame the
 	// entries not in the live cast are merged in as persistent hires statics. See onInitCel.
 	Common::Array<Roger::Sprite> _initCels;
+	// Native-foreground capture (QFG1 menu/character-creation stat labels, class buttons,
+	// software cursor): regions recorded by the bitsShow hook (onNativeShowRect), turned
+	// into persistent room-scoped sprites so they survive past one frame (Feeder-A style).
+	Common::Array<Common::Rect> _foregroundRegions;   // bitsShow rects pending capture this frame
+	Common::Array<Roger::Sprite> _textSprites;        // persistent captured-foreground sprites (own celOverride)
 	int _nativeDrawDepth = 0;                 // >0 => inside a Roger-handled draw
 	Common::Array<Common::Rect> _genRegions;  // Feeder B native rects captured this frame
 	Common::Array<byte> _nativeBaseline;      // last "known" native visual buffer (Feeder B diff)
@@ -228,6 +233,10 @@ private:
 	// Render a native SCI cel to a new RGBA surface. Caller owns and must free.
 	// Returns nullptr on any failure (guard: sprite will be skipped).
 	Graphics::Surface *renderNativeCel(int viewId, int loopNo, int celNo) const;
+
+	Graphics::Surface *snapshotNativeRegion(const Common::Rect &nativeRect) const; // region -> RGBA surface
+	void processForegroundCaptures(const Common::Array<Common::Rect> &liveSpriteRects); // _foregroundRegions -> _textSprites
+	void clearTextSprites();                                                       // free celOverride + clear
 };
 
 } // namespace Sci
