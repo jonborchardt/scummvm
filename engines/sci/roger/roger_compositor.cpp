@@ -133,6 +133,22 @@ void extractChangedBoxes(const byte *prev, const byte *cur, int w, int h,
 	coalesceDirtyRects(runs, Common::Rect(0, 0, (int16)w, (int16)h), out);
 }
 
+void filterForegroundCaptureRegions(const Common::Array<Common::Rect> &captured,
+                                    const Common::Array<Common::Rect> &liveSpriteRects,
+                                    Common::Array<Common::Rect> &out) {
+	for (uint i = 0; i < captured.size(); i++) {
+		bool overlaps = false;
+		for (uint j = 0; j < liveSpriteRects.size(); j++) {
+			if (captured[i].intersects(liveSpriteRects[j])) {
+				overlaps = true;
+				break;
+			}
+		}
+		if (!overlaps)
+			out.push_back(captured[i]);
+	}
+}
+
 RogerCompositor::~RogerCompositor() {
 	if (_bgCache) {
 		_bgCache->free();

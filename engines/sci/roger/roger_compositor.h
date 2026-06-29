@@ -55,6 +55,13 @@ void coalesceDirtyRects(const Common::Array<Common::Rect> &in, const Common::Rec
 void extractChangedBoxes(const byte *prev, const byte *cur, int w, int h,
                          Common::Array<Common::Rect> &out);
 
+// Drop capture rects that overlap any live animate-cast sprite rect (native/320x200
+// coordinates). Used to scope native-foreground capture so moving actors are never
+// re-captured as static images (they are drawn by the sprite path). Appends to `out`.
+void filterForegroundCaptureRegions(const Common::Array<Common::Rect> &captured,
+                                    const Common::Array<Common::Rect> &liveSpriteRects,
+                                    Common::Array<Common::Rect> &out);
+
 // Merge addToPic (static) and animate sprites into one back-to-front draw list:
 // static first, then animate, then a STABLE sort by ascending priority. Stable ⇒ at
 // equal priority addToPic draws before animate (native bakes addToPic into the pic
