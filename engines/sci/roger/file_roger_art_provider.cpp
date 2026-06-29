@@ -326,6 +326,7 @@ void FileRogerArtProvider::pushHiresBackground(GuiResourceId pictureId) {
 	_staticSprites.clear();
 	_initCels.clear();
 	clearTextSprites();
+	_genTextPending.clear(); // discard any pending generic text from the departing room
 	// New room must fully refresh the cursor-restore cache; the transition path pre-validates
 	// _bgCache via composeRoomScene so the first renderFrame may not be a full-seed.
 	_compositeCacheValid = false;
@@ -1380,7 +1381,25 @@ void FileRogerArtProvider::onNativeText(const Common::Rect &nativeRect, const ch
 	e.backColor = -1;          // no fill: drawn over the plate / window background
 	e.align = align;
 	e.token = GENERIC_TEXT_TOKEN;
-	_genTextPending.push_back(e); // dormant: Task 3 emits these into _uiLayer
+	_genTextPending.push_back(e);
+}
+
+void FileRogerArtProvider::flushGenericText() {
+	if (!_overlayActive || !_plate)
+		{ _genTextPending.clear(); return; }
+	ensureUi();
+	// Re-emit this frame's generic captures: clear last frame's generic text, then push
+	// the fresh set (so changed values refresh and removed text drops). controls16/menu
+	// text uses other tokens and is untouched.
+	_uiLayer->clearToken(GENERIC_TEXT_TOKEN);
+	for (uint i = 0; i < _genTextPending.size(); i++) {
+		Roger::UiElement e = _genTextPending[i];
+		buildGlyphs(e.text.c_str(), e.fontId, e.penColor, e.glyphs);
+		_uiLayer->push(e);
+	}
+	_genTextPending.clear();
+	// Drop any generic element a controls16/menu element already covers (no double render).
+	_uiLayer->dedupeGenericText(GENERIC_TEXT_TOKEN);
 }
 
 void FileRogerArtProvider::snapshotNativeBaseline() {
@@ -1464,6 +1483,8 @@ void FileRogerArtProvider::renderFromAnimateList(const AnimateList &list) {
 	Common::Array<Graphics::Surface *> nativeSurfaces;
 
 	const bool dbg = _debugLog;
+
+	flushGenericText(); // emit this frame's generic text captures into _uiLayer (deduped)
 
 	// Build the set of cels in the LIVE animate cast this frame (view+loop+cel), so the
 	// init-captured static cels (_initCels) can exclude anything that is actively animated
@@ -1758,6 +1779,7 @@ void FileRogerArtProvider::onNativePicture() {
 	_staticSprites.clear();
 	_initCels.clear();
 	clearTextSprites();
+	_genTextPending.clear(); // discard any pending generic text from the departing room
 	_genRegions.clear(); // drop any stale Feeder B rects from the departing room (drawGenericRegions won't run if _plate is null)
 	_haveScene = false;
 	_loadedPicId = -1;

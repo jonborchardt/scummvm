@@ -240,6 +240,7 @@ private:
 	Graphics::Surface *snapshotNativeRegion(const Common::Rect &nativeRect) const; // region -> RGBA surface
 	void processForegroundCaptures(const Common::Array<Common::Rect> &liveSpriteRects); // _foregroundRegions -> _textSprites
 	void clearTextSprites();                                                       // free celOverride + clear
+	void flushGenericText();                                                       // emit _genTextPending into _uiLayer, deduped
 };
 
 } // namespace Sci
