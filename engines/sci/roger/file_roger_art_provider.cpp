@@ -1280,7 +1280,7 @@ void FileRogerArtProvider::processForegroundCaptures(const Common::Array<Common:
 		bool updated = false;
 		for (uint j = 0; j < _textSprites.size(); j++) {
 			if (_textSprites[j].celRect == nr) {
-				if (_textSprites[j].celOverride) {
+				if (_textSprites[j].celOverride && _textSprites[j].celOverrideOwned) {
 					_textSprites[j].celOverride->free();
 					delete _textSprites[j].celOverride;
 				}
@@ -1501,10 +1501,12 @@ void FileRogerArtProvider::renderFromAnimateList(const AnimateList &list) {
 
 	// Capture native foreground (menu/stat labels, buttons, software cursor) into persistent
 	// sprites, scoped against the live cast so moving actors are never re-captured.
-	Common::Array<Common::Rect> liveRects;
-	for (uint i = 0; i < sprites.size(); i++)
-		liveRects.push_back(sprites[i].celRect);
-	processForegroundCaptures(liveRects);
+	if (!_foregroundRegions.empty()) {
+		Common::Array<Common::Rect> liveRects;
+		for (uint i = 0; i < sprites.size(); i++)
+			liveRects.push_back(sprites[i].celRect);
+		processForegroundCaptures(liveRects);
+	}
 	for (uint i = 0; i < _textSprites.size(); i++)
 		statics.push_back(_textSprites[i]);
 
