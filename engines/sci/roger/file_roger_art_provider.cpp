@@ -322,8 +322,9 @@ void FileRogerArtProvider::pushHiresBackground(GuiResourceId pictureId) {
 
 	diagDumpState("pushBG-enter");
 
-	// New room: drop the previous room's captured addToPic cels (Feeder A).
+	// New room: drop the previous room's captured addToPic cels (Feeder A) + init-baked cels.
 	_staticSprites.clear();
+	_initCels.clear();
 	// New room must fully refresh the cursor-restore cache; the transition path pre-validates
 	// _bgCache via composeRoomScene so the first renderFrame may not be a full-seed.
 	_compositeCacheValid = false;
@@ -1239,6 +1240,28 @@ void FileRogerArtProvider::onAddToPicCel(int viewId, int loopNo, int celNo,
 	s.mirror = false;
 	s.celOverride = nullptr;
 	_staticSprites.push_back(s);
+	if (_diag)
+		warning("ROGER-DIAG[addToPic]: pic=%d view=%d loop=%d cel=%d pri=%d rect=(%d,%d,%d,%d) nowHave=%u",
+		        _loadedPicId, viewId, loopNo, celNo, priority,
+		        celRect.left, celRect.top, celRect.right, celRect.bottom, (unsigned)_staticSprites.size());
+}
+
+void FileRogerArtProvider::onInitCel(int viewId, int loopNo, int celNo,
+                                     const Common::Rect &celRect, int priority) {
+	// Dedup by view+loop+cel+rect (a room init may redraw the same cel a few times).
+	for (uint i = 0; i < _initCels.size(); i++) {
+		const Roger::Sprite &q = _initCels[i];
+		if (q.viewId == viewId && q.loopNo == loopNo && q.celNo == celNo && q.celRect == celRect)
+			return;
+	}
+	Roger::Sprite s;
+	s.viewId = viewId; s.loopNo = loopNo; s.celNo = celNo;
+	s.celRect = celRect; s.priority = priority; s.mirror = false; s.celOverride = nullptr;
+	_initCels.push_back(s);
+	if (_diag)
+		warning("ROGER-DIAG[initCel]: pic=%d view=%d loop=%d cel=%d pri=%d rect=(%d,%d,%d,%d) now=%u",
+		        _loadedPicId, viewId, loopNo, celNo, priority,
+		        celRect.left, celRect.top, celRect.right, celRect.bottom, (unsigned)_initCels.size());
 }
 
 void FileRogerArtProvider::beginNativeDraw() { _nativeDrawDepth++; }
@@ -1249,6 +1272,9 @@ void FileRogerArtProvider::onNativeShowRect(const Common::Rect &screenRect) {
 		return; // overlay off, inside a Roger-handled draw, or no hires plate (plate-less rooms never call drawGenericRegions)
 	if (screenRect.isEmpty())
 		return;
+	if (_diag)
+		warning("ROGER-DIAG[showRect]: pic=%d rect=(%d,%d,%d,%d)", _loadedPicId,
+		        screenRect.left, screenRect.top, screenRect.right, screenRect.bottom);
 	_genRegions.push_back(screenRect);
 }
 
@@ -1321,6 +1347,9 @@ bool FileRogerArtProvider::drawGenericRegions(Graphics::ManagedSurface &scene,
 		_compositor->addDirtyRect(dst); // ensure the region is pushed (and erased next frame)
 		drewAny = true;
 	}
+	if (_diag && drewAny)
+		warning("ROGER-DIAG[genRegions]: pic=%d stamped=%u native regions (blocky Feeder B)",
+		        _loadedPicId, (unsigned)_genRegions.size());
 	_genRegions.clear();
 	return drewAny;
 }
@@ -1331,6 +1360,9 @@ void FileRogerArtProvider::renderFromAnimateList(const AnimateList &list) {
 
 	const bool dbg = _debugLog;
 
+	// Build the set of cels in the LIVE animate cast this frame (view+loop+cel), so the
+	// init-captured static cels (_initCels) can exclude anything that is actively animated
+	// (those are drawn live; only the never-animated init draws — the baked signs/props — stay).
 	for (AnimateList::const_iterator it = list.begin(); it != list.end(); ++it) {
 		if (it->signal & kSignalHidden)
 			continue;
@@ -1360,10 +1392,32 @@ void FileRogerArtProvider::renderFromAnimateList(const AnimateList &list) {
 		sprites.push_back(s);
 	}
 
-	// Merge captured addToPic cels (Feeder A) with the animate cast, priority-sorted,
+	// Static props captured at room-init time (_initCels): cels drawn while _picNotValid was
+	// set, i.e. baked into the native picture during the room's first setup. On a FIRST visit
+	// QFG1 places its signs/decorations this way (they never enter the animate list Roger sees,
+	// so they used to render for one frame — the "flash" — then vanish). Promote the init cels
+	// that are NOT in the live animate cast this frame (those that ARE get drawn live, so
+	// excluding them avoids freezing/ghosting a moving actor). Deduped against addToPic.
+	Common::Array<Roger::Sprite> statics = _staticSprites;
+	for (uint i = 0; i < _initCels.size(); i++) {
+		const Roger::Sprite &c = _initCels[i];
+		bool live = false;
+		for (uint j = 0; j < sprites.size(); j++)
+			if (sprites[j].viewId == c.viewId && sprites[j].loopNo == c.loopNo && sprites[j].celNo == c.celNo) { live = true; break; }
+		if (live)
+			continue;
+		bool dup = false;
+		for (uint j = 0; j < statics.size(); j++)
+			if (statics[j].viewId == c.viewId && statics[j].loopNo == c.loopNo &&
+			    statics[j].celNo == c.celNo && statics[j].celRect == c.celRect) { dup = true; break; }
+		if (!dup)
+			statics.push_back(c);
+	}
+
+	// Merge captured static cels (addToPic + init-baked) with the animate cast, priority-sorted,
 	// so static props occlude/are-occluded correctly against the ego.
 	Common::Array<Roger::Sprite> merged;
-	Roger::mergeSpritesByPriority(sprites, _staticSprites, merged);
+	Roger::mergeSpritesByPriority(sprites, statics, merged);
 
 	// Static cels need a native-cel fallback too (when no hires cel exists). Build them
 	// for the merged entries that lack a celOverride and are not in the animate list.
@@ -1381,8 +1435,9 @@ void FileRogerArtProvider::renderFromAnimateList(const AnimateList &list) {
 	}
 
 	if (dbg)
-		warning("ROGER: pic=%d sprites=%u (+%u addToPic) plate=%dx%d overlay=%s",
-		        _loadedPicId, (unsigned)sprites.size(), (unsigned)_staticSprites.size(),
+		warning("ROGER: pic=%d sprites=%u (+%u static: %u addToPic +%u init) plate=%dx%d overlay=%s",
+		        _loadedPicId, (unsigned)sprites.size(), (unsigned)statics.size(),
+		        (unsigned)_staticSprites.size(), (unsigned)(statics.size() - _staticSprites.size()),
 		        _plate ? _plate->w : -1, _plate ? _plate->h : -1, _overlayActive ? "on" : "off");
 
 	renderFrame(merged);
@@ -1581,6 +1636,7 @@ void FileRogerArtProvider::onNativePicture() {
 	for (uint i = 0; i < _uiIcons.size(); i++) { _uiIcons[i]->free(); delete _uiIcons[i]; }
 	_uiIcons.clear();
 	_staticSprites.clear();
+	_initCels.clear();
 	_genRegions.clear(); // drop any stale Feeder B rects from the departing room (drawGenericRegions won't run if _plate is null)
 	_haveScene = false;
 	_loadedPicId = -1;

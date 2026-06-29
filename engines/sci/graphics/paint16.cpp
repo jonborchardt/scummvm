@@ -96,6 +96,9 @@ void GfxPaint16::drawPicture(GuiResourceId pictureId, bool mirroredFlag, bool ad
 	// occlusion use them) and cache the hires plate for the overlay compositor.
 	const bool rogerReplace = g_sciRogerProvider && g_sciRogerProvider->enabled
 			&& g_sciRogerProvider->hasBackground(pictureId);
+	if (g_sciRogerProvider && g_sciRogerProvider->enabled && g_sciRogerProvider->diagEnabled())
+		warning("ROGER-DIAG[drawPicture]: pic=%d addToFlag=%d hasBg=%d", pictureId,
+		        addToFlag ? 1 : 0, g_sciRogerProvider->hasBackground(pictureId) ? 1 : 0);
 	if (rogerReplace) {
 		g_sciRogerProvider->prefetch(pictureId);
 	} else if (!addToFlag && g_sciRogerProvider && g_sciRogerProvider->enabled) {
@@ -148,6 +151,9 @@ void GfxPaint16::drawCelAndShow(GuiResourceId viewId, int16 loopNo, int16 celNo,
 	Common::Rect celRect;
 
 	if (view) {
+		if (g_sciRogerProvider && g_sciRogerProvider->enabled && g_sciRogerProvider->diagEnabled())
+			warning("ROGER-DIAG[drawCelAndShow]: view=%d loop=%d cel=%d at(%d,%d) picNotValid=%d",
+			        viewId, loopNo, celNo, leftPos, topPos, _screen->_picNotValid);
 		// Roger re-entrancy guard: cels in the animate list are composited semantically
 		// via renderFromAnimateList; their bitsShow should not be double-captured by Feeder B.
 		if (g_sciRogerProvider && g_sciRogerProvider->enabled)
@@ -185,6 +191,13 @@ void GfxPaint16::drawCel(GfxView *view, int16 loopNo, int16 celNo, const Common:
 	clipRect.clip(_ports->_curPort->rect);
 	if (clipRect.isEmpty()) // nothing to draw
 		return;
+
+	// Roger: a cel drawn while the picture is not yet valid (_picNotValid) is part of the
+	// room's initial setup and bakes into the native picture. QFG1 first-visit signs are drawn
+	// this way and never enter the animate list Roger composites, so capture them here as
+	// persistent hires statics (filtered against the live cast in renderFromAnimateList).
+	if (g_sciRogerProvider && g_sciRogerProvider->enabled && view && _screen->_picNotValid)
+		g_sciRogerProvider->onInitCel(view->getResourceId(), loopNo, celNo, celRect, priority);
 
 	Common::Rect clipRectTranslated = clipRect;
 	_ports->offsetRect(clipRectTranslated);
@@ -478,6 +491,8 @@ void GfxPaint16::kernelDrawCel(GuiResourceId viewId, int16 loopNo, int16 celNo, 
 				               leftPos + celView->getWidth(loopNo, celNo),
 				               topPos + celView->getHeight(loopNo, celNo));
 				_ports->offsetRect(g);
+				if (g_sciRogerProvider->diagEnabled())
+					warning("ROGER-DIAG[kDrawCel]: view=%d loop=%d cel=%d at(%d,%d)", viewId, loopNo, celNo, leftPos, topPos);
 				g_sciRogerProvider->onDrawCel(g, viewId, loopNo, celNo);
 			}
 		}
@@ -520,6 +535,8 @@ void GfxPaint16::kernelGraphRestoreBox(reg_t handle) {
 }
 
 void GfxPaint16::kernelGraphUpdateBox(const Common::Rect &rect) {
+	if (g_sciRogerProvider && g_sciRogerProvider->enabled && g_sciRogerProvider->diagEnabled())
+		warning("ROGER-DIAG[kGraphUpdateBox]: rect=(%d,%d,%d,%d)", rect.left, rect.top, rect.right, rect.bottom);
 	bitsShow(rect);
 }
 

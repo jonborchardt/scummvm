@@ -94,10 +94,21 @@ public:
 	// pointer (especially during blocking dialogs/menus that do not tick animate).
 	virtual void onMouseMoved() {}
 
+	// roger_diag accessor (revertible instrumentation): lets engine hook sites
+	// (paint16) emit gated ROGER-DIAG trace lines. False in the base.
+	virtual bool diagEnabled() const { return false; }
+
 	// Standalone cel draw (kDrawCel) — e.g. an inventory item's "look at" close-up.
 	// If an upscaled cel exists (views/<id>/view.<id>.loop.<loop>.png), composite it
 	// into the overlay at globalRect (320x200 space); otherwise no-op (native shows).
 	virtual void onDrawCel(const Common::Rect &globalRect, int viewId, int loopNo, int celNo) {}
+
+	// Init-time cel (low-level drawCel while _picNotValid): a view cel drawn during the
+	// room's first setup that bakes into the native picture without going through kAddToPic
+	// or the animate list Roger sees (QFG1 first-visit signs/decorations). Captured so it can
+	// be re-shown persistently at hires. No-op in base.
+	virtual void onInitCel(int viewId, int loopNo, int celNo,
+	                       const Common::Rect &celRect, int priority) {}
 
 	// addToPic cel (kAddToPic) — a static view baked into the room's native picture.
 	// Roger captures it as a persistent per-room sprite so it appears in the overlay at

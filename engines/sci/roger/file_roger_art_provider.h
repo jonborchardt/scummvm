@@ -58,6 +58,8 @@ public:
 	void onDrawCel(const Common::Rect &globalRect, int viewId, int loopNo, int celNo) override;
 	void onAddToPicCel(int viewId, int loopNo, int celNo,
 	                   const Common::Rect &celRect, int priority) override;
+	void onInitCel(int viewId, int loopNo, int celNo,
+	               const Common::Rect &celRect, int priority) override;
 	void beginNativeDraw() override;
 	void endNativeDraw() override;
 	void onNativeShowRect(const Common::Rect &screenRect) override;
@@ -116,6 +118,9 @@ private:
 	bool _debugLog = false;      // per-frame diagnostic logging
 	bool _diag = false;          // roger_diag: one-line overlay-state trace at room-load/present/transition seams (revertible instrumentation)
 	void diagDumpState(const char *where);
+public:
+	bool diagEnabled() const override { return _diag; }
+private:
 	bool _autoshot = false;      // roger_autoshot: dump the composited scene to PNG on room load (verification harness)
 	bool _selfTest = false;      // roger_selftest: log structural invariant PASS/FAIL per room (off by default)
 	bool _diffBackstop = false;  // roger_diff_backstop: Feeder B pixel-diff backstop (default off; per-frame full-buffer diff is costly and can stamp blocky native pixels over the plate around moving sprites)
@@ -140,6 +145,10 @@ private:
 	// addToPic cels captured for the current room (Feeder A). Cleared on room change;
 	// merged with the animate list each frame and drawn via the hires Sprite path.
 	Common::Array<Roger::Sprite> _staticSprites;
+	// Cels drawn during room init (_picNotValid) that bake into the native picture but never
+	// enter the animate list (QFG1 first-visit signs). Cleared on room change; each frame the
+	// entries not in the live cast are merged in as persistent hires statics. See onInitCel.
+	Common::Array<Roger::Sprite> _initCels;
 	int _nativeDrawDepth = 0;                 // >0 => inside a Roger-handled draw
 	Common::Array<Common::Rect> _genRegions;  // Feeder B native rects captured this frame
 	Common::Array<byte> _nativeBaseline;      // last "known" native visual buffer (Feeder B diff)
