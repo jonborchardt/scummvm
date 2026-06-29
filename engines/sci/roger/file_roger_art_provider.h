@@ -114,6 +114,8 @@ private:
 	bool _capsProbed = false;
 	bool _overlayActive = true;  // false = show native 320x200 (A/B comparison toggle)
 	bool _debugLog = false;      // per-frame diagnostic logging
+	bool _diag = false;          // roger_diag: one-line overlay-state trace at room-load/present/transition seams (revertible instrumentation)
+	void diagDumpState(const char *where);
 	bool _autoshot = false;      // roger_autoshot: dump the composited scene to PNG on room load (verification harness)
 	bool _selfTest = false;      // roger_selftest: log structural invariant PASS/FAIL per room (off by default)
 	bool _diffBackstop = false;  // roger_diff_backstop: Feeder B pixel-diff backstop (default off; per-frame full-buffer diff is costly and can stamp blocky native pixels over the plate around moving sprites)

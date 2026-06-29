@@ -91,6 +91,8 @@ FileRogerArtProvider::FileRogerArtProvider(const Common::String &gameId,
 	// roger_debug: per-frame + per-UI-element diagnostic logging (also toggled in-game
 	// with Ctrl+Shift+L). Read it here so the documented config knob actually works.
 	_debugLog = ConfMan.hasKey("roger_debug") && ConfMan.getBool("roger_debug");
+	// roger_diag: revertible overlay-state trace at room/present/transition seams (off by default).
+	_diag = ConfMan.hasKey("roger_diag") && ConfMan.getBool("roger_diag");
 
 	// Cursor: the native hardware cursor is NOT usefully visible over the in-game
 	// OSystem overlay (verified in live play — it disappears), which is the original
@@ -318,6 +320,8 @@ void FileRogerArtProvider::pushHiresBackground(GuiResourceId pictureId) {
 	if (_loadedPicId == pictureId && _plate)
 		return; // already loaded for this room
 
+	diagDumpState("pushBG-enter");
+
 	// New room: drop the previous room's captured addToPic cels (Feeder A).
 	_staticSprites.clear();
 	// New room must fully refresh the cursor-restore cache; the transition path pre-validates
@@ -379,6 +383,7 @@ void FileRogerArtProvider::pushHiresBackground(GuiResourceId pictureId) {
 	if (ConfMan.hasKey("roger_dirty_present"))
 		dirtyPresent = ConfMan.getBool("roger_dirty_present");
 	_compositor->setDirtyPresent(dirtyPresent);
+	_compositor->setDiag(_diag);
 	_compositor->setRoom(_plate, _viewCache);
 
 	// Derive the per-pixel overlay occlusion in-engine from the omyac-enhanced HIRES
@@ -439,6 +444,8 @@ void FileRogerArtProvider::pushHiresBackground(GuiResourceId pictureId) {
 		Roger::SelfTestResult r = Roger::evaluateInvariants(in, _caps);
 		Roger::logSelfTest(g_sci ? g_sci->getGameIdStr() : "?", (int)pictureId, r);
 	}
+
+	diagDumpState("pushBG-exit");
 }
 
 void FileRogerArtProvider::observeLivePalette() {
@@ -495,6 +502,7 @@ void FileRogerArtProvider::observeLivePalette() {
 void FileRogerArtProvider::renderFrame(const Common::Array<Roger::Sprite> &sprites) {
 	if (!_overlayActive || !_compositor || !_plate)
 		return;
+	diagDumpState("renderFrame");
 	observeLivePalette();
 	// Composite in RGBA32 so the alpha-aware blendBlitFrom (used for view cels) works
 	// - it requires an RGBA32 destination. presentToOverlay converts the finished
@@ -1386,6 +1394,7 @@ void FileRogerArtProvider::renderFromAnimateList(const AnimateList &list) {
 }
 
 void FileRogerArtProvider::toggleOverlay() {
+	diagDumpState("toggle");
 	_overlayActive = !_overlayActive;
 	if (!_overlayActive) {
 		g_system->hideOverlay(); // reveal the native 320x200 render underneath
@@ -1551,7 +1560,20 @@ void FileRogerArtProvider::reloadGenConfig() {
 	regenInPlace();
 }
 
+void FileRogerArtProvider::diagDumpState(const char *where) {
+	if (!_diag)
+		return;
+	warning("ROGER-DIAG[%s]: pic=%d enabled=%d overlayActive=%d plate=%s haveScene=%d "
+	        "compCacheValid=%d haveBaseline=%d uiElems=%u uiIcons=%u staticSprites=%u",
+	        where, _loadedPicId, enabled ? 1 : 0, _overlayActive ? 1 : 0,
+	        _plate ? "yes" : "NULL", _haveScene ? 1 : 0, _compositeCacheValid ? 1 : 0,
+	        _haveBaseline ? 1 : 0,
+	        _uiLayer ? (unsigned)_uiLayer->elements().size() : 0u,
+	        (unsigned)_uiIcons.size(), (unsigned)_staticSprites.size());
+}
+
 void FileRogerArtProvider::onNativePicture() {
+	diagDumpState("nativePic");
 	if (_compositor)
 		_compositor->setRoom(nullptr, nullptr);
 	if (_plate) { _plate->free(); delete _plate; _plate = nullptr; }
@@ -1603,6 +1625,7 @@ void FileRogerArtProvider::composeRoomScene(Graphics::ManagedSurface &out) {
 void FileRogerArtProvider::onTransition(int sciType, const Common::Rect & /*picRect*/) {
 	if (!_transitionsEnabled || !_overlayActive || !_compositor || !_plate)
 		return;
+	diagDumpState("transition");
 	const Roger::TransitionFamily fam = Roger::transitionFamilyFor(sciType);
 	if (fam == Roger::kFxNone)
 		return; // instant cut: the deferred first-frame present (existing path) handles it
