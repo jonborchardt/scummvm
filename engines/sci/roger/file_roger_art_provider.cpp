@@ -1250,10 +1250,9 @@ Graphics::Surface *FileRogerArtProvider::snapshotNativeRegion(const Common::Rect
 
 void FileRogerArtProvider::clearTextSprites() {
 	for (uint i = 0; i < _textSprites.size(); i++) {
-		if (_textSprites[i].celOverride) {
-			Graphics::Surface *owned = const_cast<Graphics::Surface *>(_textSprites[i].celOverride);
-			owned->free();
-			delete owned;
+		if (_textSprites[i].celOverride && _textSprites[i].celOverrideOwned) {
+			_textSprites[i].celOverride->free();
+			delete _textSprites[i].celOverride;
 		}
 	}
 	_textSprites.clear();

@@ -40,7 +40,8 @@ struct Sprite {
 	Common::Rect celRect;  // 320x200 space
 	int priority;          // SCI band 0..15
 	bool mirror;
-	const Graphics::Surface *celOverride = nullptr; // optional pre-rendered native cel (RGBA), borrowed; used when no hires cel
+	Graphics::Surface *celOverride = nullptr; // optional pre-rendered native cel (RGBA); used when no hires cel. Borrowed unless celOverrideOwned.
+	bool celOverrideOwned = false;            // true => this Sprite owns celOverride and must free it; false => borrowed (freed elsewhere)
 };
 
 // Clamp each rect in `in` to `bounds`, drop empties, and merge any that intersect into
