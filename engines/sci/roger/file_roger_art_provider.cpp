@@ -1401,6 +1401,10 @@ void FileRogerArtProvider::renderFromAnimateList(const AnimateList &list) {
 	Common::Array<Roger::Sprite> statics = _staticSprites;
 	for (uint i = 0; i < _initCels.size(); i++) {
 		const Roger::Sprite &c = _initCels[i];
+		// Exclude by view+loop+cel (no rect): if the live cast contains ANY entry with the
+		// same view/loop/cel it will be drawn live, so we don't need to freeze it as a static.
+		// Static decorations in SCI0 use dedicated views that never appear in the actor list,
+		// so false-positive suppression (same cel at a different position) is not a concern.
 		bool live = false;
 		for (uint j = 0; j < sprites.size(); j++)
 			if (sprites[j].viewId == c.viewId && sprites[j].loopNo == c.loopNo && sprites[j].celNo == c.celNo) { live = true; break; }
