@@ -1262,14 +1262,19 @@ void FileRogerArtProvider::clearTextSprites() {
 	_foregroundRegions.clear();
 }
 
+static const uint32 GENERIC_TEXT_TOKEN = 0x60000000u; // generic text-out captures (deduped vs controls16/menu)
+
 void FileRogerArtProvider::processForegroundCaptures(const Common::Array<Common::Rect> &liveSpriteRects) {
 	if (_foregroundRegions.empty())
 		return; // nothing newly shown this frame; existing _textSprites persist as-is
 
-	// Scope: drop capture rects overlapping a live animate-cast sprite (moving actors are
-	// drawn by the sprite path; never re-capture them as static foreground).
+	// Exclude regions already rendered as crisp captured text (and the live cast) so they
+	// are not also pixel-stamped (blocky-under-crisp double draw).
+	Common::Array<Common::Rect> exclude = liveSpriteRects;
+	if (_uiLayer)
+		Roger::collectUiTextRects(_uiLayer->elements(), GENERIC_TEXT_TOKEN, exclude);
 	Common::Array<Common::Rect> keep;
-	Roger::filterForegroundCaptureRegions(_foregroundRegions, liveSpriteRects, keep);
+	Roger::filterForegroundCaptureRegions(_foregroundRegions, exclude, keep);
 	_foregroundRegions.clear();
 
 	for (uint i = 0; i < keep.size(); i++) {
@@ -1348,8 +1353,6 @@ void FileRogerArtProvider::onInitCel(int viewId, int loopNo, int celNo,
 
 void FileRogerArtProvider::beginNativeDraw() { _nativeDrawDepth++; }
 void FileRogerArtProvider::endNativeDraw()   { if (_nativeDrawDepth > 0) _nativeDrawDepth--; }
-
-static const uint32 GENERIC_TEXT_TOKEN = 0x60000000u; // generic text-out captures (deduped vs controls16/menu)
 
 void FileRogerArtProvider::onNativeShowRect(const Common::Rect &screenRect) {
 	if (!_overlayActive || _nativeDrawDepth > 0 || !_plate)
