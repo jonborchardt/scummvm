@@ -13,8 +13,10 @@ param(
     [string]$Game     = "",   # launch this configured target id (e.g. "qfg1") instead of SQ3;
                               # launches by target so the existing scummvm.ini config (Roger
                               # settings, game path) is used. Empty = default SQ3 via -p path.
-    [int]$SaveSlot    = -1    # auto-load this save slot on startup (ScummVM -x / --save-slot).
+    [int]$SaveSlot    = -1,   # auto-load this save slot on startup (ScummVM -x / --save-slot).
                               # e.g. -SaveSlot 1 boots straight into save 001. -1 = no auto-load.
+    [switch]$Regenerate       # force-regenerate scummvm.sln (e.g. after changing enabled
+                              # features like the event recorder). Deletes the existing solution.
 )
 
 $ErrorActionPreference = "Stop"
@@ -143,12 +145,20 @@ if (-not (Test-Path $CpExe)) {
 # ── Step 3: Generate scummvm.sln if needed ────────────────────────────────────
 $Solution = "$DistsDir\scummvm.sln"
 
+if ($Regenerate -and (Test-Path $Solution)) {
+    Write-Host "  -Regenerate: removing existing scummvm.sln to force a fresh project gen." -ForegroundColor DarkGray
+    Remove-Item $Solution -Force
+}
+
 if (-not (Test-Path $Solution)) {
-    Write-Host "`n[3/4] Generating scummvm.sln (SCI engine only)..." -ForegroundColor Cyan
+    Write-Host "`n[3/4] Generating scummvm.sln (SCI engine only, event recorder enabled)..." -ForegroundColor Cyan
     Push-Location $DistsDir
     # Order matters: --disable-all-engines must come BEFORE --enable-engine=sci,
     # otherwise it disables SCI again and no ENABLE_SCI define is emitted.
-    & $CpExe ..\.. --msvc --disable-all-engines --enable-engine=sci
+    # --enable-eventrecorder: ENABLE_EVENTRECORDER, so --record-mode=record/fast_playback
+    # work — used by roger_spike.ps1 to drive QFG1 to the bugged town deterministically
+    # (record once, replay headlessly forever) without manual play.
+    & $CpExe ..\.. --msvc --disable-all-engines --enable-engine=sci --enable-eventrecorder
     $result = $LASTEXITCODE
     Pop-Location
     if ($result -ne 0) { Write-Error "Project generation failed." }

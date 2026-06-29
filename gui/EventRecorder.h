@@ -194,9 +194,11 @@ public:
 
 private:
 
-#ifdef USE_IMGUI
+	// Defined unconditionally in EventRecorder.cpp (returns false when USE_IMGUI is
+	// off) and called from unguarded code paths, so the declaration must not be
+	// gated on USE_IMGUI — otherwise an event-recorder build without the ImGui
+	// debugger fails to compile (missing declaration at the call sites).
 	bool isImGuiRecorderEnabled() const;
-#endif
 
 	bool pollEvent(Common::Event &ev) override;
 	bool notifyEvent(const Common::Event &event) override;
