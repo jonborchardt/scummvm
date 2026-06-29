@@ -271,6 +271,12 @@ bool RogerAssetGen::priorityBands(int picId, Common::Array<byte> &outBands, int 
 Graphics::Surface *RogerAssetGen::generateViewCel(int viewId, int loopNo, int celNo, uint32 &outMs) {
 	outMs = 0;
 
+	// Synthetic sprites (e.g. captured native-foreground, viewId<0) have no view
+	// resource and render via celOverride; never hand a negative id to getView()
+	// (GfxView's ctor asserts resourceId != -1).
+	if (viewId < 0)
+		return nullptr;
+
 	if (_mode == kGenPrebuilt)
 		return nullptr;
 

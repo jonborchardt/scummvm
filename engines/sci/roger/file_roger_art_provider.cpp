@@ -1170,6 +1170,8 @@ void FileRogerArtProvider::uiClearAll() {
 Graphics::Surface *FileRogerArtProvider::renderNativeCel(int viewId, int loopNo, int celNo) const {
 	if (!g_sci || !g_sci->_gfxCache)
 		return nullptr;
+	if (viewId < 0)
+		return nullptr; // synthetic sprite (celOverride-only): no view resource; getView would assert
 
 	GfxView *view = g_sci->_gfxCache->getView(viewId);
 	if (!view)
