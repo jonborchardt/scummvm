@@ -123,6 +123,9 @@ public:
 	// always does a full region push (the pre-dirty behavior).
 	void setDirtyPresent(bool enabled) { _dirtyPresent = enabled; }
 
+	// roger_diag: revertible seed/present trace (off by default). See file_roger_art_provider.
+	void setDiag(bool on) { _diag = on; }
+
 	// Coalesced union (clamped to bounds) of every dynamic dirty rect that may need
 	// repainting this present: UI/cursor rects at PRESENT granularity (_dirtyCur this
 	// present + _dirtyPrev last present) plus sprite rects at SCENE/renderScene granularity
@@ -222,6 +225,7 @@ private:
 	// rolls _dirtyCur into _dirtyPrev and clears _dirtyCur. Off by default until wired.
 	Common::Array<Common::Rect> _dirtyCur, _dirtyPrev;
 	bool _dirtyPresent = false;
+	bool _diag = false; // roger_diag seed/present trace (revertible instrumentation)
 	int _framesSinceFullPresent = 0; // periodic full-present heal counter
 	// Sprite dirty rects, tracked at renderScene granularity (NOT present granularity): rolled
 	// cur->prev at the TOP of renderScene, so an intervening UI-only present (presentWithUi,

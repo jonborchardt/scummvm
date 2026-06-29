@@ -306,6 +306,10 @@ void RogerCompositor::renderScene(Graphics::ManagedSurface &dest, const Common::
 	}
 	_lastSceneFull = fullSeed;
 
+	if (_diag)
+		warning("ROGER-DIAG[renderScene]: fullSeed=%d seedUnion=%u framesSinceFullSeed=%d sprites=%u",
+		        fullSeed ? 1 : 0, (unsigned)_lastSeedUnion.size(), _framesSinceFullSeed, (unsigned)sprites.size());
+
 	if (bgValid) {
 		// Seed the game region from _bgCache to lay down clean background where sprites are
 		// now and where they were last frame. The static black letterbox AND the untouched
@@ -561,6 +565,9 @@ void RogerCompositor::presentToOverlay(Graphics::ManagedSurface &scene) {
 	// Roll this present's UI/cursor dirty set into "previous" for the next present. (Sprite
 	// rects roll separately, in renderScene — see _sceneDirtyCur.)
 	rollPresentDirty();
+
+	if (_diag)
+		warning("ROGER-DIAG[present]: full=%d regions=%u", full ? 1 : 0, (unsigned)push.size());
 
 	g_system->showOverlay(false);
 }
