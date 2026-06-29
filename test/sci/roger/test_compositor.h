@@ -214,6 +214,64 @@ public:
 		plate.free();
 	}
 
+	void test_reset_for_room_change_forces_full_first_frame() {
+		// REGRESSION for the QFG1 fresh-start town breakage. A room entered via a real
+		// transition pre-warms the static-bg cache (onTransition -> composeRoomScene), so
+		// the first post-transition renderFrame would otherwise take the BOUNDED-seed path
+		// (lastSceneWasFull()==false) using dirty-rect history from the PREVIOUS room.
+		// resetForRoomChange() must force the next renderScene back to a FULL seed and drop
+		// the stale dirty history, matching the clean first frame a save-restore/instant-cut
+		// entry gets for free. We drive the g_system-free seams (renderScene + accessors).
+		const Graphics::PixelFormat rgba(4, 8, 8, 8, 8, 24, 16, 8, 0);
+
+		Graphics::Surface plate;
+		plate.create(64, 64, rgba);
+		plate.fillRect(Common::Rect(0, 0, 64, 64), rgba.ARGBToColor(255, 64, 64, 64));
+
+		Graphics::Surface cel; // green sprite via celOverride (no ViewCache)
+		cel.create(8, 8, rgba);
+		cel.fillRect(Common::Rect(0, 0, 8, 8), rgba.ARGBToColor(255, 0, 255, 0));
+
+		Sci::Roger::RogerCompositor comp;
+		comp.setRoom(&plate, nullptr);
+		comp.setPicture(64, 64, 0);
+		comp.setDirtyPresent(true);
+
+		const Common::Rect gameRect(0, 0, 64, 64);
+		Graphics::ManagedSurface dest(64, 64, rgba);
+
+		Sci::Roger::Sprite spr;
+		spr.viewId = 900; spr.loopNo = 0; spr.celNo = 1;
+		spr.priority = 1; spr.mirror = false; spr.celOverride = &cel;
+		Common::Array<Sci::Roger::Sprite> list;
+
+		// Frame 1: first render of the room -> bg cache built from scratch -> FULL seed.
+		spr.celRect = Common::Rect(4, 4, 12, 12);
+		list.clear(); list.push_back(spr);
+		comp.renderScene(dest, list, gameRect);
+		TS_ASSERT(comp.lastSceneWasFull());
+
+		// Frame 2: cache now warm, same geometry -> BOUNDED seed (the pre-warmed state that,
+		// after a transition, would run against the previous room's stale dirty history).
+		spr.celRect = Common::Rect(20, 20, 28, 28);
+		list.clear(); list.push_back(spr);
+		comp.renderScene(dest, list, gameRect);
+		TS_ASSERT(!comp.lastSceneWasFull());
+
+		// Room change via transition: reset. Dirty history must be dropped immediately.
+		comp.resetForRoomChange();
+		TS_ASSERT(comp.lastSeedUnion().empty());
+
+		// Frame 3: first frame of the "new" room -> FULL seed again despite the warm cache.
+		spr.celRect = Common::Rect(40, 40, 48, 48);
+		list.clear(); list.push_back(spr);
+		comp.renderScene(dest, list, gameRect);
+		TS_ASSERT(comp.lastSceneWasFull());
+
+		cel.free();
+		plate.free();
+	}
+
 	void test_coalesce_clamps_drops_and_merges() {
 		Common::Array<Common::Rect> in, out;
 		const Common::Rect bounds(0, 0, 100, 100);

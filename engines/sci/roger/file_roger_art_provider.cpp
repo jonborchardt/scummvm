@@ -1656,6 +1656,14 @@ void FileRogerArtProvider::onTransition(int sciType, const Common::Rect & /*picR
 	}
 	_sceneCache->copyFrom(to);
 	_haveScene = true;
+
+	// composeRoomScene() above pre-warmed the compositor's static-bg cache, which would let
+	// the first post-transition renderFrame take the bounded-seed + dirty-present path using
+	// dirty-rect history left over from the PREVIOUS room — the QFG1 fresh-start town
+	// breakage (a real transition into pic 300; save-load reaches it via an instant cut and
+	// is fine). Reset the compositor to a clean first frame (full seed + full present, stale
+	// dirty rects dropped) so a transition-entry matches a save-restore/instant-cut entry.
+	_compositor->resetForRoomChange();
 }
 
 void FileRogerArtProvider::onShake(int shakeCount, int directions) {
