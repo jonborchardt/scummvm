@@ -998,10 +998,22 @@ void FileRogerArtProvider::uiPushWindow(const Common::Rect &r, int backColor, in
 	ensureUi();
 	Roger::UiElement e;
 	e.type = Roger::kUiWindow; e.nativeRect = r;
-	e.backColor = (wndStyle & 1 /*TRANSPARENT*/) ? -1 : backColor;
+	// Faithful fill: a window that is transparent (bit 0) or USER-backed (bit 7 = 0x80,
+	// i.e. a picture-backed port whose content is drawn by scripts/controls directly onto
+	// the game picture — the QFG1 character-creation sheet) must not paint an opaque box
+	// over the hires plate. In SCI0, _styleUser = USER|TRANSPARENT (0x81); a USER-only
+	// (0x80) window slips through the SCI0 drawWindow skip-guard and reaches this path.
+	// A genuine opaque dialog (SQ3 message windows: style 0, no USER/TRANSPARENT bits)
+	// keeps its fill. In SCI1_LATE+, USER-flagged windows are blocked at the drawWindow
+	// level and never reach this path, so the new check is inert for those games.
+	const bool pictureBackedOrTransparent = (wndStyle & 1 /*TRANSPARENT*/) || (wndStyle & 0x80 /*USER*/);
+	e.backColor = pictureBackedOrTransparent ? -1 : backColor;
 	e.penColor = penColor;
 	e.hasFrame = !(wndStyle & 2 /*NOFRAME*/);
 	e.token = token;
+	if (_diag)
+		warning("ROGER-DIAG[uiWindow]: wndStyle=0x%02x backColor=%d -> e.backColor=%d pictureBackedOrTransparent=%d token=0x%08x",
+		        wndStyle, backColor, e.backColor, (int)pictureBackedOrTransparent, token);
 	_uiLayer->push(e);
 	presentWithUi();
 }
