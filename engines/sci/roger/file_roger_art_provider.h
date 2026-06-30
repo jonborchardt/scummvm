@@ -107,6 +107,7 @@ public:
 
 private:
 	Common::String _basePath;       // absolute path to <gameid>-roger/ directory
+	Common::String _gameId;         // ScummVM game id (e.g. "sq3", "qfg1"); stored for cache paths + debug dumps
 
 	Roger::RogerAssetGen *_assetGen = nullptr;
 	Roger::RogerCompositor *_compositor = nullptr;
@@ -127,7 +128,9 @@ private:
 	bool _selfTest = false;      // roger_selftest: log structural invariant PASS/FAIL per room (off by default)
 	bool _diffBackstop = false;  // roger_diff_backstop: Feeder B pixel-diff backstop (default off; per-frame full-buffer diff is costly and can stamp blocky native pixels over the plate around moving sprites)
 	bool _useHwCursor = false;   // roger_hw_cursor: try the native HW cursor over the overlay (invisible in practice); default false = composited arrow
+	bool _debugCapture = false;  // roger_debug_capture: write manifest + PNGs to screenshots/ once per pic (off by default; inspection only)
 	int _autoshotPicId = -1;     // last pic id already auto-shot (so we dump once per room, not per frame)
+	int _debugDumpedPic = -1;    // last pic id whose capture was dumped (once-per-pic guard for dumpCaptureDebug)
 	uint32 _lastUiSig = 0;       // signature of the last -ui autoshot's UI layer (throttle: dump only on change)
 	int _statusBarH = 10;        // SCI0 status/menu bar height in screen rows (of 200); reserved at the top of the game rect (may change)
 	Common::Array<byte> _priorityMap; // 1920x1140 omyac-aligned priority bands (from RogerAssetGen::generatePriorityMap), for overlay occlusion
@@ -209,6 +212,10 @@ private:
 	// -preview.png for the given composited scene (suffix "" = per-room scene, "-ui" =
 	// dialog re-present). Verification harness only; no-op unless roger_autoshot is set.
 	void dumpAutoshot(Graphics::ManagedSurface &scene, const Common::Rect &gameRect, const char *suffix);
+	// roger_debug_capture helper: write a per-pic manifest (captured TEXT strings+rects and
+	// GFX rects) plus a PNG per pixel-captured graphic to the gitignored screenshots/ folder.
+	// Guarded by _debugCapture and a once-per-pic check (_debugDumpedPic). No-op when off.
+	void dumpCaptureDebug();
 
 	// Parse a roger_omyac_passes string (or the three-state unset/empty/tokens
 	// logic) into an enhance-pass array. Call with hasKey=false for the "unset"

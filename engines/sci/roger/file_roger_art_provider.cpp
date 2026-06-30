@@ -55,6 +55,7 @@ class GfxCompare;
 #include "graphics/pixelformat.h"
 #include "graphics/surface.h"
 #include "common/array.h"
+#include "common/file.h"
 #include "common/path.h"
 #include "common/fs.h"
 #include "common/config-manager.h"
@@ -71,6 +72,7 @@ FileRogerArtProvider::FileRogerArtProvider(const Common::String &gameId,
 	// getParent() works on Windows backslash paths too.
 	Common::Path rogerPath = gamePath.getParent().appendComponent(gameId + "-roger");
 	_basePath = rogerPath.toString('/');
+	_gameId = gameId;
 
 	// roger_visual_variant / roger_priority_variant selected prebuilt PNG files (the
 	// hires visual and the EGA-color overlay-occlusion map). Under in-engine
@@ -93,6 +95,8 @@ FileRogerArtProvider::FileRogerArtProvider(const Common::String &gameId,
 	_debugLog = ConfMan.hasKey("roger_debug") && ConfMan.getBool("roger_debug");
 	// roger_diag: revertible overlay-state trace at room/present/transition seams (off by default).
 	_diag = ConfMan.hasKey("roger_diag") && ConfMan.getBool("roger_diag");
+	// roger_debug_capture: write per-pic manifest + PNG per graphic sprite to screenshots/ (off by default).
+	_debugCapture = ConfMan.hasKey("roger_debug_capture") && ConfMan.getBool("roger_debug_capture");
 
 	// Cursor: the native hardware cursor is NOT usefully visible over the in-game
 	// OSystem overlay (verified in live play — it disappears), which is the original
@@ -327,6 +331,7 @@ void FileRogerArtProvider::pushHiresBackground(GuiResourceId pictureId) {
 	_initCels.clear();
 	clearTextSprites();
 	_genTextPending.clear(); // discard any pending generic text from the departing room
+	_debugDumpedPic = -1;   // allow a fresh debug-capture dump for this room
 	// New room must fully refresh the cursor-restore cache; the transition path pre-validates
 	// _bgCache via composeRoomScene so the first renderFrame may not be a full-seed.
 	_compositeCacheValid = false;
@@ -635,6 +640,62 @@ void FileRogerArtProvider::dumpAutoshot(Graphics::ManagedSurface &scene,
 			nativeRGBA->free();
 			delete nativeRGBA;
 		}
+	}
+}
+
+void FileRogerArtProvider::dumpCaptureDebug() {
+	if (!_debugCapture || _loadedPicId == _debugDumpedPic)
+		return;
+	_debugDumpedPic = _loadedPicId;
+
+	// Build output dir from screenshotpath (same convention as dumpAutoshot).
+	Common::String dir;
+	if (ConfMan.hasKey("screenshotpath"))
+		dir = ConfMan.getPath("screenshotpath").toString('/');
+	if (dir.empty())
+		dir = "screenshots";
+	if (!dir.empty() && dir.lastChar() != '/')
+		dir += '/';
+	const Common::String base = Common::String::format("%s%s.pic%d.capture",
+		dir.c_str(), _gameId.c_str(), _loadedPicId);
+
+	// Write the text manifest: one line per kUiText element and one line per graphic sprite.
+	Common::DumpFile mf;
+	if (mf.open(Common::Path(base + ".txt"), true)) {
+		if (_uiLayer) {
+			const Common::Array<Roger::UiElement> &es = _uiLayer->elements();
+			for (uint i = 0; i < es.size(); i++) {
+				if (es[i].type == Roger::kUiText) {
+					Common::String line = Common::String::format(
+						"TEXT rect=(%d,%d,%d,%d) font=%d color=%d \"%s\"\n",
+						es[i].nativeRect.left, es[i].nativeRect.top,
+						es[i].nativeRect.right, es[i].nativeRect.bottom,
+						es[i].fontId, es[i].penColor, es[i].text.c_str());
+					mf.write(line.c_str(), line.size());
+				}
+			}
+		}
+		for (uint i = 0; i < _textSprites.size(); i++) {
+			const Common::Rect &r = _textSprites[i].celRect;
+			Common::String line = Common::String::format(
+				"GFX  rect=(%d,%d,%d,%d) -> %s.pic%d.gfx.%d_%d.png\n",
+				r.left, r.top, r.right, r.bottom,
+				_gameId.c_str(), _loadedPicId, r.left, r.top);
+			mf.write(line.c_str(), line.size());
+		}
+		mf.close();
+		warning("ROGER: debug_capture wrote %s.txt", base.c_str());
+	}
+
+	// PNG per pixel-captured graphic sprite (reuses Roger::dumpSurfacePng from png_loader.h,
+	// the same helper used by roger_autoshot via dumpAutoshot).
+	for (uint i = 0; i < _textSprites.size(); i++) {
+		if (!_textSprites[i].celOverride) continue;
+		const Common::Rect &r = _textSprites[i].celRect;
+		Common::String png = Common::String::format("%s%s.pic%d.gfx.%d_%d.png",
+			dir.c_str(), _gameId.c_str(), _loadedPicId, r.left, r.top);
+		if (Roger::dumpSurfacePng(*_textSprites[i].celOverride, png))
+			warning("ROGER: debug_capture wrote gfx sprite %s", png.c_str());
 	}
 }
 
@@ -1322,6 +1383,8 @@ void FileRogerArtProvider::processForegroundCaptures(const Common::Array<Common:
 			warning("ROGER-DIAG[fgCapture]: pic=%d rect=(%d,%d,%d,%d) now=%u",
 			        _loadedPicId, nr.left, nr.top, nr.right, nr.bottom, (unsigned)_textSprites.size());
 	}
+	if (_debugCapture)
+		dumpCaptureDebug();
 }
 
 void FileRogerArtProvider::onAddToPicCel(int viewId, int loopNo, int celNo,
@@ -1415,6 +1478,8 @@ void FileRogerArtProvider::flushGenericText() {
 	_genTextPending.clear();
 	// Drop any generic element a controls16/menu element already covers (no double render).
 	_uiLayer->dedupeGenericText(GENERIC_TEXT_TOKEN);
+	if (_debugCapture)
+		dumpCaptureDebug();
 }
 
 void FileRogerArtProvider::snapshotNativeBaseline() {
@@ -1795,6 +1860,7 @@ void FileRogerArtProvider::onNativePicture() {
 	_initCels.clear();
 	clearTextSprites();
 	_genTextPending.clear(); // discard any pending generic text from the departing room
+	_debugDumpedPic = -1;   // allow a fresh debug-capture dump for the next room
 	_genRegions.clear(); // drop any stale Feeder B rects from the departing room (drawGenericRegions won't run if _plate is null)
 	_haveScene = false;
 	_loadedPicId = -1;
