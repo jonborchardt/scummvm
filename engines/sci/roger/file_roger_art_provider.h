@@ -171,6 +171,12 @@ private:
 	// surfaces are freed on room change alongside _uiIcons.
 	struct GenGlyphKey { byte ch; int fontId; int penColor; const Graphics::Surface *surf; };
 	Common::Array<GenGlyphKey> _genericGlyphCache;
+	// Cache for native-fallback cel surfaces used by onDrawCel (kDrawCel standalone cels).
+	// Keyed by (viewId, loopNo, celNo) so the same cel drawn at N positions renders once
+	// and is referenced N times. Owned via _uiIcons (freed on room change); this array is
+	// just an index (cleared whenever _uiIcons is freed).
+	struct DrawCelNativeKey { int viewId; int loopNo; int celNo; Graphics::Surface *surf; };
+	Common::Array<DrawCelNativeKey> _drawCelNativeCache;
 	int _nativeDrawDepth = 0;                 // >0 => inside a Roger-handled draw
 	Common::Array<Common::Rect> _genRegions;  // Feeder B native rects captured this frame
 	Common::Array<byte> _nativeBaseline;      // last "known" native visual buffer (Feeder B diff)
@@ -186,7 +192,6 @@ private:
 	// (dirty present), whole change -> throttled full re-blend + full present. No-op if
 	// roger_palette_live is off or no index map is resident.
 	void observeLivePalette();
-	Graphics::Surface *_drawCelNativeSurf = nullptr; // native fallback for kDrawCel with no hires art; at most one live per room
 	Graphics::Surface *_cursorSurf = nullptr;        // smooth hires arrow cursor (RGBA, owned)
 	int _cursorShapeId = -1;   // last SCI0 cursor resource id received; -1 = unknown
 	bool _cursorVisible = true; // false when the game called kernelHide()

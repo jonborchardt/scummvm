@@ -348,6 +348,7 @@ void FileRogerArtProvider::pushHiresBackground(GuiResourceId pictureId) {
 	for (uint i = 0; i < _uiIcons.size(); i++) { _uiIcons[i]->free(); delete _uiIcons[i]; }
 	_uiIcons.clear();
 	_genericGlyphCache.clear(); // surfaces were owned by _uiIcons (freed above)
+	_drawCelNativeCache.clear(); // surfaces were owned by _uiIcons (freed above)
 	_haveScene = false;
 
 	// Evict previous room.
@@ -1246,8 +1247,11 @@ void FileRogerArtProvider::onDrawCel(const Common::Rect &r, int viewId, int loop
 	if (!_overlayActive || !_plate || !_viewCache) return;
 	const Graphics::Surface *hi = _viewCache->getCel(viewId, loopNo, celNo);
 	ensureUi();
+	// NOTE: do NOT clearToken here. push() replaces by (type,token,rect), so distinct-rect
+	// cels (e.g. the 13 stat graphics on the QFG1 char sheet) coexist in the layer, and a
+	// redraw at the SAME rect replaces in place. Clearing the shared token at the start of
+	// every call would erase the previous cel, leaving only the last one visible.
 	const uint32 tok = 0x50000000u;
-	_uiLayer->clearToken(tok);
 
 	Roger::UiElement e;
 	e.type = Roger::kUiIcon; e.nativeRect = r; e.token = tok;
@@ -1258,10 +1262,25 @@ void FileRogerArtProvider::onDrawCel(const Common::Rect &r, int viewId, int loop
 		// No hires art: fall back to a rendered native cel so it stays visible under
 		// the opaque overlay. beginNativeDraw suppressed bitsShow, so Feeder B won't
 		// pick this up — we must inject it here. renderNativeCel already bakes mirroring.
-		if (_drawCelNativeSurf) { _drawCelNativeSurf->free(); delete _drawCelNativeSurf; }
-		_drawCelNativeSurf = renderNativeCel(viewId, loopNo, celNo);
-		if (!_drawCelNativeSurf) return; // render failed; silently skip
-		e.iconSurface = _drawCelNativeSurf; // owned by _drawCelNativeSurf; UiLayer borrows
+		// Use a (viewId,loopNo,celNo)-keyed cache so the same cel drawn at N positions
+		// renders once and is referenced N times (no per-call growth, no leak).
+		Graphics::Surface *surf = nullptr;
+		for (uint i = 0; i < _drawCelNativeCache.size(); i++) {
+			const DrawCelNativeKey &k = _drawCelNativeCache[i];
+			if (k.viewId == viewId && k.loopNo == loopNo && k.celNo == celNo) {
+				surf = k.surf;
+				break;
+			}
+		}
+		if (!surf) {
+			surf = renderNativeCel(viewId, loopNo, celNo);
+			if (!surf) return; // render failed; silently skip
+			_uiIcons.push_back(surf); // owned; freed on room change
+			DrawCelNativeKey k;
+			k.viewId = viewId; k.loopNo = loopNo; k.celNo = celNo; k.surf = surf;
+			_drawCelNativeCache.push_back(k);
+		}
+		e.iconSurface = surf; // borrowed from cache; UiLayer borrows
 	}
 
 	_uiLayer->push(e);
@@ -1356,6 +1375,7 @@ void FileRogerArtProvider::uiClearAll() {
 	for (uint i = 0; i < _uiIcons.size(); i++) { _uiIcons[i]->free(); delete _uiIcons[i]; }
 	_uiIcons.clear();
 	_genericGlyphCache.clear(); // surfaces were owned by _uiIcons (freed above)
+	_drawCelNativeCache.clear(); // surfaces were owned by _uiIcons (freed above)
 	if (_overlayActive && _plate) presentWithUi();
 }
 
@@ -2056,6 +2076,7 @@ void FileRogerArtProvider::onNativePicture() {
 	for (uint i = 0; i < _uiIcons.size(); i++) { _uiIcons[i]->free(); delete _uiIcons[i]; }
 	_uiIcons.clear();
 	_genericGlyphCache.clear(); // surfaces were owned by _uiIcons (freed above)
+	_drawCelNativeCache.clear(); // surfaces were owned by _uiIcons (freed above)
 	_staticSprites.clear();
 	_initCels.clear();
 	clearTextSprites();
@@ -2170,11 +2191,11 @@ FileRogerArtProvider::~FileRogerArtProvider() {
 	if (_sceneCache) { delete _sceneCache; _sceneCache = nullptr; }
 	if (_scratchScene) { delete _scratchScene; _scratchScene = nullptr; }
 	if (_compositeCache) { delete _compositeCache; _compositeCache = nullptr; }
-	if (_drawCelNativeSurf) { _drawCelNativeSurf->free(); delete _drawCelNativeSurf; _drawCelNativeSurf = nullptr; }
 	if (_cursorSurf) { _cursorSurf->free(); delete _cursorSurf; _cursorSurf = nullptr; }
 	for (uint i = 0; i < _uiIcons.size(); i++) { _uiIcons[i]->free(); delete _uiIcons[i]; }
 	_uiIcons.clear();
 	_genericGlyphCache.clear(); // surfaces were owned by _uiIcons (freed above)
+	_drawCelNativeCache.clear(); // surfaces were owned by _uiIcons (freed above)
 }
 
 } // namespace Sci
