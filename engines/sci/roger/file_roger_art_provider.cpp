@@ -1470,7 +1470,8 @@ void FileRogerArtProvider::onNativeShowRect(const Common::Rect &screenRect) {
 }
 
 void FileRogerArtProvider::onNativeText(const Common::Rect &nativeRect, const char *text,
-                                        int fontId, int penColor, int align) {
+                                        int fontId, int penColor, int align,
+                                        int nativeFontH, int nativeTextW) {
 	if (!_overlayActive || _nativeDrawDepth > 0 || !_plate)
 		return; // overlay off, inside a Roger-handled draw, or no hires plate
 	if (!text || !*text || nativeRect.isEmpty())
@@ -1488,6 +1489,9 @@ void FileRogerArtProvider::onNativeText(const Common::Rect &nativeRect, const ch
 	e.backColor = -1;          // no fill: drawn over the plate / window background
 	e.align = align;
 	e.token = GENERIC_TEXT_TOKEN;
+	e.textRole = Roger::kRoleBody;   // same body size as dialog/control text
+	e.nativeFontH = nativeFontH;     // native cell height -> renderer target size
+	e.nativeTextW = nativeTextW;     // single-line width cap (0 = multi-line: no cap)
 	_genTextPending.push_back(e);
 }
 

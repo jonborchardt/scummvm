@@ -567,7 +567,7 @@ void GfxText16::Show(const char *text, int16 from, int16 len, GuiResourceId orgF
 
 // Draws a text in rect.
 void GfxText16::Box(const char *text, uint16 languageSplitter, bool show, const Common::Rect &rect, TextAlignment alignment, GuiResourceId fontId) {
-	int16 textWidth, maxTextWidth, textHeight;
+	int16 textWidth, maxTextWidth, textHeight = 0;
 	int16 offset = 0;
 	int16 hline = 0;
 	GuiResourceId previousFontId = GetFontId();
@@ -594,6 +594,7 @@ void GfxText16::Box(const char *text, uint16 languageSplitter, bool show, const 
 	_codeRefTempRect.left = _codeRefTempRect.top = -1;
 
 	maxTextWidth = 0;
+	int16 lineCount = 0;
 	while (*curTextPos) {
 		//  We need to check for Shift-JIS every line. Police Quest 2 PC-9801 often draws English + Japanese text into the same box.
 		if (g_sci->getLanguage() == Common::JA_JPN) {
@@ -676,6 +677,7 @@ void GfxText16::Box(const char *text, uint16 languageSplitter, bool show, const 
 		} else {
 			Draw(curTextLine, 0, charCount, fontId, previousPenColor);
 		}
+		lineCount++;
 
 		hline += textHeight;
 		curTextLine = curTextPos;
@@ -692,7 +694,10 @@ void GfxText16::Box(const char *text, uint16 languageSplitter, bool show, const 
 		// on show==true (the SCI1+ driver-text case) missed all of it. previousPenColor is
 		// the pen the draw used; rect is the text box. (The SCI11+ `stroke` shadow passes
 		// call Box show=false too, but stroke is unused on the SCI0 EGA targets Roger supports.)
-		g_sciRogerProvider->onNativeText(rect, text, fontId, previousPenColor, (int)alignment);
+		const int nativeFontH = textHeight;                              // uniform per-line cell height
+		const int nativeTextW = (lineCount <= 1) ? maxTextWidth : 0;    // width cap only for single-line
+		g_sciRogerProvider->onNativeText(rect, text, fontId, previousPenColor, (int)alignment,
+		                                 nativeFontH, nativeTextW);
 	}
 }
 

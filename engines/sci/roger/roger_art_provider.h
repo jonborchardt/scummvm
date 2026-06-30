@@ -128,9 +128,12 @@ public:
 	virtual void onNativeShowRect(const Common::Rect &screenRect) {}
 
 	// Generic text-out capture (game-agnostic): SCI drew `text` at native `nativeRect`
-	// in font `fontId`, color `penColor`, alignment `align`. Default no-op.
+	// in font `fontId`, color `penColor`, alignment `align`. nativeFontH is the SCI font
+	// cell height (px) and nativeTextW is the single-line string width (0 = multi-line).
+	// Default no-op.
 	virtual void onNativeText(const Common::Rect &nativeRect, const char *text,
-	                          int fontId, int penColor, int align) {}
+	                          int fontId, int penColor, int align,
+	                          int nativeFontH, int nativeTextW) {}
 
 	// SCI erased/redrew a native region (bitsRestore of saved-under bits, or kGraphRedrawBox).
 	// The provider drops persisted generic captured text inside it so transient text does not
