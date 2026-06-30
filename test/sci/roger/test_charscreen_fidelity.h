@@ -52,4 +52,25 @@ public:
 		Roger::filterForegroundCaptureRegionsCovered(captured, exclude, 80, out);
 		TS_ASSERT_EQUALS(out.size(), 0u);                    // dropped
 	}
+	void test_dedupe_drops_generic_overlapping_button_label() {
+		const uint32 G = 0x60000000u, C = 0x40000000u;
+		Common::Array<UiElement> elems;
+		UiElement btn; btn.type = kUiButton; btn.nativeRect = Common::Rect(210, 166, 290, 178); btn.token = C;
+		elems.push_back(btn);
+		UiElement g; g.type = kUiText; g.nativeRect = Common::Rect(214, 167, 286, 177); g.token = G; // label, ~90% inside button
+		elems.push_back(g);
+		Roger::dedupeGenericTextElements(elems, G);
+		TS_ASSERT_EQUALS(elems.size(), 1u);           // generic label dropped
+		TS_ASSERT(elems[0].type == kUiButton);
+	}
+	void test_dedupe_keeps_generic_barely_overlapping() {
+		const uint32 G = 0x60000000u, C = 0x40000000u;
+		Common::Array<UiElement> elems;
+		UiElement t; t.type = kUiText; t.nativeRect = Common::Rect(0, 0, 100, 12); t.token = C;
+		elems.push_back(t);
+		UiElement g; g.type = kUiText; g.nativeRect = Common::Rect(95, 0, 195, 12); g.token = G; // only ~5% overlap
+		elems.push_back(g);
+		Roger::dedupeGenericTextElements(elems, G);
+		TS_ASSERT_EQUALS(elems.size(), 2u);           // distinct text kept
+	}
 };
