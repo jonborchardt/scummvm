@@ -132,6 +132,11 @@ public:
 	virtual void onNativeText(const Common::Rect &nativeRect, const char *text,
 	                          int fontId, int penColor, int align) {}
 
+	// SCI erased/redrew a native region (bitsRestore of saved-under bits, or kGraphRedrawBox).
+	// The provider drops persisted generic captured text inside it so transient text does not
+	// ghost in the overlay after SCI removes it. Default no-op.
+	virtual void onNativeEraseRect(const Common::Rect &nativeRect) {}
+
 	// Feeder B diff backstop: snapshot the native visual buffer as the "known" state
 	// (plate-source + addToPic + animate sprites), taken right after SCI's updateScreen.
 	// A later composite diffs against it to catch native draws no hook recorded. No-op base.

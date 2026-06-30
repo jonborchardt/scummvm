@@ -65,6 +65,7 @@ public:
 	void onNativeShowRect(const Common::Rect &screenRect) override;
 	void onNativeText(const Common::Rect &nativeRect, const char *text,
 	                  int fontId, int penColor, int align) override;
+	void onNativeEraseRect(const Common::Rect &nativeRect) override;
 	void snapshotNativeBaseline() override;
 	void onTransition(int sciType, const Common::Rect &picRect) override;
 	void onShake(int shakeCount, int directions) override;

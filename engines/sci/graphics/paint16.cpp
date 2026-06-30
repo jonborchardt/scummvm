@@ -440,6 +440,11 @@ void GfxPaint16::bitsRestore(reg_t memoryHandle) {
 		byte *memoryPtr = _segMan->getHunkPointer(memoryHandle);
 
 		if (memoryPtr) {
+			if (g_sciRogerProvider && g_sciRogerProvider->enabled) {
+				Common::Rect restored;
+				_screen->bitsGetRect(memoryPtr, &restored); // global rect of the saved area
+				g_sciRogerProvider->onNativeEraseRect(restored);
+			}
 			_screen->bitsRestore(memoryPtr);
 			bitsFree(memoryHandle);
 		}
@@ -543,6 +548,8 @@ void GfxPaint16::kernelGraphUpdateBox(const Common::Rect &rect) {
 void GfxPaint16::kernelGraphRedrawBox(Common::Rect rect) {
 	_coordAdjuster->kernelLocalToGlobal(rect.left, rect.top);
 	_coordAdjuster->kernelLocalToGlobal(rect.right, rect.bottom);
+	if (g_sciRogerProvider && g_sciRogerProvider->enabled)
+		g_sciRogerProvider->onNativeEraseRect(rect); // rect already global here
 	Port *oldPort = _ports->setPort((Port *)_ports->_picWind);
 	_coordAdjuster->kernelGlobalToLocal(rect.left, rect.top);
 	_coordAdjuster->kernelGlobalToLocal(rect.right, rect.bottom);

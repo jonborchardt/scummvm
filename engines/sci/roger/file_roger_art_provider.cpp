@@ -1221,6 +1221,8 @@ void FileRogerArtProvider::reapplyStatus() {
 		             _statusNativeFontH, _statusNativeTextW);
 }
 
+static const uint32 GENERIC_TEXT_TOKEN = 0x60000000u; // generic text-out captures (deduped vs controls16/menu)
+
 void FileRogerArtProvider::uiClearToken(uint32 token) {
 	// SCI calls this from bitsRestore for every save-under region it restores — which, while
 	// walking, is ~2× per updated sprite EVERY game cycle, almost always for a token that matches
@@ -1232,6 +1234,30 @@ void FileRogerArtProvider::uiClearToken(uint32 token) {
 		return;
 	_compositeCacheValid = false;
 	if (_overlayActive && _plate) presentWithUi();
+}
+
+void FileRogerArtProvider::onNativeEraseRect(const Common::Rect &nativeRect) {
+	if (!_overlayActive || !_plate || !_uiLayer || nativeRect.isEmpty())
+		return;
+	// Remove persisted generic text whose box lies within the erased region. Gate the present
+	// on a real removal (CLAUDE.md per-cycle discipline: bitsRestore fires ~2x/sprite/cycle).
+	bool removed = false;
+	const Common::Array<Roger::UiElement> &els = _uiLayer->elements();
+	Common::Array<Roger::UiElement> kept;
+	for (uint i = 0; i < els.size(); i++) {
+		if (els[i].token == GENERIC_TEXT_TOKEN && nativeRect.contains(els[i].nativeRect))
+			{ removed = true; continue; }
+		kept.push_back(els[i]);
+	}
+	if (!removed)
+		return;
+	_uiLayer->clearAll();
+	for (uint i = 0; i < kept.size(); i++)
+		_uiLayer->push(kept[i]);
+	if (_diag)
+		warning("ROGER-DIAG[eraseText]: rect=(%d,%d,%d,%d) remaining=%u",
+		        nativeRect.left, nativeRect.top, nativeRect.right, nativeRect.bottom, (unsigned)kept.size());
+	presentWithUi(); // UI-only present; reflects the removal without a full renderScene
 }
 
 void FileRogerArtProvider::uiClearAll() {
@@ -1336,8 +1362,6 @@ void FileRogerArtProvider::clearTextSprites() {
 	_textSprites.clear();
 	_foregroundRegions.clear();
 }
-
-static const uint32 GENERIC_TEXT_TOKEN = 0x60000000u; // generic text-out captures (deduped vs controls16/menu)
 
 void FileRogerArtProvider::processForegroundCaptures(const Common::Array<Common::Rect> &liveSpriteRects) {
 	if (_foregroundRegions.empty())
