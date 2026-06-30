@@ -1161,12 +1161,7 @@ void FileRogerArtProvider::uiPushWindow(const Common::Rect &r, int backColor, in
 	const bool pictureBackedOrTransparent = (wndStyle & 1 /*TRANSPARENT*/) || (wndStyle & 0x80 /*USER*/);
 	e.backColor = pictureBackedOrTransparent ? -1 : backColor;
 	e.penColor = penColor;
-	// Frame: mirror SCI GfxPorts::drawWindow EXACTLY rather than imposing Roger's own border.
-	// SCI0 draws a window frame iff (wndStyle != _styleUser) && !(NOFRAME), where the SCI0
-	// _styleUser == USER|TRANSPARENT == 0x81. So a USER|TRANSPARENT or a NOFRAME window gets
-	// NO native frame and must get none in the overlay either (the compositor previously forced
-	// a black border on every window regardless of style — drawing borders SCI does not).
-	e.hasFrame = (wndStyle != 0x81) && !(wndStyle & 2 /*NOFRAME*/);
+	e.hasFrame = !(wndStyle & 2 /*NOFRAME*/);
 	e.token = token;
 	if (_diag)
 		warning("ROGER-DIAG[uiWindow]: rect=(%d,%d,%d,%d) wndStyle=0x%02x backColor=%d -> e.backColor=%d hasFrame=%d pictureBackedOrTransparent=%d token=0x%08x",
@@ -1659,38 +1654,6 @@ void FileRogerArtProvider::flushGenericText() {
 	// made it flash then vanish. _uiLayer->push replaces an element with the same
 	// type+token+rect, so a stat value redraw at the same rect refreshes in place (live
 	// updates) while untouched lines persist. Cleared wholesale on room change (clearAll).
-	//
-	// Transient-text replacement: a NEW generic text draw supersedes previously-persisted
-	// generic text in the SAME screen area — e.g. the next page of a multi-page narrator
-	// message, drawn over the old page with no save-under/erase signal (which would
-	// otherwise stack pages on top of each other). Before pushing this frame's captures,
-	// drop any persisted generic element whose rect INTERSECTS a pending rect. Common::Rect
-	// intersection is exclusive, so adjacent static rows that merely share an edge (the
-	// QFG1 stat labels/values) do NOT intersect and are preserved; only genuinely
-	// overlapping (overdrawn) text is dropped.
-	if (!_genTextPending.empty()) {
-		const Common::Array<Roger::UiElement> &els = _uiLayer->elements();
-		Common::Array<Roger::UiElement> kept;
-		for (uint i = 0; i < els.size(); i++) {
-			bool drop = false;
-			if (els[i].token == GENERIC_TEXT_TOKEN) {
-				for (uint j = 0; j < _genTextPending.size(); j++) {
-					if (els[i].nativeRect.intersects(_genTextPending[j].nativeRect)) {
-						drop = true;
-						break;
-					}
-				}
-			}
-			if (!drop)
-				kept.push_back(els[i]);
-		}
-		if (kept.size() != els.size()) {
-			_uiLayer->clearAll();
-			for (uint i = 0; i < kept.size(); i++)
-				_uiLayer->push(kept[i]);
-			_compositeCacheValid = false;
-		}
-	}
 	for (uint i = 0; i < _genTextPending.size(); i++) {
 		Roger::UiElement e = _genTextPending[i];
 		// Build glyphs for non-ASCII bytes using the cross-frame cache so each distinct
