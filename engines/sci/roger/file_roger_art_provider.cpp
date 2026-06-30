@@ -97,6 +97,9 @@ FileRogerArtProvider::FileRogerArtProvider(const Common::String &gameId,
 	_diag = ConfMan.hasKey("roger_diag") && ConfMan.getBool("roger_diag");
 	// roger_debug_capture: write per-pic manifest + PNG per graphic sprite to screenshots/ (off by default).
 	_debugCapture = ConfMan.hasKey("roger_debug_capture") && ConfMan.getBool("roger_debug_capture");
+	// roger_diff_check: gated in-engine native-vs-overlay diff (off by default; once per pic;
+	// never on steady-state path). Logs ROGER-DIAG[diff] boxes for the missing-graphics audit.
+	_diffCheck = ConfMan.hasKey("roger_diff_check") && ConfMan.getBool("roger_diff_check");
 
 	// Cursor: the native hardware cursor is NOT usefully visible over the in-game
 	// OSystem overlay (verified in live play — it disappears), which is the original
@@ -332,6 +335,7 @@ void FileRogerArtProvider::pushHiresBackground(GuiResourceId pictureId) {
 	clearTextSprites();
 	_genTextPending.clear(); // discard any pending generic text from the departing room
 	_debugDumpedPic = -1;   // allow a fresh debug-capture dump for this room
+	_diffCheckedPic = -1;   // allow a fresh diff-check run for this room
 	// New room must fully refresh the cursor-restore cache; the transition path pre-validates
 	// _bgCache via composeRoomScene so the first renderFrame may not be a full-seed.
 	_compositeCacheValid = false;
@@ -600,6 +604,11 @@ void FileRogerArtProvider::renderFrame(const Common::Array<Roger::Sprite> &sprit
 		dumpAutoshot(scene, gameRect, "");
 		_autoshotPicId = _loadedPicId;
 	}
+
+	// roger_diff_check: gated in-engine native-vs-overlay diff (off by default). Cheap early-
+	// return when off or already run this pic; never on the steady-state path.
+	if (_diffCheck)
+		runDiffCheck();
 }
 
 void FileRogerArtProvider::dumpAutoshot(Graphics::ManagedSurface &scene,
@@ -697,6 +706,86 @@ void FileRogerArtProvider::dumpCaptureDebug() {
 			dir.c_str(), _gameId.c_str(), _loadedPicId, r.left, r.top);
 		if (Roger::dumpSurfacePng(*_textSprites[i].celOverride, png))
 			warning("ROGER: debug_capture wrote gfx sprite %s", png.c_str());
+	}
+}
+
+void FileRogerArtProvider::runDiffCheck() {
+	// Off by default (roger_diff_check); once per pic; never on steady-state path.
+	if (!_diffCheck || _loadedPicId == _diffCheckedPic || !_compositeCacheValid || !_compositeCache)
+		return;
+	if (!g_sci || !g_sci->_gfxScreen)
+		return;
+	_diffCheckedPic = _loadedPicId;
+
+	GfxScreen *screen = g_sci->_gfxScreen;
+	const int sw = screen->getWidth();   // 320 (SCI0)
+	const int sh = screen->getHeight();  // 200
+
+	// 1) Snapshot native visual buffer as EGA indices (1 byte/pixel, 320x200).
+	Common::Array<byte> natIdx;
+	natIdx.resize((uint)sw * sh);
+	for (int y = 0; y < sh; y++)
+		for (int x = 0; x < sw; x++)
+			natIdx[(uint)y * sw + x] = screen->getVisual((int16)x, (int16)y);
+
+	// 2) Downscale the composited overlay (_compositeCache, RGBA32, OWxOH) to 320x200.
+	//    Nearest-neighbour: for each native pixel, sample the overlay at the proportional
+	//    source coordinate. _compositeCache format: RGBA32 (4 bytes/px, alpha at byte 3).
+	const int OW = _compositeCache->w;
+	const int OH = _compositeCache->h;
+	// Build a per-pixel "overlay has visible content" mask (1 = alpha > 0, 0 = transparent).
+	Common::Array<byte> ovlMask;
+	ovlMask.resize((uint)sw * sh, 0);
+	for (int y = 0; y < sh; y++) {
+		for (int x = 0; x < sw; x++) {
+			const int sx = x * OW / sw;
+			const int sy = y * OH / sh;
+			if (sx < 0 || sy < 0 || sx >= OW || sy >= OH)
+				continue;
+			const uint32 px = _compositeCache->getPixel(sx, sy);
+			// RGBA32 format: aShift=0 → alpha is in bits 7..0 (lowest byte).
+			const byte alpha = (byte)(px & 0xFF);
+			ovlMask[(uint)y * sw + x] = (alpha > 0) ? 1 : 0;
+		}
+	}
+
+	// 3) Build "native non-BG, overlay missing" mask.
+	//    native non-BG: EGA index 0 is black (the universal SCI0 background clear color);
+	//    treat index 0 as background and any other index as potentially visible content.
+	//    diff[i] = 1 where native has visible content (idx != 0) AND overlay is transparent.
+	Common::Array<byte> diffMask;
+	diffMask.resize((uint)sw * sh, 0);
+	int missingPixels = 0;
+	for (int i = 0; i < sw * sh; i++) {
+		if (natIdx[(uint)i] != 0 && ovlMask[(uint)i] == 0) {
+			diffMask[(uint)i] = 1;
+			missingPixels++;
+		}
+	}
+
+	if (missingPixels == 0) {
+		warning("ROGER-DIAG[diff]: pic=%d no missing pixels (native visible pixels all covered by overlay)", _loadedPicId);
+		return;
+	}
+
+	// 4) Coalesce into boxes using the existing changed-box extractor.
+	//    extractChangedBoxes(prev, cur, w, h, out): boxes where prev != cur.
+	//    Using all-zeros as "prev" and diffMask as "cur" gives boxes of non-zero diff pixels.
+	Common::Array<byte> zeros;
+	zeros.resize((uint)sw * sh, 0);
+	Common::Array<Common::Rect> boxes;
+	Roger::extractChangedBoxes(zeros.begin(), diffMask.begin(), sw, sh, boxes);
+
+	warning("ROGER-DIAG[diff]: pic=%d missingPx=%d boxes=%u (native visible, overlay transparent)",
+	        _loadedPicId, missingPixels, (unsigned)boxes.size());
+	for (uint i = 0; i < boxes.size(); i++) {
+		const Common::Rect &b = boxes[i];
+		// Also note native EGA index at box centre for identification.
+		const int cx = (b.left + b.right) / 2, cy = (b.top + b.bottom) / 2;
+		const byte cIdx = natIdx[(uint)cy * sw + cx];
+		warning("ROGER-DIAG[diff]: pic=%d box[%u] rect=(%d,%d,%d,%d) w=%d h=%d nativeIdxAtCenter=%d",
+		        _loadedPicId, i, b.left, b.top, b.right, b.bottom,
+		        b.width(), b.height(), (int)cIdx);
 	}
 }
 
@@ -1971,6 +2060,7 @@ void FileRogerArtProvider::onNativePicture() {
 	clearTextSprites();
 	_genTextPending.clear(); // discard any pending generic text from the departing room
 	_debugDumpedPic = -1;   // allow a fresh debug-capture dump for the next room
+	_diffCheckedPic = -1;   // allow a fresh diff-check run for the next room
 	_genRegions.clear(); // drop any stale Feeder B rects from the departing room (drawGenericRegions won't run if _plate is null)
 	_haveScene = false;
 	_loadedPicId = -1;
