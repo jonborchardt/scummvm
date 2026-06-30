@@ -1169,8 +1169,9 @@ void FileRogerArtProvider::uiPushWindow(const Common::Rect &r, int backColor, in
 	e.hasFrame = (wndStyle != 0x81) && !(wndStyle & 2 /*NOFRAME*/);
 	e.token = token;
 	if (_diag)
-		warning("ROGER-DIAG[uiWindow]: wndStyle=0x%02x backColor=%d -> e.backColor=%d pictureBackedOrTransparent=%d token=0x%08x",
-		        wndStyle, backColor, e.backColor, (int)pictureBackedOrTransparent, token);
+		warning("ROGER-DIAG[uiWindow]: rect=(%d,%d,%d,%d) wndStyle=0x%02x backColor=%d -> e.backColor=%d hasFrame=%d pictureBackedOrTransparent=%d token=0x%08x",
+		        r.left, r.top, r.right, r.bottom, wndStyle, backColor, e.backColor,
+		        (int)e.hasFrame, (int)pictureBackedOrTransparent, token);
 	_uiLayer->push(e);
 	presentWithUi();
 }
