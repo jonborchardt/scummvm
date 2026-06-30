@@ -282,6 +282,17 @@ void GfxPaint16::invertRectViaXOR(const Common::Rect &rect) {
 
 void GfxPaint16::eraseRect(const Common::Rect &rect) {
 	fillRect(rect, GFX_SCREEN_MASK_VISUAL, _ports->_curPort->backClr);
+	// Roger: eraseRect is SCI's explicit "clear this region" primitive (message/dialog text
+	// areas, control redraws). Unlike bitsRestore/kGraphRedrawBox it leaves no save-under, so
+	// persisted generic text drawn there (e.g. a multi-line narration page) would otherwise
+	// ghost when SCI clears it to draw the next page. Feed the cleared (global) region to the
+	// erase hook so that stale generic text is dropped. onNativeEraseRect is gated + only
+	// presents when it actually removes something, so unrelated erases are cheap no-ops.
+	if (g_sciRogerProvider && g_sciRogerProvider->enabled) {
+		Common::Rect g = rect;
+		_ports->offsetRect(g);
+		g_sciRogerProvider->onNativeEraseRect(g);
+	}
 }
 
 void GfxPaint16::paintRect(const Common::Rect &rect) {
