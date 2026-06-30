@@ -696,7 +696,16 @@ void GfxText16::Box(const char *text, uint16 languageSplitter, bool show, const 
 		// call Box show=false too, but stroke is unused on the SCI0 EGA targets Roger supports.)
 		const int nativeFontH = textHeight;                              // uniform per-line cell height
 		const int nativeTextW = (lineCount <= 1) ? maxTextWidth : 0;    // width cap only for single-line
-		g_sciRogerProvider->onNativeText(rect, text, fontId, previousPenColor, (int)alignment,
+		// `rect` is port-LOCAL (the draw loop moves the pen via _ports->moveTo(rect.left,...)).
+		// Convert to GLOBAL 320x200 screen space before handing it to Roger, exactly as every
+		// controls16 hook does (offsetRect). Without this, text drawn in a window with a
+		// non-zero port origin (narration/Print windows, dialog/message windows) was stored in
+		// local coords: it rendered offset by the port origin AND, fatally, never matched the
+		// GLOBAL erase rects from bitsRestore/kGraphRedrawBox (onNativeEraseRect's contains()
+		// test failed), so the text ghosted until room change. Globalizing fixes both.
+		Common::Rect gRect = rect;
+		_ports->offsetRect(gRect);
+		g_sciRogerProvider->onNativeText(gRect, text, fontId, previousPenColor, (int)alignment,
 		                                 nativeFontH, nativeTextW);
 	}
 }
