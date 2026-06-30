@@ -22,6 +22,7 @@
 #include "common/array.h"
 #include "common/rect.h"
 #include "engines/sci/roger/roger_compositor.h"
+#include "engines/sci/roger/roger_ui_layer.h"
 
 using namespace Sci;
 using namespace Sci::Roger;
@@ -42,7 +43,7 @@ public:
 		captured.push_back(Common::Rect(26, 42, 63, 102));   // portrait graphic
 		exclude.push_back(Common::Rect(20, 95, 315, 151));   // wide multi-line text rect, clips only the bottom edge
 		Roger::filterForegroundCaptureRegionsCovered(captured, exclude, 80, out);
-		TS_ASSERT_EQUALS(out.size(), 1u);                    // kept (only ~12% covered)
+		TS_ASSERT_EQUALS(out.size(), 1u);                    // kept (only ~11% covered)
 	}
 	void test_covered_filter_drops_text_region() {
 		// A region a text rect substantially covers must be DROPPED (no blocky-under-crisp).
@@ -57,7 +58,7 @@ public:
 		Common::Array<UiElement> elems;
 		UiElement btn; btn.type = kUiButton; btn.nativeRect = Common::Rect(210, 166, 290, 178); btn.token = C;
 		elems.push_back(btn);
-		UiElement g; g.type = kUiText; g.nativeRect = Common::Rect(214, 167, 286, 177); g.token = G; // label, ~90% inside button
+		UiElement g; g.type = kUiText; g.nativeRect = Common::Rect(214, 167, 286, 177); g.token = G; // label, fully inside button
 		elems.push_back(g);
 		Roger::dedupeGenericTextElements(elems, G);
 		TS_ASSERT_EQUALS(elems.size(), 1u);           // generic label dropped

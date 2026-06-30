@@ -1343,6 +1343,7 @@ void FileRogerArtProvider::onNativeEraseRect(const Common::Rect &nativeRect) {
 	_uiLayer->clearAll();
 	for (uint i = 0; i < kept.size(); i++)
 		_uiLayer->push(kept[i]);
+	_compositeCacheValid = false; // UI changed: match the uiPush*/uiClear* invalidation pattern
 	if (_diag)
 		warning("ROGER-DIAG[eraseText]: rect=(%d,%d,%d,%d) remaining=%u",
 		        nativeRect.left, nativeRect.top, nativeRect.right, nativeRect.bottom, (unsigned)kept.size());
