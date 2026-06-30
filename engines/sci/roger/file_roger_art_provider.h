@@ -99,6 +99,7 @@ public:
 	                  int nativeFontH, int nativeTextW) override;
 	void uiClearToken(uint32 token) override;
 	void uiClearAll() override;
+	void uiPushFrameBox(const Common::Rect &globalRect, int penColor) override;
 
 	// Compose and present the current room to the OSystem overlay.
 	// Called each frame by the GfxAnimate hook (Task 7).

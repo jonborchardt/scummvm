@@ -1269,6 +1269,29 @@ void FileRogerArtProvider::uiClearAll() {
 	if (_overlayActive && _plate) presentWithUi();
 }
 
+// Fixed token for the kGraphFrameBox selection highlight. Room-scoped: cleared by
+// uiClearAll (called on every room change and onNativePicture). A single constant
+// token means each new push calls clearToken() first, so the highlight tracks
+// movement without accumulating stale elements even when the rect changes.
+static const uint32 FRAME_BOX_TOKEN = 0x70000000u;
+
+void FileRogerArtProvider::uiPushFrameBox(const Common::Rect &r, int penColor) {
+	if (!_overlayActive || !_plate) return; // no hires scene — leave native highlight visible
+	ensureUi();
+	// Remove any previous frame-box highlight (rect may have changed; push() only
+	// deduplicates on type+token+rect, so we must clear explicitly before replacing).
+	_uiLayer->clearToken(FRAME_BOX_TOKEN);
+	Roger::UiElement e;
+	e.type = Roger::kUiWindow; e.nativeRect = r;
+	e.backColor = -1; // no fill — never paints over scene content
+	e.penColor = penColor;
+	e.hasFrame = true;
+	e.token = FRAME_BOX_TOKEN;
+	_uiLayer->push(e);
+	_compositeCacheValid = false;
+	if (_overlayActive && _plate) presentWithUi();
+}
+
 Graphics::Surface *FileRogerArtProvider::renderNativeCel(int viewId, int loopNo, int celNo) const {
 	if (!g_sci || !g_sci->_gfxCache)
 		return nullptr;

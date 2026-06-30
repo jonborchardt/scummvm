@@ -196,6 +196,10 @@ public:
 	                          int nativeFontH = 0, int nativeTextW = 0) {}
 	virtual void uiClearToken(uint32 token) {}
 	virtual void uiClearAll() {}
+	// kGraphFrameBox selection highlight: frame-only (no fill), room-scoped.
+	// globalRect is already in global 320x200 screen space. Any previous frame
+	// pushed under the same token is replaced so the highlight tracks movement.
+	virtual void uiPushFrameBox(const Common::Rect &globalRect, int penColor) {}
 
 	// Debug/runtime toggles, invoked from the SCI event loop (see event.cpp):
 	// toggleOverlay flips between the upscaled overlay and the original native

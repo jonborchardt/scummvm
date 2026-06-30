@@ -523,6 +523,17 @@ void GfxPaint16::kernelGraphFrameBox(const Common::Rect &rect, int16 color) {
 	_ports->penColor(color);
 	frameRect(rect);
 	_ports->penColor(oldColor);
+	// Roger hires overlay: capture the selection/highlight frame as a no-fill
+	// overlay element so it lands at the correct hires position.
+	// rect is in local (port-relative) coords — offsetRect converts to global
+	// 320x200 screen space, which is what sciRectToDest / UiElement.nativeRect
+	// expect. kGraphFrameBox is an event (not called every cycle), so the
+	// presentWithUi() inside uiPushFrameBox is not a per-cycle cost.
+	if (g_sciRogerProvider && g_sciRogerProvider->enabled) {
+		Common::Rect g = rect;
+		_ports->offsetRect(g);
+		g_sciRogerProvider->uiPushFrameBox(g, color);
+	}
 }
 
 void GfxPaint16::kernelGraphDrawLine(Common::Point startPoint, Common::Point endPoint, int16 color, int16 priority, int16 control) {
