@@ -157,6 +157,30 @@ void collectUiTextRects(const Common::Array<UiElement> &elems, uint32 genericTok
 			out.push_back(elems[i].nativeRect);
 }
 
+int rectCoverageFraction(const Common::Rect &inner, const Common::Rect &outer) {
+	const int area = inner.width() * inner.height();
+	if (area <= 0)
+		return 0;
+	Common::Rect isect = inner.findIntersectingRect(outer);
+	const int cov = isect.width() * isect.height();
+	if (cov <= 0)
+		return 0;
+	return (int)((cov * 100) / area);
+}
+
+void filterForegroundCaptureRegionsCovered(const Common::Array<Common::Rect> &captured,
+                                           const Common::Array<Common::Rect> &exclude,
+                                           int minCoveragePct, Common::Array<Common::Rect> &out) {
+	for (uint i = 0; i < captured.size(); i++) {
+		bool drop = false;
+		for (uint j = 0; j < exclude.size(); j++) {
+			if (rectCoverageFraction(captured[i], exclude[j]) >= minCoveragePct) { drop = true; break; }
+		}
+		if (!drop)
+			out.push_back(captured[i]);
+	}
+}
+
 void dedupeGenericTextElements(Common::Array<UiElement> &elems, uint32 genericToken) {
 	for (uint i = 0; i < elems.size();) {
 		bool drop = false;

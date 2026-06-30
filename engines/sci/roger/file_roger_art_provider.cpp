@@ -1343,17 +1343,20 @@ void FileRogerArtProvider::processForegroundCaptures(const Common::Array<Common:
 	if (_foregroundRegions.empty())
 		return; // nothing newly shown this frame; existing _textSprites persist as-is
 
-	// Exclude regions already rendered as crisp captured text (and the live cast) so they
-	// are not also pixel-stamped (blocky-under-crisp double draw).
-	Common::Array<Common::Rect> exclude = liveSpriteRects;
-	if (_uiLayer)
-		Roger::collectUiTextRects(_uiLayer->elements(), GENERIC_TEXT_TOKEN, exclude);
+	// Live cast: exclude on any intersection (moving actors must never be pixel-stamped).
 	Common::Array<Common::Rect> keep;
-	Roger::filterForegroundCaptureRegions(_foregroundRegions, exclude, keep);
+	Roger::filterForegroundCaptureRegions(_foregroundRegions, liveSpriteRects, keep);
+	// Captured crisp text: exclude only regions a text rect SUBSTANTIALLY covers (>=80%), so a
+	// graphic merely edge-clipped by a wide/multi-line text rect survives (fixes lost portrait/bars).
+	Common::Array<Common::Rect> textRects;
+	if (_uiLayer)
+		Roger::collectUiTextRects(_uiLayer->elements(), GENERIC_TEXT_TOKEN, textRects);
+	Common::Array<Common::Rect> keep2;
+	Roger::filterForegroundCaptureRegionsCovered(keep, textRects, 80, keep2);
 	_foregroundRegions.clear();
 
-	for (uint i = 0; i < keep.size(); i++) {
-		const Common::Rect &nr = keep[i];
+	for (uint i = 0; i < keep2.size(); i++) {
+		const Common::Rect &nr = keep2[i];
 		Graphics::Surface *snap = snapshotNativeRegion(nr);
 		if (!snap)
 			continue;

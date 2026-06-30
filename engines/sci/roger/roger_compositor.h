@@ -68,6 +68,17 @@ void filterForegroundCaptureRegions(const Common::Array<Common::Rect> &captured,
 void collectUiTextRects(const Common::Array<UiElement> &elems, uint32 genericToken,
                         Common::Array<Common::Rect> &out);
 
+// Percentage (0..100) of `inner`'s area covered by its intersection with `outer`. inner empty -> 0.
+int rectCoverageFraction(const Common::Rect &inner, const Common::Rect &outer);
+
+// Append each `captured[i]` to `out` UNLESS some `exclude[j]` covers >= minCoveragePct of it.
+// Coverage-threshold variant of filterForegroundCaptureRegions: a region only edge-clipped by a
+// (often wide/multi-line) text rect is kept, so adjacent graphics are not lost to mere intersection.
+// Does not clear `out`.
+void filterForegroundCaptureRegionsCovered(const Common::Array<Common::Rect> &captured,
+                                           const Common::Array<Common::Rect> &exclude,
+                                           int minCoveragePct, Common::Array<Common::Rect> &out);
+
 // Drop each element tagged with `genericToken` whose rect is contained in a non-generic
 // element that itself renders the SAME text (kUiText / kUiButton / kUiTextEdit) — so a
 // label controls16/menu already captured semantically is not rendered twice by the generic
