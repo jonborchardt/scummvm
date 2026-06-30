@@ -523,12 +523,13 @@ void GfxPaint16::kernelGraphFrameBox(const Common::Rect &rect, int16 color) {
 	_ports->penColor(color);
 	frameRect(rect);
 	_ports->penColor(oldColor);
-	// Roger hires overlay: capture the selection/highlight frame as a no-fill
-	// overlay element so it lands at the correct hires position.
-	// rect is in local (port-relative) coords — offsetRect converts to global
-	// 320x200 screen space, which is what sciRectToDest / UiElement.nativeRect
-	// expect. kGraphFrameBox is an event (not called every cycle), so the
-	// presentWithUi() inside uiPushFrameBox is not a per-cycle cost.
+	// Roger hires overlay: capture any frame-box drawn here as a no-fill overlay
+	// element (game-agnostic backstop). rect is in local (port-relative) coords —
+	// offsetRect converts to global 320x200 screen space. Note: kernelGraphFrameBox
+	// is NOT called for the QFG1/SQ3 control-list selection frame — that is drawn in
+	// controls16.cpp kernelDrawText's SELECTED branch (see the hook there). This hook
+	// captures the kGraph(FrameBox) primitive for any other callers (e.g. kpathing debug).
+	// uiPushFrameBox gates internally on change, so repeated calls are O(1).
 	if (g_sciRogerProvider && g_sciRogerProvider->enabled) {
 		Common::Rect g = rect;
 		_ports->offsetRect(g);

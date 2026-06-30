@@ -1278,8 +1278,23 @@ static const uint32 FRAME_BOX_TOKEN = 0x70000000u;
 void FileRogerArtProvider::uiPushFrameBox(const Common::Rect &r, int penColor) {
 	if (!_overlayActive || !_plate) return; // no hires scene — leave native highlight visible
 	ensureUi();
-	// Remove any previous frame-box highlight (rect may have changed; push() only
-	// deduplicates on type+token+rect, so we must clear explicitly before replacing).
+	// Gate: if the frame element under FRAME_BOX_TOKEN is already identical (same rect
+	// + same color), skip the clear/push/invalidate/present cycle entirely. This prevents
+	// a per-cycle present storm when kernelDrawText fires on every control redraw (TAB,
+	// hover, any redraw) while the selection has not actually moved or changed color.
+	// Per CLAUDE.md per-cycle discipline: only mutate + present when the frame changed.
+	const Common::Array<Roger::UiElement> &elems = _uiLayer->elements();
+	for (uint i = 0; i < elems.size(); i++) {
+		if (elems[i].token == FRAME_BOX_TOKEN) {
+			if (elems[i].nativeRect == r && elems[i].penColor == penColor)
+				return; // identical — nothing to do
+			break; // found but different — fall through to update
+		}
+	}
+	// Selection moved or color changed (or no existing element): update and present.
+	// clearToken() removes the stale element so the rect/color change takes effect
+	// (push() only deduplicates on type+token+rect, so changing rect without clearing
+	// would accumulate stale elements as the user moves the selection).
 	_uiLayer->clearToken(FRAME_BOX_TOKEN);
 	Roger::UiElement e;
 	e.type = Roger::kUiWindow; e.nativeRect = r;
@@ -1289,7 +1304,7 @@ void FileRogerArtProvider::uiPushFrameBox(const Common::Rect &r, int penColor) {
 	e.token = FRAME_BOX_TOKEN;
 	_uiLayer->push(e);
 	_compositeCacheValid = false;
-	if (_overlayActive && _plate) presentWithUi();
+	presentWithUi();
 }
 
 Graphics::Surface *FileRogerArtProvider::renderNativeCel(int viewId, int loopNo, int celNo) const {

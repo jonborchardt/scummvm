@@ -464,6 +464,18 @@ void GfxControls16::kernelDrawText(Common::Rect rect, reg_t obj, const char *tex
 		}
 		if (style & SCI_CONTROLS_STYLE_SELECTED) {
 			_paint16->frameRect(rect);
+			// Roger hires overlay: capture the selection frame so it appears at the
+			// correct hires position. rect is local (port-relative); offsetRect converts
+			// to global 320x200 screen space. penClr is the current port pen color,
+			// which is what frameRect() draws with. uiPushFrameBox gates internally on
+			// change — no per-cycle present storm even though kernelDrawText can fire on
+			// every control redraw (TAB, hover, any redraw).
+			if (g_sciRogerProvider && g_sciRogerProvider->enabled) {
+				Common::Rect gSel = rect;
+				_ports->offsetRect(gSel);
+				const Port *pSel = _ports->getPort();
+				g_sciRogerProvider->uiPushFrameBox(gSel, pSel ? pSel->penClr : 0);
+			}
 		}
 
 		// I have checked the PC-98 versions of QFG1 and KQ5. These set all rect bounds for the
