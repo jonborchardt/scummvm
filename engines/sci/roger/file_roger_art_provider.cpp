@@ -1658,6 +1658,38 @@ void FileRogerArtProvider::flushGenericText() {
 	// made it flash then vanish. _uiLayer->push replaces an element with the same
 	// type+token+rect, so a stat value redraw at the same rect refreshes in place (live
 	// updates) while untouched lines persist. Cleared wholesale on room change (clearAll).
+	//
+	// Transient-text replacement: a NEW generic text draw supersedes previously-persisted
+	// generic text in the SAME screen area — e.g. the next page of a multi-page narrator
+	// message, drawn over the old page with no save-under/erase signal (which would
+	// otherwise stack pages on top of each other). Before pushing this frame's captures,
+	// drop any persisted generic element whose rect INTERSECTS a pending rect. Common::Rect
+	// intersection is exclusive, so adjacent static rows that merely share an edge (the
+	// QFG1 stat labels/values) do NOT intersect and are preserved; only genuinely
+	// overlapping (overdrawn) text is dropped.
+	if (!_genTextPending.empty()) {
+		const Common::Array<Roger::UiElement> &els = _uiLayer->elements();
+		Common::Array<Roger::UiElement> kept;
+		for (uint i = 0; i < els.size(); i++) {
+			bool drop = false;
+			if (els[i].token == GENERIC_TEXT_TOKEN) {
+				for (uint j = 0; j < _genTextPending.size(); j++) {
+					if (els[i].nativeRect.intersects(_genTextPending[j].nativeRect)) {
+						drop = true;
+						break;
+					}
+				}
+			}
+			if (!drop)
+				kept.push_back(els[i]);
+		}
+		if (kept.size() != els.size()) {
+			_uiLayer->clearAll();
+			for (uint i = 0; i < kept.size(); i++)
+				_uiLayer->push(kept[i]);
+			_compositeCacheValid = false;
+		}
+	}
 	for (uint i = 0; i < _genTextPending.size(); i++) {
 		Roger::UiElement e = _genTextPending[i];
 		// Build glyphs for non-ASCII bytes using the cross-frame cache so each distinct
