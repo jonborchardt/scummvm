@@ -164,7 +164,7 @@ void dedupeGenericTextElements(Common::Array<UiElement> &elems, uint32 genericTo
 			for (uint j = 0; j < elems.size(); j++) {
 				if (j == i || elems[j].token == genericToken)
 					continue;
-				if (elems[j].nativeRect.contains(elems[i].nativeRect)) { drop = true; break; }
+				if (elems[j].type == kUiText && elems[j].nativeRect.contains(elems[i].nativeRect)) { drop = true; break; }
 			}
 		}
 		if (drop)

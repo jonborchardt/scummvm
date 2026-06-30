@@ -343,6 +343,7 @@ void FileRogerArtProvider::pushHiresBackground(GuiResourceId pictureId) {
 	if (_uiLayer) _uiLayer->clearAll();
 	for (uint i = 0; i < _uiIcons.size(); i++) { _uiIcons[i]->free(); delete _uiIcons[i]; }
 	_uiIcons.clear();
+	_genericGlyphCache.clear(); // surfaces were owned by _uiIcons (freed above)
 	_haveScene = false;
 
 	// Evict previous room.
@@ -1238,6 +1239,7 @@ void FileRogerArtProvider::uiClearAll() {
 	if (_uiLayer) _uiLayer->clearAll();
 	for (uint i = 0; i < _uiIcons.size(); i++) { _uiIcons[i]->free(); delete _uiIcons[i]; }
 	_uiIcons.clear();
+	_genericGlyphCache.clear(); // surfaces were owned by _uiIcons (freed above)
 	if (_overlayActive && _plate) presentWithUi();
 }
 
@@ -1472,7 +1474,43 @@ void FileRogerArtProvider::flushGenericText() {
 	_uiLayer->clearToken(GENERIC_TEXT_TOKEN);
 	for (uint i = 0; i < _genTextPending.size(); i++) {
 		Roger::UiElement e = _genTextPending[i];
-		buildGlyphs(e.text.c_str(), e.fontId, e.penColor, e.glyphs);
+		// Build glyphs for non-ASCII bytes using the cross-frame cache so each distinct
+		// glyph surface (ch, fontId, penColor) is generated at most once per room.
+		// Without this, every call would push new surfaces into _uiIcons each frame.
+		for (const char *p = e.text.c_str(); *p; ++p) {
+			const byte c = (byte)*p;
+			if (c >= 0x20 && c < 0x7f)
+				continue; // ASCII handled by TTF
+			bool found = false;
+			for (uint k = 0; k < _genericGlyphCache.size(); k++) {
+				if (_genericGlyphCache[k].ch == c && _genericGlyphCache[k].fontId == e.fontId &&
+				    _genericGlyphCache[k].penColor == e.penColor) {
+					Roger::UiGlyph ug; ug.ch = c; ug.surf = _genericGlyphCache[k].surf;
+					e.glyphs.push_back(ug);
+					found = true;
+					break;
+				}
+			}
+			if (!found) {
+				// First use of this glyph this room: generate it and cache it.
+				bool alreadyInOut = false;
+				for (uint k = 0; k < e.glyphs.size(); k++)
+					if (e.glyphs[k].ch == c) { alreadyInOut = true; break; }
+				if (!alreadyInOut) {
+					Graphics::Surface *g = _assetGen ? _assetGen->generateTextSurface(
+					    Common::String(1, (char)c), e.fontId,
+					    (byte)(e.penColor >= 0 ? e.penColor : 0)) : nullptr;
+					if (g) {
+						_uiIcons.push_back(g); // owned; freed on room change
+						Roger::UiGlyph ug; ug.ch = c; ug.surf = g;
+						e.glyphs.push_back(ug);
+						GenGlyphKey key; key.ch = c; key.fontId = e.fontId;
+						key.penColor = e.penColor; key.surf = g;
+						_genericGlyphCache.push_back(key);
+					}
+				}
+			}
+		}
 		_uiLayer->push(e);
 	}
 	_genTextPending.clear();
@@ -1856,6 +1894,7 @@ void FileRogerArtProvider::onNativePicture() {
 	if (_uiLayer) _uiLayer->clearAll();
 	for (uint i = 0; i < _uiIcons.size(); i++) { _uiIcons[i]->free(); delete _uiIcons[i]; }
 	_uiIcons.clear();
+	_genericGlyphCache.clear(); // surfaces were owned by _uiIcons (freed above)
 	_staticSprites.clear();
 	_initCels.clear();
 	clearTextSprites();
@@ -1973,6 +2012,7 @@ FileRogerArtProvider::~FileRogerArtProvider() {
 	if (_cursorSurf) { _cursorSurf->free(); delete _cursorSurf; _cursorSurf = nullptr; }
 	for (uint i = 0; i < _uiIcons.size(); i++) { _uiIcons[i]->free(); delete _uiIcons[i]; }
 	_uiIcons.clear();
+	_genericGlyphCache.clear(); // surfaces were owned by _uiIcons (freed above)
 }
 
 } // namespace Sci

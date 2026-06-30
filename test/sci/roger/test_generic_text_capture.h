@@ -51,6 +51,21 @@ public:
 		Roger::dedupeGenericTextElements(elems, G);
 		TS_ASSERT_EQUALS(elems.size(), 2u);
 	}
+	void test_dedupe_does_not_drop_generic_covered_only_by_window() {
+		// A kUiWindow (non-generic token) whose nativeRect fully contains a generic
+		// kUiText element must NOT cause the generic text to be dropped.
+		// Only a containing non-generic kUiText may trigger the drop.
+		const uint32 G = 0x60000000u, W = 0x40000000u;
+		Common::Array<UiElement> elems;
+		// kUiWindow that covers the generic text rect
+		UiElement win; win.type = kUiWindow; win.nativeRect = Common::Rect(0, 0, 320, 200); win.token = W;
+		elems.push_back(win);
+		elems.push_back(txt(10, 10, 100, 22, G)); // generic text fully inside the window -> must be KEPT
+		Roger::dedupeGenericTextElements(elems, G);
+		TS_ASSERT_EQUALS(elems.size(), 2u);
+		TS_ASSERT(elems[0].type == kUiWindow);
+		TS_ASSERT(elems[1].token == G); // generic text survived
+	}
 	void test_collect_ui_text_rects_gathers_all_text() {
 		const uint32 G = 0x60000000u, C = 0x40000000u;
 		Common::Array<UiElement> elems;
