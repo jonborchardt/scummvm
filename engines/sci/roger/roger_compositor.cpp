@@ -164,7 +164,13 @@ void dedupeGenericTextElements(Common::Array<UiElement> &elems, uint32 genericTo
 			for (uint j = 0; j < elems.size(); j++) {
 				if (j == i || elems[j].token == genericToken)
 					continue;
-				if (elems[j].type == kUiText && elems[j].nativeRect.contains(elems[i].nativeRect)) { drop = true; break; }
+				// Drop only against a non-generic element that itself RENDERS THE SAME TEXT:
+				// kUiText (controls16/menu/display text), kUiButton (its label), kUiTextEdit
+				// (its field text). NOT kUiWindow or kUiIcon — those are a frame/image and do
+				// not draw the text, so a window enclosing the captured stats must not drop them.
+				const UiElementType jt = elems[j].type;
+				const bool jRendersText = (jt == kUiText || jt == kUiButton || jt == kUiTextEdit);
+				if (jRendersText && elems[j].nativeRect.contains(elems[i].nativeRect)) { drop = true; break; }
 			}
 		}
 		if (drop)

@@ -1468,10 +1468,12 @@ void FileRogerArtProvider::flushGenericText() {
 	if (!_overlayActive || !_plate)
 		{ _genTextPending.clear(); return; }
 	ensureUi();
-	// Re-emit this frame's generic captures: clear last frame's generic text, then push
-	// the fresh set (so changed values refresh and removed text drops). controls16/menu
-	// text uses other tokens and is untouched.
-	_uiLayer->clearToken(GENERIC_TEXT_TOKEN);
+	// Emit this frame's generic captures PERSISTENTLY: push each into _uiLayer where it
+	// stays until room change. We do NOT clear prior generic text every frame, because SCI
+	// draws static text (e.g. QFG1 stat labels) only once — clearing+relying-on-recapture
+	// made it flash then vanish. _uiLayer->push replaces an element with the same
+	// type+token+rect, so a stat value redraw at the same rect refreshes in place (live
+	// updates) while untouched lines persist. Cleared wholesale on room change (clearAll).
 	for (uint i = 0; i < _genTextPending.size(); i++) {
 		Roger::UiElement e = _genTextPending[i];
 		// Build glyphs for non-ASCII bytes using the cross-frame cache so each distinct

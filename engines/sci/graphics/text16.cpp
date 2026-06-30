@@ -683,9 +683,15 @@ void GfxText16::Box(const char *text, uint16 languageSplitter, bool show, const 
 	SetFont(previousFontId);
 	_ports->penColor(previousPenColor);
 
-	if (show && g_sciRogerProvider && g_sciRogerProvider->enabled) {
+	if (g_sciRogerProvider && g_sciRogerProvider->enabled) {
 		// Game-agnostic: hand the whole drawn string + its box to Roger so it can re-render
-		// it crisply. previousPenColor is the color Show() used; rect is the text box.
+		// it crisply. NOTE: we capture regardless of `show`. In SCI0 EGA almost all text is
+		// drawn with show=false (drawn into the buffer here, then flushed by a separate
+		// kGraphUpdateBox/bitsShow) — e.g. QFG1 character-screen stat labels/values via the
+		// kDisplay path (GfxPaint16 paint16.cpp ~706, show=needCJKFix=false on EGA). Gating
+		// on show==true (the SCI1+ driver-text case) missed all of it. previousPenColor is
+		// the pen the draw used; rect is the text box. (The SCI11+ `stroke` shadow passes
+		// call Box show=false too, but stroke is unused on the SCI0 EGA targets Roger supports.)
 		g_sciRogerProvider->onNativeText(rect, text, fontId, previousPenColor, (int)alignment);
 	}
 }

@@ -66,6 +66,30 @@ public:
 		TS_ASSERT(elems[0].type == kUiWindow);
 		TS_ASSERT(elems[1].token == G); // generic text survived
 	}
+	void test_dedupe_drops_generic_covered_by_button_or_edit() {
+		// Removing the show-gate means a control's own label (kUiButton) and field text
+		// (kUiTextEdit) are now ALSO captured generically via GfxText16::Box. Those
+		// text-rendering types must drop the duplicate generic text they enclose, while a
+		// kUiWindow at the same rect must not. Verifies the text-rendering-type predicate.
+		const uint32 G = 0x60000000u, C = 0x40000000u;
+		Common::Array<UiElement> elems;
+		UiElement btn; btn.type = kUiButton; btn.nativeRect = Common::Rect(10, 10, 100, 22); btn.token = C;
+		elems.push_back(btn);
+		elems.push_back(txt(12, 11, 90, 21, G));    // generic label inside the button -> drop
+		UiElement edit; edit.type = kUiTextEdit; edit.nativeRect = Common::Rect(10, 30, 100, 42); edit.token = C;
+		elems.push_back(edit);
+		elems.push_back(txt(12, 31, 90, 41, G));    // generic field text inside the edit -> drop
+		UiElement icon; icon.type = kUiIcon; icon.nativeRect = Common::Rect(10, 50, 100, 62); icon.token = C;
+		elems.push_back(icon);
+		elems.push_back(txt(12, 51, 90, 61, G));    // over an icon (not text) -> KEEP
+		Roger::dedupeGenericTextElements(elems, G);
+		// button, edit, icon, and the one surviving generic (over the icon) remain.
+		TS_ASSERT_EQUALS(elems.size(), 4u);
+		TS_ASSERT(elems[0].type == kUiButton);
+		TS_ASSERT(elems[1].type == kUiTextEdit);
+		TS_ASSERT(elems[2].type == kUiIcon);
+		TS_ASSERT(elems[3].token == G && elems[3].nativeRect == Common::Rect(12, 51, 90, 61));
+	}
 	void test_collect_ui_text_rects_gathers_all_text() {
 		const uint32 G = 0x60000000u, C = 0x40000000u;
 		Common::Array<UiElement> elems;
