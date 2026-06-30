@@ -90,7 +90,7 @@ public:
 	bool empty() const { return _elems.empty(); }
 	const Common::Array<UiElement> &elements() const { return _elems; }
 	// Drop each generic-token element whose rect is already covered by a non-generic
-	// element (controls16/menu text). Forwards to the pure helper in roger_compositor.
+	// text-rendering element (kUiText/kUiButton/kUiTextEdit). Forwards to the pure helper.
 	void dedupeGenericText(uint32 genericToken) { dedupeGenericTextElements(_elems, genericToken); }
 
 private:

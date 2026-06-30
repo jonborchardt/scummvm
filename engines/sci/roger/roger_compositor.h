@@ -69,8 +69,10 @@ void collectUiTextRects(const Common::Array<UiElement> &elems, uint32 genericTok
                         Common::Array<Common::Rect> &out);
 
 // Drop each element tagged with `genericToken` whose rect is contained in a non-generic
-// element's rect, so text controls16/menu already captured semantically is not rendered twice
-// by the generic text-out hook. In-place.
+// element that itself renders the SAME text (kUiText / kUiButton / kUiTextEdit) — so a
+// label controls16/menu already captured semantically is not rendered twice by the generic
+// text-out hook. A kUiWindow or kUiIcon enclosing the text does NOT drop it (those are a
+// frame/image, not the text). In-place.
 void dedupeGenericTextElements(Common::Array<UiElement> &elems, uint32 genericToken);
 
 // Merge addToPic (static) and animate sprites into one back-to-front draw list:
