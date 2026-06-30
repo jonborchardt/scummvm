@@ -1161,7 +1161,12 @@ void FileRogerArtProvider::uiPushWindow(const Common::Rect &r, int backColor, in
 	const bool pictureBackedOrTransparent = (wndStyle & 1 /*TRANSPARENT*/) || (wndStyle & 0x80 /*USER*/);
 	e.backColor = pictureBackedOrTransparent ? -1 : backColor;
 	e.penColor = penColor;
-	e.hasFrame = !(wndStyle & 2 /*NOFRAME*/);
+	// Frame: mirror SCI GfxPorts::drawWindow EXACTLY rather than imposing Roger's own border.
+	// SCI0 draws a window frame iff (wndStyle != _styleUser) && !(NOFRAME), where the SCI0
+	// _styleUser == USER|TRANSPARENT == 0x81. So a USER|TRANSPARENT or a NOFRAME window gets
+	// NO native frame and must get none in the overlay either (the compositor previously forced
+	// a black border on every window regardless of style — drawing borders SCI does not).
+	e.hasFrame = (wndStyle != 0x81) && !(wndStyle & 2 /*NOFRAME*/);
 	e.token = token;
 	if (_diag)
 		warning("ROGER-DIAG[uiWindow]: wndStyle=0x%02x backColor=%d -> e.backColor=%d pictureBackedOrTransparent=%d token=0x%08x",

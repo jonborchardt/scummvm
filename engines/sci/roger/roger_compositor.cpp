@@ -702,10 +702,13 @@ void RogerCompositor::renderUiLayer(Graphics::ManagedSurface &dest,
 				Common::Rect(0, 0, e.iconSurface->w, e.iconSurface->h), d);
 		}
 
-		// Frame (1px native -> scaled): windows, edit fields, selected text/buttons.
+		// Frame (1px native -> scaled): windows that SCI framed (e.hasFrame mirrors SCI's
+		// drawWindow condition), edit fields, selected text/buttons. Do NOT force a frame on
+		// every kUiWindow — a USER/TRANSPARENT/NOFRAME window SCI left borderless must stay
+		// borderless in the overlay too.
 		const bool frame = e.hasFrame || e.type == kUiTextEdit ||
 		                   (e.type == kUiText && (e.style & 0x8)) ||
-		                   e.type == kUiButton || e.type == kUiWindow;
+		                   e.type == kUiButton;
 		if (palette && frame) {
 			const bool isWindow = (e.type == kUiWindow);
 			uint32 col;
