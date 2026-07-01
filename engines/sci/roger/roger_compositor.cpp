@@ -114,6 +114,58 @@ void upscaleNativeRegionNearest(Graphics::Surface &dest, const Common::Rect &ove
 	}
 }
 
+static Common::Rect fitAspectCentered(const Common::Rect &box) {
+	// Largest 8:5 rect that fits inside box, centered.
+	const int bw = box.width(), bh = box.height();
+	int w = bw, h = w * 5 / 8;
+	if (h > bh) { h = bh; w = h * 8 / 5; }
+	const int x = box.left + (bw - w) / 2;
+	const int y = box.top + (bh - h) / 2;
+	return Common::Rect((int16)x, (int16)y, (int16)(x + w), (int16)(y + h));
+}
+
+void comparePanelRects(int overlayW, int overlayH,
+                       Common::Rect &leftFrame, Common::Rect &rightFrame) {
+	const int half = overlayW / 2;
+	leftFrame  = fitAspectCentered(Common::Rect(0, 0, (int16)half, (int16)overlayH));
+	rightFrame = fitAspectCentered(Common::Rect((int16)half, 0, (int16)overlayW, (int16)overlayH));
+}
+
+void scaleBlitNearest(Graphics::Surface &dest, const Common::Rect &destRect,
+                      const Graphics::Surface &src) {
+	const int dw = destRect.width(), dh = destRect.height();
+	if (dw <= 0 || dh <= 0 || src.w <= 0 || src.h <= 0)
+		return;
+	for (int dy = 0; dy < dh; dy++) {
+		const int sy = dy * src.h / dh;
+		for (int dx = 0; dx < dw; dx++) {
+			const int sx = dx * src.w / dw;
+			dest.setPixel(destRect.left + dx, destRect.top + dy, src.getPixel(sx, sy));
+		}
+	}
+}
+
+bool remapCompareMouse(const Common::Point &windowGamePos, int overlayW, int overlayH,
+                       bool &onLeftPanel, Common::Point &out) {
+	// windowGamePos is a linear map of the whole window -> recover overlay pixels.
+	const int px = windowGamePos.x * overlayW / 320;
+	const int py = windowGamePos.y * overlayH / 200;
+	Common::Rect left, right;
+	comparePanelRects(overlayW, overlayH, left, right);
+	onLeftPanel = px < overlayW / 2;
+	const Common::Rect &f = onLeftPanel ? left : right;
+
+	// Clamp into the frame; report whether the original point was inside.
+	const bool inside = f.contains(px, py);
+	int fx = px < f.left ? f.left : (px >= f.right ? f.right - 1 : px);
+	int fy = py < f.top ? f.top : (py >= f.bottom ? f.bottom - 1 : py);
+	out.x = (int16)((fx - f.left) * 320 / f.width());
+	out.y = (int16)((fy - f.top) * 200 / f.height());
+	if (out.x > 319) out.x = 319;
+	if (out.y > 199) out.y = 199;
+	return inside;
+}
+
 void extractChangedBoxes(const byte *prev, const byte *cur, int w, int h,
                          Common::Array<Common::Rect> &out) {
 	Common::Array<Common::Rect> runs;

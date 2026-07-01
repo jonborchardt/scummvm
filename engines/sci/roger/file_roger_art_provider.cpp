@@ -152,7 +152,7 @@ FileRogerArtProvider::FileRogerArtProvider(const Common::String &gameId,
 }
 
 bool FileRogerArtProvider::isOverlayVisible() const {
-	return _overlayActive;
+	return overlayShown();
 }
 
 bool FileRogerArtProvider::hasBackground(GuiResourceId pictureId) const {
@@ -514,7 +514,7 @@ void FileRogerArtProvider::observeLivePalette() {
 }
 
 void FileRogerArtProvider::renderFrame(const Common::Array<Roger::Sprite> &sprites) {
-	if (!_overlayActive || !_compositor || !_plate)
+	if (!overlayShown() || !_compositor || !_plate)
 		return;
 	diagDumpState("renderFrame");
 	observeLivePalette();
@@ -597,7 +597,10 @@ void FileRogerArtProvider::renderFrame(const Common::Array<Roger::Sprite> &sprit
 		_compositeCacheValid = true;
 	}
 	compositeCursor(scene, gameRect);
-	_compositor->presentToOverlay(scene);
+	if (_mode == Roger::kModeSideBySide)
+		presentComparison();
+	else
+		_compositor->presentToOverlay(scene);
 
 	// roger_autoshot (verification harness): dump once per room. Deterministic — no
 	// keystrokes/focus needed.
@@ -1037,8 +1040,12 @@ void FileRogerArtProvider::ensureCompositeCache(int w, int h) {
 }
 
 void FileRogerArtProvider::presentWithUi() {
-	if (!_overlayActive || !_compositor || !_haveScene || !_sceneCache)
+	if (!overlayShown() || !_compositor || !_haveScene || !_sceneCache)
 		return;
+	if (_mode == Roger::kModeSideBySide) {
+		presentComparison();
+		return;
+	}
 	const Graphics::PixelFormat rgba(4, 8, 8, 8, 8, 24, 16, 8, 0);
 	// The window may have been resized since the scene was cached. A blocking dialog/
 	// menu/inventory does NOT tick kernelAnimate, so renderFrame can't refresh the
@@ -1120,6 +1127,63 @@ void FileRogerArtProvider::presentWithUi() {
 	}
 }
 
+void FileRogerArtProvider::presentComparison() {
+	if (_mode != Roger::kModeSideBySide || !_compositor)
+		return;
+	const int OW = g_system->getOverlayWidth();
+	const int OH = g_system->getOverlayHeight();
+	if (OW <= 0 || OH <= 0)
+		return;
+
+	const Graphics::PixelFormat rgba(4, 8, 8, 8, 8, 24, 16, 8, 0);
+	Graphics::ManagedSurface &out = *scratchScene(OW, OH);
+	out.clear(out.format.ARGBToColor(255, 0, 0, 0)); // opaque black letterbox
+
+	Common::Rect leftF, rightF;
+	Roger::comparePanelRects(OW, OH, leftF, rightF);
+
+	// Left panel: the enhanced composite (already built into _sceneCache), downscaled.
+	if (_haveScene && _sceneCache)
+		Roger::scaleBlitNearest(*out.surfacePtr(), leftF, *_sceneCache->surfacePtr());
+
+	// Right panel: the live native 320x200 visual buffer, upscaled.
+	Graphics::Surface *nat = snapshotNativeRegion(Common::Rect(0, 0, 320, 200));
+	if (nat) {
+		Roger::scaleBlitNearest(*out.surfacePtr(), rightF, *nat);
+		nat->free();
+		delete nat;
+	}
+
+	// Thin divider down the center.
+	const uint32 divider = out.format.ARGBToColor(255, 90, 90, 90);
+	const int cx = OW / 2;
+	for (int dx = -1; dx <= 1; dx++)
+		out.surfacePtr()->drawLine(cx + dx, 0, cx + dx, OH - 1, divider);
+
+	// Mirrored cursor: draw the tracked cursor cel into BOTH panels at the same game coord.
+	if (_cursorVisible) {
+		ensureCursor();
+		if (_cursorSurf) {
+			const Common::Point winMouse = g_system->getEventManager()->getMousePos();
+			bool onLeft = false; Common::Point game;
+			Roger::remapCompareMouse(winMouse, OW, OH, onLeft, game);
+			const Common::Rect frames[2] = { leftF, rightF };
+			for (int i = 0; i < 2; i++) {
+				const Common::Rect &f = frames[i];
+				const int ox = f.left + game.x * f.width() / 320;
+				const int oy = f.top + game.y * f.height() / 200;
+				const Common::Rect dst(ox - _cursorHotspot.x, oy - _cursorHotspot.y,
+				                       ox - _cursorHotspot.x + _cursorSurf->w,
+				                       oy - _cursorHotspot.y + _cursorSurf->h);
+				out.blendBlitFrom(*_cursorSurf, Common::Rect(0, 0, _cursorSurf->w, _cursorSurf->h), dst);
+			}
+		}
+	}
+
+	_compositor->forceFullPresent();
+	_compositor->presentToOverlay(out);
+}
+
 void FileRogerArtProvider::buildGlyphs(const char *text, int fontId, int penColor,
                                        Common::Array<Roger::UiGlyph> &out) {
 	if (!text || !_assetGen)
@@ -1146,7 +1210,7 @@ void FileRogerArtProvider::buildGlyphs(const char *text, int fontId, int penColo
 void FileRogerArtProvider::uiPushWindow(const Common::Rect &r, int backColor, int penColor,
                                         uint16 wndStyle, uint32 token) {
 	_compositeCacheValid = false;
-	if (!_overlayActive || !_plate) return; // no hires scene -> leave native UI visible
+	if (!overlayShown() || !_plate) return; // no hires scene -> leave native UI visible
 	ensureUi();
 	Roger::UiElement e;
 	e.type = Roger::kUiWindow; e.nativeRect = r;
@@ -1176,7 +1240,7 @@ void FileRogerArtProvider::uiPushText(const Common::Rect &r, const char *text, i
                                       int textRole, bool useAltFont,
                                       int nativeFontH, int nativeTextW) {
 	_compositeCacheValid = false;
-	if (!_overlayActive || !_plate) return;
+	if (!overlayShown() || !_plate) return;
 	ensureUi();
 	Roger::UiElement e;
 	e.type = Roger::kUiText; e.nativeRect = r; e.text = text ? text : "";
@@ -1193,7 +1257,7 @@ void FileRogerArtProvider::uiPushButton(const Common::Rect &r, const char *text,
                                         int style, uint32 token,
                                         int nativeFontH, int nativeTextW) {
 	_compositeCacheValid = false;
-	if (!_overlayActive || !_plate) return;
+	if (!overlayShown() || !_plate) return;
 	ensureUi();
 	Roger::UiElement e;
 	e.type = Roger::kUiButton; e.nativeRect = r; e.text = text ? text : "";
@@ -1209,7 +1273,7 @@ void FileRogerArtProvider::uiPushTextEdit(const Common::Rect &r, const char *tex
                                           int style, int cursorPos, uint32 token,
                                           int nativeFontH, int nativeTextW) {
 	_compositeCacheValid = false;
-	if (!_overlayActive || !_plate) return;
+	if (!overlayShown() || !_plate) return;
 	ensureUi();
 	Roger::UiElement e;
 	e.type = Roger::kUiTextEdit; e.nativeRect = r; e.text = text ? text : "";
@@ -1226,7 +1290,7 @@ void FileRogerArtProvider::uiPushTextEdit(const Common::Rect &r, const char *tex
 void FileRogerArtProvider::uiPushIcon(const Common::Rect &r, int viewId, int loopNo, int celNo,
                                       uint32 token) {
 	_compositeCacheValid = false;
-	if (!_overlayActive || !_plate) return;
+	if (!overlayShown() || !_plate) return;
 	ensureUi();
 	Roger::UiElement e;
 	e.type = Roger::kUiIcon; e.nativeRect = r; e.token = token;
@@ -1245,7 +1309,7 @@ void FileRogerArtProvider::uiPushIcon(const Common::Rect &r, int viewId, int loo
 }
 
 void FileRogerArtProvider::onDrawCel(const Common::Rect &r, int viewId, int loopNo, int celNo) {
-	if (!_overlayActive || !_plate || !_viewCache) return;
+	if (!overlayShown() || !_plate || !_viewCache) return;
 	const Graphics::Surface *hi = _viewCache->getCel(viewId, loopNo, celNo);
 	ensureUi();
 	// NOTE: do NOT clearToken here. push() replaces by (type,token,rect), so distinct-rect
@@ -1297,7 +1361,7 @@ void FileRogerArtProvider::uiPushStatus(const Common::Rect &r, const char *text,
 	_haveStatus = true; _statusRect = r; _statusText = text ? text : "";
 	_statusFont = fontId; _statusPen = penColor; _statusBack = backColor; _statusToken = token;
 	_statusNativeFontH = nativeFontH; _statusNativeTextW = nativeTextW;
-	if (!_overlayActive || !_plate) return;
+	if (!overlayShown() || !_plate) return;
 	ensureUi();
 	// The score banner and the menu bar share this token (top strip); drop whatever
 	// is there (e.g. the menu bar's window + titles) before pushing the banner.
@@ -1367,11 +1431,11 @@ void FileRogerArtProvider::uiClearToken(uint32 token) {
 			_compositor->addDirtyRect(d);
 		}
 	_compositeCacheValid = false;
-	if (_overlayActive && _plate) presentWithUi();
+	if (overlayShown() && _plate) presentWithUi();
 }
 
 void FileRogerArtProvider::onNativeEraseRect(const Common::Rect &nativeRect) {
-	if (!_overlayActive || !_plate || !_uiLayer || nativeRect.isEmpty())
+	if (!overlayShown() || !_plate || !_uiLayer || nativeRect.isEmpty())
 		return;
 	// Remove persisted generic text whose box lies within the erased region. Gate the present
 	// on a real removal (CLAUDE.md per-cycle discipline: bitsRestore fires ~2x/sprite/cycle).
@@ -1410,7 +1474,7 @@ void FileRogerArtProvider::uiClearAll() {
 	_uiIcons.clear();
 	_genericGlyphCache.clear(); // surfaces were owned by _uiIcons (freed above)
 	_drawCelNativeCache.clear(); // surfaces were owned by _uiIcons (freed above)
-	if (_overlayActive && _plate) presentWithUi();
+	if (overlayShown() && _plate) presentWithUi();
 }
 
 // Fixed token for the kGraphFrameBox selection highlight. Room-scoped: cleared by
@@ -1420,7 +1484,7 @@ void FileRogerArtProvider::uiClearAll() {
 static const uint32 FRAME_BOX_TOKEN = 0x70000000u;
 
 void FileRogerArtProvider::uiPushFrameBox(const Common::Rect &r, int penColor) {
-	if (!_overlayActive || !_plate) return; // no hires scene — leave native highlight visible
+	if (!overlayShown() || !_plate) return; // no hires scene — leave native highlight visible
 	ensureUi();
 	// Gate: if the frame element under FRAME_BOX_TOKEN is already identical (same rect
 	// + same color), skip the clear/push/invalidate/present cycle entirely. This prevents
@@ -1641,7 +1705,7 @@ void FileRogerArtProvider::beginNativeDraw() { _nativeDrawDepth++; }
 void FileRogerArtProvider::endNativeDraw()   { if (_nativeDrawDepth > 0) _nativeDrawDepth--; }
 
 void FileRogerArtProvider::onNativeShowRect(const Common::Rect &screenRect) {
-	if (!_overlayActive || _nativeDrawDepth > 0 || !_plate)
+	if (!overlayShown() || _nativeDrawDepth > 0 || !_plate)
 		return; // overlay off, inside a Roger-handled draw, or no hires plate
 	if (screenRect.isEmpty())
 		return;
@@ -1654,7 +1718,7 @@ void FileRogerArtProvider::onNativeShowRect(const Common::Rect &screenRect) {
 void FileRogerArtProvider::onNativeText(const Common::Rect &nativeRect, const char *text,
                                         int fontId, int penColor, int align,
                                         int nativeFontH, int nativeTextW, uint32 winToken) {
-	if (!_overlayActive || _nativeDrawDepth > 0 || !_plate)
+	if (!overlayShown() || _nativeDrawDepth > 0 || !_plate)
 		return; // overlay off, inside a Roger-handled draw, or no hires plate
 	if (!text || !*text || nativeRect.isEmpty())
 		return;
@@ -1689,7 +1753,7 @@ void FileRogerArtProvider::onNativeText(const Common::Rect &nativeRect, const ch
 }
 
 void FileRogerArtProvider::flushGenericText() {
-	if (!_overlayActive || !_plate)
+	if (!overlayShown() || !_plate)
 		{ _genTextPending.clear(); return; }
 	ensureUi();
 	// Emit this frame's generic captures PERSISTENTLY: push each into _uiLayer where it
@@ -1748,7 +1812,7 @@ void FileRogerArtProvider::flushGenericText() {
 
 void FileRogerArtProvider::snapshotNativeBaseline() {
 	if (!_diffBackstop) return; // backstop off (default): skip the costly per-frame snapshot
-	if (!_overlayActive || !g_sci || !g_sci->_gfxScreen)
+	if (!overlayShown() || !g_sci || !g_sci->_gfxScreen)
 		return;
 	GfxScreen *screen = g_sci->_gfxScreen;
 	const int sw = screen->getWidth(), sh = screen->getHeight();
@@ -1923,7 +1987,7 @@ void FileRogerArtProvider::renderFromAnimateList(const AnimateList &list) {
 		warning("ROGER: pic=%d sprites=%u (+%u static: %u addToPic +%u init) plate=%dx%d overlay=%s",
 		        _loadedPicId, (unsigned)sprites.size(), (unsigned)statics.size(),
 		        (unsigned)_staticSprites.size(), (unsigned)(statics.size() - _staticSprites.size()),
-		        _plate ? _plate->w : -1, _plate ? _plate->h : -1, _overlayActive ? "on" : "off");
+		        _plate ? _plate->w : -1, _plate ? _plate->h : -1, overlayShown() ? "on" : "off");
 
 	renderFrame(merged);
 
@@ -1933,21 +1997,45 @@ void FileRogerArtProvider::renderFromAnimateList(const AnimateList &list) {
 	}
 }
 
+void FileRogerArtProvider::remapComparisonMouse(Common::Point &mousePos) {
+	if (_mode != Roger::kModeSideBySide)
+		return;
+	const int OW = g_system->getOverlayWidth();
+	const int OH = g_system->getOverlayHeight();
+	if (OW <= 0 || OH <= 0)
+		return;
+	bool onLeft = false;
+	Common::Point out;
+	Roger::remapCompareMouse(mousePos, OW, OH, onLeft, out);
+	mousePos = out; // game receives the frame-relative coordinate for the pointed-at panel
+}
+
 void FileRogerArtProvider::toggleOverlay() {
 	diagDumpState("toggle");
-	_overlayActive = !_overlayActive;
-	if (!_overlayActive) {
-		g_system->hideOverlay(); // reveal the native 320x200 render underneath
-	} else {
-		// _nativeBaseline went stale while the overlay was off (snapshotNativeBaseline
-		// early-returns when _overlayActive is false).  Force a fresh snapshot on the
-		// next kernelAnimate before any Feeder-B diff runs.
+	const Roger::CompareDisplayMode prev = _mode;
+	_mode = Roger::nextDisplayMode(_mode);
+
+	if (_mode == Roger::kModeOriginal) {
+		// Enhanced -> Original: reveal the native 320x200 render underneath.
+		g_system->hideOverlay();
+	} else if (prev == Roger::kModeOriginal) {
+		// Original -> SideBySide: overlay comes back. _nativeBaseline went stale while
+		// the overlay was off (snapshotNativeBaseline early-returns when hidden); force a
+		// fresh snapshot on the next kernelAnimate before any Feeder-B diff runs.
 		_haveBaseline = false;
-		// Re-show immediately (do not wait for the next kAnimate) and restore the banner.
+		if (_compositor) _compositor->forceFullPresent(); // layout changed: full present next frame
 		if (_haveScene) presentWithUi();
 		reapplyStatus();
+	} else {
+		// Enhanced <-> SideBySide: overlay already shown, but the layout changes wholesale.
+		if (_compositor) _compositor->forceFullPresent();
+		if (_haveScene) presentWithUi();
 	}
-	warning("ROGER: overlay %s", _overlayActive ? "ENABLED (upscaled)" : "DISABLED (original)");
+
+	const char *name = _mode == Roger::kModeEnhanced ? "ENHANCED (upscaled)"
+	                 : _mode == Roger::kModeOriginal ? "ORIGINAL (native)"
+	                 : "SIDE-BY-SIDE (enhanced|original)";
+	warning("ROGER: display mode -> %s", name);
 }
 
 void FileRogerArtProvider::toggleDebugLog() {
@@ -2105,7 +2193,7 @@ void FileRogerArtProvider::diagDumpState(const char *where) {
 		return;
 	warning("ROGER-DIAG[%s]: pic=%d enabled=%d overlayActive=%d plate=%s haveScene=%d "
 	        "compCacheValid=%d haveBaseline=%d uiElems=%u uiIcons=%u staticSprites=%u",
-	        where, _loadedPicId, enabled ? 1 : 0, _overlayActive ? 1 : 0,
+	        where, _loadedPicId, enabled ? 1 : 0, overlayShown() ? 1 : 0,
 	        _plate ? "yes" : "NULL", _haveScene ? 1 : 0, _compositeCacheValid ? 1 : 0,
 	        _haveBaseline ? 1 : 0,
 	        _uiLayer ? (unsigned)_uiLayer->elements().size() : 0u,
@@ -2170,7 +2258,7 @@ void FileRogerArtProvider::composeRoomScene(Graphics::ManagedSurface &out) {
 }
 
 void FileRogerArtProvider::onTransition(int sciType, const Common::Rect & /*picRect*/) {
-	if (!_transitionsEnabled || !_overlayActive || !_compositor || !_plate)
+	if (!_transitionsEnabled || !overlayShown() || !_compositor || !_plate)
 		return;
 	diagDumpState("transition");
 	const Roger::TransitionFamily fam = Roger::transitionFamilyFor(sciType);
@@ -2214,7 +2302,7 @@ void FileRogerArtProvider::onTransition(int sciType, const Common::Rect & /*picR
 }
 
 void FileRogerArtProvider::onShake(int shakeCount, int directions) {
-	if (!_transitionsEnabled || !_overlayActive || !_compositor || !_haveScene || !_sceneCache)
+	if (!_transitionsEnabled || !overlayShown() || !_compositor || !_haveScene || !_sceneCache)
 		return;
 	const int OW = g_system->getOverlayWidth(), OH = g_system->getOverlayHeight();
 	if (OW <= 0 || OH <= 0 || _sceneCache->w != OW || _sceneCache->h != OH)

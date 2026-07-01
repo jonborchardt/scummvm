@@ -73,6 +73,7 @@ public:
 	void onCursorShape(int cursorId) override;
 	void onCursorHidden(bool hidden) override;
 	void onCursorView(int viewId, int loopNo, int celNo) override;
+	void remapComparisonMouse(Common::Point &mousePos) override;
 	void toggleOverlay() override;   // Ctrl+Shift+U: upscaled overlay <-> original native
 	void toggleDebugLog() override;  // Ctrl+Shift+L: per-frame Roger diagnostic logging
 	void tuneEnhancePasses(int delta, int which) override; // Ctrl+Shift+]/[ add/remove fill; '/; add/remove all
@@ -120,7 +121,8 @@ private:
 	int _bodyFontIdx = -1; // index into the body-font shortlist (-1 = config/default font)
 	Roger::RogerCapabilities _caps;   // probed once on first room load; read-only after
 	bool _capsProbed = false;
-	bool _overlayActive = true;  // false = show native 320x200 (A/B comparison toggle)
+	Roger::CompareDisplayMode _mode = Roger::kModeEnhanced; // F10 cycles enhanced/original/side-by-side
+	bool overlayShown() const { return _mode != Roger::kModeOriginal; } // overlay visible (enhanced OR side-by-side)
 	bool _debugLog = false;      // per-frame diagnostic logging
 	bool _diag = false;          // roger_diag: one-line overlay-state trace at room-load/present/transition seams (revertible instrumentation)
 	void diagDumpState(const char *where);
@@ -213,6 +215,9 @@ private:
 	Common::Rect _lastGameRect;                      // gameRect used for the cached scene
 	void ensureUi();                                 // lazily build _uiLayer + _textRenderer
 	void presentWithUi();                            // compose _sceneCache + _uiLayer -> overlay
+	// Side-by-side compare mode: build enhanced(left)|original(right) into the overlay and
+	// present full. Gated by _mode == kModeSideBySide; called from renderFrame/presentWithUi.
+	void presentComparison();
 
 	// Last status/title banner so it can be re-applied on room load / F10 enable
 	// (the game only redraws it on score/text change).

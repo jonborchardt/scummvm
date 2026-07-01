@@ -56,6 +56,14 @@ void coalesceDirtyRects(const Common::Array<Common::Rect> &in, const Common::Rec
 void extractChangedBoxes(const byte *prev, const byte *cur, int w, int h,
                          Common::Array<Common::Rect> &out);
 
+// Three display modes cycled by F10 (see file_roger_art_provider toggleOverlay):
+// enhanced overlay -> original native -> enhanced|native side-by-side -> ...
+enum CompareDisplayMode { kModeEnhanced = 0, kModeOriginal = 1, kModeSideBySide = 2 };
+
+inline CompareDisplayMode nextDisplayMode(CompareDisplayMode m) {
+	return (CompareDisplayMode)(((int)m + 1) % 3);
+}
+
 // Drop capture rects that overlap any live animate-cast sprite rect (native/320x200
 // coordinates). Used to scope native-foreground capture so moving actors are never
 // re-captured as static images (they are drawn by the sprite path). Appends to `out`.
@@ -108,6 +116,26 @@ void upscaleNativeRegionNearest(Graphics::Surface &dest, const Common::Rect &ove
                                 const byte *visual, int visualPitch,
                                 const Common::Rect &nativeRect, const byte *palette);
 
+// Compute the two letterboxed frame rects for side-by-side compare mode. The overlay
+// is split in half horizontally (left = enhanced, right = original); each frame keeps
+// the 320x200 (8:5) game aspect, centered in its half with black letterbox bars.
+void comparePanelRects(int overlayW, int overlayH,
+                       Common::Rect &leftFrame, Common::Rect &rightFrame);
+
+// Nearest-neighbour scale-blit: copy `src` into dest's destRect, scaling to fit (up or
+// down). dest and src are RGBA32; pixels are copied opaque-over (no alpha blend). Used by
+// side-by-side compare mode for both the downscaled plate and the upscaled native capture.
+void scaleBlitNearest(Graphics::Surface &dest, const Common::Rect &destRect,
+                      const Graphics::Surface &src);
+
+// Remap a full-window game coordinate (windowGamePos, 0..319/0..199 — the backend's
+// linear map of the WHOLE window) to the frame-relative 320x200 coordinate of whichever
+// side-by-side panel the pointer is over. Returns true when inside a panel frame; when in
+// a letterbox bar, returns false and clamps `out` to that panel's nearest frame edge.
+// `onLeftPanel` reports the panel (left = enhanced, right = original).
+bool remapCompareMouse(const Common::Point &windowGamePos, int overlayW, int overlayH,
+                       bool &onLeftPanel, Common::Point &out);
+
 class RogerCompositor {
 public:
 	RogerCompositor() : _plate(nullptr), _views(nullptr),
@@ -153,6 +181,10 @@ public:
 	// Enable/disable dirty present (roger_dirty_present knob). When off, presentToOverlay
 	// always does a full region push (the pre-dirty behavior).
 	void setDirtyPresent(bool enabled) { _dirtyPresent = enabled; }
+
+	// Force the next presentToOverlay() to push the whole overlay (used by F10 layout
+	// changes and side-by-side compare mode). Cleared by the present, like a bg rebuild.
+	void forceFullPresent() { _bgRebuilt = true; }
 
 	// roger_diag: revertible seed/present trace (off by default). See file_roger_art_provider.
 	void setDiag(bool on) { _diag = on; }
