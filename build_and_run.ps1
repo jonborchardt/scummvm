@@ -15,6 +15,9 @@ param(
                               # settings, game path) is used. Empty = default SQ3 via -p path.
     [int]$SaveSlot    = -1,   # auto-load this save slot on startup (ScummVM -x / --save-slot).
                               # e.g. -SaveSlot 1 boots straight into save 001. -1 = no auto-load.
+    [switch]$SkipPicker,      # skip the Roger game-picker dialog and boot straight into the
+                              # game (or -SaveSlot save). Sets ROGER_NO_LAUNCHER for the launch.
+                              # Implied automatically whenever -Game is passed.
     [switch]$Regenerate       # force-regenerate scummvm.sln (e.g. after changing enabled
                               # features like the event recorder). Deletes the existing solution.
 )
@@ -226,6 +229,16 @@ if ($NoLaunch) {
 # Build the save-slot argument shared by both launch paths.
 $saveArgs = @()
 if ($SaveSlot -ge 0) { $saveArgs = @("--save-slot=$SaveSlot") }
+
+# Boot straight into the game, bypassing the Roger picker dialog, when either
+# -SkipPicker is set OR a specific -Game target was passed (a named target means
+# the caller already knows what to launch, so the picker is just in the way).
+# ROGER_NO_LAUNCHER is read by getenv() in engines/sci/sci.cpp; it's per-process
+# (this launch only) so it never touches scummvm.ini.
+if ($SkipPicker -or $Game) {
+    $env:ROGER_NO_LAUNCHER = "1"
+    Write-Host "Bypassing the Roger game-picker dialog (SkipPicker or -Game)." -ForegroundColor DarkGray
+}
 
 if ($Game) {
     # Launch a configured target by id (uses scummvm.ini: game path + Roger settings).

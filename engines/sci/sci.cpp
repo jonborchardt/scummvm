@@ -19,6 +19,10 @@
  *
  */
 
+// Roger: build_and_run.ps1 -SkipPicker sets ROGER_NO_LAUNCHER to boot straight
+// into the game, read via getenv() below.
+#define FORBIDDEN_SYMBOL_EXCEPTION_getenv
+
 #include "common/system.h"
 #include "common/config-manager.h"
 #include "common/debug-channels.h"
@@ -406,7 +410,15 @@ Common::Error SciEngine::run() {
 
 	g_sciRogerProvider = new FileRogerArtProvider(getGameIdStr(), ConfMan.getPath("path"));
 
-	if (!ConfMan.hasKey("roger_no_launcher") || !ConfMan.getBool("roger_no_launcher")) {
+	// Skip the picker when roger_no_launcher is set (scummvm.ini) OR the
+	// ROGER_NO_LAUNCHER env var is present. The env var is a non-sticky
+	// dev convenience so build_and_run.ps1 -SkipPicker can boot straight
+	// into the game / auto-loaded save without touching scummvm.ini.
+	const bool skipLauncher =
+		(ConfMan.hasKey("roger_no_launcher") && ConfMan.getBool("roger_no_launcher")) ||
+		(getenv("ROGER_NO_LAUNCHER") != nullptr);
+
+	if (!skipLauncher) {
 		// The launcher owns precaching and shows on-screen progress + a per-item
 		// log. Do NOT run the synchronous startup warm-up here — it would do all
 		// the work (potentially many seconds, fully blocking) before the dialog
