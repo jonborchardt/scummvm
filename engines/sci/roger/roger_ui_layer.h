@@ -85,7 +85,9 @@ public:
 	// Append, or replace an existing element with the same type+token+rect.
 	void push(const UiElement &e);
 	// Remove every element carrying this clear-token. Returns true if any element was removed.
-	bool clearToken(uint32 token);
+	// If `removedNativeRects` is non-null, the nativeRect of each removed element is appended
+	// to it so the caller can dirty the vacated overlay regions (else stale pixels linger).
+	bool clearToken(uint32 token, Common::Array<Common::Rect> *removedNativeRects = nullptr);
 	void clearAll() { _elems.clear(); }
 	bool empty() const { return _elems.empty(); }
 	const Common::Array<UiElement> &elements() const { return _elems; }

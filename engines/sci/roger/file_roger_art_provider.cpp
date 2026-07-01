@@ -1330,7 +1330,16 @@ void FileRogerArtProvider::reapplyStatus() {
 		             _statusNativeFontH, _statusNativeTextW);
 }
 
-static const uint32 GENERIC_TEXT_TOKEN = 0x60000000u; // generic text-out captures (deduped vs controls16/menu)
+// Generic text-out captures live in the 0x6------- namespace. The low bits carry the
+// window/port id the text was drawn in (0x60000000 | port->id), so a window dispose
+// (GfxPorts::removeWindow -> uiClearToken(0x60000000 | id)) drops exactly that window's
+// text — the same lifetime controls16/menu text already has. Text drawn on the picture
+// port (no dialog / char screen while open) uses that port's id, which is never disposed
+// mid-room, so it persists until room change. GENERIC_TEXT_TOKEN is the namespace base
+// (matches picture-port id 0 fallback and is the value passed to the namespace helpers).
+static const uint32 GENERIC_TEXT_TOKEN = 0x60000000u;
+static const uint32 GENERIC_TEXT_MASK = 0xF0000000u;
+static inline bool isGenericTextToken(uint32 t) { return (t & GENERIC_TEXT_MASK) == GENERIC_TEXT_TOKEN; }
 
 void FileRogerArtProvider::uiClearToken(uint32 token) {
 	// SCI calls this from bitsRestore for every save-under region it restores — which, while
@@ -1339,8 +1348,24 @@ void FileRogerArtProvider::uiClearToken(uint32 token) {
 	// and the cache-invalidate forces a full recompose next frame, so an unconditional present here
 	// dominated the cycle (~196 ms — the game ran ~2.7× slow). Only invalidate + present when an
 	// element was actually removed (e.g. a dialog/look-at dismissal); otherwise this is a no-op.
-	if (!_uiLayer || !_uiLayer->clearToken(token))
+	Common::Array<Common::Rect> removedRects;
+	if (!_uiLayer || !_uiLayer->clearToken(token, &removedRects)) {
+		if (_diag && (token & GENERIC_TEXT_MASK) == GENERIC_TEXT_TOKEN)
+			warning("ROGER-DIAG[clearToken]: tok=0x%08x removed=0 (no match)", token);
 		return;
+	}
+	if (_diag && (token & GENERIC_TEXT_MASK) == GENERIC_TEXT_TOKEN)
+		warning("ROGER-DIAG[clearToken]: tok=0x%08x removed=1", token);
+	// Dirty the overlay regions the removed elements occupied so this present repaints
+	// them with the clean background. Without this, the dirty-rect present skips the
+	// vacated area and the stale text/box lingers until another draw touches it (the
+	// "text does not clear until the next message" symptom).
+	if (_compositor)
+		for (uint i = 0; i < removedRects.size(); i++) {
+			Common::Rect d = Roger::sciRectToDest(removedRects[i], _lastGameRect);
+			d.grow(2); // cover TTF glyph overshoot past the native box
+			_compositor->addDirtyRect(d);
+		}
 	_compositeCacheValid = false;
 	if (_overlayActive && _plate) presentWithUi();
 }
@@ -1353,9 +1378,10 @@ void FileRogerArtProvider::onNativeEraseRect(const Common::Rect &nativeRect) {
 	bool removed = false;
 	const Common::Array<Roger::UiElement> &els = _uiLayer->elements();
 	Common::Array<Roger::UiElement> kept;
+	Common::Array<Common::Rect> droppedRects;
 	for (uint i = 0; i < els.size(); i++) {
-		if (els[i].token == GENERIC_TEXT_TOKEN && nativeRect.contains(els[i].nativeRect))
-			{ removed = true; continue; }
+		if (isGenericTextToken(els[i].token) && nativeRect.contains(els[i].nativeRect))
+			{ removed = true; droppedRects.push_back(els[i].nativeRect); continue; }
 		kept.push_back(els[i]);
 	}
 	if (!removed)
@@ -1363,6 +1389,13 @@ void FileRogerArtProvider::onNativeEraseRect(const Common::Rect &nativeRect) {
 	_uiLayer->clearAll();
 	for (uint i = 0; i < kept.size(); i++)
 		_uiLayer->push(kept[i]);
+	// Dirty the vacated regions so the present repaints them (see uiClearToken).
+	if (_compositor)
+		for (uint i = 0; i < droppedRects.size(); i++) {
+			Common::Rect d = Roger::sciRectToDest(droppedRects[i], _lastGameRect);
+			d.grow(2);
+			_compositor->addDirtyRect(d);
+		}
 	_compositeCacheValid = false; // UI changed: match the uiPush*/uiClear* invalidation pattern
 	if (_diag)
 		warning("ROGER-DIAG[eraseText]: rect=(%d,%d,%d,%d) remaining=%u",
@@ -1620,15 +1653,15 @@ void FileRogerArtProvider::onNativeShowRect(const Common::Rect &screenRect) {
 
 void FileRogerArtProvider::onNativeText(const Common::Rect &nativeRect, const char *text,
                                         int fontId, int penColor, int align,
-                                        int nativeFontH, int nativeTextW) {
+                                        int nativeFontH, int nativeTextW, uint32 winToken) {
 	if (!_overlayActive || _nativeDrawDepth > 0 || !_plate)
 		return; // overlay off, inside a Roger-handled draw, or no hires plate
 	if (!text || !*text || nativeRect.isEmpty())
 		return;
 	if (_diag)
-		warning("ROGER-DIAG[nativeText]: pic=%d rect=(%d,%d,%d,%d) font=%d pen=%d \"%s\"",
+		warning("ROGER-DIAG[nativeText]: pic=%d rect=(%d,%d,%d,%d) font=%d pen=%d tok=%08x \"%s\"",
 		        _loadedPicId, nativeRect.left, nativeRect.top, nativeRect.right, nativeRect.bottom,
-		        fontId, penColor, text);
+		        fontId, penColor, winToken, text);
 	Roger::UiElement e;
 	e.type = Roger::kUiText;
 	e.nativeRect = nativeRect;
@@ -1637,11 +1670,22 @@ void FileRogerArtProvider::onNativeText(const Common::Rect &nativeRect, const ch
 	e.penColor = penColor;
 	e.backColor = -1;          // no fill: drawn over the plate / window background
 	e.align = align;
-	e.token = GENERIC_TEXT_TOKEN;
+	// Scope to the drawing window (generic namespace | port id). Falls back to the
+	// namespace base if the caller had no port, matching the picture-port persist case.
+	e.token = isGenericTextToken(winToken) ? winToken : GENERIC_TEXT_TOKEN;
 	e.textRole = Roger::kRoleBody;   // same body size as dialog/control text
 	e.nativeFontH = nativeFontH;     // native cell height -> renderer target size
 	e.nativeTextW = nativeTextW;     // single-line width cap (0 = multi-line: no cap)
 	_genTextPending.push_back(e);
+	// Emit into _uiLayer NOW, not deferred to the next animate cycle. A blocking message
+	// (Print/kDisplay) draws its text here and then waits for a click WITHOUT ticking
+	// kernelAnimate, so a deferred flush would only reach _uiLayer after the message's
+	// window is already disposed — missing its removeWindow clear and leaving the text
+	// tagged to a dead window (it then lingered until the NEXT window reused the id). Pushing
+	// immediately means the text is in _uiLayer under its live window token, so the window's
+	// removeWindow clears it on dismiss. Safe: onNativeText fires on a real text draw, not
+	// per-cycle. renderFromAnimateList still calls flushGenericText (a no-op when empty).
+	flushGenericText();
 }
 
 void FileRogerArtProvider::flushGenericText() {

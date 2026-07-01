@@ -34,10 +34,12 @@ void RogerUiLayer::push(const UiElement &e) {
 	_elems.push_back(e);
 }
 
-bool RogerUiLayer::clearToken(uint32 token) {
+bool RogerUiLayer::clearToken(uint32 token, Common::Array<Common::Rect> *removedNativeRects) {
 	bool removed = false;
 	for (uint i = 0; i < _elems.size();) {
 		if (_elems[i].token == token) {
+			if (removedNativeRects)
+				removedNativeRects->push_back(_elems[i].nativeRect);
 			_elems.remove_at(i);
 			removed = true;
 		} else {

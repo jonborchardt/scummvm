@@ -130,10 +130,12 @@ public:
 	// Generic text-out capture (game-agnostic): SCI drew `text` at native `nativeRect`
 	// in font `fontId`, color `penColor`, alignment `align`. nativeFontH is the SCI font
 	// cell height (px) and nativeTextW is the single-line string width (0 = multi-line).
-	// Default no-op.
+	// `winToken` scopes the text to the window/port it was drawn in (generic namespace
+	// 0x60000000 | port->id), so the text is dropped when that window is disposed
+	// (GfxPorts::removeWindow) — exactly like controls16/menu text. Default no-op.
 	virtual void onNativeText(const Common::Rect &nativeRect, const char *text,
 	                          int fontId, int penColor, int align,
-	                          int nativeFontH, int nativeTextW) {}
+	                          int nativeFontH, int nativeTextW, uint32 winToken) {}
 
 	// SCI erased/redrew a native region (bitsRestore of saved-under bits, or kGraphRedrawBox).
 	// The provider drops persisted generic captured text inside it so transient text does not

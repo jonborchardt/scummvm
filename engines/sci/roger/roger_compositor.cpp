@@ -182,11 +182,14 @@ void filterForegroundCaptureRegionsCovered(const Common::Array<Common::Rect> &ca
 }
 
 void dedupeGenericTextElements(Common::Array<UiElement> &elems, uint32 genericToken) {
+	// genericToken is a namespace prefix (high nibble): generic text is tokened per window
+	// (0x60000000 | port->id), so match on the namespace, not an exact value.
+	const uint32 ns = 0xF0000000u;
 	for (uint i = 0; i < elems.size();) {
 		bool drop = false;
-		if (elems[i].token == genericToken) {
+		if ((elems[i].token & ns) == genericToken) {
 			for (uint j = 0; j < elems.size(); j++) {
-				if (j == i || elems[j].token == genericToken)
+				if (j == i || (elems[j].token & ns) == genericToken)
 					continue;
 				const UiElementType jt = elems[j].type;
 				const bool jRendersText = (jt == kUiText || jt == kUiButton || jt == kUiTextEdit);

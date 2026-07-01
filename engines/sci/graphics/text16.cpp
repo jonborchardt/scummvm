@@ -705,8 +705,15 @@ void GfxText16::Box(const char *text, uint16 languageSplitter, bool show, const 
 		// test failed), so the text ghosted until room change. Globalizing fixes both.
 		Common::Rect gRect = rect;
 		_ports->offsetRect(gRect);
+		// Scope the capture to the window/port the text was drawn in, in the generic text
+		// namespace (0x60000000 | port->id) — mirrors controls16's 0x40000000 | id scheme.
+		// GfxPorts::removeWindow clears this token on window dispose, so dialog/message text
+		// vanishes with its window; text on the persistent picture port survives until room
+		// change (char-screen labels etc.).
+		const Port *curPort = _ports->getPort();
+		const uint32 winToken = 0x60000000u | (uint32)(curPort ? curPort->id : 0);
 		g_sciRogerProvider->onNativeText(gRect, text, fontId, previousPenColor, (int)alignment,
-		                                 nativeFontH, nativeTextW);
+		                                 nativeFontH, nativeTextW, winToken);
 	}
 }
 
