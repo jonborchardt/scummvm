@@ -28,6 +28,21 @@ target's `scummvm.ini`, so Roger settings apply):
 .\build_and_run.ps1 -Game qfg1 -SaveSlot 1   # boots QFG1 and auto-loads save slot 1
 ```
 
+**The picker is bypassed automatically whenever `-Game` is passed** — a named
+target means the caller already knows what to launch, so the Roger game-picker
+dialog (only useful for a human choosing a game / tuning settings) is skipped.
+The `-Game qfg1 -SaveSlot 1` example above therefore already boots straight into
+the save with no picker. For the default SQ3 path (no `-Game`), pass `-SkipPicker`
+explicitly to skip it:
+
+```powershell
+.\build_and_run.ps1 -SkipPicker              # SQ3, no picker
+.\build_and_run.ps1 -Game qfg1 -SaveSlot 1   # QFG1 save 001, picker skipped automatically
+```
+
+Either path sets the `ROGER_NO_LAUNCHER` env var for that launch only (per-process,
+never touches `scummvm.ini`; the launcher gate is in `engines/sci/sci.cpp`).
+
 **Screenshots:** never write screenshots (or `roger_autoshot` output) to the repo
 root. Point `screenshotpath` at the gitignored `screenshots/` folder (already in
 `.gitignore`) — keep all dev/verification captures there so they are never committed.
@@ -65,6 +80,107 @@ This fork adds the **Roger** art replacement system for SCI0 games (SQ3, QFG1 EG
 > scripts, and the `roger-canvas` HTML overlay have been removed. The hires visual
 > is displayed through ScummVM's **OSystem overlay** (a higher-resolution layer
 > composited above the 320×200 game surface) — not a browser canvas.
+
+### SCI0 rendering & UI invariants (READ BEFORE TOUCHING ANY HOOK)
+
+Most Roger bugs are the **same bug wearing different clothes**: the overlay failed to
+mirror *both* the **draw** and the **lifetime** of a native element, or it fought SCI's
+synchronous game cycle. The fixes for text rendering, ghost text, and walking-speed were
+all this class. These invariants are load-bearing — internalize them before adding or
+changing a hook. They cross-reference "Performance discipline" (below) and the Feeder
+A/B capture notes in Stage 2.
+
+**How SCI0 draws (the mental model):**
+
+- **Immediate-mode native renderer at 320×200.** SCI draws directly into three parallel
+  byte buffers — **visual** (color), **priority** (z-band / occlusion), **control**
+  (walkability / event zones). Roger replaces only the *display* of the visual buffer;
+  priority/control stay native, which is why walkability and native occlusion "just work".
+- **The overlay is retained; the native screen is immediate.** SCI "erases" transient
+  content (text, dialogs) simply by **redrawing the scene underneath it**. The overlay has
+  **no automatic erase** — nothing repaints a region until something dirties it. So *every
+  removal* of an overlay element MUST explicitly dirty the vacated dest rect, or the
+  dirty-rectangle present skips it and the pixels ghost. (Fix pattern: `clearToken`/
+  `onNativeEraseRect` collect removed native rects → `addDirtyRect(sciRectToDest(...))`.)
+- **The game cycle is a single synchronous heartbeat: `kernelAnimate`.** Game *logic*
+  (walking, input) advances one step per cycle. Anything reachable per-cycle must be O(1)
+  and must not force a full present/recompose unless the scene actually changed — a heavy
+  per-cycle path slows the *game*, not just the frame rate (see Performance discipline;
+  the `bitsRestore`→full-present regression cost a 2.7× walking slowdown).
+- **Blocking calls FREEZE the cycle.** `Print`/`Display` (and `kMessage`) draw their text
+  and then **wait for a click without ticking `kernelAnimate`**. Corollary — the single
+  most expensive lesson: **any overlay state tied to an element's lifetime must be updated
+  at that element's DRAW hook, never deferred to the animate cycle.** A deferred flush of
+  dialog text reaches the overlay only *after* its window is already disposed, so it misses
+  its clear and ghosts until the next window reuses the id. (Fix: `onNativeText` pushes into
+  `_uiLayer` immediately; it does not wait for `flushGenericText` in the next cycle.)
+
+**The two structural lifetime signals — key off these, never off geometry or per-game knowledge:**
+
+- **Ports & Windows are THE UI lifetime model.** `GfxPorts::openWindow` / `removeWindow`
+  bracket every dialog, message, menu, and the picture port itself. Window **ids are
+  reused** after dispose. Token every captured UI element by its port id
+  (`0x40000000 | id` for controls/windows; `0x60000000 | id` for generic text captures)
+  and clear it in `removeWindow` — the one reliable, game-agnostic **dispose** signal.
+  Element lifetime = its window's lifetime: windowed text dies with its window; text on the
+  persistent picture port survives until room change (this is why char-sheet stats persist
+  while an over-the-sheet popup can't wipe them).
+- **`GfxText16::Box` is THE text chokepoint.** All text — narration, dialogs, controls,
+  status bar — flows through it. Capture there and you are game-agnostic. On SCI0 EGA
+  `show == false` (text is drawn into the buffer and flushed later by `kGraphUpdateBox` /
+  `bitsShow`), so gating on `show` misses everything. The `rect` is **port-local** — globalize
+  it with `_ports->offsetRect` before use (matches every controls16 hook). Box hands over
+  rect + fontId + penColor + alignment + line height + single-line width; for **multi-line**
+  text it exposes only per-line *char counts* (`GetLongest`), not per-line rects — so Roger
+  currently re-wraps (a known fidelity gap; a per-line `Draw`/`Show` hook would fix it).
+
+**Save-under is a real but INCOMPLETE erase signal.** `bitsSave`/`bitsRestore` back most
+transient overlays, and `bitsRestore` fires `onNativeEraseRect`. But transparent /
+no-save-under windows and `reanimate == false` disposals **skip it** — which is exactly why
+`removeWindow` (not `bitsRestore` alone) is the dependable dispose hook.
+
+**The same content can be captured by more than one hook** (controls16 semantic + generic
+`Box` + `bitsShow` pixel). Keep a dedup/lifetime discipline (namespace tokens + covered-rect
+dedup) so redundant copies don't outlive each other and ghost.
+
+**`_picNotValid` = room init.** Cels drawn while it's set bake into the picture and bypass
+`kAnimate`/`kAddToPic` — capture them via `onInitCel` (Feeder A supplement) or they go missing
+on first visit.
+
+**Kernel drawing primitives → where Roger hooks them** (the game-agnostic seams):
+
+| SCI primitive | What it does | Roger hook |
+|---|---|---|
+| `GfxPaint16::drawPicture` | room background render (fills visual/priority/control) | `pushHiresBackground` |
+| `GfxAnimate::kernelAnimate` | the game cycle + full cast draw | `renderFromAnimateList` |
+| `addToPicDrawCels/View` | static cels baked into the picture | `onAddToPicCel` (Feeder A) |
+| `drawCel` during `_picNotValid` | first-visit static props | `onInitCel` (Feeder A) |
+| `GfxText16::Box` | **all** text-out | `onNativeText` |
+| `GfxPorts::openWindow` / `removeWindow` | window create / **dispose** | `uiPushWindow` / `uiClearToken` |
+| `kDrawControl` (button/text/edit/icon/list) | dialog controls | `uiPushButton`/`uiPushText`/`uiPushTextEdit` |
+| `bitsShow` / `bitsRestore` | native region show / save-under restore | `onNativeShowRect` / `onNativeEraseRect` (Feeder B) |
+| `kGraphFrameBox` | selection frame primitive | `uiPushFrameBox` |
+| status/menu bar | top strip | `uiPushStatus` |
+| transitions (fade/dissolve/wipe/scroll/shake) | scene change FX | `onTransition` |
+| palette (cycling / fade) | live EGA palette | `roger_palette_live` re-apply |
+
+**Traps — do NOT re-fall into these (each cost a debugging session):**
+
+- Deferring lifetime-bound overlay state to the animate cycle → ghosts through blocking dialogs.
+- Removing an overlay element without dirtying its vacated rect → stale pixels until the next redraw.
+- Clearing/erasing by **geometry** (rect containment) instead of by **window token** → false drops (a popup over the char sheet wipes stat text beneath it).
+- A per-cycle hook that forces a full present/recompose when nothing changed → walking slowdown.
+- Gating the text hook on `show == true` → misses all SCI0 EGA text.
+- Using port-local rects without `offsetRect` → offset text that never matches global erase rects.
+
+**Underused SCI signals worth exploiting later** (highest value first): per-line text rects
+via a `Draw`/`Show` hook (kills the multi-line re-wrap drift); a single **frame-complete**
+present barrier around `updateScreen` in `kernelAnimate` (cleaner than scattered per-primitive
+presents, and closes the stale-overlay-during-blocking-dialog class); a **palette-vary
+per-tick** hook for smooth fades/cycling (current re-apply is binary); semantic TextEdit-caret
+and list-selection hooks (vs pixel/diff capture). `kMessage` exists but SCI0 (QFG1/SQ3) uses
+Print/Display — low priority. Verify a signal's current hook state before adding — several are
+already partially wired.
 
 ### Stage 1: Background replacement
 
