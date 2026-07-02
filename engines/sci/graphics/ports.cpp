@@ -542,7 +542,9 @@ void GfxPorts::drawWindow(Window *pWnd) {
 			}
 		}
 
-		_paint16->bitsShow(pWnd->dims);
+		// Tag the show with the window's token: drawWindow runs with _wmgrPort current, so
+		// bitsShow cannot derive the owner itself. Roger drops the capture on removeWindow.
+		_paint16->bitsShow(pWnd->dims, 0x40000000u | (uint32)pWnd->id);
 	}
 	setPort(oldport);
 }
@@ -564,9 +566,17 @@ void GfxPorts::removeWindow(Window *pWnd, bool reanimate) {
 	pWnd->hSaved1 = NULL_REG;
 	_paint16->bitsRestore(pWnd->hSaved2);
 	pWnd->hSaved2 = NULL_REG;
-	if (!reanimate)
+	if (!reanimate) {
+		// Suppress the Roger Feeder B capture of this show: it blits the just-restored
+		// native background of a window that no longer exists — stamping it would pin
+		// un-enhanced native pixels over the hires plate with no owner left to clear them.
+		// The overlay repaint of the vacated area comes from the uiClearToken dirty rects.
+		if (g_sciRogerProvider && g_sciRogerProvider->enabled)
+			g_sciRogerProvider->beginNativeDraw();
 		_paint16->bitsShow(pWnd->restoreRect);
-	else
+		if (g_sciRogerProvider && g_sciRogerProvider->enabled)
+			g_sciRogerProvider->endNativeDraw();
+	} else
 		_paint16->kernelGraphRedrawBox(pWnd->restoreRect);
 	_windowList.remove(pWnd);
 	setPort(_windowList.back());

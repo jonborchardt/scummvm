@@ -60,7 +60,7 @@ Coordinates are game-space 320×200 and the `-preview.png` is exactly the game r
 | Capture an open dialog | `key ENTER` → `wait 2500` → `capture dlg` → `move 200 120` → `wait 400` → `key ENTER` |
 | Ghost-text check | after dismissing: `wait 1200` → `move 160 100` → `capture gone` |
 | **Roger bug or game behavior?** | launch with `-Mode sbs` — boots straight into Side-by-Side, every capture is an enhanced-vs-native comparison, no F10 choreography or mode restore. Left pane = enhanced, right = native mirror. Anything missing/extra on the left only is a Roger bug; identical on both = original game behavior. One such capture settled both "missing signs" (Roger-side) and "invisible ego" (native-legit occlusion). Mid-run mode switches are still `key F10` (cycles Enhanced → Original → Side-by-Side); `-Mode original` gives a native-only run. |
-| Structured trace instead of pixels | flip `roger_diag=false` → `true` for the target's domain in `%APPDATA%\ScummVM\scummvm.ini` (the key may exist under several game sections — flip only the target's), run, grep `ROGER-DIAG\[` in `screenshots\roger-run.log`. For capture/lifetime bugs the trace names exact view/loop/cel/rect/owner — often more decisive than screenshots. **Flip it back to false afterwards.** |
+| Structured trace instead of pixels | add `-Diag` to the launch (sets the `ROGER_DIAG` env var for that process only). Never flip `roger_diag` in `scummvm.ini` for this — ini edits race a running instance's config rewrite-on-exit and need manual cleanup. Grep `ROGER-DIAG\[` in `screenshots\roger-run.log`. For capture/lifetime bugs the trace names exact view/loop/cel/rect/owner — often more decisive than screenshots. |
 | Walking-speed / perf | add `-CycleLog`; grep `ROGER-CYCLE`; period ≈83 ms healthy, ≥150 suspicious, ≈225 = the historic bitsRestore regression |
 | Watch motion mid-action | several `capture step<N>` spaced by `wait 800` (each with its flush move) |
 | Interactive probing | `-Live cmd.txt` (background run, PID printed); append `.rin` lines to the file; finish with a `quit` line |
@@ -76,4 +76,4 @@ Coordinates are game-space 320×200 and the `-preview.png` is exactly the game r
 
 - PASS requires naming the captures and what you saw in each — a claim per image.
 - "Couldn't verify" is a valid verdict and is not FAIL: say which evidence is missing and why.
-- Captures missing entirely? Check in order: exit code 124 (hang)? `ROGER-SCRIPT` parse warnings in the log? A `capture` with no flushing `move` after it (the #1 cause)? Did the script reach that label (bisect with `log <marker>` lines)? Still dark → the `roger_diag` recipe above.
+- Captures missing entirely? Check in order: exit code 124 (hang)? `ROGER-SCRIPT` parse warnings in the log? A `capture` with no flushing `move` after it (the #1 cause)? Did the script reach that label (bisect with `log <marker>` lines)? Still dark → the `-Diag` recipe above.

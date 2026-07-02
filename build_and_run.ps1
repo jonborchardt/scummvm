@@ -27,6 +27,9 @@ param(
                               # commands to this file to drive the running game one input
                               # at a time (interactive script authoring).
     [switch]$CycleLog,        # per-cycle ROGER-CYCLE telemetry (walking-speed / perf runs)
+    [switch]$Diag,            # ROGER-DIAG overlay-state trace for this launch only (sets the
+                              # ROGER_DIAG env var; no scummvm.ini edit — ini edits race against
+                              # a running instance's config rewrite-on-exit)
     [ValidateSet("", "enhanced", "original", "sbs")]
     [string]$Mode     = "",   # boot straight into a display mode (F10 still cycles from it):
                               # enhanced (default), original (native), sbs (side-by-side
@@ -255,11 +258,11 @@ if ($SaveSlot -ge 0) { $saveArgs = @("--save-slot=$SaveSlot") }
 # Env-first knobs (per-process, never touch scummvm.ini) read by
 # FileRogerArtProvider; see docs/roger.md. Clear stale values first so a
 # previous run in this shell can't leak automation into a manual launch.
-foreach ($v in "ROGER_INPUT_SCRIPT", "ROGER_INPUT_LIVE", "ROGER_CYCLE_LOG", "ROGER_NO_LAUNCHER", "ROGER_DISPLAY_MODE") {
+foreach ($v in "ROGER_INPUT_SCRIPT", "ROGER_INPUT_LIVE", "ROGER_CYCLE_LOG", "ROGER_NO_LAUNCHER", "ROGER_DISPLAY_MODE", "ROGER_DIAG") {
     Remove-Item "Env:$v" -ErrorAction SilentlyContinue
 }
 $logArgs = @()
-if ($Script -or $Live -or $CycleLog) {
+if ($Script -or $Live -or $CycleLog -or $Diag) {
     $shots = "$Root\screenshots"
     if (-not (Test-Path $shots)) { New-Item -ItemType Directory -Force $shots | Out-Null }
     $logArgs = @("--logfile=$shots\roger-run.log")
@@ -285,6 +288,10 @@ if ($Live) {
 if ($CycleLog) {
     $env:ROGER_CYCLE_LOG = "1"
     Write-Host "Cycle telemetry: ROGER-CYCLE lines in screenshots\roger-run.log" -ForegroundColor Cyan
+}
+if ($Diag) {
+    $env:ROGER_DIAG = "1"
+    Write-Host "Diag trace: ROGER-DIAG lines in screenshots\roger-run.log (this launch only)" -ForegroundColor Cyan
 }
 if ($Mode) {
     $env:ROGER_DISPLAY_MODE = $Mode

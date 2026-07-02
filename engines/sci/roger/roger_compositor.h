@@ -42,7 +42,7 @@ struct Sprite {
 	bool mirror;
 	Graphics::Surface *celOverride = nullptr; // optional pre-rendered native cel (RGBA); used when no hires cel. Borrowed unless celOverrideOwned.
 	bool celOverrideOwned = false;            // true => this Sprite owns celOverride and must free it; false => borrowed (freed elsewhere)
-	uint32 owner = 0;      // init-cel captures only: opaque animate-object token (0 = none); shown only while the owner is absent from the live cast
+	uint32 owner = 0;      // init-cel captures: opaque animate-object token, shown only while the owner is absent from the live cast. Feeder B pixel stamps (_textSprites): owning-window token (0x40000000 | id), dropped on that window's dispose. 0 = none.
 };
 
 // Clamp each rect in `in` to `bounds`, drop empties, and merge any that intersect into

@@ -99,7 +99,14 @@ FileRogerArtProvider::FileRogerArtProvider(const Common::String &gameId,
 	// with Ctrl+Shift+L). Read it here so the documented config knob actually works.
 	_debugLog = ConfMan.hasKey("roger_debug") && ConfMan.getBool("roger_debug");
 	// roger_diag: revertible overlay-state trace at room/present/transition seams (off by default).
-	_diag = ConfMan.hasKey("roger_diag") && ConfMan.getBool("roger_diag");
+	// Env-first (ROGER_DIAG=1) so build_and_run.ps1 -Diag arms a single launch without editing
+	// scummvm.ini — ini edits race against a running instance's config rewrite-on-exit; the ini
+	// knob still works for ini-based setups (same pattern as ROGER_INPUT_SCRIPT / ROGER_DISPLAY_MODE).
+	{
+		const char *envDiag = getenv("ROGER_DIAG");
+		_diag = envDiag ? (Common::String(envDiag) != "0" && Common::String(envDiag) != "false")
+		                : (ConfMan.hasKey("roger_diag") && ConfMan.getBool("roger_diag"));
+	}
 	// roger_debug_capture: write per-pic manifest + PNG per graphic sprite to screenshots/ (off by default).
 	_debugCapture = ConfMan.hasKey("roger_debug_capture") && ConfMan.getBool("roger_debug_capture");
 	// roger_diff_check: gated in-engine native-vs-overlay diff (off by default; once per pic;
@@ -1504,7 +1511,34 @@ void FileRogerArtProvider::uiClearToken(uint32 token) {
 	// dominated the cycle (~196 ms — the game ran ~2.7× slow). Only invalidate + present when an
 	// element was actually removed (e.g. a dialog/look-at dismissal); otherwise this is a no-op.
 	Common::Array<Common::Rect> removedRects;
-	if (!_uiLayer || !_uiLayer->clearToken(token, &removedRects)) {
+	const bool removedUi = _uiLayer && _uiLayer->clearToken(token, &removedRects);
+
+	// Window dispose also kills that window's Feeder B pixel captures (controls namespace
+	// 0x40000000 | window id) — both the not-yet-processed pending regions (queued while a
+	// blocking window froze the animate cycle; processing them after dispose would stamp the
+	// restored native background over the plate) and the persistent stamps already created
+	// (conversation portraits etc. must vanish with their window). Cheap when nothing is
+	// tagged: bitsRestore's per-cycle handle tokens have small segments (top nibble 0), so
+	// they don't enter this branch. Removed stamp rects join removedRects for the dirty pass.
+	bool removedStamps = false;
+	if ((token & 0xF0000000u) == 0x40000000u) {
+		for (uint i = _foregroundRegions.size(); i-- > 0;)
+			if (_foregroundRegions[i].owner == token)
+				_foregroundRegions.remove_at(i);
+		for (uint i = _textSprites.size(); i-- > 0;) {
+			if (_textSprites[i].owner != token)
+				continue;
+			removedRects.push_back(_textSprites[i].celRect);
+			if (_textSprites[i].celOverride && _textSprites[i].celOverrideOwned) {
+				_textSprites[i].celOverride->free();
+				delete _textSprites[i].celOverride;
+			}
+			_textSprites.remove_at(i);
+			removedStamps = true;
+		}
+	}
+
+	if (!removedUi && !removedStamps) {
 		if (_diag && (token & GENERIC_TEXT_MASK) == GENERIC_TEXT_TOKEN)
 			warning("ROGER-DIAG[clearToken]: tok=0x%08x removed=0 (no match)", token);
 		return;
@@ -1517,7 +1551,15 @@ void FileRogerArtProvider::uiClearToken(uint32 token) {
 	// "text does not clear until the next message" symptom).
 	if (_compositor)
 		for (uint i = 0; i < removedRects.size(); i++) {
-			Common::Rect d = Roger::sciRectToDest(removedRects[i], _lastGameRect);
+			// Grow by 2 NATIVE px before mapping: the compositor paints kUiWindow at
+			// nr.grow(2) — and at FULL window dims + 2 when a present fires before the
+			// window's controls are pushed (mouse-move presents do this constantly), so
+			// the vacated dirty must cover that worst-case overdraw. A 2-overlay-px grow
+			// (a fraction of one native pixel at ~9x scale) left a white band of the
+			// window fill behind (the SQ3 "line at the bottom after typing" bug).
+			Common::Rect n = removedRects[i];
+			n.grow(2);
+			Common::Rect d = Roger::sciRectToDest(n, _lastGameRect);
 			d.grow(2); // cover TTF glyph overshoot past the native box
 			_compositor->addDirtyRect(d);
 		}
@@ -1704,20 +1746,28 @@ void FileRogerArtProvider::processForegroundCaptures(const Common::Array<Common:
 	if (_foregroundRegions.empty())
 		return; // nothing newly shown this frame; existing _textSprites persist as-is
 
-	// Live cast: exclude on any intersection (moving actors must never be pixel-stamped).
-	Common::Array<Common::Rect> keep;
-	Roger::filterForegroundCaptureRegions(_foregroundRegions, liveSpriteRects, keep);
 	// Captured crisp text: exclude only regions a text rect SUBSTANTIALLY covers (>=80%), so a
 	// graphic merely edge-clipped by a wide/multi-line text rect survives (fixes lost portrait/bars).
 	Common::Array<Common::Rect> textRects;
 	if (_uiLayer)
 		Roger::collectUiTextRects(_uiLayer->elements(), GENERIC_TEXT_TOKEN, textRects);
-	Common::Array<Common::Rect> keep2;
-	Roger::filterForegroundCaptureRegionsCovered(keep, textRects, 80, keep2);
-	_foregroundRegions.clear();
 
-	for (uint i = 0; i < keep2.size(); i++) {
-		const Common::Rect &nr = keep2[i];
+	// Filter per region (the filters judge each rect independently) so each surviving
+	// rect keeps its owning-window token through to the stamped sprite.
+	Common::Array<FgRegion> pending = _foregroundRegions;
+	_foregroundRegions.clear();
+	for (uint i = 0; i < pending.size(); i++) {
+		const Common::Rect &nr = pending[i].rect;
+		Common::Array<Common::Rect> one, keep;
+		one.push_back(nr);
+		// Live cast: exclude on any intersection (moving actors must never be pixel-stamped).
+		Roger::filterForegroundCaptureRegions(one, liveSpriteRects, keep);
+		if (keep.empty())
+			continue;
+		Common::Array<Common::Rect> keep2;
+		Roger::filterForegroundCaptureRegionsCovered(keep, textRects, 80, keep2);
+		if (keep2.empty())
+			continue;
 		Graphics::Surface *snap = snapshotNativeRegion(nr);
 		if (!snap)
 			continue;
@@ -1731,6 +1781,7 @@ void FileRogerArtProvider::processForegroundCaptures(const Common::Array<Common:
 				}
 				_textSprites[j].celOverride = snap;
 				_textSprites[j].celOverrideOwned = true;
+				_textSprites[j].owner = pending[i].owner; // latest draw's window owns the stamp
 				updated = true;
 				break;
 			}
@@ -1744,10 +1795,12 @@ void FileRogerArtProvider::processForegroundCaptures(const Common::Array<Common:
 		s.mirror = false;
 		s.celOverride = snap;
 		s.celOverrideOwned = true;
+		s.owner = pending[i].owner; // window token: stamp dies with its window (uiClearToken)
 		_textSprites.push_back(s);
 		if (_diag)
-			warning("ROGER-DIAG[fgCapture]: pic=%d rect=(%d,%d,%d,%d) now=%u",
-			        _loadedPicId, nr.left, nr.top, nr.right, nr.bottom, (unsigned)_textSprites.size());
+			warning("ROGER-DIAG[fgCapture]: pic=%d rect=(%d,%d,%d,%d) owner=0x%08x now=%u",
+			        _loadedPicId, nr.left, nr.top, nr.right, nr.bottom, pending[i].owner,
+			        (unsigned)_textSprites.size());
 	}
 	if (_debugCapture)
 		dumpCaptureDebug();
@@ -1811,15 +1864,16 @@ void FileRogerArtProvider::onInitCel(int viewId, int loopNo, int celNo,
 void FileRogerArtProvider::beginNativeDraw() { _nativeDrawDepth++; }
 void FileRogerArtProvider::endNativeDraw()   { if (_nativeDrawDepth > 0) _nativeDrawDepth--; }
 
-void FileRogerArtProvider::onNativeShowRect(const Common::Rect &screenRect) {
+void FileRogerArtProvider::onNativeShowRect(const Common::Rect &screenRect, uint32 ownerToken) {
 	if (!overlayShown() || _nativeDrawDepth > 0 || !_plate)
 		return; // overlay off, inside a Roger-handled draw, or no hires plate
 	if (screenRect.isEmpty())
 		return;
 	if (_diag)
-		warning("ROGER-DIAG[showRect]: pic=%d rect=(%d,%d,%d,%d)", _loadedPicId,
-		        screenRect.left, screenRect.top, screenRect.right, screenRect.bottom);
-	_foregroundRegions.push_back(screenRect); // persistent foreground-sprite capture (was _genRegions)
+		warning("ROGER-DIAG[showRect]: pic=%d rect=(%d,%d,%d,%d) owner=0x%08x", _loadedPicId,
+		        screenRect.left, screenRect.top, screenRect.right, screenRect.bottom, ownerToken);
+	FgRegion r; r.rect = screenRect; r.owner = ownerToken;
+	_foregroundRegions.push_back(r); // persistent foreground-sprite capture (was _genRegions)
 }
 
 void FileRogerArtProvider::onNativeText(const Common::Rect &nativeRect, const char *text,

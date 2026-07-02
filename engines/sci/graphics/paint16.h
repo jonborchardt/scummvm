@@ -58,7 +58,9 @@ public:
 	void fillRect(const Common::Rect &rect, int16 drawFlags, byte color, byte priority = 0, byte control = 0);
 	void frameRect(const Common::Rect &rect);
 
-	void bitsShow(const Common::Rect &r);
+	// rogerOwner: window token (0x40000000 | id) scoping a Roger Feeder B capture of this
+	// show to that window's lifetime; 0 = derive from the current port when it is a window.
+	void bitsShow(const Common::Rect &r, uint32 rogerOwner = 0);
 	reg_t bitsSave(const Common::Rect &rect, byte screenFlags, bool hiresFlag = false);
 	void bitsGetRect(reg_t memoryHandle, Common::Rect *destRect);
 	void bitsRestore(reg_t memoryHandle);

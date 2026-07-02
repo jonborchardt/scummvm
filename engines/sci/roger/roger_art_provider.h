@@ -131,8 +131,14 @@ public:
 	virtual void endNativeDraw() {}
 	// Generic native show (Feeder B): SCI is about to blit `screenRect` (320x200 screen
 	// coords) of its native visual buffer to the display through a path Roger does not
-	// hook semantically. Recorded for the per-frame generic composite. No-op in base.
-	virtual void onNativeShowRect(const Common::Rect &screenRect) {}
+	// hook semantically. Recorded for the per-frame generic composite. `ownerToken` scopes
+	// the capture to the window it was drawn in (controls namespace 0x40000000 | window id,
+	// 0 = no owning window): captures die with their window (GfxPorts::removeWindow), the
+	// same lifetime rule as text/control captures. Without it, a pixel stamp queued while a
+	// blocking window froze the game cycle is only processed AFTER the window is disposed —
+	// it then stamps the restored native background over the hires plate, permanently
+	// (the "un-enhanced band where the typed-command box was" bug). No-op in base.
+	virtual void onNativeShowRect(const Common::Rect &screenRect, uint32 ownerToken) {}
 
 	// Generic text-out capture (game-agnostic): SCI drew `text` at native `nativeRect`
 	// in font `fontId`, color `penColor`, alignment `align`. nativeFontH is the SCI font
