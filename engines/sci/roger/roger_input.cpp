@@ -20,6 +20,7 @@
 
 #include "sci/roger/roger_input.h"
 
+#include "common/system.h"
 #include "common/textconsole.h"
 #include "common/tokenizer.h"
 
@@ -159,6 +160,160 @@ bool parseScriptLine(const Common::String &line, ScriptCommand &cmd) {
 
 	warning("ROGER-SCRIPT: unknown command skipped: %s", line.c_str());
 	return false;
+}
+
+InputScriptDriver::InputScriptDriver()
+	: _next(0), _cursorRelMs(0), _baseMs(0), _haveBase(false), _done(false),
+	  _capturePending(false), _liveOffset(0), _lastTailMs(0) {
+}
+
+void InputScriptDriver::pushMouse(Common::EventType type, int x, int y, uint32 relMs) {
+	TimedAction a;
+	a.relMs = relMs;
+	a.isEvent = true;
+	a.ev.type = type;
+	a.ev.mouse = Common::Point((int16)x, (int16)y); // game space (320x200): see plan header
+	_actions.push_back(a);
+}
+
+void InputScriptDriver::pushKey(Common::EventType type, Common::KeyCode kc, uint16 ascii, uint32 relMs) {
+	TimedAction a;
+	a.relMs = relMs;
+	a.isEvent = true;
+	a.ev.type = type;
+	a.ev.kbd = Common::KeyState(kc, ascii);
+	_actions.push_back(a);
+}
+
+void InputScriptDriver::pushCtrl(ScriptCmdType ctrl, const Common::String &label, uint32 relMs) {
+	TimedAction a;
+	a.relMs = relMs;
+	a.isEvent = false;
+	a.ctrl = ctrl;
+	a.label = label;
+	_actions.push_back(a);
+}
+
+void InputScriptDriver::expandCommand(const ScriptCommand &c) {
+	switch (c.type) {
+	case kCmdWait:
+		_cursorRelMs += c.ms;
+		break;
+	case kCmdMove:
+		pushMouse(Common::EVENT_MOUSEMOVE, c.x, c.y, _cursorRelMs);
+		break;
+	case kCmdClick:
+	case kCmdRClick: {
+		const bool left = (c.type == kCmdClick);
+		pushMouse(Common::EVENT_MOUSEMOVE, c.x, c.y, _cursorRelMs);
+		pushMouse(left ? Common::EVENT_LBUTTONDOWN : Common::EVENT_RBUTTONDOWN, c.x, c.y, _cursorRelMs);
+		pushMouse(left ? Common::EVENT_LBUTTONUP : Common::EVENT_RBUTTONUP, c.x, c.y, _cursorRelMs + 60);
+		_cursorRelMs += 120;
+		break;
+	}
+	case kCmdKey:
+		pushKey(Common::EVENT_KEYDOWN, c.keycode, c.ascii, _cursorRelMs);
+		pushKey(Common::EVENT_KEYUP, c.keycode, c.ascii, _cursorRelMs + 30);
+		_cursorRelMs += 60;
+		break;
+	case kCmdType:
+		for (uint i = 0; i < c.text.size(); i++) {
+			const char ch = c.text[i];
+			Common::KeyCode kc = (ch >= 'A' && ch <= 'Z')
+				? (Common::KeyCode)(ch - 'A' + Common::KEYCODE_a)
+				: (Common::KeyCode)ch; // a-z, 0-9, space, punctuation: ASCII-valued keycodes
+			pushKey(Common::EVENT_KEYDOWN, kc, (uint16)(byte)ch, _cursorRelMs);
+			pushKey(Common::EVENT_KEYUP, kc, (uint16)(byte)ch, _cursorRelMs + 20);
+			_cursorRelMs += 40;
+		}
+		break;
+	case kCmdCapture:
+	case kCmdLog:
+	case kCmdQuit:
+		pushCtrl(c.type, c.text, _cursorRelMs);
+		break;
+	default:
+		break;
+	}
+}
+
+void InputScriptDriver::loadScriptFromString(const Common::String &text) {
+	Common::String line;
+	for (uint i = 0; i <= text.size(); i++) {
+		if (i == text.size() || text[i] == '\n') {
+			ScriptCommand cmd;
+			if (parseScriptLine(line, cmd))
+				expandCommand(cmd);
+			line.clear();
+		} else if (text[i] != '\r') {
+			line += text[i];
+		}
+	}
+}
+
+bool InputScriptDriver::pollEvent(Common::Event &ev) {
+	return pollDue(g_system->getMillis(), ev);
+}
+
+bool InputScriptDriver::pollDue(uint32 nowMs, Common::Event &ev) {
+	if (_done)
+		return false;
+	if (!_haveBase) {
+		_baseMs = nowMs;
+		_haveBase = true;
+	}
+	if (_next >= _actions.size()) {
+		if (!_livePath.empty())
+			tailLive(nowMs); // Task 3 (no-op stub until then)
+		if (_next >= _actions.size())
+			return false;
+	}
+	while (_next < _actions.size()) {
+		const TimedAction &a = _actions[_next];
+		if (nowMs < _baseMs + a.relMs)
+			return false; // front not due; O(1) exit — the steady-state path
+		_next++;
+		if (a.isEvent) {
+			ev = a.ev;
+			return true;
+		}
+		switch (a.ctrl) {
+		case kCmdCapture:
+			_capturePending = true;
+			_captureLabel = a.label;
+			break;
+		case kCmdLog:
+			warning("ROGER-SCRIPT: %s", a.label.c_str());
+			break;
+		case kCmdQuit:
+			_done = true;
+			ev.type = Common::EVENT_QUIT;
+			return true;
+		default:
+			break;
+		}
+	}
+	return false;
+}
+
+bool InputScriptDriver::takeCaptureRequest(Common::String &label) {
+	if (!_capturePending)
+		return false;
+	_capturePending = false;
+	label = _captureLabel;
+	return true;
+}
+
+bool InputScriptDriver::loadScriptFile(const Common::String &path) {
+	warning("ROGER-SCRIPT: loadScriptFile not yet implemented: %s", path.c_str());
+	return false;
+}
+
+void InputScriptDriver::setLiveFile(const Common::String &path) {
+	_livePath = path;
+}
+
+void InputScriptDriver::tailLive(uint32 nowMs) {
 }
 
 } // namespace Roger

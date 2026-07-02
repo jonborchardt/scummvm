@@ -78,3 +78,83 @@ public:
 		TS_ASSERT_EQUALS(c.y, 0);
 	}
 };
+
+class RogerInputDriverTestSuite : public CxxTest::TestSuite {
+	// Drain all input events due at nowMs into out; returns count.
+	static int drain(InputScriptDriver &d, uint32 nowMs, Common::Array<Common::Event> &out) {
+		Common::Event ev;
+		int n = 0;
+		while (d.pollDue(nowMs, ev)) {
+			out.push_back(ev);
+			n++;
+		}
+		return n;
+	}
+
+public:
+	void test_click_expansion_and_timing() {
+		InputScriptDriver d;
+		d.loadScriptFromString("click 120 80\n");
+		Common::Array<Common::Event> evs;
+		// First poll establishes base time (5000). Due at once: move + down (up is +60).
+		drain(d, 5000, evs);
+		TS_ASSERT_EQUALS((int)evs.size(), 2);
+		TS_ASSERT_EQUALS(evs[0].type, Common::EVENT_MOUSEMOVE);
+		TS_ASSERT_EQUALS(evs[0].mouse.x, 120);
+		TS_ASSERT_EQUALS(evs[0].mouse.y, 80);
+		TS_ASSERT_EQUALS(evs[1].type, Common::EVENT_LBUTTONDOWN);
+		// Not yet due.
+		Common::Event ev;
+		TS_ASSERT(!d.pollDue(5059, ev));
+		// Due at base+60.
+		TS_ASSERT(d.pollDue(5060, ev));
+		TS_ASSERT_EQUALS(ev.type, Common::EVENT_LBUTTONUP);
+	}
+
+	void test_wait_delays_key() {
+		InputScriptDriver d;
+		d.loadScriptFromString("wait 500\nkey ENTER\n");
+		Common::Event ev;
+		TS_ASSERT(!d.pollDue(1000, ev));  // base = 1000; key due at 1500
+		TS_ASSERT(!d.pollDue(1499, ev));
+		TS_ASSERT(d.pollDue(1500, ev));
+		TS_ASSERT_EQUALS(ev.type, Common::EVENT_KEYDOWN);
+		TS_ASSERT_EQUALS(ev.kbd.keycode, Common::KEYCODE_RETURN);
+		TS_ASSERT_EQUALS(ev.kbd.ascii, 13);
+		TS_ASSERT(d.pollDue(1530, ev));
+		TS_ASSERT_EQUALS(ev.type, Common::EVENT_KEYUP);
+	}
+
+	void test_type_emits_per_char() {
+		InputScriptDriver d;
+		d.loadScriptFromString("type \"ab\"\n");
+		Common::Array<Common::Event> evs;
+		drain(d, 100, evs);           // 'a' down due at base
+		drain(d, 100 + 200, evs);     // everything else well past due
+		TS_ASSERT_EQUALS((int)evs.size(), 4); // a down/up, b down/up
+		TS_ASSERT_EQUALS(evs[0].kbd.ascii, (uint16)'a');
+		TS_ASSERT_EQUALS(evs[2].kbd.ascii, (uint16)'b');
+	}
+
+	void test_capture_sets_request_in_order() {
+		InputScriptDriver d;
+		d.loadScriptFromString("capture boot\nkey ENTER\n");
+		Common::String label;
+		TS_ASSERT(!d.takeCaptureRequest(label)); // not due until first poll
+		Common::Event ev;
+		TS_ASSERT(d.pollDue(2000, ev));          // capture consumed, then keydown yields
+		TS_ASSERT_EQUALS(ev.type, Common::EVENT_KEYDOWN);
+		TS_ASSERT(d.takeCaptureRequest(label));
+		TS_ASSERT_EQUALS(label, Common::String("boot"));
+		TS_ASSERT(!d.takeCaptureRequest(label)); // one-shot
+	}
+
+	void test_quit_yields_quit_event_once() {
+		InputScriptDriver d;
+		d.loadScriptFromString("quit\n");
+		Common::Event ev;
+		TS_ASSERT(d.pollDue(3000, ev));
+		TS_ASSERT_EQUALS(ev.type, Common::EVENT_QUIT);
+		TS_ASSERT(!d.pollDue(9999, ev)); // script exhausted
+	}
+};

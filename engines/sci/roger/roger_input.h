@@ -73,6 +73,65 @@ bool parseScriptLine(const Common::String &line, ScriptCommand &cmd);
 // case-insensitive named tokens. Returns false for unknown tokens.
 bool keyTokenToKey(const Common::String &tok, Common::KeyCode &keycode, uint16 &ascii);
 
+// One scheduled action: either a synthetic input event or a control command.
+struct TimedAction {
+	uint32 relMs;          // due time relative to the driver's base time
+	bool isEvent;
+	Common::Event ev;      // valid when isEvent
+	ScriptCmdType ctrl;    // kCmdCapture/kCmdLog/kCmdQuit when !isEvent
+	Common::String label;  // capture label / log text
+	TimedAction() : relMs(0), isEvent(false), ctrl(kCmdNone) {}
+};
+
+// Timed synthetic-event source. Registered with the backend EventDispatcher
+// (EventManager::getEventDispatcher()->registerSource) so due events are
+// delivered through the normal pollEvent path — during blocking dialogs too
+// (their own poll drives the dispatch). allowMapping() = false keeps the
+// keymapper out of the loop. The per-poll cost is O(1): one due-time compare.
+class InputScriptDriver : public Common::EventSource {
+public:
+	InputScriptDriver();
+
+	// Parse + expand a whole script (scripted mode). Cumulative `wait`s
+	// become relative due times from the first poll.
+	void loadScriptFromString(const Common::String &text);
+	// Read a script file (absolute or cwd-relative path). False if unreadable.
+	bool loadScriptFile(const Common::String &path);
+	// Enable live mode: tail an append-only command file (throttled, Task 3).
+	void setLiveFile(const Common::String &path);
+
+	// Common::EventSource
+	bool pollEvent(Common::Event &ev) override;
+	bool allowMapping() const override { return false; }
+
+	// Testable core (no g_system): executes all control actions due at nowMs
+	// and returns true when a due input event was yielded into ev.
+	bool pollDue(uint32 nowMs, Common::Event &ev);
+
+	// One-shot: true once per executed `capture`, handing over its label.
+	bool takeCaptureRequest(Common::String &label);
+
+private:
+	void expandCommand(const ScriptCommand &cmd);
+	void pushMouse(Common::EventType type, int x, int y, uint32 relMs);
+	void pushKey(Common::EventType type, Common::KeyCode kc, uint16 ascii, uint32 relMs);
+	void pushCtrl(ScriptCmdType ctrl, const Common::String &label, uint32 relMs);
+	void tailLive(uint32 nowMs); // Task 3
+
+	Common::Array<TimedAction> _actions;
+	uint _next;            // next action index
+	uint32 _cursorRelMs;   // schedule cursor for expansion
+	uint32 _baseMs;        // wall-clock of the first poll
+	bool _haveBase;
+	bool _done;            // quit delivered; stop yielding
+	bool _capturePending;
+	Common::String _captureLabel;
+	Common::String _livePath;   // Task 3
+	uint32 _liveOffset;         // Task 3: bytes consumed
+	uint32 _lastTailMs;         // Task 3: tail throttle
+	Common::String _livePartial; // Task 3: trailing incomplete line
+};
+
 } // namespace Roger
 } // namespace Sci
 
