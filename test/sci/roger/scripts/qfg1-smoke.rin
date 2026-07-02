@@ -1,0 +1,24 @@
+# QFG1 EGA smoke: boots save 1, proves every automation capability in one run —
+# capture, ego movement (click-to-walk + arrows), parser typing, dialog
+# dismissal, telemetry (via -CycleLog), clean exit.
+wait 4000              # engine boot + save-restore + room entry settle
+capture boot
+click 250 120          # click-to-walk: ego walks toward the right of the room
+wait 2500
+capture after-walk
+key LEFT               # arrow-key walking (SCI0 arrows toggle walking)
+wait 1500
+key LEFT               # stop
+capture after-arrow
+type "look"
+wait 800               # allow full type injection before capture
+capture typed          # parser input line visible with "look"
+key ENTER
+wait 2500              # wait for parser to process and dialog to appear
+capture look-dialog    # the look description window
+key ENTER              # dismiss it
+wait 1200
+move 160 100           # nudge a present so the post-dismiss state is fresh
+capture dismissed      # ghost-text check: dialog text must be gone
+wait 500               # allow at least one present cycle before quit fires
+quit

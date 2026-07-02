@@ -43,6 +43,16 @@ explicitly to skip it:
 Either path sets the `ROGER_NO_LAUNCHER` env var for that launch only (per-process,
 never touches `scummvm.ini`; the launcher gate is in `engines/sci/sci.cpp`).
 
+**Autonomous verification loop:** `-Script <file.rin>` drives the game headlessly
+from a `.rin` input script (click/key/type/wait/capture/quit), blocking until `quit`
+exits; `-Live <file>` launches in background and tails the file at ~10 Hz for
+interactive script authoring; `-CycleLog` enables per-cycle `ROGER-CYCLE period=<ms>
+busy=<ms>` telemetry. Captures land in the game's `screenshotpath` as
+`roger-<pic>-<label>-{overlay,preview}.png`; the run log is `screenshots/roger-run.log`.
+Grammar reference: `docs/roger.md` ("Input automation"); smoke script:
+`test/sci/roger/scripts/qfg1-smoke.rin`. The injection seam is a registered backend
+`EventSource` — keep `roger_input.{h,cpp}` free of SCI includes (engine-agnostic).
+
 **Screenshots:** never write screenshots (or `roger_autoshot` output) to the repo
 root. Point `screenshotpath` at the gitignored `screenshots/` folder (already in
 `.gitignore`) — keep all dev/verification captures there so they are never committed.

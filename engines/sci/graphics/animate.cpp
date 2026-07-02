@@ -21,6 +21,7 @@
 
 #include "common/util.h"
 #include "common/stack.h"
+#include "common/system.h"
 #include "graphics/primitives.h"
 
 #include "sci/console.h"
