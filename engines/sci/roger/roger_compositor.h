@@ -128,14 +128,6 @@ void comparePanelRects(int overlayW, int overlayH,
 void scaleBlitNearest(Graphics::Surface &dest, const Common::Rect &destRect,
                       const Graphics::Surface &src);
 
-// Remap a full-window game coordinate (windowGamePos, 0..319/0..199 — the backend's
-// linear map of the WHOLE window) to the frame-relative 320x200 coordinate of whichever
-// side-by-side panel the pointer is over. Returns true when inside a panel frame; when in
-// a letterbox bar, returns false and clamps `out` to that panel's nearest frame edge.
-// `onLeftPanel` reports the panel (left = enhanced, right = original).
-bool remapCompareMouse(const Common::Point &windowGamePos, int overlayW, int overlayH,
-                       bool &onLeftPanel, Common::Point &out);
-
 class RogerCompositor {
 public:
 	RogerCompositor() : _plate(nullptr), _views(nullptr),

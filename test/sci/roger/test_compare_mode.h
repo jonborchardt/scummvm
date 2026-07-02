@@ -43,34 +43,4 @@ public:
 		TS_ASSERT_EQUALS(dst.getPixel(3, 3), rgba.ARGBToColor(255, 255, 255, 0)); // BR yellow
 		src.free(); dst.free();
 	}
-
-	void test_remap_left_panel_center_maps_to_game_center() {
-		// A point at the visual center of the LEFT frame should map to game (160,100).
-		Common::Rect left, right;
-		comparePanelRects(2862, 1986, left, right);
-		// Convert the left frame's center (overlay px) back to a full-window game coord:
-		const int cx = (left.left + left.right) / 2;
-		const int cy = (left.top + left.bottom) / 2;
-		Common::Point winGame((int16)(cx * 320 / 2862), (int16)(cy * 200 / 1986));
-		bool onLeft = false; Common::Point out;
-		const bool inside = remapCompareMouse(winGame, 2862, 1986, onLeft, out);
-		TS_ASSERT(inside);
-		TS_ASSERT(onLeft);
-		TS_ASSERT_DELTA(out.x, 160, 3);
-		TS_ASSERT_DELTA(out.y, 100, 3);
-	}
-
-	void test_remap_right_panel_detected() {
-		Common::Rect left, right;
-		comparePanelRects(2862, 1986, left, right);
-		const int cx = (right.left + right.right) / 2;
-		const int cy = (right.top + right.bottom) / 2;
-		Common::Point winGame((int16)(cx * 320 / 2862), (int16)(cy * 200 / 1986));
-		bool onLeft = true; Common::Point out;
-		const bool inside = remapCompareMouse(winGame, 2862, 1986, onLeft, out);
-		TS_ASSERT(inside);
-		TS_ASSERT(!onLeft);
-		TS_ASSERT_DELTA(out.x, 160, 3);
-		TS_ASSERT_DELTA(out.y, 100, 3);
-	}
 };

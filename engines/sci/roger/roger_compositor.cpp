@@ -145,27 +145,6 @@ void scaleBlitNearest(Graphics::Surface &dest, const Common::Rect &destRect,
 	}
 }
 
-bool remapCompareMouse(const Common::Point &windowGamePos, int overlayW, int overlayH,
-                       bool &onLeftPanel, Common::Point &out) {
-	// windowGamePos is a linear map of the whole window -> recover overlay pixels.
-	const int px = windowGamePos.x * overlayW / 320;
-	const int py = windowGamePos.y * overlayH / 200;
-	Common::Rect left, right;
-	comparePanelRects(overlayW, overlayH, left, right);
-	onLeftPanel = px < overlayW / 2;
-	const Common::Rect &f = onLeftPanel ? left : right;
-
-	// Clamp into the frame; report whether the original point was inside.
-	const bool inside = f.contains(px, py);
-	int fx = px < f.left ? f.left : (px >= f.right ? f.right - 1 : px);
-	int fy = py < f.top ? f.top : (py >= f.bottom ? f.bottom - 1 : py);
-	out.x = (int16)((fx - f.left) * 320 / f.width());
-	out.y = (int16)((fy - f.top) * 200 / f.height());
-	if (out.x > 319) out.x = 319;
-	if (out.y > 199) out.y = 199;
-	return inside;
-}
-
 void extractChangedBoxes(const byte *prev, const byte *cur, int w, int h,
                          Common::Array<Common::Rect> &out) {
 	Common::Array<Common::Rect> runs;

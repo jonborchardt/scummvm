@@ -596,11 +596,12 @@ void FileRogerArtProvider::renderFrame(const Common::Array<Roger::Sprite> &sprit
 		}
 		_compositeCacheValid = true;
 	}
-	compositeCursor(scene, gameRect);
-	if (_mode == Roger::kModeSideBySide)
-		presentComparison();
-	else
+	if (_mode == Roger::kModeSideBySide) {
+		presentComparison(); // draws its own split layout + cursor; the enhanced `scene` cursor is unused
+	} else {
+		compositeCursor(scene, gameRect);
 		_compositor->presentToOverlay(scene);
+	}
 
 	// roger_autoshot (verification harness): dump once per room. Deterministic — no
 	// keystrokes/focus needed.
@@ -1042,10 +1043,6 @@ void FileRogerArtProvider::ensureCompositeCache(int w, int h) {
 void FileRogerArtProvider::presentWithUi() {
 	if (!overlayShown() || !_compositor || !_haveScene || !_sceneCache)
 		return;
-	if (_mode == Roger::kModeSideBySide) {
-		presentComparison();
-		return;
-	}
 	const Graphics::PixelFormat rgba(4, 8, 8, 8, 8, 24, 16, 8, 0);
 	// The window may have been resized since the scene was cached. A blocking dialog/
 	// menu/inventory does NOT tick kernelAnimate, so renderFrame can't refresh the
@@ -1102,6 +1099,12 @@ void FileRogerArtProvider::presentWithUi() {
 	ensureCompositeCache(OW, OH);
 	_compositeCache->copyFrom(scene);
 	_compositeCacheValid = true;
+	if (_mode == Roger::kModeSideBySide) {
+		// _compositeCache now holds scene + UI (this frame's dialog/banner). Hand off to
+		// the side-by-side renderer, which uses it for the enhanced (left) panel.
+		presentComparison();
+		return;
+	}
 	compositeCursor(scene, _lastGameRect);
 	_compositor->presentToOverlay(scene);
 
@@ -1142,16 +1145,43 @@ void FileRogerArtProvider::presentComparison() {
 	Common::Rect leftF, rightF;
 	Roger::comparePanelRects(OW, OH, leftF, rightF);
 
-	// Left panel: the enhanced composite (already built into _sceneCache), downscaled.
-	if (_haveScene && _sceneCache)
-		Roger::scaleBlitNearest(*out.surfacePtr(), leftF, *_sceneCache->surfacePtr());
+	// Left panel: the ENHANCED composite. _compositeCache holds scene + UI (no cursor),
+	// rebuilt by renderFrame/presentWithUi — so dialogs/narration/banners show here too.
+	// Fall back to _sceneCache (scene, no UI) when the composite cache isn't valid.
+	Graphics::ManagedSurface *leftSrc = (_compositeCacheValid && _compositeCache) ? _compositeCache
+	                                  : (_haveScene ? _sceneCache : nullptr);
+	if (leftSrc)
+		Roger::scaleBlitNearest(*out.surfacePtr(), leftF, *leftSrc->surfacePtr());
 
-	// Right panel: the live native 320x200 visual buffer, upscaled.
-	Graphics::Surface *nat = snapshotNativeRegion(Common::Rect(0, 0, 320, 200));
-	if (nat) {
-		Roger::scaleBlitNearest(*out.surfacePtr(), rightF, *nat);
-		nat->free();
-		delete nat;
+	// Right panel: the ORIGINAL native frame. Read the pre-erase snapshot (_nativeBaseline,
+	// captured at kernelAnimate's snapshot point before restoreAndDelete) so the animating
+	// cast (ego/moving views) is present — the live visual buffer has it erased by now.
+	bool haveRight = false;
+	if (_haveBaseline && g_sci && g_sci->_gfxScreen && g_sci->_gfxPalette16) {
+		GfxScreen *screen = g_sci->_gfxScreen;
+		const int sw = screen->getWidth(), sh = screen->getHeight();
+		if ((int)_nativeBaseline.size() == sw * sh) {
+			const Palette &pal = g_sci->_gfxPalette16->_sysPalette;
+			Graphics::Surface nat;
+			nat.create((int16)sw, (int16)sh, rgba);
+			for (int y = 0; y < sh; y++)
+				for (int x = 0; x < sw; x++) {
+					const Color &c = pal.colors[_nativeBaseline[(uint)y * sw + x]];
+					nat.setPixel(x, y, rgba.ARGBToColor(255, c.r, c.g, c.b));
+				}
+			Roger::scaleBlitNearest(*out.surfacePtr(), rightF, nat);
+			nat.free();
+			haveRight = true;
+		}
+	}
+	if (!haveRight) {
+		// First frame after entering side-by-side (no baseline yet): live buffer as fallback.
+		Graphics::Surface *live = snapshotNativeRegion(Common::Rect(0, 0, 320, 200));
+		if (live) {
+			Roger::scaleBlitNearest(*out.surfacePtr(), rightF, *live);
+			live->free();
+			delete live;
+		}
 	}
 
 	// Thin divider down the center.
@@ -1160,23 +1190,19 @@ void FileRogerArtProvider::presentComparison() {
 	for (int dx = -1; dx <= 1; dx++)
 		out.surfacePtr()->drawLine(cx + dx, 0, cx + dx, OH - 1, divider);
 
-	// Mirrored cursor: draw the tracked cursor cel into BOTH panels at the same game coord.
+	// Single cursor drawn at the physical pointer position (the backend HW cursor is invisible
+	// over the overlay). getMousePos is a whole-window linear map, so this floats naturally
+	// over whichever panel the pointer is on. onMouseMoved re-presents so it tracks smoothly.
 	if (_cursorVisible) {
 		ensureCursor();
 		if (_cursorSurf) {
-			const Common::Point winMouse = g_system->getEventManager()->getMousePos();
-			bool onLeft = false; Common::Point game;
-			Roger::remapCompareMouse(winMouse, OW, OH, onLeft, game);
-			const Common::Rect frames[2] = { leftF, rightF };
-			for (int i = 0; i < 2; i++) {
-				const Common::Rect &f = frames[i];
-				const int ox = f.left + game.x * f.width() / 320;
-				const int oy = f.top + game.y * f.height() / 200;
-				const Common::Rect dst(ox - _cursorHotspot.x, oy - _cursorHotspot.y,
-				                       ox - _cursorHotspot.x + _cursorSurf->w,
-				                       oy - _cursorHotspot.y + _cursorSurf->h);
-				out.blendBlitFrom(*_cursorSurf, Common::Rect(0, 0, _cursorSurf->w, _cursorSurf->h), dst);
-			}
+			const Common::Point mp = g_system->getEventManager()->getMousePos();
+			const int ox = mp.x * OW / 320;
+			const int oy = mp.y * OH / 200;
+			const Common::Rect dst(ox - _cursorHotspot.x, oy - _cursorHotspot.y,
+			                       ox - _cursorHotspot.x + _cursorSurf->w,
+			                       oy - _cursorHotspot.y + _cursorSurf->h);
+			out.blendBlitFrom(*_cursorSurf, Common::Rect(0, 0, _cursorSurf->w, _cursorSurf->h), dst);
 		}
 	}
 
@@ -1811,7 +1837,11 @@ void FileRogerArtProvider::flushGenericText() {
 }
 
 void FileRogerArtProvider::snapshotNativeBaseline() {
-	if (!_diffBackstop) return; // backstop off (default): skip the costly per-frame snapshot
+	// Side-by-side compare mode also needs this snapshot: it is taken at the one moment
+	// the native visual buffer holds the WHOLE frame (pic + addToPic + animate cast),
+	// just before restoreAndDelete() erases the animating cast (ego/moving views). The
+	// live buffer read later in presentComparison has that cast already erased.
+	if (!_diffBackstop && _mode != Roger::kModeSideBySide) return; // else skip the costly per-frame snapshot
 	if (!overlayShown() || !g_sci || !g_sci->_gfxScreen)
 		return;
 	GfxScreen *screen = g_sci->_gfxScreen;
@@ -2004,10 +2034,21 @@ void FileRogerArtProvider::remapComparisonMouse(Common::Point &mousePos) {
 	const int OH = g_system->getOverlayHeight();
 	if (OW <= 0 || OH <= 0)
 		return;
-	bool onLeft = false;
-	Common::Point out;
-	Roger::remapCompareMouse(mousePos, OW, OH, onLeft, out);
-	mousePos = out; // game receives the frame-relative coordinate for the pointed-at panel
+	// mousePos is a whole-window linear map (0..319/0..199). Each panel shows the full game,
+	// so remap through whichever panel the pointer is over: a click at the visual center of
+	// EITHER panel hits game (160,100). The cursor (drawn at the physical pointer position in
+	// presentComparison) then lines up with the interaction on both panels.
+	Common::Rect leftF, rightF;
+	Roger::comparePanelRects(OW, OH, leftF, rightF);
+	const int px = mousePos.x * OW / 320; // -> overlay px
+	const int py = mousePos.y * OH / 200;
+	const Common::Rect &f = (px < OW / 2) ? leftF : rightF;
+	int gx = (px - f.left) * 320 / f.width();
+	int gy = (py - f.top) * 200 / f.height();
+	if (gx < 0) gx = 0; else if (gx > 319) gx = 319;
+	if (gy < 0) gy = 0; else if (gy > 199) gy = 199;
+	mousePos.x = (int16)gx;
+	mousePos.y = (int16)gy;
 }
 
 void FileRogerArtProvider::toggleOverlay() {
@@ -2191,7 +2232,7 @@ void FileRogerArtProvider::reloadGenConfig() {
 void FileRogerArtProvider::diagDumpState(const char *where) {
 	if (!_diag)
 		return;
-	warning("ROGER-DIAG[%s]: pic=%d enabled=%d overlayActive=%d plate=%s haveScene=%d "
+	warning("ROGER-DIAG[%s]: pic=%d enabled=%d overlayShown=%d plate=%s haveScene=%d "
 	        "compCacheValid=%d haveBaseline=%d uiElems=%u uiIcons=%u staticSprites=%u",
 	        where, _loadedPicId, enabled ? 1 : 0, overlayShown() ? 1 : 0,
 	        _plate ? "yes" : "NULL", _haveScene ? 1 : 0, _compositeCacheValid ? 1 : 0,
@@ -2223,6 +2264,12 @@ void FileRogerArtProvider::onNativePicture() {
 }
 
 void FileRogerArtProvider::onMouseMoved() {
+	if (_mode == Roger::kModeSideBySide) {
+		// Re-present the split layout so the single composited cursor tracks the pointer.
+		if (_haveScene)
+			presentComparison();
+		return;
+	}
 	if (_useHwCursor)
 		return; // hardware cursor moves itself; no recomposite needed
 
@@ -2282,7 +2329,11 @@ void FileRogerArtProvider::onTransition(int sciType, const Common::Rect & /*picR
 	// does a full _compositeCache copy so the software-cursor fast path has clean pixels.
 	_compositeCacheValid = false;
 	Graphics::ManagedSurface &scratch = *scratchScene(OW, OH);
-	_compositor->runTransition(from, to, scratch, fam, Roger::defaultDurationMs(fam), sciType);
+	// Skip the FX animation in side-by-side (it would present the non-split full-overlay
+	// layout); the room-change bookkeeping below still runs, and the next frame's
+	// presentComparison shows the split with the new room.
+	if (_mode != Roger::kModeSideBySide)
+		_compositor->runTransition(from, to, scratch, fam, Roger::defaultDurationMs(fam), sciType);
 	// Leave _sceneCache holding the new background so the next kAnimate frame's dirty
 	// present builds on it correctly.
 	if (!_sceneCache || _sceneCache->w != OW || _sceneCache->h != OH) {
@@ -2302,8 +2353,9 @@ void FileRogerArtProvider::onTransition(int sciType, const Common::Rect & /*picR
 }
 
 void FileRogerArtProvider::onShake(int shakeCount, int directions) {
-	if (!_transitionsEnabled || !overlayShown() || !_compositor || !_haveScene || !_sceneCache)
-		return;
+	if (!_transitionsEnabled || !overlayShown() || _mode == Roger::kModeSideBySide ||
+	        !_compositor || !_haveScene || !_sceneCache)
+		return; // side-by-side: pure FX, would present the non-split layout — skip
 	const int OW = g_system->getOverlayWidth(), OH = g_system->getOverlayHeight();
 	if (OW <= 0 || OH <= 0 || _sceneCache->w != OW || _sceneCache->h != OH)
 		return;

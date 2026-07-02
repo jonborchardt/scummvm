@@ -245,8 +245,8 @@ SciEvent EventManager::getScummVMEvent() {
 	}
 #endif
 
-	// Side-by-side compare mode: remap the full-window coordinate to the panel under the
-	// pointer so either panel drives the single game. No-op in the other display modes.
+	// Side-by-side compare mode: remap so the left (enhanced) panel drives the game.
+	// No-op in the other display modes.
 	if (g_sciRogerProvider)
 		g_sciRogerProvider->remapComparisonMouse(mousePos);
 

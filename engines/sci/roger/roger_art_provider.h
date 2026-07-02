@@ -209,8 +209,9 @@ public:
 	virtual void toggleOverlay() {}
 	virtual void toggleDebugLog() {}
 
-	// Side-by-side compare mode: rewrite the game-space mouse coordinate so a click on
-	// either panel maps to the correct 320x200 location. No-op unless in side-by-side.
+	// Side-by-side compare mode: remap the game-space mouse coordinate so the LEFT panel
+	// (the enhanced view) acts as the whole 320x200 game — clicks there hit the right spot.
+	// No-op unless in side-by-side.
 	virtual void remapComparisonMouse(Common::Point &mousePos) {}
 
 	// Live enhance-pass tuning (roger_omyac generation): adjust the count of a
