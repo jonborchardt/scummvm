@@ -20,6 +20,9 @@
 
 #include "sci/roger/roger_input.h"
 
+#include "common/debug.h"
+#include "common/file.h"
+#include "common/fs.h"
 #include "common/system.h"
 #include "common/textconsole.h"
 #include "common/tokenizer.h"
@@ -305,15 +308,83 @@ bool InputScriptDriver::takeCaptureRequest(Common::String &label) {
 }
 
 bool InputScriptDriver::loadScriptFile(const Common::String &path) {
-	warning("ROGER-SCRIPT: loadScriptFile not yet implemented: %s", path.c_str());
-	return false;
+	Common::FSNode node(path);
+	Common::SeekableReadStream *stream = node.createReadStream();
+	if (!stream) {
+		warning("ROGER-SCRIPT: cannot open script: %s", path.c_str());
+		return false;
+	}
+	Common::String text;
+	while (!stream->eos()) {
+		byte buf[4096];
+		uint32 n = stream->read(buf, sizeof(buf));
+		if (!n)
+			break;
+		text += Common::String((const char *)buf, n);
+	}
+	delete stream;
+	loadScriptFromString(text);
+	debug(1, "ROGER-SCRIPT: loaded %s (%u actions)", path.c_str(), _actions.size());
+	return true;
 }
 
 void InputScriptDriver::setLiveFile(const Common::String &path) {
 	_livePath = path;
 }
 
+void InputScriptDriver::appendLiveText(const Common::String &text, uint32 nowMs) {
+	if (!_haveBase) {
+		_baseMs = nowMs;
+		_haveBase = true;
+	}
+	// New commands fire from now (never in the past); `wait` still spaces
+	// commands within one append.
+	const uint32 nowRel = nowMs - _baseMs;
+	if (_cursorRelMs < nowRel)
+		_cursorRelMs = nowRel;
+
+	Common::String pending = _livePartial + text;
+	_livePartial.clear();
+	Common::String line;
+	for (uint i = 0; i < pending.size(); i++) {
+		if (pending[i] == '\n') {
+			ScriptCommand cmd;
+			if (parseScriptLine(line, cmd))
+				expandCommand(cmd);
+			line.clear();
+		} else if (pending[i] != '\r') {
+			line += pending[i];
+		}
+	}
+	_livePartial = line; // incomplete trailing line: wait for its newline
+}
+
 void InputScriptDriver::tailLive(uint32 nowMs) {
+	// Perf discipline: never on the steady-state path (only reached when the
+	// action queue is exhausted) and throttled to >= 100 ms between reads.
+	if (nowMs - _lastTailMs < 100)
+		return;
+	_lastTailMs = nowMs;
+
+	Common::FSNode node(_livePath);
+	Common::SeekableReadStream *stream = node.createReadStream();
+	if (!stream)
+		return; // file may not exist yet; keep polling
+	const int64 size = stream->size();
+	if (size > (int64)_liveOffset) {
+		stream->seek(_liveOffset, SEEK_SET);
+		Common::String text;
+		while (!stream->eos()) {
+			byte buf[4096];
+			uint32 n = stream->read(buf, sizeof(buf));
+			if (!n)
+				break;
+			text += Common::String((const char *)buf, n);
+		}
+		_liveOffset = (uint32)size;
+		appendLiveText(text, nowMs);
+	}
+	delete stream;
 }
 
 } // namespace Roger

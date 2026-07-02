@@ -111,6 +111,11 @@ public:
 	// One-shot: true once per executed `capture`, handing over its label.
 	bool takeCaptureRequest(Common::String &label);
 
+	// Live-mode core (also the unit-test hook): parse complete lines out of
+	// `text` (buffering a trailing partial line), scheduling new commands to
+	// fire from `nowMs` onward.
+	void appendLiveText(const Common::String &text, uint32 nowMs);
+
 private:
 	void expandCommand(const ScriptCommand &cmd);
 	void pushMouse(Common::EventType type, int x, int y, uint32 relMs);

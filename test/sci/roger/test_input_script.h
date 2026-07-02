@@ -157,4 +157,21 @@ public:
 		TS_ASSERT_EQUALS(ev.type, Common::EVENT_QUIT);
 		TS_ASSERT(!d.pollDue(9999, ev)); // script exhausted
 	}
+
+	void test_live_append_fires_now_and_buffers_partial_lines() {
+		InputScriptDriver d;
+		d.loadScriptFromString("");   // empty script; live-style appends only
+		Common::Event ev;
+		TS_ASSERT(!d.pollDue(1000, ev)); // base = 1000, nothing scheduled
+		// Append a complete line + an incomplete one at t=5000.
+		d.appendLiveText("key ENTER\nkey ES", 5000);
+		TS_ASSERT(d.pollDue(5000, ev));  // fires immediately (cursor moved to now)
+		TS_ASSERT_EQUALS(ev.kbd.keycode, Common::KEYCODE_RETURN);
+		TS_ASSERT(d.pollDue(5030, ev));  // its keyup
+		TS_ASSERT(!d.pollDue(5100, ev)); // "key ES" is buffered, not parsed
+		// Complete the partial line.
+		d.appendLiveText("C\n", 6000);
+		TS_ASSERT(d.pollDue(6000, ev));
+		TS_ASSERT_EQUALS(ev.kbd.keycode, Common::KEYCODE_ESCAPE);
+	}
 };
