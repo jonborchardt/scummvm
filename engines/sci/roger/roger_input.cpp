@@ -23,6 +23,7 @@
 #include "common/debug.h"
 #include "common/file.h"
 #include "common/fs.h"
+#include "common/path.h"
 #include "common/system.h"
 #include "common/textconsole.h"
 #include "common/tokenizer.h"
@@ -308,7 +309,8 @@ bool InputScriptDriver::takeCaptureRequest(Common::String &label) {
 }
 
 bool InputScriptDriver::loadScriptFile(const Common::String &path) {
-	Common::FSNode node(path);
+	Common::Path p(path);
+	Common::FSNode node(p);
 	Common::SeekableReadStream *stream = node.createReadStream();
 	if (!stream) {
 		warning("ROGER-SCRIPT: cannot open script: %s", path.c_str());
@@ -324,7 +326,7 @@ bool InputScriptDriver::loadScriptFile(const Common::String &path) {
 	}
 	delete stream;
 	loadScriptFromString(text);
-	debug(1, "ROGER-SCRIPT: loaded %s (%u actions)", path.c_str(), _actions.size());
+	debug(1, "ROGER-SCRIPT: loaded %s (%u actions)", path.c_str(), (unsigned)_actions.size());
 	return true;
 }
 
@@ -366,7 +368,8 @@ void InputScriptDriver::tailLive(uint32 nowMs) {
 		return;
 	_lastTailMs = nowMs;
 
-	Common::FSNode node(_livePath);
+	Common::Path p(_livePath);
+	Common::FSNode node(p);
 	Common::SeekableReadStream *stream = node.createReadStream();
 	if (!stream)
 		return; // file may not exist yet; keep polling
