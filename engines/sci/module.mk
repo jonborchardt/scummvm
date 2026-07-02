@@ -112,6 +112,7 @@ MODULE_OBJS += \
 	roger/roger_cursor.o \
 	roger/roger_effects.o \
 	roger/roger_ega_blend.o \
+	roger/roger_input.o \
 	roger/roger_omyac.o \
 	roger/roger_palette_remap.o \
 	roger/roger_pic_native.o \
