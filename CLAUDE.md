@@ -44,16 +44,40 @@ Either path sets the `ROGER_NO_LAUNCHER` env var for that launch only (per-proce
 never touches `scummvm.ini`; the launcher gate is in `engines/sci/sci.cpp`).
 
 **Autonomous verification loop:** `-Script <file.rin>` drives the game headlessly
-from a `.rin` input script (click/key/type/wait/capture/quit), blocking until `quit`
-exits; `-Live <file>` launches in background and tails the file at ~10 Hz for
-interactive script authoring; `-CycleLog` enables per-cycle `ROGER-CYCLE period=<ms>
-busy=<ms>` telemetry. Captures land in the game's `screenshotpath` as
-`roger-<pic>-<label>-{overlay,preview}.png`; the run log is `screenshots/roger-run.log`.
-Grammar reference: `docs/roger.md` ("Input automation"); smoke script:
-`test/sci/roger/scripts/qfg1-smoke.rin`. Automation assumes the Enhanced display mode
-(the default; a generating `roger_gen_mode`, not `prebuilt`) — in Side-by-Side or
-Original mode, captures miss the composited scene. The injection seam is a registered
-backend `EventSource` — keep `roger_input.{h,cpp}` free of SCI includes (engine-agnostic).
+from a `.rin` input script, blocking until the script's `quit` exits it; `-Live <file>`
+launches in background and tails the file at ~10 Hz for interactive script authoring;
+`-CycleLog` enables per-cycle `ROGER-CYCLE period=<ms> busy=<ms>` telemetry (~83 ms
+period is healthy; ~225 ms was the walking-speed regression). Captures land in the
+game's `screenshotpath` as `roger-<pic>-<label>-{overlay,preview}.png`; the run log is
+`screenshots/roger-run.log` (grep `ROGER-SCRIPT` / `ROGER-CYCLE`). Grammar
+(full reference in `engines/sci/roger/roger_input.h` and `docs/roger.md`):
+
+```
+click X Y | rclick X Y | move X Y | key <token> | type "text"
+wait <ms> | capture <label> | log <text> | quit        # '#' = comment
+```
+
+Coordinates are game space (320×200). Smoke script:
+`test/sci/roger/scripts/qfg1-smoke.rin`. The injection seam is a registered backend
+`EventSource` — keep `roger_input.{h,cpp}` free of SCI includes (engine-agnostic).
+
+Automation rules (each violated once at real cost — don't re-learn them):
+
+- **Capture during a blocking dialog needs a `move` after it.** `capture` only *pends*
+  a dump; a present consumes it, and a blocking `Print`/`Display` window freezes the
+  cycle so no presents happen while it idles. `capture label` → `move X Y` → `wait 400`
+  flushes the capture with the dialog visible; without the move you get the
+  post-dismiss frame. (Same lifetime-vs-cycle trap class as the ghost-text bugs above.)
+- **Enhanced display mode only** (the default; a generating `roger_gen_mode`, not
+  `prebuilt`) — Side-by-Side/Original miss the composited scene in captures.
+- **`confirm_exit` and `gui_return_to_launcher_at_exit` must be off** for `-Script`
+  runs: the script can't answer the confirm modal, and return-to-launcher means the
+  process never exits.
+- `#` starts a comment anywhere on a line — `type`/`log` payloads must not contain it.
+- Timings need settle margins (boot ≈4000 ms after save-restore; dialog appear ≈2500 ms).
+- If setting `roger_input_script` via scummvm.ini instead of the harness, pair it with
+  `roger_no_launcher` — the driver arms before the picker, so early events land in the
+  picker dialog. An in-process engine restart replays the script from the top.
 
 **Screenshots:** never write screenshots (or `roger_autoshot` output) to the repo
 root. Point `screenshotpath` at the gitignored `screenshots/` folder (already in
