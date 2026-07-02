@@ -50,8 +50,10 @@ interactive script authoring; `-CycleLog` enables per-cycle `ROGER-CYCLE period=
 busy=<ms>` telemetry. Captures land in the game's `screenshotpath` as
 `roger-<pic>-<label>-{overlay,preview}.png`; the run log is `screenshots/roger-run.log`.
 Grammar reference: `docs/roger.md` ("Input automation"); smoke script:
-`test/sci/roger/scripts/qfg1-smoke.rin`. The injection seam is a registered backend
-`EventSource` — keep `roger_input.{h,cpp}` free of SCI includes (engine-agnostic).
+`test/sci/roger/scripts/qfg1-smoke.rin`. Automation assumes the Enhanced display mode
+(the default; a generating `roger_gen_mode`, not `prebuilt`) — in Side-by-Side or
+Original mode, captures miss the composited scene. The injection seam is a registered
+backend `EventSource` — keep `roger_input.{h,cpp}` free of SCI includes (engine-agnostic).
 
 **Screenshots:** never write screenshots (or `roger_autoshot` output) to the repo
 root. Point `screenshotpath` at the gitignored `screenshots/` folder (already in
