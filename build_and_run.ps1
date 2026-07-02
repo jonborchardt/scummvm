@@ -241,7 +241,7 @@ if ($SaveSlot -ge 0) { $saveArgs = @("--save-slot=$SaveSlot") }
 # Env-first knobs (per-process, never touch scummvm.ini) read by
 # FileRogerArtProvider; see docs/roger.md. Clear stale values first so a
 # previous run in this shell can't leak automation into a manual launch.
-foreach ($v in "ROGER_INPUT_SCRIPT", "ROGER_INPUT_LIVE", "ROGER_CYCLE_LOG") {
+foreach ($v in "ROGER_INPUT_SCRIPT", "ROGER_INPUT_LIVE", "ROGER_CYCLE_LOG", "ROGER_NO_LAUNCHER") {
     Remove-Item "Env:$v" -ErrorAction SilentlyContinue
 }
 $logArgs = @()

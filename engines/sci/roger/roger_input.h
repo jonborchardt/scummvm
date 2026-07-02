@@ -32,6 +32,8 @@
 //   click X Y | rclick X Y | move X Y | key <token> | type "text"
 //   wait <ms> | capture <label> | log <text> | quit
 // Key tokens: ENTER ESC SPACE TAB BACKSPACE UP DOWN LEFT RIGHT F1..F12 a-z 0-9
+// Note: '#' starts a comment anywhere on a line, so `type "..."` and `log`
+// payloads must not contain '#' (it would truncate the line at that point).
 
 #include "common/array.h"
 #include "common/events.h"

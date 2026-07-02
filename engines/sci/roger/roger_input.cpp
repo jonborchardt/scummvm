@@ -21,8 +21,8 @@
 #include "sci/roger/roger_input.h"
 
 #include "common/debug.h"
-#include "common/file.h"
 #include "common/fs.h"
+#include "common/stream.h"
 #include "common/path.h"
 #include "common/system.h"
 #include "common/textconsole.h"
@@ -138,7 +138,12 @@ bool parseScriptLine(const Common::String &line, ScriptCommand &cmd) {
 			return false;
 		}
 		cmd.type = kCmdWait;
-		cmd.ms = (uint32)atoi(msStr.c_str());
+		int msVal = atoi(msStr.c_str());
+		if (msVal < 0) {
+			warning("ROGER-SCRIPT: negative wait clamped to 0: %s", line.c_str());
+			msVal = 0;
+		}
+		cmd.ms = (uint32)msVal;
 		return true;
 	}
 	if (verb == "capture" || verb == "log") {
@@ -283,6 +288,8 @@ bool InputScriptDriver::pollDue(uint32 nowMs, Common::Event &ev) {
 		}
 		switch (a.ctrl) {
 		case kCmdCapture:
+			if (_capturePending)
+				warning("ROGER-SCRIPT: capture '%s' overwrites pending capture '%s'", a.label.c_str(), _captureLabel.c_str());
 			_capturePending = true;
 			_captureLabel = a.label;
 			break;
