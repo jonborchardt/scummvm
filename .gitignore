@@ -323,8 +323,9 @@ __pycache__/
 /vcpkg_installed/
 /vcpkg-configuration.json
 
-#Ignore Claude instruction files
-.claude
+#Ignore Claude instruction files (but track committed project skills)
+.claude/*
+!.claude/skills/
 .superpowers
 /docs
 /plans
