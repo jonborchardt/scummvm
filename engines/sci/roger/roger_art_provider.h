@@ -98,6 +98,10 @@ public:
 	// (paint16) emit gated ROGER-DIAG trace lines. False in the base.
 	virtual bool diagEnabled() const { return false; }
 
+	// roger_cycle_log accessor: gates the per-kernelAnimate "ROGER-CYCLE" telemetry
+	// line (see animate.cpp) for the scripted verification loop. False in the base.
+	virtual bool cycleLogEnabled() const { return false; }
+
 	// Standalone cel draw (kDrawCel) — e.g. an inventory item's "look at" close-up.
 	// If an upscaled cel exists (views/<id>/view.<id>.loop.<loop>.png), composite it
 	// into the overlay at globalRect (320x200 space); otherwise no-op (native shows).

@@ -18,7 +18,12 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+// Roger: env-first knob reading (ROGER_INPUT_SCRIPT / ROGER_INPUT_LIVE /
+// ROGER_CYCLE_LOG) uses getenv() — same pattern as sci.cpp's ROGER_NO_LAUNCHER.
+#define FORBIDDEN_SYMBOL_EXCEPTION_getenv
+
 #include "sci/roger/file_roger_art_provider.h"
+#include "sci/roger/roger_input.h"
 #include "sci/roger/roger_selftest.h"
 #include "sci/roger/roger_cursor.h"
 #include "sci/roger/png_loader.h"
@@ -100,6 +105,30 @@ FileRogerArtProvider::FileRogerArtProvider(const Common::String &gameId,
 	// roger_diff_check: gated in-engine native-vs-overlay diff (off by default; once per pic;
 	// never on steady-state path). Logs ROGER-DIAG[diff] boxes for the missing-graphics audit.
 	_diffCheck = ConfMan.hasKey("roger_diff_check") && ConfMan.getBool("roger_diff_check");
+
+	// Input automation (scripted verification loop / live remote control). Env-first
+	// so build_and_run.ps1 -Script/-Live/-CycleLog can arm a single launch without
+	// touching scummvm.ini (same pattern as ROGER_NO_LAUNCHER); the ConfMan knobs
+	// work for ini-based setups. Off by default: no knob -> no driver -> zero change.
+	const char *envScript = getenv("ROGER_INPUT_SCRIPT");
+	Common::String inputScript = envScript ? Common::String(envScript)
+		: (ConfMan.hasKey("roger_input_script") ? ConfMan.get("roger_input_script") : Common::String());
+	const char *envLive = getenv("ROGER_INPUT_LIVE");
+	Common::String inputLive = envLive ? Common::String(envLive)
+		: (ConfMan.hasKey("roger_input_live") ? ConfMan.get("roger_input_live") : Common::String());
+	_cycleLog = (getenv("ROGER_CYCLE_LOG") != nullptr) ||
+	            (ConfMan.hasKey("roger_cycle_log") && ConfMan.getBool("roger_cycle_log"));
+	if (!inputScript.empty() || !inputLive.empty()) {
+		_inputDriver = new Roger::InputScriptDriver();
+		if (!inputScript.empty() && !_inputDriver->loadScriptFile(inputScript))
+			warning("ROGER-SCRIPT: script not loaded, running without: %s", inputScript.c_str());
+		if (!inputLive.empty())
+			_inputDriver->setLiveFile(inputLive);
+		// Registered as a backend event source: due events flow through the normal
+		// pollEvent path (dispatch drains sources on every poll — blocking dialogs
+		// included). Not autoFree: we own it and unregister in the destructor.
+		g_system->getEventManager()->getEventDispatcher()->registerSource(_inputDriver, false);
+	}
 
 	// Cursor: the native hardware cursor is NOT usefully visible over the in-game
 	// OSystem overlay (verified in live play — it disappears), which is the original
@@ -610,10 +639,24 @@ void FileRogerArtProvider::renderFrame(const Common::Array<Roger::Sprite> &sprit
 		_autoshotPicId = _loadedPicId;
 	}
 
+	maybeScriptCapture(scene, gameRect);
+
 	// roger_diff_check: gated in-engine native-vs-overlay diff (off by default). Cheap early-
 	// return when off or already run this pic; never on the steady-state path.
 	if (_diffCheck)
 		runDiffCheck();
+}
+
+void FileRogerArtProvider::maybeScriptCapture(Graphics::ManagedSurface &scene,
+                                              const Common::Rect &gameRect) {
+	// Scripted `capture <label>`: one-shot dump at the next present after the
+	// command's due time. Reuses the autoshot writer (same screenshotpath +
+	// naming: roger-<pic>-<label>-{overlay,preview}.png). O(1) when idle.
+	if (!_inputDriver)
+		return;
+	Common::String label;
+	if (_inputDriver->takeCaptureRequest(label))
+		dumpAutoshot(scene, gameRect, ("-" + label).c_str());
 }
 
 void FileRogerArtProvider::dumpAutoshot(Graphics::ManagedSurface &scene,
@@ -1107,6 +1150,7 @@ void FileRogerArtProvider::presentWithUi() {
 	}
 	compositeCursor(scene, _lastGameRect);
 	_compositor->presentToOverlay(scene);
+	maybeScriptCapture(scene, _lastGameRect);
 
 	// Verification harness: when a dialog is composited, also dump a -ui snapshot.
 	// Throttled to one dump per distinct UI state (a cheap signature over the layer)
@@ -2366,6 +2410,11 @@ void FileRogerArtProvider::onShake(int shakeCount, int directions) {
 }
 
 FileRogerArtProvider::~FileRogerArtProvider() {
+	if (_inputDriver) {
+		g_system->getEventManager()->getEventDispatcher()->unregisterSource(_inputDriver);
+		delete _inputDriver;
+		_inputDriver = nullptr;
+	}
 	if (_plate) { _plate->free(); delete _plate; _plate = nullptr; }
 	delete _assetGen; _assetGen = nullptr;
 	delete _viewCache; _viewCache = nullptr;
