@@ -16,6 +16,8 @@ capture typed          # parser input line visible with "look"
 key ENTER
 wait 2500              # wait for parser to process and dialog to appear
 capture look-dialog    # the look description window
+move 200 120           # blocking dialog: force a present so the pending capture flushes with the dialog visible
+wait 400
 key ENTER              # dismiss it
 wait 1200
 move 160 100           # nudge a present so the post-dismiss state is fresh

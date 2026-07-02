@@ -2330,6 +2330,9 @@ void FileRogerArtProvider::onMouseMoved() {
 		compositeCursor(*_scratchScene, _lastGameRect);
 		// Present only the changed regions (two small cursor-sized rects).
 		_compositor->presentToOverlay(*_scratchScene);
+		// A pending script capture must be consumed even on the fast path; presentWithUi
+		// (the slow fallback below) already calls it, so mirror it here too.
+		maybeScriptCapture(*_scratchScene, _lastGameRect);
 		return;
 	}
 
