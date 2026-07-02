@@ -130,6 +130,27 @@ FileRogerArtProvider::FileRogerArtProvider(const Common::String &gameId,
 		g_system->getEventManager()->getEventDispatcher()->registerSource(_inputDriver, false);
 	}
 
+	// Initial display mode (default Enhanced; F10 still cycles from wherever this
+	// starts). Env-first so build_and_run.ps1 -Mode can pin a single launch for
+	// evidence capture — e.g. -Mode sbs boots straight into Side-by-Side for an
+	// enhanced-vs-native comparison shot with no F10 keypress choreography — without
+	// touching scummvm.ini (same pattern as ROGER_INPUT_SCRIPT); roger_display_mode
+	// works for ini-based setups. Values: enhanced | original | sbs.
+	{
+		const char *envMode = getenv("ROGER_DISPLAY_MODE");
+		Common::String modeStr = envMode ? Common::String(envMode)
+			: (ConfMan.hasKey("roger_display_mode") ? ConfMan.get("roger_display_mode") : Common::String());
+		if (modeStr == "original")
+			_mode = Roger::kModeOriginal;
+		else if (modeStr == "sbs" || modeStr == "side-by-side")
+			_mode = Roger::kModeSideBySide;
+		else if (!modeStr.empty() && modeStr != "enhanced")
+			warning("ROGER: unknown display mode '%s' (want enhanced|original|sbs) - using enhanced", modeStr.c_str());
+		if (_mode != Roger::kModeEnhanced)
+			warning("ROGER: display mode -> %s (startup)",
+			        _mode == Roger::kModeOriginal ? "ORIGINAL (native)" : "SIDE-BY-SIDE (enhanced|original)");
+	}
+
 	// Cursor: the native hardware cursor is NOT usefully visible over the in-game
 	// OSystem overlay (verified in live play — it disappears), which is the original
 	// reason Roger composites its own arrow into the overlay scene. So default to the
@@ -1754,21 +1775,37 @@ void FileRogerArtProvider::onAddToPicCel(int viewId, int loopNo, int celNo,
 }
 
 void FileRogerArtProvider::onInitCel(int viewId, int loopNo, int celNo,
-                                     const Common::Rect &celRect, int priority) {
-	// Dedup by view+loop+cel+rect (a room init may redraw the same cel a few times).
-	for (uint i = 0; i < _initCels.size(); i++) {
-		const Roger::Sprite &q = _initCels[i];
-		if (q.viewId == viewId && q.loopNo == loopNo && q.celNo == celNo && q.celRect == celRect)
-			return;
+                                     const Common::Rect &celRect, int priority, uint32 owner) {
+	if (owner != 0) {
+		// One capture per animate object, latest draw wins — mirrors the native buffer,
+		// which holds the object's most recent baked draw. Prevents an actor that moved
+		// during room init from leaving a trail of stale copies.
+		for (uint i = 0; i < _initCels.size(); i++) {
+			Roger::Sprite &q = _initCels[i];
+			if (q.owner == owner) {
+				q.viewId = viewId; q.loopNo = loopNo; q.celNo = celNo;
+				q.celRect = celRect; q.priority = priority;
+				return;
+			}
+		}
+	} else {
+		// Ownerless (script kDrawCel) captures: dedup by view+loop+cel+rect (a room init
+		// may redraw the same cel a few times).
+		for (uint i = 0; i < _initCels.size(); i++) {
+			const Roger::Sprite &q = _initCels[i];
+			if (q.owner == 0 && q.viewId == viewId && q.loopNo == loopNo && q.celNo == celNo && q.celRect == celRect)
+				return;
+		}
 	}
 	Roger::Sprite s;
 	s.viewId = viewId; s.loopNo = loopNo; s.celNo = celNo;
 	s.celRect = celRect; s.priority = priority; s.mirror = false; s.celOverride = nullptr;
+	s.owner = owner;
 	_initCels.push_back(s);
 	if (_diag)
-		warning("ROGER-DIAG[initCel]: pic=%d view=%d loop=%d cel=%d pri=%d rect=(%d,%d,%d,%d) now=%u",
+		warning("ROGER-DIAG[initCel]: pic=%d view=%d loop=%d cel=%d pri=%d rect=(%d,%d,%d,%d) owner=%08x now=%u",
 		        _loadedPicId, viewId, loopNo, celNo, priority,
-		        celRect.left, celRect.top, celRect.right, celRect.bottom, (unsigned)_initCels.size());
+		        celRect.left, celRect.top, celRect.right, celRect.bottom, owner, (unsigned)_initCels.size());
 }
 
 void FileRogerArtProvider::beginNativeDraw() { _nativeDrawDepth++; }
@@ -2001,23 +2038,34 @@ void FileRogerArtProvider::renderFromAnimateList(const AnimateList &list) {
 	}
 
 	// Static props captured at room-init time (_initCels): cels drawn while _picNotValid was
-	// set, i.e. baked into the native picture during the room's first setup. On a FIRST visit
-	// QFG1 places its signs/decorations this way (they never enter the animate list Roger sees,
-	// so they used to render for one frame — the "flash" — then vanish). Promote the init cels
-	// that are NOT in the live animate cast this frame (those that ARE get drawn live, so
-	// excluding them avoids freezing/ghosting a moving actor). Deduped against addToPic.
+	// set, i.e. during the room's first setup — that includes BOTH the baked decorations
+	// (QFG1 first-visit signs: drawn once via the init-frame cast, baked into the picture,
+	// then their objects dispose out of the animate list) AND live actors like the ego, whose
+	// first draw happens on the same init frame. No view/loop/cel identity can tell them apart
+	// (SCI0 rooms pack decorations and actors into one per-room view resource: QFG1 300 signs
+	// = view 300 loop 2, live bard/goblin = loops 0/1/3, and BOTH are in the cast on frame 1).
+	// The reliable discriminator is the OWNING OBJECT, tagged at capture time: promote an init
+	// cel only while its owner is ABSENT from the animate list. A disposed-after-baking prop
+	// promotes (its pixels persist natively); a live actor never does (it is drawn — or, when
+	// hidden, natively erased — by the cast), which is why this scans the full list including
+	// kSignalHidden entries. Suppression is per-frame, not a permanent prune: the signs are in
+	// the cast on frame 1 and must still promote after their objects leave.
+	Common::Array<uint32> liveOwners;
+	for (AnimateList::const_iterator it = list.begin(); it != list.end(); ++it)
+		// Token must match rogerOwnerToken() in graphics/animate.cpp (segment<<16 | offset).
+		liveOwners.push_back(((uint32)it->object.getSegment() << 16) | (uint32)(it->object.getOffset() & 0xFFFF));
+
+	// Promote the eligible init cels, deduped against addToPic.
 	Common::Array<Roger::Sprite> statics = _staticSprites;
 	for (uint i = 0; i < _initCels.size(); i++) {
 		const Roger::Sprite &c = _initCels[i];
-		// Exclude by view+loop+cel (no rect): if the live cast contains ANY entry with the
-		// same view/loop/cel it will be drawn live, so we don't need to freeze it as a static.
-		// Static decorations in SCI0 use dedicated views that never appear in the actor list,
-		// so false-positive suppression (same cel at a different position) is not a concern.
-		bool live = false;
-		for (uint j = 0; j < sprites.size(); j++)
-			if (sprites[j].viewId == c.viewId && sprites[j].loopNo == c.loopNo && sprites[j].celNo == c.celNo) { live = true; break; }
-		if (live)
-			continue;
+		if (c.owner != 0) {
+			bool live = false;
+			for (uint j = 0; j < liveOwners.size(); j++)
+				if (liveOwners[j] == c.owner) { live = true; break; }
+			if (live)
+				continue;
+		}
 		bool dup = false;
 		for (uint j = 0; j < statics.size(); j++)
 			if (statics[j].viewId == c.viewId && statics[j].loopNo == c.loopNo &&

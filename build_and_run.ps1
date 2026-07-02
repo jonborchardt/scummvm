@@ -27,6 +27,11 @@ param(
                               # commands to this file to drive the running game one input
                               # at a time (interactive script authoring).
     [switch]$CycleLog,        # per-cycle ROGER-CYCLE telemetry (walking-speed / perf runs)
+    [ValidateSet("", "enhanced", "original", "sbs")]
+    [string]$Mode     = "",   # boot straight into a display mode (F10 still cycles from it):
+                              # enhanced (default), original (native), sbs (side-by-side
+                              # enhanced|native — the evidence shot for "Roger bug or game
+                              # behavior?"). Sets ROGER_DISPLAY_MODE for this launch only.
     [switch]$NoBuild,         # skip dependency install + build entirely and launch the
                               # existing exe (fast .rin-script iteration: seconds, not minutes)
     [int]$TimeoutSec  = 0     # watchdog for blocking runs: kill scummvm and exit 124 if it
@@ -250,7 +255,7 @@ if ($SaveSlot -ge 0) { $saveArgs = @("--save-slot=$SaveSlot") }
 # Env-first knobs (per-process, never touch scummvm.ini) read by
 # FileRogerArtProvider; see docs/roger.md. Clear stale values first so a
 # previous run in this shell can't leak automation into a manual launch.
-foreach ($v in "ROGER_INPUT_SCRIPT", "ROGER_INPUT_LIVE", "ROGER_CYCLE_LOG", "ROGER_NO_LAUNCHER") {
+foreach ($v in "ROGER_INPUT_SCRIPT", "ROGER_INPUT_LIVE", "ROGER_CYCLE_LOG", "ROGER_NO_LAUNCHER", "ROGER_DISPLAY_MODE") {
     Remove-Item "Env:$v" -ErrorAction SilentlyContinue
 }
 $logArgs = @()
@@ -280,6 +285,10 @@ if ($Live) {
 if ($CycleLog) {
     $env:ROGER_CYCLE_LOG = "1"
     Write-Host "Cycle telemetry: ROGER-CYCLE lines in screenshots\roger-run.log" -ForegroundColor Cyan
+}
+if ($Mode) {
+    $env:ROGER_DISPLAY_MODE = $Mode
+    Write-Host "Display mode: $Mode (this launch only)" -ForegroundColor Cyan
 }
 
 # Boot straight into the game, bypassing the Roger picker dialog, when either

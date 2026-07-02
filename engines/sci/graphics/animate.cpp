@@ -46,6 +46,13 @@
 
 namespace Sci {
 
+// Roger: opaque owner token for an animate-list object, passed with init-cel captures so
+// the provider can tell a disposed-after-baking prop (promote) from a live actor (never
+// promote — it is drawn live; promoting froze a duplicate ego). SCI0 offsets fit 16 bits.
+static uint32 rogerOwnerToken(reg_t obj) {
+	return ((uint32)obj.getSegment() << 16) | (uint32)(obj.getOffset() & 0xFFFF);
+}
+
 GfxAnimate::GfxAnimate(EngineState *state, ScriptPatcher *scriptPatcher, GfxCache *cache, GfxCompare *compare, GfxPorts *ports, GfxPaint16 *paint16, GfxScreen *screen, GfxPalette *palette, GfxCursor *cursor, GfxTransitions *transitions)
 	: _s(state), _scriptPatcher(scriptPatcher), _cache(cache), _compare(compare), _ports(ports), _paint16(paint16), _screen(screen), _palette(palette), _cursor(cursor), _transitions(transitions) {
 	init();
@@ -417,6 +424,11 @@ void GfxAnimate::update() {
 		if (it->signal & kSignalAlwaysUpdate) {
 			// draw corresponding cel
 			_paint16->drawCel(it->viewId, it->loopNo, it->celNo, it->celRect, it->priority, it->paletteNo, it->scaleX, it->scaleY);
+			// Roger: a cast draw during room init (_picNotValid) bakes into the native
+			// picture if its object disposes before ever being erased — capture it, tagged
+			// with its owner so it only promotes once the owner leaves the animate list.
+			if (g_sciRogerProvider && g_sciRogerProvider->enabled && _screen->_picNotValid)
+				g_sciRogerProvider->onInitCel(it->viewId, it->loopNo, it->celNo, it->celRect, it->priority, rogerOwnerToken(it->object));
 			it->showBitsFlag = true;
 
 			it->signal &= ~(kSignalStopUpdate | kSignalViewUpdated | kSignalNoUpdate | kSignalForceUpdate);
@@ -449,6 +461,9 @@ void GfxAnimate::update() {
 		if (it->signal & kSignalNoUpdate && !(it->signal & kSignalHidden)) {
 			// draw corresponding cel
 			_paint16->drawCel(it->viewId, it->loopNo, it->celNo, it->celRect, it->priority, it->paletteNo, it->scaleX, it->scaleY);
+			// Roger: init-frame cast draw — see the kSignalAlwaysUpdate capture above.
+			if (g_sciRogerProvider && g_sciRogerProvider->enabled && _screen->_picNotValid)
+				g_sciRogerProvider->onInitCel(it->viewId, it->loopNo, it->celNo, it->celRect, it->priority, rogerOwnerToken(it->object));
 			it->showBitsFlag = true;
 
 			if (!(it->signal & kSignalIgnoreActor)) {
@@ -474,6 +489,9 @@ void GfxAnimate::drawCels() {
 
 			// draw corresponding cel
 			_paint16->drawCel(it->viewId, it->loopNo, it->celNo, it->celRect, it->priority, it->paletteNo, it->scaleX, it->scaleY, it->scaleSignal);
+			// Roger: init-frame cast draw — see the kSignalAlwaysUpdate capture in update().
+			if (g_sciRogerProvider && g_sciRogerProvider->enabled && _screen->_picNotValid)
+				g_sciRogerProvider->onInitCel(it->viewId, it->loopNo, it->celNo, it->celRect, it->priority, rogerOwnerToken(it->object));
 			it->showBitsFlag = true;
 
 			if (it->signal & kSignalRemoveView)

@@ -164,6 +164,13 @@ void GfxPaint16::drawCelAndShow(GuiResourceId viewId, int16 loopNo, int16 celNo,
 		celRect.right = celRect.left + view->getWidth(loopNo, celNo);
 		celRect.bottom = celRect.top + view->getHeight(loopNo, celNo);
 
+		// Roger: a script-drawn cel (kDrawCel / control icon) while the picture is not yet
+		// valid (_picNotValid) bakes into the native picture — capture it as a persistent
+		// hires static. owner = 0: no animate-list object, so it is always promoted.
+		// Animate-cast draws are captured separately in GfxAnimate with their owner object.
+		if (g_sciRogerProvider && g_sciRogerProvider->enabled && _screen->_picNotValid)
+			g_sciRogerProvider->onInitCel(viewId, loopNo, celNo, celRect, priority, 0);
+
 		drawCel(view, loopNo, celNo, celRect, priority, paletteNo, scaleX, scaleY, scaleSignal);
 
 		if (getSciVersion() >= SCI_VERSION_1_1) {
@@ -191,13 +198,6 @@ void GfxPaint16::drawCel(GfxView *view, int16 loopNo, int16 celNo, const Common:
 	clipRect.clip(_ports->_curPort->rect);
 	if (clipRect.isEmpty()) // nothing to draw
 		return;
-
-	// Roger: a cel drawn while the picture is not yet valid (_picNotValid) is part of the
-	// room's initial setup and bakes into the native picture. QFG1 first-visit signs are drawn
-	// this way and never enter the animate list Roger composites, so capture them here as
-	// persistent hires statics (filtered against the live cast in renderFromAnimateList).
-	if (g_sciRogerProvider && g_sciRogerProvider->enabled && view && _screen->_picNotValid)
-		g_sciRogerProvider->onInitCel(view->getResourceId(), loopNo, celNo, celRect, priority);
 
 	Common::Rect clipRectTranslated = clipRect;
 	_ports->offsetRect(clipRectTranslated);

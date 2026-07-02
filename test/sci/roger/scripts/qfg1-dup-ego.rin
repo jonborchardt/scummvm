@@ -1,0 +1,12 @@
+# Repro: duplicate ego after room entry (init-cel capture of the ego)
+wait 4000
+capture before
+# walk the ego away from its spawn point; the frozen init-captured copy should stay behind
+click 200 170
+wait 3500
+capture walked
+# walk again to a second spot to make the duplicate unmistakable
+click 90 160
+wait 3500
+capture walked2
+quit

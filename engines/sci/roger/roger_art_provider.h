@@ -107,12 +107,15 @@ public:
 	// into the overlay at globalRect (320x200 space); otherwise no-op (native shows).
 	virtual void onDrawCel(const Common::Rect &globalRect, int viewId, int loopNo, int celNo) {}
 
-	// Init-time cel (low-level drawCel while _picNotValid): a view cel drawn during the
-	// room's first setup that bakes into the native picture without going through kAddToPic
-	// or the animate list Roger sees (QFG1 first-visit signs/decorations). Captured so it can
-	// be re-shown persistently at hires. No-op in base.
+	// Init-time cel (a cel drawn while _picNotValid): a view cel drawn during the room's
+	// first setup that bakes into the native picture (QFG1 first-visit signs/decorations).
+	// Captured so it can be re-shown persistently at hires. `owner` is an opaque token
+	// identifying the drawing animate-list object (0 = not a cast draw, e.g. kDrawCel):
+	// the capture is shown only while its owner is absent from the live animate list —
+	// a disposed-after-baking prop promotes, a live actor (the ego) never does.
+	// No-op in base.
 	virtual void onInitCel(int viewId, int loopNo, int celNo,
-	                       const Common::Rect &celRect, int priority) {}
+	                       const Common::Rect &celRect, int priority, uint32 owner) {}
 
 	// addToPic cel (kAddToPic) — a static view baked into the room's native picture.
 	// Roger captures it as a persistent per-room sprite so it appears in the overlay at

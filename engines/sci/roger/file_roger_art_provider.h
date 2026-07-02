@@ -60,7 +60,7 @@ public:
 	void onAddToPicCel(int viewId, int loopNo, int celNo,
 	                   const Common::Rect &celRect, int priority) override;
 	void onInitCel(int viewId, int loopNo, int celNo,
-	               const Common::Rect &celRect, int priority) override;
+	               const Common::Rect &celRect, int priority, uint32 owner) override;
 	void beginNativeDraw() override;
 	void endNativeDraw() override;
 	void onNativeShowRect(const Common::Rect &screenRect) override;
@@ -163,9 +163,11 @@ private:
 	// addToPic cels captured for the current room (Feeder A). Cleared on room change;
 	// merged with the animate list each frame and drawn via the hires Sprite path.
 	Common::Array<Roger::Sprite> _staticSprites;
-	// Cels drawn during room init (_picNotValid) that bake into the native picture but never
-	// enter the animate list (QFG1 first-visit signs). Cleared on room change; each frame the
-	// entries not in the live cast are merged in as persistent hires statics. See onInitCel.
+	// Cels drawn during room init (_picNotValid) that bake into the native picture (QFG1
+	// first-visit signs), tagged with their owning animate object (one capture per owner,
+	// latest wins; owner 0 = script kDrawCel). Cleared on room change; each frame the entries
+	// whose owner is absent from the animate list are merged in as persistent hires statics —
+	// a disposed-after-baking prop promotes, a live actor (the ego) never does. See onInitCel.
 	Common::Array<Roger::Sprite> _initCels;
 	// Native-foreground capture (QFG1 menu/character-creation stat labels, class buttons,
 	// software cursor): regions recorded by the bitsShow hook (onNativeShowRect), turned

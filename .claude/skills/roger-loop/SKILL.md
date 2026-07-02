@@ -15,10 +15,19 @@ Drive the game yourself, read the pixels, iterate. The mechanics (.rin grammar, 
    ```
    wait 4000            # boot + save-restore settle
    capture before
+   move 160 100         # EVERY capture needs a flushing move+wait after it — see below
+   wait 600
    # actions...          walk needs ~2500ms, dialog appear ~2500ms
    capture after
+   move 150 100
+   wait 600
    quit
    ```
+
+   **`capture` only pends; a present consumes it.** An idle scene (ego standing still, no
+   dialog) presents nothing, so a bare `capture` before `quit` silently produces NO file.
+   This is not dialog-specific — treat `capture <label>` → `move X Y` → `wait 600` as one
+   atomic unit, always.
 
 3. **Run** — `.\build_and_run.ps1 -Game qfg1 -SaveSlot 1 -Script <path> -TimeoutSec 120 [-NoBuild] [-CycleLog]`
    - **Always pass `-TimeoutSec`.** Exit 124 = hung script, killed for you — never a run you have to hunt down and kill.
@@ -31,24 +40,40 @@ Drive the game yourself, read the pixels, iterate. The mechanics (.rin grammar, 
 
 Coordinates are game-space 320×200 and the `-preview.png` is exactly the game rect (no letterbox). Run a capture-only script first, Read the PNG, locate the target as a fraction of image width/height, then `x = fx * 320`, `y = fy * 200`. Don't guess coordinates for anything smaller than a building.
 
+## Moving between rooms
+
+- **Clicks cannot cross a screen edge** — the ego walks to the clicked point and stops AT the
+  edge without exiting. Burned three runs discovering this. To leave through an edge, use an
+  arrow key: `key DOWN` (UP/LEFT/RIGHT) starts continuous SCI0 keyboard walking that carries
+  the ego off-screen. After a room change the ego may stop; press the arrow again to resume.
+- **Doors**: click ON the door (walk-to + touch enters). Clicking "toward" it (top edge above
+  the building) can route the ego somewhere else entirely.
+- **The capture filename tells you which room you're in**: captures land as
+  `roger-<pic>-<label>-*.png`, so the pic id is your transition probe — a label you expected
+  in the next room still prefixed with the old pic means the exit didn't fire. Budget
+  generously: one screen crossing ≈ 8–12 s of `wait`.
+
 ## Recipes
 
 | Goal | How |
 |---|---|
-| Capture an open dialog | `key ENTER` → `wait 2500` → `capture dlg` → `move 200 120` → `wait 400` (the move flushes the pending capture — without it you get the post-dismiss frame) → `key ENTER` |
+| Capture an open dialog | `key ENTER` → `wait 2500` → `capture dlg` → `move 200 120` → `wait 400` → `key ENTER` |
 | Ghost-text check | after dismissing: `wait 1200` → `move 160 100` → `capture gone` |
+| **Roger bug or game behavior?** | launch with `-Mode sbs` — boots straight into Side-by-Side, every capture is an enhanced-vs-native comparison, no F10 choreography or mode restore. Left pane = enhanced, right = native mirror. Anything missing/extra on the left only is a Roger bug; identical on both = original game behavior. One such capture settled both "missing signs" (Roger-side) and "invisible ego" (native-legit occlusion). Mid-run mode switches are still `key F10` (cycles Enhanced → Original → Side-by-Side); `-Mode original` gives a native-only run. |
+| Structured trace instead of pixels | flip `roger_diag=false` → `true` for the target's domain in `%APPDATA%\ScummVM\scummvm.ini` (the key may exist under several game sections — flip only the target's), run, grep `ROGER-DIAG\[` in `screenshots\roger-run.log`. For capture/lifetime bugs the trace names exact view/loop/cel/rect/owner — often more decisive than screenshots. **Flip it back to false afterwards.** |
 | Walking-speed / perf | add `-CycleLog`; grep `ROGER-CYCLE`; period ≈83 ms healthy, ≥150 suspicious, ≈225 = the historic bitsRestore regression |
-| Watch motion mid-action | several `capture step<N>` spaced by `wait 800` |
+| Watch motion mid-action | several `capture step<N>` spaced by `wait 800` (each with its flush move) |
 | Interactive probing | `-Live cmd.txt` (background run, PID printed); append `.rin` lines to the file; finish with a `quit` line |
 
 ## Known state
 
-- Save slot 1 exists in both `qfg1` (room 300, town, ego near the sheriff's office) and `sq3`. Need a different starting point? Ask the user for a save rather than scripting a long navigation.
+- Save slot 1 exists in both `qfg1` (room 300, town, ego near the sheriff's office) and `sq3`. The user may create more mid-session — verify a slot exists before blaming the script: `%APPDATA%\ScummVM\Saved games\<target>.0NN`. Need a different starting point? Ask the user for a save rather than scripting a long navigation.
 - Targets: `qfg1`, `sq3` (Roger is EGA SCI0 only).
 - The parser input line renders only while the game awaits input — a `typed` capture fired while the ego is still walking shows nothing; let movement finish first.
+- A Side-by-Side `-preview.png` can exceed the Read tool's image size limit ("media removed"). Downscale to half size first (PowerShell `System.Drawing`: load, `DrawImage` into a half-size bitmap, save to the scratchpad) and Read that.
 
 ## Verdict discipline
 
 - PASS requires naming the captures and what you saw in each — a claim per image.
 - "Couldn't verify" is a valid verdict and is not FAIL: say which evidence is missing and why.
-- Captures missing entirely? Check in order: exit code 124 (hang)? `ROGER-SCRIPT` parse warnings in the log? Did the script reach that label (bisect with `log <marker>` lines)? Still dark → set `roger_diag=true` for the target and grep `ROGER-DIAG[`.
+- Captures missing entirely? Check in order: exit code 124 (hang)? `ROGER-SCRIPT` parse warnings in the log? A `capture` with no flushing `move` after it (the #1 cause)? Did the script reach that label (bisect with `log <marker>` lines)? Still dark → the `roger_diag` recipe above.
