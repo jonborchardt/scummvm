@@ -1,0 +1,16 @@
+{
+  "entries": [
+    {
+      "name": "qfg1-smoke",
+      "target": "qfg1",
+      "saveSlot": 1,
+      "script": "qfg1-smoke.rin",
+      "timeoutSec": 120,
+      "cycleLog": false,
+      "checks": [
+        { "type": "capturesExist",
+          "labels": ["boot", "after-walk", "after-arrow", "typed", "look-dialog", "dismissed"] }
+      ]
+    }
+  ]
+}
