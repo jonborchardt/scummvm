@@ -18,8 +18,15 @@ param(
     [switch]$SkipPicker,      # skip the Roger game-picker dialog and boot straight into the
                               # game (or -SaveSlot save). Sets ROGER_NO_LAUNCHER for the launch.
                               # Implied automatically whenever -Game is passed.
-    [switch]$Regenerate       # force-regenerate scummvm.sln (e.g. after changing enabled
+    [switch]$Regenerate,      # force-regenerate scummvm.sln (e.g. after changing enabled
                               # features like the event recorder). Deletes the existing solution.
+    [string]$Script   = "",   # .rin input script: drive the game automatically, blocking
+                              # until the script's `quit` exits it. Captures land in the
+                              # game's screenshotpath; log in screenshots\roger-run.log.
+    [string]$Live     = "",   # live command file: launch in background, then APPEND .rin
+                              # commands to this file to drive the running game one input
+                              # at a time (interactive script authoring).
+    [switch]$CycleLog         # per-cycle ROGER-CYCLE telemetry (walking-speed / perf runs)
 )
 
 $ErrorActionPreference = "Stop"
@@ -230,6 +237,36 @@ if ($NoLaunch) {
 $saveArgs = @()
 if ($SaveSlot -ge 0) { $saveArgs = @("--save-slot=$SaveSlot") }
 
+# ── Input automation (Roger verification loop) ───────────────────────────────
+# Env-first knobs (per-process, never touch scummvm.ini) read by
+# FileRogerArtProvider; see docs/roger.md. Clear stale values first so a
+# previous run in this shell can't leak automation into a manual launch.
+foreach ($v in "ROGER_INPUT_SCRIPT", "ROGER_INPUT_LIVE", "ROGER_CYCLE_LOG") {
+    Remove-Item "Env:$v" -ErrorAction SilentlyContinue
+}
+$logArgs = @()
+if ($Script -or $Live -or $CycleLog) {
+    $shots = "$Root\screenshots"
+    if (-not (Test-Path $shots)) { New-Item -ItemType Directory -Force $shots | Out-Null }
+    $logArgs = @("--logfile=$shots\roger-run.log")
+}
+if ($Script) {
+    if (-not (Test-Path $Script)) { Write-Error "Input script not found: $Script" }
+    $env:ROGER_INPUT_SCRIPT = (Resolve-Path $Script).Path
+    $env:ROGER_NO_LAUNCHER = "1"   # automation is deterministic; never show the picker
+    Write-Host "Input script: $($env:ROGER_INPUT_SCRIPT)" -ForegroundColor Cyan
+}
+if ($Live) {
+    if (-not (Test-Path $Live)) { New-Item -ItemType File -Force $Live | Out-Null }
+    $env:ROGER_INPUT_LIVE = (Resolve-Path $Live).Path
+    $env:ROGER_NO_LAUNCHER = "1"
+    Write-Host "Live command file: $($env:ROGER_INPUT_LIVE) (append .rin lines to drive)" -ForegroundColor Cyan
+}
+if ($CycleLog) {
+    $env:ROGER_CYCLE_LOG = "1"
+    Write-Host "Cycle telemetry: ROGER-CYCLE lines in screenshots\roger-run.log" -ForegroundColor Cyan
+}
+
 # Boot straight into the game, bypassing the Roger picker dialog, when either
 # -SkipPicker is set OR a specific -Game target was passed (a named target means
 # the caller already knows what to launch, so the picker is just in the way).
@@ -247,7 +284,12 @@ if ($Game) {
     } else {
         Write-Host "Launching target '$Game'..." -ForegroundColor Green
     }
-    & $Exe @saveArgs $Game
+    if ($Live) {
+        $p = Start-Process -FilePath $Exe -ArgumentList ($logArgs + $saveArgs + @($Game)) -PassThru
+        Write-Host "Running in background (PID $($p.Id)). Append commands to $Live; 'quit' line exits." -ForegroundColor Cyan
+    } else {
+        & $Exe @logArgs @saveArgs $Game
+    }
 } else {
     if (-not (Test-Path $GameDir)) { Write-Error "Game data not found at: $GameDir" }
     if ($SaveSlot -ge 0) {
@@ -255,5 +297,10 @@ if ($Game) {
     } else {
         Write-Host "Launching SQ3..." -ForegroundColor Green
     }
-    & $Exe -p $GameDir @saveArgs sq3
+    if ($Live) {
+        $p = Start-Process -FilePath $Exe -ArgumentList ($logArgs + @("-p", "`"$GameDir`"") + $saveArgs + @("sq3")) -PassThru
+        Write-Host "Running in background (PID $($p.Id)). Append commands to $Live; 'quit' line exits." -ForegroundColor Cyan
+    } else {
+        & $Exe @logArgs -p $GameDir @saveArgs sq3
+    }
 }
