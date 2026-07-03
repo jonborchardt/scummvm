@@ -75,10 +75,33 @@ void RogerStudio::setCurrent(Graphics::Surface *s, const Common::String &label) 
 }
 
 void RogerStudio::rerender() {
-	// Task 5+ replaces this dispatch. Scaffold: status only.
-	_status = Common::String::format("studio scaffold - %u pics, %u views discovered",
-	                                 (unsigned)_picIds.size(), (unsigned)_viewIds.size());
-	markDirty();
+	switch (_mode) {
+	case kModePic:      renderPicMode(); break;
+	case kModeView:     /* Task 7 */ _status = "view mode: Task 7"; markDirty(); break;
+	case kModeCombined: /* Task 8 */ _status = "combined mode: Task 8"; markDirty(); break;
+	}
+}
+
+void RogerStudio::renderPicMode() {
+	_status.clear();
+	if (_picIds.empty()) {
+		_status = "no pic resources found";
+		markDirty();
+		return;
+	}
+	const int picId = _picIds[_picIdx];
+	_gen.setEnhancePasses(_passes);
+	_gen.setOmyacParams(_params);
+	uint32 ms = 0;
+	Graphics::Surface *plate = _gen.generatePlate(picId, ms);
+	_lastRenderMs = ms;
+	if (!plate) {
+		_status = Common::String::format("pic %d: generation FAILED (parse/render error)", picId);
+		markDirty();
+		return;
+	}
+	setCurrent(plate, Common::String::format("pic %d  %s  passes:%s", picId,
+		omyacParamStamp(_params).c_str(), omyacPassStamp(_passes).c_str()));
 }
 
 void RogerStudio::run() {
@@ -139,7 +162,11 @@ void RogerStudio::handleEvent(const Common::Event &ev) {
 	case Common::KEYCODE_F1:
 		_showKeymap = !_showKeymap; markDirty(); break;
 	case Common::KEYCODE_0:
-		_zoomIdx = 2; _panX = _panY = 0; markDirty(); break;
+		// plain 0 = reset view (global); Shift+0 = ')' is pic-mode reorder (below)
+		if (!(ev.kbd.flags & Common::KBD_SHIFT)) {
+			_zoomIdx = 2; _panX = _panY = 0; markDirty();
+		}
+		break;
 	case Common::KEYCODE_PLUS:
 	case Common::KEYCODE_EQUALS:
 		_zoomIdx = MIN(_zoomIdx + 1, ZOOM_COUNT - 1); markDirty(); break;
@@ -147,6 +174,78 @@ void RogerStudio::handleEvent(const Common::Event &ev) {
 		_zoomIdx = MAX(_zoomIdx - 1, 0); markDirty(); break;
 	default:
 		break;
+	}
+
+	// Pic-mode keys (after global; consumes only what global layer ignored).
+	if (_mode == kModePic) {
+		switch (ev.kbd.keycode) {
+		case Common::KEYCODE_PAGEUP:
+			_picIdx = (_picIdx + (int)_picIds.size() - 1) % (int)_picIds.size();
+			rerender(); break;
+		case Common::KEYCODE_PAGEDOWN:
+			_picIdx = (_picIdx + 1) % (int)_picIds.size();
+			rerender(); break;
+		case Common::KEYCODE_UP:
+			_paramCursor = (_paramCursor + omyacParamCount() - 1) % omyacParamCount();
+			markDirty(); break;
+		case Common::KEYCODE_DOWN:
+			_paramCursor = (_paramCursor + 1) % omyacParamCount();
+			markDirty(); break;
+		case Common::KEYCODE_LEFT:
+			omyacParamSet(_params, _paramCursor,
+				omyacParamGet(_params, _paramCursor) - omyacParamDesc(_paramCursor).step);
+			rerender(); break;
+		case Common::KEYCODE_RIGHT:
+			omyacParamSet(_params, _paramCursor,
+				omyacParamGet(_params, _paramCursor) + omyacParamDesc(_paramCursor).step);
+			rerender(); break;
+		case Common::KEYCODE_LEFTBRACKET:
+			if (_passCursor > 0) _passCursor--;
+			markDirty(); break;
+		case Common::KEYCODE_RIGHTBRACKET:
+			if (_passCursor + 1 < (int)_passes.size()) _passCursor++;
+			markDirty(); break;
+		case Common::KEYCODE_f:
+			_passes.insert_at(MIN(_passCursor, (int)_passes.size()), 2); rerender(); break;
+		case Common::KEYCODE_l:
+			_passes.insert_at(MIN(_passCursor, (int)_passes.size()), 1); rerender(); break;
+		case Common::KEYCODE_a: // Shift+A inserts an 'all' pass; plain 'a' is the global A/B flip
+			if (ev.kbd.flags & Common::KBD_SHIFT) {
+				_passes.insert_at(MIN(_passCursor, (int)_passes.size()), 0);
+				rerender();
+			}
+			break;
+		case Common::KEYCODE_DELETE:
+		case Common::KEYCODE_BACKSPACE:
+			if (!_passes.empty() && _passCursor < (int)_passes.size()) {
+				_passes.remove_at(_passCursor);
+				if (_passCursor >= (int)_passes.size() && _passCursor > 0) _passCursor--;
+				rerender();
+			}
+			break;
+		case Common::KEYCODE_9: // Shift+9 = '(' moves pass left; plain 9 unused
+			if ((ev.kbd.flags & Common::KBD_SHIFT) &&
+			    _passCursor > 0 && _passCursor < (int)_passes.size()) {
+				SWAP(_passes[_passCursor], _passes[_passCursor - 1]);
+				_passCursor--; rerender();
+			}
+			break;
+		case Common::KEYCODE_0: // Shift+0 = ')' moves pass right; plain 0 handled globally
+			if ((ev.kbd.flags & Common::KBD_SHIFT) &&
+			    _passCursor + 1 < (int)_passes.size()) {
+				SWAP(_passes[_passCursor], _passes[_passCursor + 1]);
+				_passCursor++; rerender();
+			}
+			break;
+		case Common::KEYCODE_r: // reset params + passes to defaults
+			_params = OmyacParams();
+			_passes = defaultPasses();
+			_passCursor = 0;
+			rerender();
+			break;
+		default:
+			break;
+		}
 	}
 }
 
@@ -156,7 +255,7 @@ void RogerStudio::drawFrame() {
 	                   fmt.RGBToColor(24, 24, 24));
 
 	const Graphics::Surface *shown = _showPrevious ? _previous : _current;
-	const int hudH = 220; // bottom HUD strip (2x-scaled text lives here)
+	const int hudH = kHudH; // bottom HUD strip (2x-scaled text lives here)
 	const Common::Rect imageArea(0, 0, _display->w, _display->h - hudH);
 
 	if (shown) {
@@ -220,7 +319,7 @@ void RogerStudio::drawHud() {
 		}
 		return;
 	}
-	const int hudH = 220;
+	const int hudH = kHudH;
 	const int smallW = _display->w / 2, smallH = hudH / 2;
 	Graphics::ManagedSurface small(smallW, smallH, _display->format);
 	const uint32 bg = _display->format.RGBToColor(0, 0, 0);
@@ -240,7 +339,30 @@ void RogerStudio::drawHud() {
 		font->drawString(&small, _status, 4, y, smallW - 8, hi);
 		y += lh;
 	}
-	// Tasks 5-8 append mode-specific lines here (param panel, pass strip, ids).
+	// Mode-specific HUD lines (Tasks 5-8).
+	if (_mode == kModePic) {
+		for (int i = 0; i < omyacParamCount(); i++) {
+			const OmyacParamDesc d = omyacParamDesc(i);
+			Common::String line = Common::String::format("%c %-20s %d",
+				i == _paramCursor ? '>' : ' ', d.name, omyacParamGet(_params, i));
+			font->drawString(&small, line, 4, y, smallW - 8,
+			                 i == _paramCursor ? hi : fg);
+			y += lh;
+		}
+		// Pass strip with cursor: "passes: f f f [l] f f a a a a"
+		Common::String strip = "passes: ";
+		for (uint i = 0; i < _passes.size(); i++) {
+			const char c = _passes[i] == 2 ? 'f' : _passes[i] == 1 ? 'l' : 'a';
+			if ((int)i == _passCursor)
+				strip += Common::String::format("[%c] ", c);
+			else
+				strip += Common::String::format("%c ", c);
+		}
+		if (_passes.empty())
+			strip += "(none - wireframe)";
+		font->drawString(&small, strip, 4, y, smallW - 8, fg);
+		y += lh;
+	}
 
 	if (_showKeymap) {
 		// Full keymap block (kept current as later tasks add keys).

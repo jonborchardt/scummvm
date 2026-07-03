@@ -56,7 +56,10 @@ private:
 
 	// Rendering (filled in by Tasks 5-8)
 	void rerender();                // dispatch by _mode; updates _current/_previous
+	void renderPicMode();
 	void setCurrent(Graphics::Surface *s, const Common::String &label);
+
+	static const int kHudH = 380;  // HUD strip height (2x-scaled; fits 2+omyacParamCount()+2 lines)
 
 	RogerAssetGen        _gen;      // kGenMemory, empty cache dir
 	Graphics::ManagedSurface *_display = nullptr; // overlay-format compose target
