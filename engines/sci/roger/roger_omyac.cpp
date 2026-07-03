@@ -649,13 +649,20 @@ static void enhance(Common::Array<byte> &buf, Common::Array<byte> &typeBuf, int 
 }
 
 // ─── Step 8: Final null-pixel mode fill ─────────────────────────────────────────
-static void fillNullPixels(Common::Array<byte> &buf, Common::Array<byte> &typeBuf) {
+static void fillNullPixels(Common::Array<byte> &buf, Common::Array<byte> &typeBuf,
+                           Common::Array<byte> &backfilled) {
+	// Diagnostic mask: 1 wherever this pass paints a pixel. Recording it does not
+	// alter buf/typeBuf, so default output stays bit-identical (golden checksum).
+	backfilled.resize(OMYAC_HYBRID_W * OMYAC_HYBRID_H);
+	for (uint i = 0; i < backfilled.size(); i++)
+		backfilled[i] = 0;
 	int count[256];
 	for (int y = 0; y < OMYAC_HYBRID_H; y++) {
 		for (int x = 0; x < OMYAC_HYBRID_W; x++) {
 			int idx = y * OMYAC_HYBRID_W + x;
 			if (typeBuf[idx] != CMD_NONE)
 				continue;
+			backfilled[idx] = 1;
 
 			for (int c = 0; c < 256; c++)
 				count[c] = 0;
@@ -717,7 +724,7 @@ OmyacResult renderOmyac(const NativeRef &ref, const Common::Array<int> &passes,
 	for (uint i = 0; i < passes.size(); i++)
 		enhance(out.pixels, out.cmdType, passes[i], params);
 
-	fillNullPixels(out.pixels, out.cmdType);
+	fillNullPixels(out.pixels, out.cmdType, out.backfilled);
 
 	return out;
 }

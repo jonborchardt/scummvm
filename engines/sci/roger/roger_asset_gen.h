@@ -131,6 +131,14 @@ public:
 	// the index is unavailable (caller must check !outIndex.empty()).
 	Graphics::Surface *generatePlateWithIndex(int id, Common::Array<byte> &outIndex, uint32 &outMs);
 
+	// As generatePlate, but also returns the omyac backfill mask
+	// (OMYAC_HYBRID_W*OMYAC_HYBRID_H bytes: 1 where fillNullPixels painted the
+	// pixel, else 0) in outBackfill — the studio "unfilled pixels" diagnostic
+	// (recoloured hot pink). Studio-only; the mask is NEVER cached, so a plate
+	// served from the disk cache leaves outBackfill empty (no pink). The studio
+	// runs kGenMemory, so plates always generate live and the mask is available.
+	Graphics::Surface *generatePlateWithBackfill(int id, Common::Array<byte> &outBackfill, uint32 &outMs);
+
 	/**
 	 * Reference plate for shift diagnosis: the native 320x190 pre-render
 	 * (NativeRef.refPixel) replicated x6 nearest-neighbour — geometrically
@@ -178,6 +186,12 @@ private:
 	 * Format: "<gameId>.<transform>.v<kTransformVersion>.<hashHex>.<passesString>"
 	 */
 	Common::String cacheKey(const char *transform, uint32 resourceHash) const;
+
+	// Shared plate-generation core behind generatePlateWithIndex /
+	// generatePlateWithBackfill. Fills outIndex (pre-blend index buffer) and
+	// outBackfill (fillNullPixels mask); both cleared on failure/cache-only.
+	Graphics::Surface *generatePlateCore(int id, Common::Array<byte> &outIndex,
+	                                     Common::Array<byte> &outBackfill, uint32 &outMs);
 
 	GenMode        _mode;
 	Common::String _gameId;

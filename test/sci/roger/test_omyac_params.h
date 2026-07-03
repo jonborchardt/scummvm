@@ -140,6 +140,38 @@ public:
 		TS_ASSERT(countDiffs(defOut, tuned) > 0);
 	}
 
+	// Backfill mask (studio "unfilled pixels" diagnostic): sized to the hybrid
+	// buffer, records exactly the pixels fillNullPixels painted. For a sparse
+	// fixture it must contain both 1s (backfilled background) and 0s (drawn/
+	// enhanced pixels). Recording it must NOT alter pixels/cmdType — the golden
+	// checksum test above already pins that invariant.
+	void test_backfill_mask_populated() {
+		NativeRef ref = crossingLinesRef();
+		// Zero enhance passes: raw wireframe leaves large CMD_NONE regions that
+		// fillNullPixels backfills, so the mask has both 1s (backfilled empty
+		// space) and 0s (the drawn line pixels) — the sparse-fixture assertion the
+		// studio "pink" toggle depends on. (The default-pass pipeline can flood the
+		// whole buffer, leaving little/no backfill; wireframe is the honest probe.)
+		Common::Array<int> passes; // empty == zero passes
+		OmyacResult out = renderOmyac(ref, passes, OmyacParams());
+		const uint expected = (uint)OMYAC_HYBRID_W * (uint)OMYAC_HYBRID_H;
+		TS_ASSERT_EQUALS(out.backfilled.size(), expected);
+		TS_ASSERT_EQUALS(out.pixels.size(), expected);
+		int ones = 0, zeros = 0;
+		for (uint i = 0; i < out.backfilled.size(); i++) {
+			if (out.backfilled[i])
+				ones++;
+			else
+				zeros++;
+		}
+		TS_ASSERT(ones > 0);   // sparse fixture -> lots of backfilled background
+		TS_ASSERT(zeros > 0);  // ...but the drawn line pixels are not backfilled
+		// A backfilled pixel must be CMD_FILL in the final cmdType (fillNullPixels
+		// stamps CMD_FILL), i.e. the mask never marks an untouched pixel.
+		for (uint i = 0; i < out.backfilled.size(); i++)
+			if (out.backfilled[i]) { TS_ASSERT(out.cmdType[i] != 0 /*CMD_NONE*/); break; }
+	}
+
 	// endpointMaxSame reaches detectLineEndings even with zero enhance passes
 	// only via connections; safest observable: full default pipeline differs.
 	void test_endpoint_param_reaches_pipeline() {

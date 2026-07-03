@@ -107,7 +107,8 @@ enum WidKind {
 	kWidChip, kWidChipX,                              // indexed by chip
 	kWidChipLeft, kWidChipRight,
 	kWidChipAddF, kWidChipAddL, kWidChipAddA, kWidChipReset,
-	kWidChipClear
+	kWidChipClear,
+	kWidShowBackfill, kWidShowGrid   // shared scene toggles (pink / pixel grid)
 };
 
 uint32 widId(int kind, int index = 0);   // (kind << 16) | (index & 0xffff)
@@ -131,6 +132,8 @@ struct StudioPanelState {
 	int activeSlot;         // 0 = A, 1 = B
 	int displayMode;        // 0 ShowA, 1 ShowB, 2 Split, 3 Diff
 	int selectedChip;       // -1 = none
+	bool showBackfill;      // recolour fillNullPixels ("unfilled") pixels hot pink
+	bool showGrid;          // draw light plate-pixel grid when zoomed in
 	Common::Array<int> passes;      // active slot's
 	Common::Array<int> paramValues; // active slot's, omyacParamCount() entries
 };

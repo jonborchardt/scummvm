@@ -56,6 +56,7 @@ private:
 		PlateMode          plateMode = kPlateOmyac;
 		Graphics::Surface *render = nullptr;     // cached scene render (1920x1140 RGBA)
 		Graphics::Surface *plateCache = nullptr; // cached plate (no cel); reused while !plateStale
+		Common::Array<byte> backfillMask;        // fillNullPixels mask for plateCache; empty = no pink (nearest-ref)
 		bool               stale = true;
 		bool               plateStale = true;
 		uint32             renderMs = 0;
@@ -67,6 +68,8 @@ private:
 	void drawCursor();               // composite the crosshair pointer at (_mouseX,_mouseY)
 	// Scaled+panned blit of one render into a scene sub-area (Split/Diff/single share it).
 	void blitRender(const Graphics::Surface &render, const Common::Rect &subArea);
+	// Light 1-screen-px grid at plate-pixel boundaries (only when _viewScale >= 3).
+	void drawPixelGrid(const Common::Rect &subArea);
 	void drawPanel();                // Task 6
 	void dispatchWidget(uint32 id);  // Task 6
 	void markDirty() { _dirty = true; }
@@ -113,6 +116,8 @@ private:
 	int _loopNo = 0, _celNo = 0;
 	int _celX = 160, _celY = 150;    // native coords, cel BOTTOM-CENTRE anchor
 	bool _showView = true;
+	bool _showBackfill = false;      // recolour "unfilled" (fillNullPixels) pixels hot pink
+	bool _showGrid = false;          // light plate-pixel grid when zoomed in (>= 3x)
 
 	// Mouse pointer in overlay (_display) coords. Real SDL events already arrive in
 	// overlay space when the overlay is shown (see handleEvent); we composite our own

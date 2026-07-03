@@ -35,6 +35,11 @@ namespace Roger {
 struct OmyacResult {
 	Common::Array<byte> pixels;  // OMYAC_HYBRID_W * OMYAC_HYBRID_H
 	Common::Array<byte> cmdType; // OMYAC_HYBRID_W * OMYAC_HYBRID_H
+	// Backfill mask (OMYAC_HYBRID_W * OMYAC_HYBRID_H): 1 where fillNullPixels
+	// painted the pixel (nothing else — no draw command, no enhance pass —
+	// touched it), else 0. Diagnostic only; does NOT affect pixels/cmdType, so
+	// the golden checksum is unchanged. Studio recolours these hot pink.
+	Common::Array<byte> backfilled;
 };
 
 // Default enhance pass sequence: 3x fill, 1x line, 2x fill, 4x all.

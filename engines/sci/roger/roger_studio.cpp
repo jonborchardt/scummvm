@@ -108,12 +108,14 @@ void RogerStudio::renderSlot(Slot &slot) {
 	// only recomposites the cel over it — no omyac regen at drag rate.
 	if (slot.plateStale || !slot.plateCache) {
 		if (slot.plateCache) { slot.plateCache->free(); delete slot.plateCache; slot.plateCache = nullptr; }
+		slot.backfillMask.clear();
 		_gen.setEnhancePasses(slot.passes);
 		_gen.setOmyacParams(slot.params);
 		uint32 ms = 0;
+		// Nearest-ref plates have no backfill mask (no omyac pass ran) -> no pink.
 		Graphics::Surface *plate = (slot.plateMode == kPlateNearestRef)
 			? _gen.generatePlateNearest(_picIds[_picIdx], ms)
-			: _gen.generatePlate(_picIds[_picIdx], ms);
+			: _gen.generatePlateWithBackfill(_picIds[_picIdx], slot.backfillMask, ms);
 		if (!plate) {
 			_status = Common::String::format("pic %d: generation FAILED", _picIds[_picIdx]);
 			markDirty();
@@ -126,6 +128,22 @@ void RogerStudio::renderSlot(Slot &slot) {
 
 	Graphics::ManagedSurface composed(slot.plateCache->w, slot.plateCache->h, slot.plateCache->format);
 	composed.blitFrom(*slot.plateCache);
+
+	// Feature 1: recolour "unfilled" pixels — those fillNullPixels backfilled
+	// (nothing official painted) — hot pink, before the cel goes on. Toggling
+	// this is invalidateCelOnly()-tier (plate cache is reused). The mask matches
+	// the plate 1:1 (OMYAC_HYBRID_W*OMYAC_HYBRID_H); nearest-ref plates carry an
+	// empty mask, so no pink there.
+	if (_showBackfill && (int)slot.backfillMask.size() == composed.w * composed.h) {
+		const uint32 pink = composed.format.RGBToColor(255, 105, 180);
+		for (int y = 0; y < composed.h; y++) {
+			uint32 *row = (uint32 *)composed.getBasePtr(0, y);
+			const byte *mrow = slot.backfillMask.begin() + (size_t)y * composed.w;
+			for (int x = 0; x < composed.w; x++)
+				if (mrow[x])
+					row[x] = pink;
+		}
+	}
 
 	if (_showView && !_viewIds.empty()) {
 		IndexImage cel;
@@ -344,6 +362,45 @@ void RogerStudio::blitRender(const Graphics::Surface &render, const Common::Rect
 	}
 }
 
+// Feature 2: draw a light 1-screen-px grid at every plate-pixel boundary within
+// subArea, using the same (_panX,_panY,_viewScale) transform as blitRender.
+// Only meaningful when a plate pixel spans several screen px, so callers gate on
+// _viewScale >= 3. Display-time only (bare markDirty tier — no render regen).
+void RogerStudio::drawPixelGrid(const Common::Rect &subArea) {
+	if (_viewScale < 3.0f)
+		return;
+	const uint32 grid = _display->format.RGBToColor(200, 200, 200);
+	// Vertical lines: plate x-boundary px maps to display px = subArea.left + panX + px*scale.
+	// Walk plate columns whose boundary falls inside subArea.
+	const int x0 = subArea.left, x1 = subArea.right;
+	const int y0 = subArea.top, y1 = subArea.bottom;
+	// First plate column boundary at/after subArea.left.
+	int startPx = (int)((x0 - subArea.left - _panX) / _viewScale);
+	if (startPx < 0)
+		startPx = 0;
+	for (int px = startPx;; px++) {
+		const int dx = subArea.left + _panX + (int)(px * _viewScale);
+		if (dx >= x1)
+			break;
+		if (dx >= x0)
+			_display->vLine(dx, y0, y1 - 1, grid);
+		if (px > OMYAC_HYBRID_W)
+			break; // safety bound
+	}
+	int startPy = (int)((y0 - subArea.top - _panY) / _viewScale);
+	if (startPy < 0)
+		startPy = 0;
+	for (int py = startPy;; py++) {
+		const int dy = subArea.top + _panY + (int)(py * _viewScale);
+		if (dy >= y1)
+			break;
+		if (dy >= y0)
+			_display->hLine(x0, dy, x1 - 1, grid);
+		if (py > OMYAC_HYBRID_H)
+			break; // safety bound
+	}
+}
+
 void RogerStudio::ensureDiff() {
 	Slot &a = _slots[0], &b = _slots[1];
 	ensureFresh(a); ensureFresh(b);
@@ -423,6 +480,11 @@ void RogerStudio::drawFrame() {
 			blitRender(*slot.render, area);
 	}
 
+	// Feature 2: pixel-boundary grid over the scene area (both Split halves share
+	// the same transform, so a single pass over the whole area covers both).
+	if (_showGrid)
+		drawPixelGrid(area);
+
 	drawPanel();
 	drawCursor();
 
@@ -488,6 +550,8 @@ void RogerStudio::drawPanel() {
 	st.variantName = scalerVariantName(s.variant);
 	st.plateNearest = s.plateMode == kPlateNearestRef;
 	st.showView = _showView;
+	st.showBackfill = _showBackfill;
+	st.showGrid = _showGrid;
 	st.activeSlot = _activeSlot;
 	st.displayMode = _displayMode;
 	st.selectedChip = _selectedChip;
@@ -531,6 +595,10 @@ void RogerStudio::drawPanel() {
 			hoverHelp = "remove all passes (wireframe)";
 		} else if (hk == kWidChipReset) {
 			hoverHelp = "restore default pass list";
+		} else if (hk == kWidShowBackfill) {
+			hoverHelp = "recolour hot pink the pixels nothing drew (backfilled)";
+		} else if (hk == kWidShowGrid) {
+			hoverHelp = "show a light grid at plate-pixel borders (zoom >= 3x)";
 		}
 		if (hoverHelp && *hoverHelp)
 			bottomLine = Common::String::format("? %s", hoverHelp);
@@ -570,6 +638,10 @@ void RogerStudio::dispatchWidget(uint32 id) {
 		s.plateMode = (s.plateMode == kPlateOmyac) ? kPlateNearestRef : kPlateOmyac;
 		invalidateActive(); break;
 	case kWidShowView: _showView = !_showView; invalidateCelOnly(); break;
+	// Pink recolour happens at compose time over the cached plate -> cel-only tier.
+	case kWidShowBackfill: _showBackfill = !_showBackfill; invalidateCelOnly(); break;
+	// Grid is drawn at display time only -> redraw, no render regen.
+	case kWidShowGrid: _showGrid = !_showGrid; markDirty(); break;
 	case kWidFit: fitView(); break;
 	case kWidTabA: _activeSlot = 0; _selectedChip = -1; markDirty(); break;
 	case kWidTabB: _activeSlot = 1; _selectedChip = -1; markDirty(); break;

@@ -274,6 +274,9 @@ void buildStudioPanel(const Common::Rect &panel, const StudioPanelState &st,
 	c.text(" ");
 	c.btn("Copy A>B", widId(kWidCopyAB));
 	c.btn("Export PNG", widId(kWidExport));
+	c.text(" ");
+	c.btn(st.showBackfill ? "pink: on" : "pink: off", widId(kWidShowBackfill), st.showBackfill);
+	c.btn(st.showGrid ? "grid: on" : "grid: off", widId(kWidShowGrid), st.showGrid);
 	c.newRow();
 
 	// Param rows (active slot values)

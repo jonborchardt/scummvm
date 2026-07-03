@@ -160,6 +160,14 @@ Graphics::Surface *RogerAssetGen::generatePlate(int id, uint32 &outMs) {
 	return generatePlateWithIndex(id, throwaway, outMs);
 }
 
+// generatePlateWithBackfill — delegates to the shared core, discarding the
+// index buffer and keeping the backfill mask. The core clears the mask on any
+// failure / cache-only path (studio checks !outBackfill.empty() before use).
+Graphics::Surface *RogerAssetGen::generatePlateWithBackfill(int id, Common::Array<byte> &outBackfill, uint32 &outMs) {
+	Common::Array<byte> throwaway;
+	return generatePlateCore(id, throwaway, outBackfill, outMs);
+}
+
 // -------------------------------------------------------------------------
 // generatePlateWithIndex — full implementation; also returns the pre-blend
 // doubled-nibble index buffer (OMYAC_HYBRID_W*OMYAC_HYBRID_H) in outIndex.
@@ -168,8 +176,20 @@ Graphics::Surface *RogerAssetGen::generatePlate(int id, uint32 &outMs) {
 // -------------------------------------------------------------------------
 
 Graphics::Surface *RogerAssetGen::generatePlateWithIndex(int id, Common::Array<byte> &outIndex, uint32 &outMs) {
+	Common::Array<byte> throwaway;
+	return generatePlateCore(id, outIndex, throwaway, outMs);
+}
+
+// generatePlateCore — shared implementation for generatePlateWithIndex /
+// generatePlateWithBackfill. outIndex = pre-blend doubled-nibble index buffer
+// (live-palette source); outBackfill = per-pixel fillNullPixels mask (studio
+// diagnostic). Both are cleared on any failure or cache-only path where the
+// data is unavailable; callers must check !empty() before use.
+Graphics::Surface *RogerAssetGen::generatePlateCore(int id, Common::Array<byte> &outIndex,
+                                                    Common::Array<byte> &outBackfill, uint32 &outMs) {
 	outMs = 0;
 	outIndex.clear();
+	outBackfill.clear();
 
 	// kGenPrebuilt: signal the provider to use the prebuilt PNG.
 	if (_mode == kGenPrebuilt)
@@ -217,6 +237,8 @@ Graphics::Surface *RogerAssetGen::generatePlateWithIndex(int id, Common::Array<b
 	// Preserve the pre-blend doubled-nibble index map BEFORE blendToSurface
 	// consumes omyac.pixels. This is the color source for live palette re-apply.
 	outIndex = omyac.pixels;
+	// Preserve the backfill mask (studio "unfilled pixels" diagnostic).
+	outBackfill = omyac.backfilled;
 
 	Graphics::Surface *plate = blendToSurface(omyac.pixels, OMYAC_HYBRID_W, OMYAC_HYBRID_H);
 
@@ -225,6 +247,7 @@ Graphics::Surface *RogerAssetGen::generatePlateWithIndex(int id, Common::Array<b
 
 	if (!plate) {
 		outIndex.clear();
+		outBackfill.clear();
 		return nullptr;
 	}
 

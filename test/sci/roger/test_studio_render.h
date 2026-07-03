@@ -143,6 +143,8 @@ public:
 		st.activeSlot = 0;
 		st.displayMode = 0;
 		st.selectedChip = 1;
+		st.showBackfill = true;
+		st.showGrid = false;
 		st.passes.push_back(2); st.passes.push_back(2); st.passes.push_back(1);
 		OmyacParams p;
 		for (int i = 0; i < omyacParamCount(); i++)
@@ -171,7 +173,7 @@ public:
 			kWidTabA, kWidTabB, kWidShowA, kWidShowB, kWidSplit, kWidDiff,
 			kWidCopyAB, kWidExport, kWidChipLeft, kWidChipRight,
 			kWidChipAddF, kWidChipAddL, kWidChipAddA, kWidChipReset,
-			kWidChipClear };
+			kWidChipClear, kWidShowBackfill, kWidShowGrid };
 		for (uint m = 0; m < ARRAYSIZE(MUST); m++) {
 			bool found = false;
 			for (uint i = 0; i < w.size(); i++)
