@@ -885,7 +885,10 @@ void expandRegionsToElements(Common::Array<Common::Rect> &regions,
 			if (!hit)
 				continue;
 			// Select the whole token group so the window-border content union is
-			// computed from the same set a full redraw would see.
+			// computed from the same set a full redraw would see. Grouping is by raw
+			// token equality — including a default 0 token — deliberately mirroring
+			// renderUiLayer's own unconditional token match; a zero-token guard here
+			// would diverge from the border logic and break byte-identity.
 			for (uint j = 0; j < elems.size(); j++) {
 				if (selected[j] || elems[j].token != elems[i].token)
 					continue;
@@ -936,6 +939,8 @@ void RogerCompositor::patchCompositeRegions(Graphics::ManagedSurface &composite,
 	Common::Array<UiElement> subset;
 	for (uint i = 0; i < idx.size(); i++)
 		subset.push_back(elems[idx[i]]);
+	// Side-effect: renderUiLayer calls addDirtyRect for each rendered element, so
+	// the patched rects also land in _dirtyCur — callers get them pushed for free.
 	renderUiLayer(composite, subset, palette, gameRect, text, altText);
 }
 
