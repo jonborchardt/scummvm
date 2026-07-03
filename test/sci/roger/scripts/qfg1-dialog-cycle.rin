@@ -1,0 +1,32 @@
+# Regression: dialog open/dismiss cycle x2. d* must show the dialog painted
+# (same-cycle paint, spec section 7); g1/g2 must match g0 in the dialog region
+# (ghost-text class). QFG1 save slot 3 -> room 320.
+wait 4500
+capture g0
+move 160 100
+wait 600
+type "look"
+wait 900
+key ENTER
+wait 2500
+capture d1
+move 200 120
+wait 400
+key ENTER
+wait 1500
+capture g1
+move 150 100
+wait 600
+type "look"
+wait 900
+key ENTER
+wait 2500
+capture d2
+move 200 120
+wait 400
+key ENTER
+wait 1500
+capture g2
+move 150 100
+wait 600
+quit

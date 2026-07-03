@@ -46,6 +46,21 @@
         { "type": "sameRunDiff", "a": "w0", "b": "w2",
           "region": { "x0": 0.0, "y0": 0.70, "x1": 1.0, "y1": 1.0 } }
       ]
+    },
+    {
+      "name": "qfg1-dialog-cycle",
+      "target": "qfg1", "saveSlot": 3, "script": "qfg1-dialog-cycle.rin",
+      "timeoutSec": 150, "cycleLog": false,
+      "checks": [
+        { "type": "presenceDiff", "a": "g0", "b": "d1", "minDiffPx": 20000,
+          "region": { "x0": 0.0, "y0": 0.08, "x1": 0.6, "y1": 0.45 } },
+        { "type": "presenceDiff", "a": "g0", "b": "d2", "minDiffPx": 20000,
+          "region": { "x0": 0.0, "y0": 0.08, "x1": 0.6, "y1": 0.45 } },
+        { "type": "sameRunDiff", "a": "g0", "b": "g1",
+          "region": { "x0": 0.0, "y0": 0.08, "x1": 0.6, "y1": 0.45 } },
+        { "type": "sameRunDiff", "a": "g0", "b": "g2",
+          "region": { "x0": 0.0, "y0": 0.08, "x1": 0.6, "y1": 0.45 } }
+      ]
     }
   ]
 }
