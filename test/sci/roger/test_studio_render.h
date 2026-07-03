@@ -136,6 +136,7 @@ public:
 	static StudioPanelState samplePanelState() {
 		StudioPanelState st;
 		st.picId = 2; st.viewId = 12; st.loopNo = 1; st.celNo = 0;
+		st.celX = 160; st.celY = 150;
 		st.variantName = "scale6x (3x*2x)";
 		st.plateNearest = false;
 		st.showView = true;
@@ -169,7 +170,8 @@ public:
 			kWidVariantCycle, kWidPlateMode, kWidShowView, kWidFit,
 			kWidTabA, kWidTabB, kWidShowA, kWidShowB, kWidSplit, kWidDiff,
 			kWidCopyAB, kWidExport, kWidChipLeft, kWidChipRight,
-			kWidChipAddF, kWidChipAddL, kWidChipAddA, kWidChipReset };
+			kWidChipAddF, kWidChipAddL, kWidChipAddA, kWidChipReset,
+			kWidChipClear };
 		for (uint m = 0; m < ARRAYSIZE(MUST); m++) {
 			bool found = false;
 			for (uint i = 0; i < w.size(); i++)
@@ -300,5 +302,109 @@ public:
 		TS_ASSERT(estimateOffsetSAD(uniform.begin(), uniform2.begin(), W, H, 2, dx, dy));
 		TS_ASSERT_EQUALS(dx, 0);
 		TS_ASSERT_EQUALS(dy, 0);
+	}
+
+	// ── New tests for polish wave ──────────────────────────────────────────────
+
+	void test_chip_caret_with_selection() {
+		// selectedChip=1, 3 passes: caret must appear immediately after chip 1's
+		// x-button (i.e. left >= that button's right) and before chip 2's rect.
+		const Common::Rect panel(0, 0, 1400, 280);
+		Common::Array<StudioWidget> w;
+		buildStudioPanel(panel, samplePanelState(), w);
+
+		// Find chip 1's x-button rect.
+		int xBtnRight = -1;
+		for (uint i = 0; i < w.size(); i++) {
+			if (widKind(w[i].id) == kWidChipX && widIndex(w[i].id) == 1)
+				xBtnRight = w[i].rect.right;
+		}
+		TS_ASSERT(xBtnRight >= 0); // chip 1 x-button must exist
+
+		// Find chip 2's rect left.
+		int chip2Left = 99999;
+		for (uint i = 0; i < w.size(); i++) {
+			if (widKind(w[i].id) == kWidChip && widIndex(w[i].id) == 2)
+				chip2Left = w[i].rect.left;
+		}
+		TS_ASSERT(chip2Left < 99999); // chip 2 must exist
+
+		// Caret: exactly one kWidNone widget with label "^" in the chip row.
+		int caretCount = 0;
+		int caretLeft = -1;
+		for (uint i = 0; i < w.size(); i++) {
+			if (w[i].id == (uint32)kWidNone && w[i].label == "^") {
+				caretCount++;
+				caretLeft = w[i].rect.left;
+			}
+		}
+		TS_ASSERT_EQUALS(caretCount, 1);
+		// Caret sits between x-button and next chip.
+		TS_ASSERT(caretLeft >= xBtnRight);
+		TS_ASSERT(caretLeft < chip2Left);
+		// Caret must be inside the panel.
+		for (uint i = 0; i < w.size(); i++) {
+			if (w[i].id == (uint32)kWidNone && w[i].label == "^") {
+				TS_ASSERT(w[i].rect.left >= panel.left && w[i].rect.right <= panel.right);
+				TS_ASSERT(w[i].rect.top >= panel.top && w[i].rect.bottom <= panel.bottom);
+			}
+		}
+	}
+
+	void test_chip_caret_no_selection() {
+		// selectedChip = -1: caret sits after the last chip's x-button.
+		const Common::Rect panel(0, 0, 1400, 280);
+		StudioPanelState st = samplePanelState();
+		st.selectedChip = -1; // no selection
+		Common::Array<StudioWidget> w;
+		buildStudioPanel(panel, st, w);
+
+		// Find the last chip x-button (index 2).
+		int lastXRight = -1;
+		for (uint i = 0; i < w.size(); i++) {
+			if (widKind(w[i].id) == kWidChipX && widIndex(w[i].id) == (int)st.passes.size() - 1)
+				lastXRight = w[i].rect.right;
+		}
+		TS_ASSERT(lastXRight >= 0);
+
+		int caretCount = 0;
+		int caretLeft = -1;
+		for (uint i = 0; i < w.size(); i++) {
+			if (w[i].id == (uint32)kWidNone && w[i].label == "^") {
+				caretCount++;
+				caretLeft = w[i].rect.left;
+			}
+		}
+		TS_ASSERT_EQUALS(caretCount, 1);
+		TS_ASSERT(caretLeft >= lastXRight);
+	}
+
+	void test_all_params_have_nonempty_help() {
+		for (int i = 0; i < omyacParamCount(); i++) {
+			const OmyacParamDesc d = omyacParamDesc(i);
+			TS_ASSERT(d.help != nullptr);
+			TS_ASSERT(*d.help != '\0');
+		}
+	}
+
+	void test_cel_coords_label_in_panel() {
+		// With celX=160, celY=150 the panel must contain a kWidNone widget
+		// whose label is "@(160,150)".
+		const Common::Rect panel(0, 0, 1400, 280);
+		StudioPanelState st = samplePanelState(); // already has celX=160, celY=150
+		Common::Array<StudioWidget> w;
+		buildStudioPanel(panel, st, w);
+
+		bool found = false;
+		for (uint i = 0; i < w.size(); i++) {
+			if (w[i].id == (uint32)kWidNone && w[i].label == "@(160,150)") {
+				found = true;
+				// Must be inside the panel.
+				TS_ASSERT(w[i].rect.left >= panel.left && w[i].rect.right <= panel.right);
+				TS_ASSERT(w[i].rect.top >= panel.top && w[i].rect.bottom <= panel.bottom);
+				break;
+			}
+		}
+		TS_ASSERT(found);
 	}
 };

@@ -25,13 +25,20 @@ namespace Sci {
 namespace Roger {
 
 static const OmyacParamDesc PARAM_DESCS[] = {
-	{ "minVotesLine",        1, 8, 1, false },
-	{ "minVotesFillAll",     1, 8, 1, false },
-	{ "fillSuppressLineNb",  1, 9, 1, false }, // 9 = never suppress (8 neighbours max)
-	{ "endpointMaxSame",     0, 9, 1, false },
-	{ "isolatedPixelPass",   0, 1, 1, true },
-	{ "tieBreakBlend",       0, 1, 1, true },
-	{ "diagFlankSuppress",   0, 1, 1, true },
+	{ "minVotesLine",       1, 8, 1, false,
+	  "Min neighbour votes needed to fill a gap on a line edge" },
+	{ "minVotesFillAll",    1, 8, 1, false,
+	  "Min neighbour votes needed to fill a gap on a fill/all edge" },
+	{ "fillSuppressLineNb", 1, 9, 1, false, // 9 = never suppress (8 neighbours max)
+	  "Suppress fill-voting when this many line neighbours surround a gap" },
+	{ "endpointMaxSame",    0, 9, 1, false,
+	  "Max same-command neighbours before a pixel is considered a line endpoint" },
+	{ "isolatedPixelPass",  0, 1, 1, true,
+	  "Spread isolated foreground pixels into adjacent empty cells" },
+	{ "tieBreakBlend",      0, 1, 1, true,
+	  "On voting ties blend okLab colours instead of picking the first candidate" },
+	{ "diagFlankSuppress",  0, 1, 1, true,
+	  "Skip diagonal fill connections when both cardinal flanks are line pixels" },
 };
 
 int omyacParamCount() {
@@ -248,6 +255,7 @@ void buildStudioPanel(const Common::Rect &panel, const StudioPanelState &st,
 	c.btn("<", widId(kWidCelPrev));
 	c.text(Common::String::format("%d", st.celNo));
 	c.btn(">", widId(kWidCelNext));
+	c.text(Common::String::format("@(%d,%d)", st.celX, st.celY));
 	c.btn(Common::String::format("variant: %s", st.variantName), widId(kWidVariantCycle));
 	c.btn(st.plateNearest ? "plate: nearest" : "plate: omyac", widId(kWidPlateMode), st.plateNearest);
 	c.btn(st.showView ? "view: on" : "view: off", widId(kWidShowView), st.showView);
@@ -284,19 +292,33 @@ void buildStudioPanel(const Common::Rect &panel, const StudioPanelState &st,
 	}
 
 	// Chip row
+	// The caret "^" (kWidNone, on=true so it draws highlighted) marks the
+	// insertion point: after the selected chip's x-button when selection is
+	// valid, else after the last chip's x-button (or right after the label
+	// when the list is empty).
+	const int caretAfter = (st.selectedChip >= 0 && st.selectedChip < (int)st.passes.size())
+	                       ? st.selectedChip
+	                       : (int)st.passes.size() - 1; // -1 = no chips
 	c.text("passes:");
-	for (uint i = 0; i < st.passes.size(); i++) {
-		const char ch = st.passes[i] == 2 ? 'f' : st.passes[i] == 1 ? 'l' : 'a';
-		c.btn(Common::String::format("%c", ch), widId(kWidChip, (int)i), (int)i == st.selectedChip);
-		c.btn("x", widId(kWidChipX, (int)i));
-	}
-	if (st.passes.empty())
+	if (st.passes.empty()) {
 		c.text("(none - wireframe)");
+		// Caret at end (after the empty-list label, before the nav buttons).
+		c.emit("^", kWidNone, true, false);
+	} else {
+		for (uint i = 0; i < st.passes.size(); i++) {
+			const char ch = st.passes[i] == 2 ? 'f' : st.passes[i] == 1 ? 'l' : 'a';
+			c.btn(Common::String::format("%c", ch), widId(kWidChip, (int)i), (int)i == st.selectedChip);
+			c.btn("x", widId(kWidChipX, (int)i));
+			if ((int)i == caretAfter)
+				c.emit("^", kWidNone, true, false);
+		}
+	}
 	c.btn("<", widId(kWidChipLeft));
 	c.btn(">", widId(kWidChipRight));
 	c.btn("+f", widId(kWidChipAddF));
 	c.btn("+l", widId(kWidChipAddL));
 	c.btn("+a", widId(kWidChipAddA));
+	c.btn("Clear", widId(kWidChipClear));
 	c.btn("Reset", widId(kWidChipReset));
 }
 

@@ -41,6 +41,7 @@ struct OmyacParamDesc {
 	int maxV;
 	int step;
 	bool isBool;
+	const char *help;  // one-sentence plain-English description (~70 chars max)
 };
 
 int omyacParamCount();
@@ -105,7 +106,8 @@ enum WidKind {
 	kWidParamMinus, kWidParamPlus, kWidParamToggle,   // indexed by param
 	kWidChip, kWidChipX,                              // indexed by chip
 	kWidChipLeft, kWidChipRight,
-	kWidChipAddF, kWidChipAddL, kWidChipAddA, kWidChipReset
+	kWidChipAddF, kWidChipAddL, kWidChipAddA, kWidChipReset,
+	kWidChipClear
 };
 
 uint32 widId(int kind, int index = 0);   // (kind << 16) | (index & 0xffff)
@@ -122,6 +124,7 @@ struct StudioWidget {
 
 struct StudioPanelState {
 	int picId, viewId, loopNo, celNo;
+	int celX, celY;          // native coords for position readout @(x,y)
 	const char *variantName;
 	bool plateNearest;      // active slot's plate mode
 	bool showView;

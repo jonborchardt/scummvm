@@ -484,6 +484,7 @@ void RogerStudio::drawPanel() {
 	st.picId = _picIds.empty() ? -1 : _picIds[_picIdx];
 	st.viewId = _viewIds.empty() ? -1 : _viewIds[_viewIdx];
 	st.loopNo = _loopNo; st.celNo = _celNo;
+	st.celX = _celX; st.celY = _celY;
 	st.variantName = scalerVariantName(s.variant);
 	st.plateNearest = s.plateMode == kPlateNearestRef;
 	st.showView = _showView;
@@ -506,10 +507,38 @@ void RogerStudio::drawPanel() {
 		                 wg.rect.width() - 6, wg.on ? hi : fg);
 	}
 
-	// Bottom line: render ms + status + (Task 8) offset readout.
-	font->drawString(&small, Common::String::format("%ums  %s  %s",
-		s.renderMs, _status.c_str(), _offsetReadout.c_str()),
-		4, smallH - kStudioRowH + 4, smallW - 8, hi);
+	// Bottom line: hover help (when hovering a param/chip widget) or render ms + status + offset readout.
+	Common::String bottomLine;
+	{
+		const int hk = widKind(_hoverWid);
+		const int hi2 = widIndex(_hoverWid);
+		const char *hoverHelp = nullptr;
+		if (hk == kWidParamMinus || hk == kWidParamPlus || hk == kWidParamToggle) {
+			hoverHelp = omyacParamDesc(hi2).help;
+		} else if (hk == kWidChipAddF) {
+			hoverHelp = "insert fill pass at caret";
+		} else if (hk == kWidChipAddL) {
+			hoverHelp = "insert line pass at caret";
+		} else if (hk == kWidChipAddA) {
+			hoverHelp = "insert anti-alias pass at caret";
+		} else if (hk == kWidChipX) {
+			hoverHelp = "remove this pass";
+		} else if (hk == kWidChipLeft) {
+			hoverHelp = "move selected pass left";
+		} else if (hk == kWidChipRight) {
+			hoverHelp = "move selected pass right";
+		} else if (hk == kWidChipClear) {
+			hoverHelp = "remove all passes (wireframe)";
+		} else if (hk == kWidChipReset) {
+			hoverHelp = "restore default pass list";
+		}
+		if (hoverHelp && *hoverHelp)
+			bottomLine = Common::String::format("? %s", hoverHelp);
+		else
+			bottomLine = Common::String::format("%ums  %s  %s",
+				s.renderMs, _status.c_str(), _offsetReadout.c_str());
+	}
+	font->drawString(&small, bottomLine, 4, smallH - kStudioRowH + 4, smallW - 8, hi);
 
 	const Common::Rect srcR(0, 0, smallW, smallH);
 	const Common::Rect dstR(0, _display->h - kPanelH, _display->w, _display->h);
@@ -574,6 +603,8 @@ void RogerStudio::dispatchWidget(uint32 id) {
 	case kWidChipAddF: passInsertAfter(s.passes, _selectedChip, 2); invalidateActive(); break;
 	case kWidChipAddL: passInsertAfter(s.passes, _selectedChip, 1); invalidateActive(); break;
 	case kWidChipAddA: passInsertAfter(s.passes, _selectedChip, 0); invalidateActive(); break;
+	case kWidChipClear:
+		s.passes.clear(); _selectedChip = -1; invalidateActive(); break;
 	case kWidChipReset:
 		s.passes = defaultPasses(); _selectedChip = -1; invalidateActive(); break;
 	default: break;
