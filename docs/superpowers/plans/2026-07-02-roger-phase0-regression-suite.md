@@ -853,6 +853,8 @@ Note: An initial run 1 showed sq3-walk-perf busy=8 vs baseline=5 (FAIL) because 
 previously committed baseline of 5 ms was a cold-run outlier. The baselines were
 re-recorded (sq3 busy=4), and both subsequent full gate runs passed cleanly.
 
+Forward risk: sq3 `busy` medians varied 4–8 ms across runs on this machine, so the recorded baseline 4 + 1 ms threshold may flake in later phases — if it does, raise that one check's busy tolerance in the manifest with a documented comment (or drop busy from the perf gate, keeping periodMedian/periodP90, which are rock-solid at 83/84 ms); never silently re-record to make a red run green.
+
 ---
 
 ### Run 1 — ALL PASS (26 checks), exit 0
