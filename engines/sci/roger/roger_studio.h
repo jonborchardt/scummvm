@@ -58,6 +58,7 @@ private:
 	void rerender();                // dispatch by _mode; updates _current/_previous
 	void renderPicMode();
 	void setCurrent(Graphics::Surface *s, const Common::String &label);
+	void exportCurrent();           // write _current as PNG to screenshotpath
 
 	static const int kHudH = 380;  // HUD strip height (2x-scaled; fits 2+omyacParamCount()+2 lines)
 

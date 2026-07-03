@@ -27,6 +27,7 @@
 #include "graphics/fontman.h"
 #include "graphics/font.h"
 #include "graphics/managed_surface.h"
+#include "sci/roger/png_loader.h"
 
 #ifdef ENABLE_SCI
 #include "sci/sci.h"
@@ -104,6 +105,52 @@ void RogerStudio::renderPicMode() {
 		omyacParamStamp(_params).c_str(), omyacPassStamp(_passes).c_str()));
 }
 
+void RogerStudio::exportCurrent() {
+	if (!_current) {
+		_status = "nothing to export";
+		markDirty();
+		return;
+	}
+	Common::String dir;
+	if (ConfMan.hasKey("screenshotpath"))
+		dir = ConfMan.getPath("screenshotpath").toString('/');
+	if (dir.empty())
+		dir = "screenshots";
+	if (!dir.empty() && dir.lastChar() != '/')
+		dir += '/';
+	Common::String detail, kind;
+	int id = 0;
+	if (_mode == kModePic) {
+		kind = "pic";
+		id = _picIds.empty() ? 0 : _picIds[_picIdx];
+		detail = omyacParamStamp(_params) + "-" + omyacPassStamp(_passes);
+	} else if (_mode == kModeView) {
+		kind = "view";
+		id = _viewIds.empty() ? 0 : _viewIds[_viewIdx];
+		detail = Common::String::format("l%dc%d-grid", _loopNo, _celNo);
+	} else {
+		kind = "combo";
+		id = _picIds.empty() ? 0 : _picIds[_picIdx];
+		detail = Common::String::format("v%d-l%dc%d-%s",
+			_viewIds.empty() ? 0 : _viewIds[_viewIdx], _loopNo, _celNo,
+			scalerVariantName(_variant));
+	}
+	// Sanitize: keep [a-z0-9-], map everything else to '_'.
+	Common::String safe;
+	for (uint i = 0; i < detail.size(); i++) {
+		const char c = detail[i];
+		safe += (Common::isAlnum(c) || c == '-') ? c : '_';
+	}
+	const Common::String name = studioExportName(kind.c_str(), id, safe);
+	const Common::String path = dir + name;
+	if (Roger::dumpSurfacePng(*_current, path)) {
+		_status = "exported " + name;
+	} else {
+		_status = "export FAILED: cannot open " + name;
+	}
+	markDirty();
+}
+
 void RogerStudio::run() {
 	g_system->showOverlay(false);
 	_display = new Graphics::ManagedSurface(
@@ -161,6 +208,29 @@ void RogerStudio::handleEvent(const Common::Event &ev) {
 		break;
 	case Common::KEYCODE_F1:
 		_showKeymap = !_showKeymap; markDirty(); break;
+	case Common::KEYCODE_a:
+		if (ev.kbd.flags & Common::KBD_SHIFT)
+			break; // Shift+A = pic-mode insert-all-pass, handled there
+		if (_previous) { _showPrevious = !_showPrevious; markDirty(); }
+		else _status = "no previous render to flip to";
+		break;
+	case Common::KEYCODE_p:
+		if (_current) {
+			if (_baseline) { _baseline->free(); delete _baseline; }
+			_baseline = new Graphics::Surface();
+			_baseline->copyFrom(*_current);
+			_baselineLabel = _currentLabel;
+			_status = "baseline pinned: " + _baselineLabel;
+			markDirty();
+		}
+		break;
+	case Common::KEYCODE_s:
+		if (_baseline) { _split = !_split; markDirty(); }
+		else _status = "pin a baseline first (P)";
+		break;
+	case Common::KEYCODE_e:
+		exportCurrent();
+		break;
 	case Common::KEYCODE_0:
 		// plain 0 = reset view (global); Shift+0 = ')' is pic-mode reorder (below)
 		if (!(ev.kbd.flags & Common::KBD_SHIFT)) {
