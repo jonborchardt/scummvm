@@ -74,6 +74,7 @@
 #include "sci/graphics/transitions.h"
 #include "sci/roger/file_roger_art_provider.h"
 #include "sci/roger/roger_launcher.h"
+#include "sci/roger/roger_studio.h"
 
 #ifdef ENABLE_SCI32
 #include "sci/graphics/controls32.h"
@@ -409,6 +410,15 @@ Common::Error SciEngine::run() {
 	}
 
 	g_sciRogerProvider = new FileRogerArtProvider(getGameIdStr(), ConfMan.getPath("path"));
+
+	// Roger Studio: debug-only tuning environment (build_and_run.ps1 -Studio /
+	// ROGER_STUDIO=1). Runs its own blocking loop at this seam — resources and
+	// graphics are alive, no game scripts have run — then exits the process.
+	if (getenv("ROGER_STUDIO") != nullptr) {
+		Roger::RogerStudio studio(getGameIdStr());
+		studio.run();
+		return Common::kNoError;
+	}
 
 	// Skip the picker when roger_no_launcher is set (scummvm.ini) OR the
 	// ROGER_NO_LAUNCHER env var is present. The env var is a non-sticky

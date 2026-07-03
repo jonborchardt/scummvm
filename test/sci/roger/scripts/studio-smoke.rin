@@ -1,0 +1,10 @@
+# Roger Studio loop smoke: the studio polls backend events, so the .rin driver
+# reaches it. Waits for the loop to draw, toggles the keymap, quits via Esc.
+wait 3000
+key f1
+wait 500
+key f1
+wait 500
+key esc
+wait 500
+quit
