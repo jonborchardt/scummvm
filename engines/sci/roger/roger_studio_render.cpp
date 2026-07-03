@@ -332,6 +332,7 @@ bool estimateOffsetSAD(const byte *a, const byte *b, int w, int h, int radius,
 		return false;
 	double best = -1.0;
 	int bestDx = 0, bestDy = 0, bestDist = 0;
+	int bestAbsDy = 0, bestAbsDx = 0;
 	for (int dy = -radius; dy <= radius; dy++) {
 		for (int dx = -radius; dx <= radius; dx++) {
 			// a sampled at (x, y), b at (x + dx, y + dy), over the overlap.
@@ -352,9 +353,15 @@ bool estimateOffsetSAD(const byte *a, const byte *b, int w, int h, int radius,
 				continue;
 			const double norm = (double)sad / (double)overlap;
 			const int dist = (dx < 0 ? -dx : dx) + (dy < 0 ? -dy : dy);
-			if (best < 0 || norm < best ||
-			    (norm == best && dist < bestDist)) {
+			const int absDy = (dy < 0 ? -dy : dy);
+			const int absDx = (dx < 0 ? -dx : dx);
+			// Accept if: better SAD, or equal SAD and smaller dist, or equal SAD and dist but smaller |dy|, or all equal and smaller |dx|
+			if (best < 0.0 || norm < best ||
+			    (norm == best && (dist < bestDist ||
+			                     (dist == bestDist && (absDy < bestAbsDy ||
+			                                          (absDy == bestAbsDy && absDx < bestAbsDx)))))) {
 				best = norm; bestDx = dx; bestDy = dy; bestDist = dist;
+				bestAbsDy = absDy; bestAbsDx = absDx;
 			}
 		}
 	}

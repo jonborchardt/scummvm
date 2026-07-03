@@ -275,4 +275,30 @@ public:
 		TS_ASSERT_EQUALS(dy, 0);
 		TS_ASSERT(!estimateOffsetSAD(a.begin(), shifted.begin(), 6, 6, 3, dx, dy)); // too small
 	}
+
+	void test_sad_tie_breaks() {
+		// Uniform images: all pixels same color -> all offsets have SAD 0,
+		// so the function must apply the full tie-break contract and return (0,0)
+		// (smaller |dx|+|dy| wins, with sub-breaks on |dy| then |dx|).
+		const int W = 10, H = 10;
+		Common::Array<byte> uniform, uniform2;
+		uniform.resize(W * H * 4);
+		uniform2.resize(W * H * 4);
+		for (int i = 0; i < W * H; i++) {
+			uniform[i * 4 + 0] = 128;     // red
+			uniform[i * 4 + 1] = 64;      // green
+			uniform[i * 4 + 2] = 32;      // blue
+			uniform[i * 4 + 3] = 255;     // alpha
+			uniform2[i * 4 + 0] = 128;
+			uniform2[i * 4 + 1] = 64;
+			uniform2[i * 4 + 2] = 32;
+			uniform2[i * 4 + 3] = 255;
+		}
+		// With uniform images, every offset (dx,dy) has SAD=0 and all ties go through.
+		// The function must return (0,0) as it has the smallest distance.
+		int dx = -99, dy = -99;
+		TS_ASSERT(estimateOffsetSAD(uniform.begin(), uniform2.begin(), W, H, 2, dx, dy));
+		TS_ASSERT_EQUALS(dx, 0);
+		TS_ASSERT_EQUALS(dy, 0);
+	}
 };
