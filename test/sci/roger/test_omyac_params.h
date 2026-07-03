@@ -42,23 +42,88 @@ static int countDiffs(const OmyacResult &x, const OmyacResult &y) {
 	return diffs;
 }
 
+// FNV-1a 32-bit hash over both output arrays. Dependency-free, C++11.
+// Used for the golden-checksum test — any pipeline change that shifts the
+// default output must bump kTransformVersion AND update the golden constant.
+static uint32 omyacResultHash(const OmyacResult &r) {
+	const uint32 FNV_PRIME = 0x01000193u;
+	const uint32 FNV_OFFSET = 0x811c9dc5u;
+	uint32 h = FNV_OFFSET;
+	for (uint i = 0; i < r.pixels.size(); i++) {
+		h ^= (uint32)r.pixels[i];
+		h *= FNV_PRIME;
+	}
+	for (uint i = 0; i < r.cmdType.size(); i++) {
+		h ^= (uint32)r.cmdType[i];
+		h *= FNV_PRIME;
+	}
+	return h;
+}
+
 class RogerOmyacParamsTestSuite : public CxxTest::TestSuite {
 public:
+	// Pin every default field value against silent drift. These values are the
+	// hard-coded constants that existed before OmyacParams: changing ANY of them
+	// changes every shipping omyac plate silently, because params are NOT part of
+	// the cache key (only kTransformVersion is). If a default must change, also
+	// bump kTransformVersion and update the golden checksum below.
 	void test_default_params_is_default() {
 		OmyacParams p;
 		TS_ASSERT(p.isDefault());
-		p.minVotesLine = 2;
-		TS_ASSERT(!p.isDefault());
+
+		// --- Explicit field assertions (the real drift guard) ---
+		TS_ASSERT_EQUALS(p.minVotesLine, 1);
+		TS_ASSERT_EQUALS(p.minVotesFillAll, 2);
+		TS_ASSERT_EQUALS(p.fillSuppressLineNeighbours, 3);
+		TS_ASSERT_EQUALS(p.endpointMaxSame, 2);
+		TS_ASSERT_EQUALS(p.isolatedPixelPass, true);
+		TS_ASSERT_EQUALS(p.tieBreakBlend, true);
+		TS_ASSERT_EQUALS(p.diagFlankSuppress, true);
+
+		// isDefault() must reject any single-field mutation.
+		p.minVotesLine = 2;        TS_ASSERT(!p.isDefault()); p.minVotesLine = 1;
+		p.minVotesFillAll = 1;     TS_ASSERT(!p.isDefault()); p.minVotesFillAll = 2;
+		p.fillSuppressLineNeighbours = 2; TS_ASSERT(!p.isDefault()); p.fillSuppressLineNeighbours = 3;
+		p.endpointMaxSame = 0;     TS_ASSERT(!p.isDefault()); p.endpointMaxSame = 2;
+		p.isolatedPixelPass = false; TS_ASSERT(!p.isDefault()); p.isolatedPixelPass = true;
+		p.tieBreakBlend = false;   TS_ASSERT(!p.isDefault()); p.tieBreakBlend = true;
+		p.diagFlankSuppress = false; TS_ASSERT(!p.isDefault()); p.diagFlankSuppress = true;
+
+		TS_ASSERT(p.isDefault()); // restored to all-defaults
 	}
 
-	// THE isolation guarantee: 3-arg with default params == existing 2-arg,
-	// byte for byte, over the full pipeline with the default pass sequence.
-	void test_default_params_bit_identical() {
+	// Overload-contract check: the 2-arg convenience overload forwards OmyacParams()
+	// (all defaults), so its output must be byte-identical to the explicit 3-arg form.
+	// This tests the forwarding contract, NOT the default constants (use the golden
+	// checksum below for that).
+	void test_twoarg_overload_forwards_default_params() {
 		NativeRef ref = crossingLinesRef();
 		Common::Array<int> passes = defaultPasses();
 		OmyacResult oldPath = renderOmyac(ref, passes);
 		OmyacResult newPath = renderOmyac(ref, passes, OmyacParams());
 		TS_ASSERT_EQUALS(countDiffs(oldPath, newPath), 0);
+	}
+
+	// Golden-checksum test: pins the ACTUAL numeric output of the default pipeline
+	// over the crossing-lines fixture. If a default OmyacParams field drifts (or
+	// any pipeline logic changes), this hash changes and the test fails — even if
+	// every other param test stays green. When this fails intentionally (deliberate
+	// pipeline change), also bump kTransformVersion so stale cache files are
+	// invalidated, then re-run the test once to read the new hash from the failure
+	// output and update kDefaultPipelineGolden here.
+	void test_default_pipeline_golden_checksum() {
+		// Golden FNV-1a hash (pixels then cmdType) of renderOmyac(crossingLinesRef(),
+		// defaultPasses(), OmyacParams()). Derived by running the test with placeholder
+		// 0 and reading the CxxTest failure output, then baked here permanently.
+		// Pipeline: minVotesLine=1 minVotesFillAll=2 fillSuppressLineNeighbours=3
+		//           endpointMaxSame=2 isolatedPixelPass=true tieBreakBlend=true
+		//           diagFlankSuppress=true ; passes=3f1l2f4a (defaultPasses()).
+		static const uint32 kDefaultPipelineGolden = 0x40B38BFFu; // FNV-1a over pixels+cmdType
+		NativeRef ref = crossingLinesRef();
+		Common::Array<int> passes = defaultPasses();
+		OmyacResult out = renderOmyac(ref, passes, OmyacParams());
+		uint32 got = omyacResultHash(out);
+		TS_ASSERT_EQUALS(got, kDefaultPipelineGolden);
 	}
 
 	// Plumbing check: a non-default param actually reaches the pipeline.
