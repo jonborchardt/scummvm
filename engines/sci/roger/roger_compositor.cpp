@@ -609,7 +609,6 @@ void RogerCompositor::presentToOverlay(Graphics::ManagedSurface &scene) {
 	// Full present when: dirty present is off, the background was just (re)built
 	// (room/geometry/F10/first frame), no game rect yet, or the periodic heal is due
 	// (heals any region a missed dirty rect would have left stale, bounded to ~5s).
-	const int kHealFrames = 300; // ~5s at 60fps; cheap insurance against a missed rect
 	bool full = !_dirtyPresent || _bgRebuilt || _bgGameRect.isEmpty() ||
 	            _framesSinceFullPresent >= kHealFrames;
 
@@ -860,6 +859,84 @@ void RogerCompositor::runShake(Graphics::ManagedSurface &scene, Graphics::Manage
 	_bgRebuilt = true;
 	presentToOverlay(scene);
 	g_system->updateScreen();
+}
+
+void expandRegionsToElements(Common::Array<Common::Rect> &regions,
+                             const Common::Array<UiElement> &elems,
+                             const Common::Rect &gameRect, const Common::Rect &bounds,
+                             Common::Array<uint> &outElemIndices) {
+	Common::Array<bool> selected;
+	for (uint i = 0; i < elems.size(); i++)
+		selected.push_back(false);
+	Common::Array<Common::Rect> extents;
+	for (uint i = 0; i < elems.size(); i++)
+		extents.push_back(uiPaintExtent(elems[i].nativeRect, gameRect));
+
+	bool changed = true;
+	while (changed) {
+		changed = false;
+		for (uint i = 0; i < elems.size(); i++) {
+			if (selected[i])
+				continue;
+			bool hit = false;
+			for (uint r = 0; r < regions.size() && !hit; r++)
+				if (extents[i].intersects(regions[r]))
+					hit = true;
+			if (!hit)
+				continue;
+			// Select the whole token group so the window-border content union is
+			// computed from the same set a full redraw would see.
+			for (uint j = 0; j < elems.size(); j++) {
+				if (selected[j] || elems[j].token != elems[i].token)
+					continue;
+				selected[j] = true;
+				regions.push_back(extents[j]);
+				changed = true;
+			}
+		}
+		if (changed) {
+			Common::Array<Common::Rect> coalesced;
+			coalesceDirtyRects(regions, bounds, coalesced);
+			regions = coalesced;
+		}
+	}
+	for (uint i = 0; i < elems.size(); i++)
+		if (selected[i])
+			outElemIndices.push_back(i);
+}
+
+void RogerCompositor::patchCompositeRegions(Graphics::ManagedSurface &composite,
+                                            Graphics::ManagedSurface &sceneNoUi,
+                                            const Common::Array<UiElement> &elems,
+                                            const Common::Array<Common::Rect> &regions,
+                                            const byte *palette, const Common::Rect &gameRect,
+                                            const RogerTextRenderer *text, const RogerTextRenderer *altText) {
+	if (regions.empty())
+		return;
+	const Common::Rect bounds(0, 0, (int16)composite.w, (int16)composite.h);
+	Common::Array<Common::Rect> expanded;
+	coalesceDirtyRects(regions, bounds, expanded);
+	Common::Array<uint> idx;
+	expandRegionsToElements(expanded, elems, gameRect, bounds, idx);
+
+	// Seed the expanded regions with the clean (UI-free) scene. Every selected
+	// element's full paint extent lies inside `expanded` (that is what the
+	// expansion guarantees), so re-rendering them whole below cannot double-blend
+	// over a previously rendered copy of themselves.
+	for (uint i = 0; i < expanded.size(); i++) {
+		Common::Rect r = expanded[i];
+		r.clip(bounds);
+		if (r.isEmpty())
+			continue;
+		composite.copyRectToSurface(*sceneNoUi.surfacePtr(), r.left, r.top, r);
+	}
+
+	if (idx.empty())
+		return;
+	Common::Array<UiElement> subset;
+	for (uint i = 0; i < idx.size(); i++)
+		subset.push_back(elems[idx[i]]);
+	renderUiLayer(composite, subset, palette, gameRect, text, altText);
 }
 
 } // namespace Roger

@@ -129,6 +129,17 @@ void comparePanelRects(int overlayW, int overlayH,
 void scaleBlitNearest(Graphics::Surface &dest, const Common::Rect &destRect,
                       const Graphics::Surface &src);
 
+// §3.3 support: grow `regions` (coalesced, clamped to `bounds`) to a fixpoint over
+// every UI element whose paint extent (uiPaintExtent) intersects them, closed over
+// window-token groups (renderUiLayer's kUiWindow border logic unions the rects of
+// all elements sharing the window's token, so a partial group would render a
+// different border than a full redraw). Appends the selected element indices
+// (ascending — original draw order) to `outElemIndices`.
+void expandRegionsToElements(Common::Array<Common::Rect> &regions,
+                             const Common::Array<UiElement> &elems,
+                             const Common::Rect &gameRect, const Common::Rect &bounds,
+                             Common::Array<uint> &outElemIndices);
+
 class RogerCompositor {
 public:
 	RogerCompositor() : _plate(nullptr), _views(nullptr),
@@ -226,6 +237,30 @@ public:
 	                   const byte *palette, const Common::Rect &gameRect,
 	                   const RogerTextRenderer *text, const RogerTextRenderer *altText = nullptr);
 
+	// §3.3 region-bounded recompose. Patch `composite` (the persistent scene+UI
+	// cache) so that inside `regions` — expanded to cover every intersecting UI
+	// element whole (expandRegionsToElements) — it is byte-identical to a full
+	// sceneNoUi + renderUiLayer(elems) recompose. Pixels outside the expanded
+	// regions are untouched. Never allocates full-frame surfaces. sceneNoUi is a
+	// non-const ref only because ManagedSurface::surfacePtr() is non-const; it is
+	// never written.
+	void patchCompositeRegions(Graphics::ManagedSurface &composite,
+	                           Graphics::ManagedSurface &sceneNoUi,
+	                           const Common::Array<UiElement> &elems,
+	                           const Common::Array<Common::Rect> &regions,
+	                           const byte *palette, const Common::Rect &gameRect,
+	                           const RogerTextRenderer *text, const RogerTextRenderer *altText);
+
+	// True when the next presentToOverlay() will take its FULL-present branch
+	// (dirty-present off, background just rebuilt, no game rect, or the periodic
+	// heal is due). A full present reads the WHOLE source surface, so a caller
+	// building a partially-valid present source must fall back to a full compose
+	// when this is true. Must mirror presentToOverlay's own decision exactly.
+	bool nextPresentIsFull() const {
+		return !_dirtyPresent || _bgRebuilt || _bgGameRect.isEmpty() ||
+		       _framesSinceFullPresent >= kHealFrames;
+	}
+
 	// Time-boxed full-screen transition between two composed RGBA32 scenes (full-overlay
 	// sized). Renders into `scratch`, full-presents each step, returns after presenting
 	// `to`. Runs synchronously (blocks, like SCI's own GfxTransitions::doit). durationMs<=0
@@ -281,6 +316,8 @@ public:
 	bool lastSceneWasFull() const { return _lastSceneFull; }
 
 private:
+	static const int kHealFrames = 300; // ~5s at 60fps; periodic full-present heal
+
 	RogerCapabilities _caps;   // set by setCapabilities(); read by render methods (Task 3+)
 	Graphics::Surface *_plate;
 	ViewCache *_views;
