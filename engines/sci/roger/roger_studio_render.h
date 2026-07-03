@@ -144,6 +144,19 @@ uint32 hitTestWidgets(const Common::Array<StudioWidget> &widgets, int x, int y);
 static const int kStudioCharW = 7;   // layout char width (small px)
 static const int kStudioRowH = 24;   // layout row height (small px)
 
+// ── Studio v2: shift diagnosis (pure; unit-tested) ───────────────────────────
+// Per-pixel |a-b| map, white-on-black: out = (m,m,m,255) with m = max channel
+// delta of the first 3 bytes. All buffers w*h*4 bytes, same layout.
+void diffMapRGBA(const byte *a, const byte *b, int w, int h, byte *out);
+
+// Best global alignment of a against b over (dx,dy) in [-radius,+radius]^2,
+// SAD over the first 3 bytes/pixel, normalized by overlap area. Result is the
+// displacement applied to a that minimizes SAD: dx=+1 means b's content sits
+// 1 px right of a's. Ties prefer smaller |dx|+|dy| (0,0 first). False if the
+// image is too small (w or h <= 2*radius).
+bool estimateOffsetSAD(const byte *a, const byte *b, int w, int h, int radius,
+                       int &outDx, int &outDy);
+
 } // namespace Roger
 } // namespace Sci
 

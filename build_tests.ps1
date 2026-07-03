@@ -95,7 +95,8 @@ $RogerTestHeaders = @(
     "test_palette_remap.h",
     "test_roger_selftest.h",
     "test_omyac_params.h",
-    "test_studio_render.h"
+    "test_studio_render.h",
+    "test_shift_lock.h"
 )
 
 # ── Locate MSBuild via vswhere ────────────────────────────────────────────────

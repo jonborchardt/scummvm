@@ -311,5 +311,56 @@ uint32 hitTestWidgets(const Common::Array<StudioWidget> &widgets, int x, int y) 
 	return (uint32)kWidNone;
 }
 
+void diffMapRGBA(const byte *a, const byte *b, int w, int h, byte *out) {
+	const int n = w * h;
+	for (int i = 0; i < n; i++) {
+		const byte *pa = a + i * 4, *pb = b + i * 4;
+		int m = 0;
+		for (int c = 0; c < 3; c++) {
+			const int d = (int)pa[c] - (int)pb[c];
+			m = MAX(m, d < 0 ? -d : d);
+		}
+		byte *po = out + i * 4;
+		po[0] = po[1] = po[2] = (byte)m;
+		po[3] = 255;
+	}
+}
+
+bool estimateOffsetSAD(const byte *a, const byte *b, int w, int h, int radius,
+                       int &outDx, int &outDy) {
+	if (w <= 2 * radius || h <= 2 * radius)
+		return false;
+	double best = -1.0;
+	int bestDx = 0, bestDy = 0, bestDist = 0;
+	for (int dy = -radius; dy <= radius; dy++) {
+		for (int dx = -radius; dx <= radius; dx++) {
+			// a sampled at (x, y), b at (x + dx, y + dy), over the overlap.
+			const int x0 = MAX(0, -dx), x1 = MIN(w, w - dx);
+			const int y0 = MAX(0, -dy), y1 = MIN(h, h - dy);
+			uint64 sad = 0;
+			for (int y = y0; y < y1; y++) {
+				const byte *ra = a + (y * w + x0) * 4;
+				const byte *rb = b + ((y + dy) * w + (x0 + dx)) * 4;
+				for (int x = x0; x < x1; x++, ra += 4, rb += 4)
+					for (int c = 0; c < 3; c++) {
+						const int d = (int)ra[c] - (int)rb[c];
+						sad += (uint64)(d < 0 ? -d : d);
+					}
+			}
+			const long overlap = (long)(x1 - x0) * (y1 - y0);
+			if (overlap <= 0)
+				continue;
+			const double norm = (double)sad / (double)overlap;
+			const int dist = (dx < 0 ? -dx : dx) + (dy < 0 ? -dy : dy);
+			if (best < 0 || norm < best ||
+			    (norm == best && dist < bestDist)) {
+				best = norm; bestDx = dx; bestDy = dy; bestDist = dist;
+			}
+		}
+	}
+	outDx = bestDx; outDy = bestDy;
+	return true;
+}
+
 } // namespace Roger
 } // namespace Sci

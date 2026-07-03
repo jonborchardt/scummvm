@@ -241,4 +241,38 @@ public:
 			TS_ASSERT(r.bottom <= panel.bottom);
 		}
 	}
+
+	void test_diff_map() {
+		byte a[4 * 4], b[4 * 4], out[4 * 4]; // 2x2 px
+		memset(a, 0, sizeof(a)); memset(b, 0, sizeof(b));
+		for (int i = 0; i < 4; i++) { a[i * 4 + 3] = 255; b[i * 4 + 3] = 255; }
+		b[0] = 200; b[1] = 50; // pixel 0 differs: channel deltas 200, 50
+		diffMapRGBA(a, b, 2, 2, out);
+		TS_ASSERT_EQUALS(out[0], 200); // max delta
+		TS_ASSERT_EQUALS(out[1], 200);
+		TS_ASSERT_EQUALS(out[2], 200);
+		TS_ASSERT_EQUALS(out[3], 255);
+		TS_ASSERT_EQUALS(out[4], 0);   // identical pixel -> black
+		TS_ASSERT_EQUALS(out[7], 255);
+	}
+
+	void test_sad_offset_zero_and_shift() {
+		// 16x16 image with a bright 3x3 square at (6,6).
+		const int W = 16, H = 16;
+		Common::Array<byte> a, shifted;
+		a.resize(W * H * 4, 0); shifted.resize(W * H * 4, 0);
+		for (int i = 0; i < W * H; i++) { a[i * 4 + 3] = 255; shifted[i * 4 + 3] = 255; }
+		for (int y = 6; y < 9; y++)
+			for (int x = 6; x < 9; x++) {
+				a[(y * W + x) * 4 + 0] = 255;
+				shifted[(y * W + (x + 1)) * 4 + 0] = 255; // same square, 1 px right
+			}
+		int dx = 99, dy = 99;
+		TS_ASSERT(estimateOffsetSAD(a.begin(), a.begin(), W, H, 3, dx, dy));
+		TS_ASSERT_EQUALS(dx, 0); TS_ASSERT_EQUALS(dy, 0);
+		TS_ASSERT(estimateOffsetSAD(a.begin(), shifted.begin(), W, H, 3, dx, dy));
+		TS_ASSERT_EQUALS(dx, 1);  // shifting a by +1 aligns it with shifted
+		TS_ASSERT_EQUALS(dy, 0);
+		TS_ASSERT(!estimateOffsetSAD(a.begin(), shifted.begin(), 6, 6, 3, dx, dy)); // too small
+	}
 };
