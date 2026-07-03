@@ -42,6 +42,32 @@ struct OmyacResult {
 // use this or a custom list; renderOmyac itself runs exactly the passes given.)
 Common::Array<int> defaultPasses();
 
+// Tunable internals of the omyac pipeline. Every field defaults to the
+// constant that was hard-coded before this struct existed, so a
+// default-constructed OmyacParams produces BIT-IDENTICAL output (locked by
+// test_omyac_params.h). Shipping callers never construct a non-default one;
+// only the Roger Studio debug tool does.
+struct OmyacParams {
+	int minVotesLine = 1;               // enhance() vote floor, line mode
+	int minVotesFillAll = 2;            // enhance() vote floor, fill/all modes
+	int fillSuppressLineNeighbours = 3; // suppressFill when >= N line neighbours (9 = never)
+	int endpointMaxSame = 2;            // isEndpoint = sameNeighbours < N
+	bool isolatedPixelPass = true;      // enhance() isolated-pixel dilation pass
+	bool tieBreakBlend = true;          // tie-break by BLEND_TABLE-nearest (false = first tied)
+	bool diagFlankSuppress = true;      // fill-anchor diagonal-flanking suppression rule
+
+	bool isDefault() const {
+		const OmyacParams d;
+		return minVotesLine == d.minVotesLine &&
+		       minVotesFillAll == d.minVotesFillAll &&
+		       fillSuppressLineNeighbours == d.fillSuppressLineNeighbours &&
+		       endpointMaxSame == d.endpointMaxSame &&
+		       isolatedPixelPass == d.isolatedPixelPass &&
+		       tieBreakBlend == d.tieBreakBlend &&
+		       diagFlankSuppress == d.diagFlankSuppress;
+	}
+};
+
 // Run the omyac upscaler pipeline on a Task-4 native pre-render:
 //   build anchors -> detect line endings -> connect line/fill anchors ->
 //   hybrid 6x Bresenham -> enhance passes -> null-fill.
@@ -49,7 +75,14 @@ Common::Array<int> defaultPasses();
 // EMPTY array runs zero enhance passes (raw wireframe), distinct from "use
 // default" (the caller supplies defaultPasses() for the default behavior).
 // Port of render-omyac-upscaler.ts renderOmyacUpscaler (lines 886-910).
+// The 2-arg overload forwards OmyacParams() (all defaults) and is the
+// signature every shipping call site uses.
 OmyacResult renderOmyac(const NativeRef &ref, const Common::Array<int> &passes);
+
+// As above, with tunable internals. The 2-arg overload forwards OmyacParams()
+// (all defaults) and is the signature every shipping call site uses.
+OmyacResult renderOmyac(const NativeRef &ref, const Common::Array<int> &passes,
+                        const OmyacParams &params);
 
 } // namespace Roger
 } // namespace Sci

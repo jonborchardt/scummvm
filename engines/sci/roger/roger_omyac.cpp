@@ -147,7 +147,8 @@ static void buildAnchors(const NativeRef &ref, Common::Array<Anchor> &anchors) {
 }
 
 // ─── Step 3: Detect line endpoints ────────────────────────────────────────────
-static void detectLineEndings(const NativeRef &ref, Common::Array<Anchor> &anchors) {
+static void detectLineEndings(const NativeRef &ref, Common::Array<Anchor> &anchors,
+                              int endpointMaxSame) {
 	for (int y = 0; y < OMYAC_NATIVE_H; y++) {
 		for (int x = 0; x < OMYAC_NATIVE_W; x++) {
 			int idx = y * OMYAC_NATIVE_W + x;
@@ -163,7 +164,7 @@ static void detectLineEndings(const NativeRef &ref, Common::Array<Anchor> &ancho
 				if (ref.refCmd[ny * OMYAC_NATIVE_W + nx] == cmdId)
 					same++;
 			}
-			anchors[idx].isEndpoint = same < 2;
+			anchors[idx].isEndpoint = same < endpointMaxSame;
 		}
 	}
 }
@@ -278,7 +279,8 @@ static void connectLineAnchors(const NativeRef &ref, Common::Array<Anchor> &anch
 }
 
 // ─── Step 5: Connect fill anchors ──────────────────────────────────────────────
-static void connectFillAnchors(const NativeRef &ref, Common::Array<Anchor> &anchors) {
+static void connectFillAnchors(const NativeRef &ref, Common::Array<Anchor> &anchors,
+                               bool diagFlankSuppress) {
 	for (int y = 0; y < OMYAC_NATIVE_H; y++) {
 		for (int x = 0; x < OMYAC_NATIVE_W; x++) {
 			int idx = y * OMYAC_NATIVE_W + x;
@@ -321,7 +323,7 @@ static void connectFillAnchors(const NativeRef &ref, Common::Array<Anchor> &anch
 				int by = y + DIR_DY[cardB];
 				bool aIn = ax >= 0 && ax < OMYAC_NATIVE_W && ay >= 0 && ay < OMYAC_NATIVE_H;
 				bool bIn = bx >= 0 && bx < OMYAC_NATIVE_W && by >= 0 && by < OMYAC_NATIVE_H;
-				if (aIn && bIn) {
+				if (diagFlankSuppress && aIn && bIn) {
 					if (isLineCmd(ref, ay * OMYAC_NATIVE_W + ax) &&
 					    isLineCmd(ref, by * OMYAC_NATIVE_W + bx))
 						continue;
@@ -473,10 +475,11 @@ static int enhanceResultType(int mode, int lineCount, int fillCount) {
 	return lineCount >= fillCount ? CMD_LINE : CMD_FILL;
 }
 
-static void enhance(Common::Array<byte> &buf, Common::Array<byte> &typeBuf, int mode) {
+static void enhance(Common::Array<byte> &buf, Common::Array<byte> &typeBuf, int mode,
+                    const OmyacParams &params) {
 	Common::Array<byte> src(buf);
 	Common::Array<byte> srcType(typeBuf);
-	int minVotes = mode == 1 ? 1 : 2;
+	int minVotes = mode == 1 ? params.minVotesLine : params.minVotesFillAll;
 	// Vote on the full doubled-nibble byte space (256 buckets).
 	int count[256];
 	int tied[256];
@@ -506,7 +509,7 @@ static void enhance(Common::Array<byte> &buf, Common::Array<byte> &typeBuf, int 
 						lineNeighbours++;
 				}
 			}
-			bool suppressFill = lineNeighbours >= 3;
+			bool suppressFill = lineNeighbours >= params.fillSuppressLineNeighbours;
 
 			for (int c = 0; c < 256; c++)
 				count[c] = 0;
@@ -552,35 +555,39 @@ static void enhance(Common::Array<byte> &buf, Common::Array<byte> &typeBuf, int 
 			if (ntied == 1) {
 				resultColor = tied[0];
 			} else if (ntied > 1) {
-				// Tie-break: average the BLEND_TABLE (okLab-mixed) RGB of each
-				// tied byte, pick the byte whose blended colour is nearest the
-				// average over all 256 doubled-nibble bytes.
-				float sumR = 0;
-				float sumG = 0;
-				float sumB = 0;
-				for (int k = 0; k < ntied; k++) {
-					uint32 blend = BLEND_TABLE[tied[k]];
-					sumR += blend & 0xff;
-					sumG += (blend >> 8) & 0xff;
-					sumB += (blend >> 16) & 0xff;
-				}
-				float avgR = sumR / ntied;
-				float avgG = sumG / ntied;
-				float avgB = sumB / ntied;
-				int nearest = tied[0];
-				float nearestDist = (float)INFINITY;
-				for (int c = 0; c < 256; c++) {
-					uint32 blend = BLEND_TABLE[c];
-					float dr = avgR - (blend & 0xff);
-					float dg = avgG - ((blend >> 8) & 0xff);
-					float db = avgB - ((blend >> 16) & 0xff);
-					float d = dr * dr + dg * dg + db * db;
-					if (d < nearestDist) {
-						nearestDist = d;
-						nearest = c;
+				if (!params.tieBreakBlend) {
+					resultColor = tied[0];
+				} else {
+					// Tie-break: average the BLEND_TABLE (okLab-mixed) RGB of each
+					// tied byte, pick the byte whose blended colour is nearest the
+					// average over all 256 doubled-nibble bytes.
+					float sumR = 0;
+					float sumG = 0;
+					float sumB = 0;
+					for (int k = 0; k < ntied; k++) {
+						uint32 blend = BLEND_TABLE[tied[k]];
+						sumR += blend & 0xff;
+						sumG += (blend >> 8) & 0xff;
+						sumB += (blend >> 16) & 0xff;
 					}
+					float avgR = sumR / ntied;
+					float avgG = sumG / ntied;
+					float avgB = sumB / ntied;
+					int nearest = tied[0];
+					float nearestDist = (float)INFINITY;
+					for (int c = 0; c < 256; c++) {
+						uint32 blend = BLEND_TABLE[c];
+						float dr = avgR - (blend & 0xff);
+						float dg = avgG - ((blend >> 8) & 0xff);
+						float db = avgB - ((blend >> 16) & 0xff);
+						float d = dr * dr + dg * dg + db * db;
+						if (d < nearestDist) {
+							nearestDist = d;
+							nearest = c;
+						}
+					}
+					resultColor = nearest;
 				}
-				resultColor = nearest;
 			}
 
 			if (resultColor != ENHANCE_NO_RESULT) {
@@ -591,6 +598,8 @@ static void enhance(Common::Array<byte> &buf, Common::Array<byte> &typeBuf, int 
 	}
 
 	// Isolated-pixel pass.
+	if (!params.isolatedPixelPass)
+		return;
 	for (int y = 0; y < OMYAC_HYBRID_H; y++) {
 		for (int x = 0; x < OMYAC_HYBRID_W; x++) {
 			int idx = y * OMYAC_HYBRID_W + x;
@@ -694,22 +703,27 @@ Common::Array<int> defaultPasses() {
 	return passes;
 }
 
-OmyacResult renderOmyac(const NativeRef &ref, const Common::Array<int> &passes) {
+OmyacResult renderOmyac(const NativeRef &ref, const Common::Array<int> &passes,
+                        const OmyacParams &params) {
 	Common::Array<Anchor> anchors;
 	buildAnchors(ref, anchors);
-	detectLineEndings(ref, anchors);
+	detectLineEndings(ref, anchors, params.endpointMaxSame);
 	connectLineAnchors(ref, anchors);
-	connectFillAnchors(ref, anchors);
+	connectFillAnchors(ref, anchors, params.diagFlankSuppress);
 
 	OmyacResult out;
 	hybridRender(ref, anchors, out.pixels, out.cmdType);
 
 	for (uint i = 0; i < passes.size(); i++)
-		enhance(out.pixels, out.cmdType, passes[i]);
+		enhance(out.pixels, out.cmdType, passes[i], params);
 
 	fillNullPixels(out.pixels, out.cmdType);
 
 	return out;
+}
+
+OmyacResult renderOmyac(const NativeRef &ref, const Common::Array<int> &passes) {
+	return renderOmyac(ref, passes, OmyacParams());
 }
 
 } // namespace Roger
