@@ -379,6 +379,60 @@ Shape: one coherent engine-seam PR with a few clean commits, plus small separate
 generic pieces (the input driver). If upstream declines, the fallback is this fork with a
 deliberately minimized diff — never a duplicated engine.
 
+**Upstream contribution rules (apply to all new Roger code NOW, so the PR pass is cheap):**
+Canonical sources are `CONTRIBUTING.md` → the wiki's Developer Central pages
+([coding style](https://wiki.scummvm.org/index.php/Code_Formatting_Conventions),
+[portability](https://wiki.scummvm.org/index.php/Coding_Conventions),
+[commit messages](https://wiki.scummvm.org/index.php/Commit_Guidelines)) + GPLv3+;
+questions go to scummvm-devel@lists.scummvm.org. The wiki is bot-gated (Anubis; fetch
+tools fail) but the rules below were verified against the wiki text on 2026-07-02:
+
+- **Commit messages:** first line `SUBSYSTEM: Short summary`, **≤ 50 chars**, present
+  tense ("Fix bug" not "Fixed bug"); then a blank line; body wrapped at ~72 chars.
+  Subsystem = engine name in caps (`SCI:` for all Roger seam work; two-level prefixes like
+  `SCI: ROGER:` match upstream practice, cf. `SCUMM: RA2:`), or backend name (`SDL:`),
+  `OSYSTEM`, `GUI`, `I18N`, `DEVTOOLS`, `MIDI`, `BUILD`, `DOCS`, `DOXYGEN`, `ALL`
+  (multi-subsystem), `JANITORIAL` (non-functional cleanup only). Messages must make sense
+  *without* the diff ("Move Pajama3 to supported games", never "not needed").
+- **Commit discipline:** every commit must compile (bisectability); no unrelated changes
+  in one commit; **never mix style/whitespace changes with functional changes**; **no
+  merge commits** — upstream enforces linear history (consistent with our manufactured
+  short-lived PR branches; the merge-maintained `jon-*` deploy line can never be submitted
+  as-is). User-facing changes need accompanying docs (`DOCS`); contributions to common
+  code outside engines/backends require Doxygen comments (JavaDoc style, `@param` etc.) —
+  this applies to the `.rin` input-driver PR since it touches `gui/`/event code. The
+  Claude-attribution footer used on this fork's commits must be stripped from anything
+  submitted upstream.
+- **Portability** (compiler-enforced repo-wide by `common/forbidden.h` symbol poisoning —
+  never add a `FORBIDDEN_SYMBOL_EXCEPTION_*`): no `printf`/`fopen`/`FILE`/`exit`/`system`/
+  `getenv`/`time.h`/`rand`/`strcpy`/`sprintf`/`setjmp` etc. Use the ScummVM equivalents:
+  `Common::File`/`SaveFileManager`, `Common::String`, `debug()`/`warning()`/`error()`,
+  `g_system->getMillis()`, `Common::RandomSource`. C++11 subset only: no exceptions, no
+  global objects with constructors (POD/pointer globals like `g_sciRogerProvider` are
+  fine); new code uses `Common::` classes directly (the `Std::` wrappers in `common/std/`
+  are only for porting codebases that already use STL). Endian-safe data access
+  (`READ_LE_UINT32` etc. from `common/endian.h`, or stream `readUint32LE` methods — never
+  pointer-cast struct overlays); packed structs only via `common/pack-start.h` /
+  `pack-end.h` + `PACKED_STRUCT`, never a raw `#pragma`.
+- **Reentrancy (strict):** non-const `static` locals inside function bodies are
+  **forbidden** — return-to-launcher / in-process restart keeps their stale state. Non-const
+  globals are strongly discouraged and need a comment saying why + where they're re-set at
+  engine start (else mark `// FIXME: non-const global var`). Known Roger violations to fix
+  before the PR pass: `roger_studio.cpp` `static bool warned` (warn-once) and
+  `file_roger_art_provider.cpp` `static uint32 lastDiagSig` (diag dedup) — both must move
+  to member/instance state.
+- **Naming:** `camelCase` functions/methods/locals, `_camelCase` member variables,
+  `g_camelCase` globals, `CamelCase` types; constants either `kCamelCase` or `ALL_CAPS`
+  (prefer enum/`const` over `#define`). Layout rules are in Code Style below (tabs w4,
+  attached braces, right-aligned `*`/`&`); notable extras: spaces around binary operators
+  and after keywords/commas, mandatory `{}` on empty loop bodies, no composite one-liners
+  (`if (x) doThing();`), switch fall-through marked with exactly `// fall through`, marker
+  keywords `FIXME`/`TODO`/`WORKAROUND` (a WORKAROUND must explain what original-game bug
+  it works around, with tracker refs where applicable).
+- Before the manufactured-branch pass: audit `engines/sci/roger/` for naming-convention
+  drift, the static-local violations above, and stray TODO/debug leftovers — fixing them
+  in the fork beforehand is cheaper than during upstream review.
+
 ## Code Style
 
 - **C++11**, tabs for indentation (width 4), no column limit
