@@ -64,8 +64,9 @@ private:
 	// Frame / input
 	void handleEvent(const Common::Event &ev);
 	void drawFrame();                // compose scene area + panel into _display, push
+	void drawCursor();               // composite the crosshair pointer at (_mouseX,_mouseY)
 	// Scaled+panned blit of one render into a scene sub-area (Split/Diff/single share it).
-	void blitRender(const Graphics::Surface &render, const Common::Rect &subArea, bool trackCel);
+	void blitRender(const Graphics::Surface &render, const Common::Rect &subArea);
 	void drawPanel();                // Task 6
 	void dispatchWidget(uint32 id);  // Task 6
 	void markDirty() { _dirty = true; }
@@ -111,8 +112,13 @@ private:
 	Common::Array<int> _viewIds; int _viewIdx = 0;
 	int _loopNo = 0, _celNo = 0;
 	int _celX = 160, _celY = 150;    // native coords, cel BOTTOM-CENTRE anchor
-	int _celW = 0, _celH = 0;        // last-rendered cel dims (plate/6x px); for _celScreenRect
 	bool _showView = true;
+
+	// Mouse pointer in overlay (_display) coords. Real SDL events already arrive in
+	// overlay space when the overlay is shown (see handleEvent); we composite our own
+	// crosshair here because the native hardware cursor is invisible over the overlay
+	// (same reason FileRogerArtProvider draws its own arrow).
+	int _mouseX = 0, _mouseY = 0;
 
 	// View transform (scene area only)
 	float _viewScale = 1.0f;         // set by fitView()
@@ -121,7 +127,6 @@ private:
 	bool _draggingCel = false;
 	bool _panning = false;
 	int _dragLastX = 0, _dragLastY = 0;
-	Common::Rect _celScreenRect;     // last-drawn cel rect in _display coords (for drag hit)
 
 	// Panel (Task 6)
 	Common::Array<StudioWidget> _widgets;   // panel-local small coords

@@ -24,6 +24,7 @@
 #include "common/events.h"
 #include "common/system.h"
 #include "common/textconsole.h"
+#include "graphics/cursorman.h"
 #include "graphics/fontman.h"
 #include "graphics/font.h"
 #include "graphics/managed_surface.h"
@@ -86,6 +87,7 @@ RogerStudio::~RogerStudio() {
 }
 
 void RogerStudio::renderSlot(Slot &slot) {
+	_status.clear(); // Important 1: transient status ("FAILED"/"copied A->B") must not persist
 	slot.stale = false;
 	if (slot.render) { slot.render->free(); delete slot.render; slot.render = nullptr; }
 	if (_picIds.empty()) { _status = "no pic resources"; markDirty(); return; }
@@ -125,7 +127,6 @@ void RogerStudio::renderSlot(Slot &slot) {
 	Graphics::ManagedSurface composed(slot.plateCache->w, slot.plateCache->h, slot.plateCache->format);
 	composed.blitFrom(*slot.plateCache);
 
-	_celW = _celH = 0;
 	if (_showView && !_viewIds.empty()) {
 		IndexImage cel;
 		byte clearKey = 0;
@@ -134,7 +135,6 @@ void RogerStudio::renderSlot(Slot &slot) {
 			Graphics::Surface *celSurf = _gen.surfaceFromIndex(scaled, clearKey);
 			if (celSurf) {
 				// Bottom-centre anchor at (_celX, _celY) native.
-				_celW = celSurf->w; _celH = celSurf->h;
 				const int dx = _celX * 6 - celSurf->w / 2;
 				const int dy = _celY * 6 - celSurf->h;
 				composed.blendBlitFrom(*celSurf,
@@ -191,11 +191,20 @@ bool RogerStudio::displayToNative(int mx, int my, int &nx, int &ny) const {
 
 void RogerStudio::run() {
 	g_system->showOverlay(false);
+	// Hide the system hardware cursor: it is invisible/wrong over the hires overlay
+	// (same finding as FileRogerArtProvider), so the studio composites its own
+	// crosshair (drawCursor) at the reported mouse position instead.
+	CursorMan.showMouse(false);
 	_display = new Graphics::ManagedSurface(
 		g_system->getOverlayWidth(), g_system->getOverlayHeight(),
 		g_system->getOverlayFormat());
 	fitView();
 	ensureFresh(_slots[0]);
+	// Seed the crosshair at the current pointer so it is visible before first move.
+	{
+		const Common::Point p = g_system->getEventManager()->getMousePos();
+		_mouseX = p.x; _mouseY = p.y;
+	}
 	Common::EventManager *em = g_system->getEventManager();
 	while (!_quit && !em->shouldQuit()) {
 		Common::Event ev;
@@ -218,9 +227,14 @@ void RogerStudio::handleEvent(const Common::Event &ev) {
 	case Common::EVENT_KEYDOWN:
 		break; // handled below
 	case Common::EVENT_MOUSEMOVE: {
-		// ev.mouse is in game space (0-320, 0-200); scale to overlay px.
-		const int ox = ev.mouse.x * _display->w / 320;
-		const int oy = ev.mouse.y * _display->h / 200;
+		// ev.mouse is already in overlay (_display) space: SdlGraphicsManager::
+		// notifyMousePosition() runs convertWindowToVirtual() with the overlay's
+		// dims as the target while the overlay is shown (backends/graphics/sdl/
+		// sdl-graphics.cpp:305 + backends/graphics/windowed.h:277 showOverlay path),
+		// and the studio shows the overlay. So the conversion is identity.
+		const int ox = ev.mouse.x;
+		const int oy = ev.mouse.y;
+		_mouseX = ox; _mouseY = oy; markDirty(); // track for the composited crosshair
 		const int panelTop = _display->h - kPanelH;
 		uint32 h = 0;
 		if (oy >= panelTop)
@@ -244,9 +258,9 @@ void RogerStudio::handleEvent(const Common::Event &ev) {
 		return;
 	}
 	case Common::EVENT_LBUTTONDOWN: {
-		// ev.mouse is in game space (0-320, 0-200); scale to overlay px.
-		const int ox = ev.mouse.x * _display->w / 320;
-		const int oy = ev.mouse.y * _display->h / 200;
+		// ev.mouse is already overlay-space (see EVENT_MOUSEMOVE): identity.
+		const int ox = ev.mouse.x;
+		const int oy = ev.mouse.y;
 		const int panelTop = _display->h - kPanelH;
 		if (oy >= panelTop) {
 			const uint32 id = hitTestWidgets(_widgets, ox / 2, (oy - panelTop) / 2);
@@ -270,8 +284,8 @@ void RogerStudio::handleEvent(const Common::Event &ev) {
 		_draggingCel = false;
 		return;
 	case Common::EVENT_RBUTTONDOWN: {
-		const int ox = ev.mouse.x * _display->w / 320;
-		const int oy = ev.mouse.y * _display->h / 200;
+		const int ox = ev.mouse.x; // overlay-space (see EVENT_MOUSEMOVE)
+		const int oy = ev.mouse.y;
 		_panning = true; _dragLastX = ox; _dragLastY = oy;
 		return;
 	}
@@ -280,8 +294,8 @@ void RogerStudio::handleEvent(const Common::Event &ev) {
 		return;
 	case Common::EVENT_WHEELUP:
 	case Common::EVENT_WHEELDOWN: {
-		const int ox = ev.mouse.x * _display->w / 320;
-		const int oy = ev.mouse.y * _display->h / 200;
+		const int ox = ev.mouse.x; // overlay-space (see EVENT_MOUSEMOVE)
+		const int oy = ev.mouse.y;
 		const Common::Rect area = sceneArea();
 		if (!area.contains((int16)ox, (int16)oy))
 			return;
@@ -312,10 +326,8 @@ void RogerStudio::handleEvent(const Common::Event &ev) {
 }
 
 // Blit one render into a sub-area of the scene, scaled by _viewScale and panned
-// by (_panX,_panY). Reuses v1's split-blit src/dst mapping math. If `trackCel`,
-// records _celScreenRect for hover/drag hit-testing.
-void RogerStudio::blitRender(const Graphics::Surface &render, const Common::Rect &subArea,
-                            bool trackCel) {
+// by (_panX,_panY). Reuses v1's split-blit src/dst mapping math.
+void RogerStudio::blitRender(const Graphics::Surface &render, const Common::Rect &subArea) {
 	const float scale = _viewScale;
 	Common::Rect dst(subArea.left + _panX, subArea.top + _panY,
 	                 subArea.left + _panX + (int)(render.w * scale),
@@ -329,16 +341,6 @@ void RogerStudio::blitRender(const Graphics::Surface &render, const Common::Rect
 		src.clip(Common::Rect(render.w, render.h));
 		if (!src.isEmpty())
 			_display->blitFrom(render, src, dst);
-	}
-	if (trackCel && _showView && _celW > 0 && _celH > 0) {
-		// Bottom-centre anchor at (_celX*6, _celY*6) plate space; cel spans _celW x _celH.
-		const int px = _celX * 6 - _celW / 2;
-		const int py = _celY * 6 - _celH;
-		const int dl = subArea.left + _panX + (int)(px * scale);
-		const int dt = subArea.top + _panY + (int)(py * scale);
-		const int dr = subArea.left + _panX + (int)((px + _celW) * scale);
-		const int db = subArea.top + _panY + (int)((py + _celH) * scale);
-		_celScreenRect = Common::Rect(dl, dt, dr, db);
 	}
 }
 
@@ -379,7 +381,6 @@ void RogerStudio::drawFrame() {
 	                   fmt.RGBToColor(48, 48, 48));
 
 	const Common::Rect area = sceneArea();
-	_celScreenRect = Common::Rect();
 
 	if (_displayMode == kShowSplit) {
 		ensureFresh(_slots[0]); ensureFresh(_slots[1]);
@@ -387,9 +388,9 @@ void RogerStudio::drawFrame() {
 		const Common::Rect leftArea(area.left, area.top, area.left + halfW, area.bottom);
 		const Common::Rect rightArea(area.left + halfW, area.top, area.right, area.bottom);
 		if (_slots[0].render)
-			blitRender(*_slots[0].render, leftArea, true);
+			blitRender(*_slots[0].render, leftArea);
 		if (_slots[1].render)
-			blitRender(*_slots[1].render, rightArea, false);
+			blitRender(*_slots[1].render, rightArea);
 		_display->vLine(area.left + halfW, area.top, area.bottom - 1, fmt.RGBToColor(255, 255, 255));
 		const Graphics::Font *lf = FontMan.getFontByUsage(Graphics::FontManager::kBigGUIFont);
 		if (lf) {
@@ -400,27 +401,63 @@ void RogerStudio::drawFrame() {
 			               rightArea.left + 4, area.top + 4, halfW - 8, white);
 		}
 	} else if (_displayMode == kShowDiff) {
-		ensureDiff();
+		// Important 2: while dragging the cel, skip the per-frame diff/SAD rebuild
+		// (49-offset SAD over 1920x1140 is a stall loop at drag rate). _diffStale
+		// stays set (invalidateCelOnly keeps it true), so the diff + offset readout
+		// rebuild once on the first frame after the drag ends. During the drag we
+		// re-show the last diff surface (positionally stale but cheap).
+		if (!_draggingCel)
+			ensureDiff();
 		if (_diffSurf) {
-			blitRender(*_diffSurf, area, false);
+			blitRender(*_diffSurf, area);
 		} else {
 			// Diff unavailable: fall back to Show A behavior.
 			ensureFresh(_slots[0]);
 			if (_slots[0].render)
-				blitRender(*_slots[0].render, area, true);
+				blitRender(*_slots[0].render, area);
 		}
 	} else {
 		Slot &slot = (_displayMode == kShowB) ? _slots[1] : _slots[0];
 		ensureFresh(slot);
 		if (slot.render)
-			blitRender(*slot.render, area, true);
+			blitRender(*slot.render, area);
 	}
 
 	drawPanel();
+	drawCursor();
 
 	g_system->copyRectToOverlay(_display->getPixels(), _display->pitch,
 	                            0, 0, _display->w, _display->h);
 	g_system->updateScreen();
+}
+
+// Composite a crosshair pointer at (_mouseX,_mouseY) into _display. The native
+// hardware cursor is invisible over the overlay (same finding as
+// FileRogerArtProvider, which draws its own arrow), so the studio draws its own.
+// Cheap: two short lines each frame, only inside drawFrame (which runs only when
+// _dirty, and a mouse move sets _dirty). No per-frame cost when the mouse is idle.
+void RogerStudio::drawCursor() {
+	const int r = 14;                     // crosshair arm length (overlay px)
+	const int gap = 3;                    // centre gap so the exact point stays clear
+	const uint32 white = _display->format.RGBToColor(255, 255, 255);
+	const uint32 black = _display->format.RGBToColor(0, 0, 0);
+	const int x = CLIP<int>(_mouseX, 0, _display->w - 1);
+	const int y = CLIP<int>(_mouseY, 0, _display->h - 1);
+	// 3px black underlay for contrast against light plates, then a 1px white core.
+	for (int t = -1; t <= 1; t++) {
+		_display->hLine(CLIP<int>(x - r, 0, _display->w - 1), CLIP<int>(y + t, 0, _display->h - 1),
+		                CLIP<int>(x - gap, 0, _display->w - 1), black);
+		_display->hLine(CLIP<int>(x + gap, 0, _display->w - 1), CLIP<int>(y + t, 0, _display->h - 1),
+		                CLIP<int>(x + r, 0, _display->w - 1), black);
+		_display->vLine(CLIP<int>(x + t, 0, _display->w - 1), CLIP<int>(y - r, 0, _display->h - 1),
+		                CLIP<int>(y - gap, 0, _display->h - 1), black);
+		_display->vLine(CLIP<int>(x + t, 0, _display->w - 1), CLIP<int>(y + gap, 0, _display->h - 1),
+		                CLIP<int>(y + r, 0, _display->h - 1), black);
+	}
+	_display->hLine(CLIP<int>(x - r, 0, _display->w - 1), y, CLIP<int>(x - gap, 0, _display->w - 1), white);
+	_display->hLine(CLIP<int>(x + gap, 0, _display->w - 1), y, CLIP<int>(x + r, 0, _display->w - 1), white);
+	_display->vLine(x, CLIP<int>(y - r, 0, _display->h - 1), CLIP<int>(y - gap, 0, _display->h - 1), white);
+	_display->vLine(x, CLIP<int>(y + gap, 0, _display->h - 1), CLIP<int>(y + r, 0, _display->h - 1), white);
 }
 
 void RogerStudio::drawPanel() {
