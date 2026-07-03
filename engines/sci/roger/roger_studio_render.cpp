@@ -190,5 +190,125 @@ Common::String studioCompareExportName(int picId, bool diff,
 		picId, diff ? "diff" : "AB", stampA.c_str(), stampB.c_str());
 }
 
+uint32 widId(int kind, int index) {
+	return ((uint32)kind << 16) | ((uint32)index & 0xffff);
+}
+int widKind(uint32 id) { return (int)(id >> 16); }
+int widIndex(uint32 id) { return (int)(id & 0xffff); }
+
+namespace {
+
+struct PanelCursor {
+	Common::Array<StudioWidget> *out;
+	int x, y;
+	int rowH;
+	int right;
+
+	void newRow() { x = 4; y += rowH; }
+
+	// Emits one widget; returns its rect. Non-clickable text -> id kWidNone.
+	Common::Rect emit(const Common::String &label, uint32 id, bool on, bool enabled) {
+		const int wpx = (int)label.size() * kStudioCharW + 10;
+		if (x + wpx > right) newRow();          // wrap long rows defensively
+		StudioWidget wgt;
+		wgt.rect = Common::Rect((int16)x, (int16)(y + 2), (int16)(x + wpx), (int16)(y + rowH - 2));
+		wgt.id = id; wgt.label = label; wgt.on = on; wgt.enabled = enabled;
+		out->push_back(wgt);
+		x += wpx + 6;
+		return wgt.rect;
+	}
+	void text(const Common::String &label) { emit(label, kWidNone, false, false); }
+	void btn(const Common::String &label, uint32 id, bool on = false) { emit(label, id, on, true); }
+};
+
+} // anonymous namespace
+
+void buildStudioPanel(const Common::Rect &panel, const StudioPanelState &st,
+                      Common::Array<StudioWidget> &out) {
+	out.clear();
+	PanelCursor c;
+	c.out = &out; c.x = panel.left + 4; c.y = panel.top; c.rowH = kStudioRowH;
+	c.right = panel.right - 4;
+
+	// Row 1: scene
+	c.text("pic");
+	c.btn("<", widId(kWidPicPrev));
+	c.text(Common::String::format("%03d", st.picId));
+	c.btn(">", widId(kWidPicNext));
+	c.text("view");
+	c.btn("<", widId(kWidViewPrev));
+	c.text(Common::String::format("%03d", st.viewId));
+	c.btn(">", widId(kWidViewNext));
+	c.text("loop");
+	c.btn("<", widId(kWidLoopPrev));
+	c.text(Common::String::format("%d", st.loopNo));
+	c.btn(">", widId(kWidLoopNext));
+	c.text("cel");
+	c.btn("<", widId(kWidCelPrev));
+	c.text(Common::String::format("%d", st.celNo));
+	c.btn(">", widId(kWidCelNext));
+	c.btn(Common::String::format("variant: %s", st.variantName), widId(kWidVariantCycle));
+	c.btn(st.plateNearest ? "plate: nearest" : "plate: omyac", widId(kWidPlateMode), st.plateNearest);
+	c.btn(st.showView ? "view: on" : "view: off", widId(kWidShowView), st.showView);
+	c.btn("Fit", widId(kWidFit));
+	c.newRow();
+
+	// Row 2: edit tab + judge
+	c.text("edit:");
+	c.btn("A", widId(kWidTabA), st.activeSlot == 0);
+	c.btn("B", widId(kWidTabB), st.activeSlot == 1);
+	c.text(" ");
+	c.btn("Show A", widId(kWidShowA), st.displayMode == 0);
+	c.btn("Show B", widId(kWidShowB), st.displayMode == 1);
+	c.btn("Split", widId(kWidSplit), st.displayMode == 2);
+	c.btn("Diff", widId(kWidDiff), st.displayMode == 3);
+	c.text(" ");
+	c.btn("Copy A>B", widId(kWidCopyAB));
+	c.btn("Export PNG", widId(kWidExport));
+	c.newRow();
+
+	// Param rows (active slot values)
+	for (int i = 0; i < omyacParamCount(); i++) {
+		const OmyacParamDesc d = omyacParamDesc(i);
+		const int v = (i < (int)st.paramValues.size()) ? st.paramValues[i] : 0;
+		c.text(Common::String::format("%-20s", d.name));
+		if (d.isBool) {
+			c.btn(v ? "on" : "off", widId(kWidParamToggle, i), v != 0);
+		} else {
+			c.btn("-", widId(kWidParamMinus, i));
+			c.text(Common::String::format("%d", v));
+			c.btn("+", widId(kWidParamPlus, i));
+		}
+		c.newRow();
+	}
+
+	// Chip row
+	c.text("passes:");
+	for (uint i = 0; i < st.passes.size(); i++) {
+		const char ch = st.passes[i] == 2 ? 'f' : st.passes[i] == 1 ? 'l' : 'a';
+		c.btn(Common::String::format("%c", ch), widId(kWidChip, (int)i), (int)i == st.selectedChip);
+		c.btn("x", widId(kWidChipX, (int)i));
+	}
+	if (st.passes.empty())
+		c.text("(none - wireframe)");
+	c.btn("<", widId(kWidChipLeft));
+	c.btn(">", widId(kWidChipRight));
+	c.btn("+f", widId(kWidChipAddF));
+	c.btn("+l", widId(kWidChipAddL));
+	c.btn("+a", widId(kWidChipAddA));
+	c.btn("Reset", widId(kWidChipReset));
+}
+
+uint32 hitTestWidgets(const Common::Array<StudioWidget> &widgets, int x, int y) {
+	for (uint i = 0; i < widgets.size(); i++) {
+		if (!widgets[i].enabled)
+			continue;
+		const Common::Rect &r = widgets[i].rect;
+		if (x >= r.left && x < r.right && y >= r.top && y < r.bottom)
+			return widgets[i].id;
+	}
+	return (uint32)kWidNone;
+}
+
 } // namespace Roger
 } // namespace Sci

@@ -26,6 +26,7 @@
 // is unit-testable without a running engine.
 
 #include "common/array.h"
+#include "common/rect.h"
 #include "common/str.h"
 #include "sci/roger/roger_omyac.h"
 #include "sci/roger/roger_scale.h"
@@ -92,6 +93,56 @@ Common::String studioSceneExportName(int picId, char slot, const Common::String 
 Common::String studioCompareExportName(int picId, bool diff,
                                        const Common::String &stampA,
                                        const Common::String &stampB);
+
+// ── Studio v2: widget layer - kinds, id encoding, panel layout, hit-testing ────
+enum WidKind {
+	kWidNone = 0,
+	kWidPicPrev, kWidPicNext, kWidViewPrev, kWidViewNext,
+	kWidLoopPrev, kWidLoopNext, kWidCelPrev, kWidCelNext,
+	kWidVariantCycle, kWidPlateMode, kWidShowView, kWidFit,
+	kWidTabA, kWidTabB, kWidShowA, kWidShowB, kWidSplit, kWidDiff,
+	kWidCopyAB, kWidExport,
+	kWidParamMinus, kWidParamPlus, kWidParamToggle,   // indexed by param
+	kWidChip, kWidChipX,                              // indexed by chip
+	kWidChipLeft, kWidChipRight,
+	kWidChipAddF, kWidChipAddL, kWidChipAddA, kWidChipReset
+};
+
+uint32 widId(int kind, int index = 0);   // (kind << 16) | (index & 0xffff)
+int widKind(uint32 id);
+int widIndex(uint32 id);
+
+struct StudioWidget {
+	Common::Rect rect;      // panel-local small coords
+	uint32 id;
+	Common::String label;
+	bool on;                // toggled/active state (drawn highlighted)
+	bool enabled;
+};
+
+struct StudioPanelState {
+	int picId, viewId, loopNo, celNo;
+	const char *variantName;
+	bool plateNearest;      // active slot's plate mode
+	bool showView;
+	int activeSlot;         // 0 = A, 1 = B
+	int displayMode;        // 0 ShowA, 1 ShowB, 2 Split, 3 Diff
+	int selectedChip;       // -1 = none
+	Common::Array<int> passes;      // active slot's
+	Common::Array<int> paramValues; // active slot's, omyacParamCount() entries
+};
+
+// Lays out every widget for the control panel into `out` (cleared first).
+// panel = panel-local small rect, i.e. (0, 0, smallW, smallH).
+// Pure and deterministic: same state -> same rects. Uses kCharW/kRowH below.
+void buildStudioPanel(const Common::Rect &panel, const StudioPanelState &st,
+                      Common::Array<StudioWidget> &out);
+
+// First widget whose rect contains (x, y) and is enabled; kWidNone if none.
+uint32 hitTestWidgets(const Common::Array<StudioWidget> &widgets, int x, int y);
+
+static const int kStudioCharW = 7;   // layout char width (small px)
+static const int kStudioRowH = 24;   // layout row height (small px)
 
 } // namespace Roger
 } // namespace Sci

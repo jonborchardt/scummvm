@@ -132,4 +132,96 @@ public:
 		TS_ASSERT_EQUALS(studioCompareExportName(2, true, "default", "nref"),
 		                 Common::String("studio-scene002-diff-default-vs-nref.png"));
 	}
+
+	static StudioPanelState samplePanelState() {
+		StudioPanelState st;
+		st.picId = 2; st.viewId = 12; st.loopNo = 1; st.celNo = 0;
+		st.variantName = "scale6x (3x*2x)";
+		st.plateNearest = false;
+		st.showView = true;
+		st.activeSlot = 0;
+		st.displayMode = 0;
+		st.selectedChip = 1;
+		st.passes.push_back(2); st.passes.push_back(2); st.passes.push_back(1);
+		OmyacParams p;
+		for (int i = 0; i < omyacParamCount(); i++)
+			st.paramValues.push_back(omyacParamGet(p, i));
+		return st;
+	}
+
+	void test_wid_id_roundtrip() {
+		uint32 id = widId(kWidParamMinus, 5);
+		TS_ASSERT_EQUALS(widKind(id), (int)kWidParamMinus);
+		TS_ASSERT_EQUALS(widIndex(id), 5);
+		TS_ASSERT_EQUALS(widKind(widId(kWidFit)), (int)kWidFit);
+		TS_ASSERT_EQUALS(widIndex(widId(kWidFit)), 0);
+	}
+
+	void test_panel_layout_invariants() {
+		const Common::Rect panel(0, 0, 1400, 280);
+		Common::Array<StudioWidget> w;
+		buildStudioPanel(panel, samplePanelState(), w);
+		TS_ASSERT(!w.empty());
+		// Every expected clickable kind is present at least once.
+		static const int MUST[] = {
+			kWidPicPrev, kWidPicNext, kWidViewPrev, kWidViewNext,
+			kWidLoopPrev, kWidLoopNext, kWidCelPrev, kWidCelNext,
+			kWidVariantCycle, kWidPlateMode, kWidShowView, kWidFit,
+			kWidTabA, kWidTabB, kWidShowA, kWidShowB, kWidSplit, kWidDiff,
+			kWidCopyAB, kWidExport, kWidChipLeft, kWidChipRight,
+			kWidChipAddF, kWidChipAddL, kWidChipAddA, kWidChipReset };
+		for (uint m = 0; m < ARRAYSIZE(MUST); m++) {
+			bool found = false;
+			for (uint i = 0; i < w.size(); i++)
+				if (widKind(w[i].id) == MUST[m]) { found = true; break; }
+			TS_ASSERT(found);
+		}
+		// Param rows: one minus+plus per int param, one toggle per bool param.
+		int minus = 0, plus = 0, toggles = 0;
+		for (uint i = 0; i < w.size(); i++) {
+			if (widKind(w[i].id) == kWidParamMinus) minus++;
+			if (widKind(w[i].id) == kWidParamPlus) plus++;
+			if (widKind(w[i].id) == kWidParamToggle) toggles++;
+		}
+		int intParams = 0, boolParams = 0;
+		for (int i = 0; i < omyacParamCount(); i++)
+			omyacParamDesc(i).isBool ? boolParams++ : intParams++;
+		TS_ASSERT_EQUALS(minus, intParams);
+		TS_ASSERT_EQUALS(plus, intParams);
+		TS_ASSERT_EQUALS(toggles, boolParams);
+		// Chips: one kWidChip + one kWidChipX per pass.
+		int chips = 0, xs = 0;
+		for (uint i = 0; i < w.size(); i++) {
+			if (widKind(w[i].id) == kWidChip) chips++;
+			if (widKind(w[i].id) == kWidChipX) xs++;
+		}
+		TS_ASSERT_EQUALS(chips, 3);
+		TS_ASSERT_EQUALS(xs, 3);
+		// Geometry: inside panel; enabled widgets pairwise non-overlapping.
+		for (uint i = 0; i < w.size(); i++) {
+			TS_ASSERT(w[i].rect.left >= panel.left && w[i].rect.top >= panel.top);
+			TS_ASSERT(w[i].rect.right <= panel.right && w[i].rect.bottom <= panel.bottom);
+			if (!w[i].enabled) continue;
+			for (uint j = i + 1; j < w.size(); j++) {
+				if (!w[j].enabled) continue;
+				Common::Rect a = w[i].rect, b = w[j].rect;
+				TS_ASSERT(!(a.left < b.right && b.left < a.right &&
+				            a.top < b.bottom && b.top < a.bottom));
+			}
+		}
+	}
+
+	void test_panel_hit_test() {
+		const Common::Rect panel(0, 0, 1400, 280);
+		Common::Array<StudioWidget> w;
+		buildStudioPanel(panel, samplePanelState(), w);
+		for (uint i = 0; i < w.size(); i++) {
+			if (!w[i].enabled) continue;
+			const int cx = (w[i].rect.left + w[i].rect.right) / 2;
+			const int cy = (w[i].rect.top + w[i].rect.bottom) / 2;
+			TS_ASSERT_EQUALS(hitTestWidgets(w, cx, cy), w[i].id);
+		}
+		TS_ASSERT_EQUALS(hitTestWidgets(w, panel.right - 1, panel.bottom - 1), (uint32)kWidNone);
+		TS_ASSERT_EQUALS(hitTestWidgets(w, -5, -5), (uint32)kWidNone);
+	}
 };
