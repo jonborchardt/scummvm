@@ -180,9 +180,11 @@ void RogerStudio::handleEvent(const Common::Event &ev) {
 	if (_mode == kModePic) {
 		switch (ev.kbd.keycode) {
 		case Common::KEYCODE_PAGEUP:
+			if (_picIds.empty()) break;
 			_picIdx = (_picIdx + (int)_picIds.size() - 1) % (int)_picIds.size();
 			rerender(); break;
 		case Common::KEYCODE_PAGEDOWN:
+			if (_picIds.empty()) break;
 			_picIdx = (_picIdx + 1) % (int)_picIds.size();
 			rerender(); break;
 		case Common::KEYCODE_UP:
