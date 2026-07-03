@@ -57,10 +57,12 @@ an enhanced-vs-native comparison shot, the "Roger bug or game behavior?" evidenc
 F10 keypress choreography. Captures land in the
 game's `screenshotpath` as `roger-<pic>-<label>-{overlay,preview}.png`; the run log is
 `screenshots/roger-run.log` (grep `ROGER-SCRIPT` / `ROGER-CYCLE`).
+
 `-Studio` launches the **Roger Studio** tuning environment instead of a game
 (`ROGER_STUDIO=1`, per-launch): an interactive omyac-parameter tuner + view-scaler
 comparator on the raw overlay. Esc quits. Debug-only; it never touches the
 generation disk cache. Spec: `docs/superpowers/specs/2026-07-02-roger-studio-design.md`.
+
 Grammar
 (full reference in `engines/sci/roger/roger_input.h` and `docs/roger.md`):
 

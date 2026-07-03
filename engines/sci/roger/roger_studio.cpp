@@ -23,6 +23,7 @@
 #include "common/config-manager.h"
 #include "common/events.h"
 #include "common/system.h"
+#include "common/textconsole.h"
 #include "graphics/fontman.h"
 #include "graphics/font.h"
 #include "graphics/managed_surface.h"
@@ -211,8 +212,14 @@ void RogerStudio::drawFrame() {
 void RogerStudio::drawHud() {
 	// Render HUD text small, then blit 2x so it is readable at hires overlays.
 	const Graphics::Font *font = FontMan.getFontByUsage(Graphics::FontManager::kBigGUIFont);
-	if (!font)
+	if (!font) {
+		static bool warned = false;
+		if (!warned) {
+			warned = true;
+			warning("RogerStudio: kBigGUIFont unavailable, HUD disabled");
+		}
 		return;
+	}
 	const int hudH = 220;
 	const int smallW = _display->w / 2, smallH = hudH / 2;
 	Graphics::ManagedSurface small(smallW, smallH, _display->format);
