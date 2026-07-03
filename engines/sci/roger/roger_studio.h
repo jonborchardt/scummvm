@@ -57,6 +57,7 @@ private:
 	// Rendering (filled in by Tasks 5-8)
 	void rerender();                // dispatch by _mode; updates _current/_previous
 	void renderPicMode();
+	void renderViewMode();
 	void setCurrent(Graphics::Surface *s, const Common::String &label);
 	void exportCurrent();           // write _current as PNG to screenshotpath
 

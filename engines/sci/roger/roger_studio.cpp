@@ -32,6 +32,8 @@
 #ifdef ENABLE_SCI
 #include "sci/sci.h"
 #include "sci/resource/resource.h"
+#include "sci/graphics/cache.h"
+#include "sci/graphics/view.h"
 #endif
 
 namespace Sci {
@@ -78,7 +80,7 @@ void RogerStudio::setCurrent(Graphics::Surface *s, const Common::String &label) 
 void RogerStudio::rerender() {
 	switch (_mode) {
 	case kModePic:      renderPicMode(); break;
-	case kModeView:     /* Task 7 */ _status = "view mode: Task 7"; markDirty(); break;
+	case kModeView:     renderViewMode(); break;
 	case kModeCombined: /* Task 8 */ _status = "combined mode: Task 8"; markDirty(); break;
 	}
 }
@@ -103,6 +105,82 @@ void RogerStudio::renderPicMode() {
 	}
 	setCurrent(plate, Common::String::format("pic %d  %s  passes:%s", picId,
 		omyacParamStamp(_params).c_str(), omyacPassStamp(_passes).c_str()));
+}
+
+void RogerStudio::renderViewMode() {
+	_status.clear();
+	if (_viewIds.empty()) {
+		_status = "no view resources found";
+		markDirty();
+		return;
+	}
+	const int viewId = _viewIds[_viewIdx];
+
+#ifdef ENABLE_SCI
+	if (g_sci && g_sci->_gfxCache) {
+		GfxView *view = g_sci->_gfxCache->getView((GuiResourceId)viewId);
+		if (view) {
+			_loopNo = CLIP<int>(_loopNo, 0, MAX(0, (int)view->getLoopCount() - 1));
+			_celNo = CLIP<int>(_celNo, 0, MAX(0, (int)view->getCelCount((int16)_loopNo) - 1));
+		}
+	}
+#endif
+
+	IndexImage cel;
+	byte clearKey = 0;
+	uint32 t0 = g_system->getMillis();
+	if (!_gen.nativeCelIndexImage(viewId, _loopNo, _celNo, cel, clearKey)) {
+		_status = Common::String::format("view %d l%d c%d: cel extraction FAILED", viewId, _loopNo, _celNo);
+		markDirty();
+		return;
+	}
+
+	// Render every variant, measure the grid.
+	Common::Array<Graphics::Surface *> tiles;
+	int tileW = 0, tileH = 0;
+	for (int v = 0; v < kScalerCount; v++) {
+		IndexImage scaled = applyScalerVariant(v, cel);
+		Graphics::Surface *s = _gen.surfaceFromIndex(scaled, clearKey);
+		tiles.push_back(s); // may be null; grid slot shows label only
+		if (s) { tileW = MAX(tileW, (int)s->w); tileH = MAX(tileH, (int)s->h); }
+	}
+	_lastRenderMs = g_system->getMillis() - t0;
+	if (tileW == 0) {
+		_status = "all variants failed to render";
+		markDirty();
+		return;
+	}
+
+	// Compose: N columns of (tile + label strip), checkerboard behind alpha.
+	const Graphics::Font *font = FontMan.getFontByUsage(Graphics::FontManager::kBigGUIFont);
+	const int labelH = font ? font->getFontHeight() + 4 : 16;
+	const int pad = 8;
+	const Graphics::PixelFormat fmt(4, 8, 8, 8, 8, 24, 16, 8, 0);
+	Graphics::ManagedSurface grid((tileW + pad) * kScalerCount + pad, tileH + labelH + 2 * pad, fmt);
+	grid.fillRect(Common::Rect(grid.w, grid.h), fmt.RGBToColor(40, 40, 40));
+	for (int v = 0; v < kScalerCount; v++) {
+		const int x0 = pad + v * (tileW + pad);
+		// Checkerboard so transparency is visible.
+		for (int cy = 0; cy < tileH; cy += 8)
+			for (int cx = 0; cx < tileW; cx += 8)
+				if (((cx / 8) ^ (cy / 8)) & 1)
+					grid.fillRect(Common::Rect(x0 + cx, pad + cy,
+						MIN(x0 + cx + 8, x0 + tileW), MIN(pad + cy + 8, pad + tileH)),
+						fmt.RGBToColor(56, 56, 56));
+		if (tiles[v])
+			grid.blitFrom(*tiles[v], Common::Point(x0, pad));
+		if (font)
+			font->drawString(&grid, scalerVariantName(v), x0, pad + tileH + 2, tileW + pad,
+			                 fmt.RGBToColor(255, 255, 255));
+	}
+	for (uint i = 0; i < tiles.size(); i++)
+		if (tiles[i]) { tiles[i]->free(); delete tiles[i]; }
+
+	// Hand the composed grid to setCurrent as a bare Surface copy.
+	Graphics::Surface *composed = new Graphics::Surface();
+	composed->copyFrom(grid.rawSurface());
+	setCurrent(composed, Common::String::format("view %d loop %d cel %d - variant grid",
+	                                            viewId, _loopNo, _celNo));
 }
 
 void RogerStudio::exportCurrent() {
@@ -253,6 +331,33 @@ void RogerStudio::handleEvent(const Common::Event &ev) {
 		_zoomIdx = MAX(_zoomIdx - 1, 0); markDirty(); break;
 	default:
 		break;
+	}
+
+	// View-mode and Combined-mode shared keys (cel navigation; PgUp/PgDn gated to view only).
+	if (_mode == kModeView || _mode == kModeCombined) {
+		switch (ev.kbd.keycode) {
+		case Common::KEYCODE_PAGEUP:
+			if (_mode == kModeView) {
+				if (_viewIds.empty()) break;
+				_viewIdx = (_viewIdx + (int)_viewIds.size() - 1) % (int)_viewIds.size();
+				_loopNo = _celNo = 0;
+				rerender();
+			}
+			break;
+		case Common::KEYCODE_PAGEDOWN:
+			if (_mode == kModeView) {
+				if (_viewIds.empty()) break;
+				_viewIdx = (_viewIdx + 1) % (int)_viewIds.size();
+				_loopNo = _celNo = 0;
+				rerender();
+			}
+			break;
+		case Common::KEYCODE_HOME: _loopNo = MAX(0, _loopNo - 1); _celNo = 0; rerender(); break;
+		case Common::KEYCODE_END:  _loopNo = _loopNo + 1; _celNo = 0; rerender(); break; // clamped in render
+		case Common::KEYCODE_COMMA:  _celNo = MAX(0, _celNo - 1); rerender(); break;
+		case Common::KEYCODE_PERIOD: _celNo = _celNo + 1; rerender(); break; // clamped in render
+		default: break;
+		}
 	}
 
 	// Pic-mode keys (after global; consumes only what global layer ignored).
@@ -442,6 +547,14 @@ void RogerStudio::drawHud() {
 		if (_passes.empty())
 			strip += "(none - wireframe)";
 		font->drawString(&small, strip, 4, y, smallW - 8, fg);
+		y += lh;
+	}
+
+	if (_mode == kModeView) {
+		font->drawString(&small, Common::String::format(
+			"view %d (%d/%u)  loop %d  cel %d   PgUp/PgDn view  Home/End loop  ,/. cel",
+			_viewIds.empty() ? -1 : _viewIds[_viewIdx], _viewIdx + 1,
+			(unsigned)_viewIds.size(), _loopNo, _celNo), 4, y, smallW - 8, fg);
 		y += lh;
 	}
 
