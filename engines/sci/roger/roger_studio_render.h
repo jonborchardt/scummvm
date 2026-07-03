@@ -1,0 +1,76 @@
+/* ScummVM - Graphic Adventure Engine
+ *
+ * ScummVM is the legal property of its developers, whose names
+ * are too numerous to list here. Please refer to the COPYRIGHT
+ * file distributed with this source distribution.
+ *
+ * This program is free software: you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 3 of
+ * the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+
+#ifndef SCI_ROGER_ROGER_STUDIO_RENDER_H
+#define SCI_ROGER_ROGER_STUDIO_RENDER_H
+
+// SCI-free pure helpers for the Roger Studio debug tool (see
+// docs/superpowers/specs/2026-07-02-roger-studio-design.md). Everything here
+// is unit-testable without a running engine.
+
+#include "common/array.h"
+#include "common/str.h"
+#include "sci/roger/roger_omyac.h"
+#include "sci/roger/roger_scale.h"
+
+namespace Sci {
+namespace Roger {
+
+// ── OmyacParams registry: index-addressable fields for the studio HUD ────────
+struct OmyacParamDesc {
+	const char *name;
+	int minV;
+	int maxV;
+	int step;
+	bool isBool;
+};
+
+int omyacParamCount();
+OmyacParamDesc omyacParamDesc(int i);
+int omyacParamGet(const OmyacParams &p, int i);
+void omyacParamSet(OmyacParams &p, int i, int value); // clamps to [minV, maxV]
+
+// ── Scaler variants for view-cel comparison ──────────────────────────────────
+// Factor-6 variants are eligible for Combined mode (must match the 6x plate);
+// kScaler4x / kScaler8x are View-mode-only exploration.
+enum ScalerVariant {
+	kScaler6x = 0,   // scale3x(scale2x(in)) — the shipping path
+	kScaler2x3x,     // scale2x(scale3x(in)) — order swapped
+	kScalerNearest6, // blocky reference
+	kScaler2xN3,     // scale2x then nearest x3
+	kScaler3xN2,     // scale3x then nearest x2
+	kScaler4x,       // scale2x(scale2x(in))
+	kScaler8x,       // scale2x(scale2x(scale2x(in)))
+	kScalerCount
+};
+
+const char *scalerVariantName(int v);
+int scalerVariantFactor(int v);
+IndexImage applyScalerVariant(int v, const IndexImage &in);
+
+// ── Export filename stamps ───────────────────────────────────────────────────
+Common::String omyacPassStamp(const Common::Array<int> &passes); // "ffla" / "none"
+Common::String omyacParamStamp(const OmyacParams &p);            // "default" / "mvl3-iso0"
+Common::String studioExportName(const char *kind, int id, const Common::String &detail);
+
+} // namespace Roger
+} // namespace Sci
+
+#endif // SCI_ROGER_ROGER_STUDIO_RENDER_H
