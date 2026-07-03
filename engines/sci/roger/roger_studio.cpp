@@ -190,7 +190,7 @@ bool RogerStudio::displayToNative(int mx, int my, int &nx, int &ny) const {
 }
 
 void RogerStudio::run() {
-	g_system->showOverlay(false);
+	g_system->showOverlay(true); // inGUI: mouse events arrive in overlay coords
 	// Hide the system hardware cursor: it is invisible/wrong over the hires overlay
 	// (same finding as FileRogerArtProvider), so the studio composites its own
 	// crosshair (drawCursor) at the reported mouse position instead.
@@ -227,11 +227,11 @@ void RogerStudio::handleEvent(const Common::Event &ev) {
 	case Common::EVENT_KEYDOWN:
 		break; // handled below
 	case Common::EVENT_MOUSEMOVE: {
-		// ev.mouse is already in overlay (_display) space: SdlGraphicsManager::
-		// notifyMousePosition() runs convertWindowToVirtual() with the overlay's
-		// dims as the target while the overlay is shown (backends/graphics/sdl/
-		// sdl-graphics.cpp:305 + backends/graphics/windowed.h:277 showOverlay path),
-		// and the studio shows the overlay. So the conversion is identity.
+		// ev.mouse arrives in overlay (_display) space because run() calls
+		// showOverlay(true): WindowedGraphicsManager sets _activeArea to the
+		// overlay dims when inGUI, and convertWindowToVirtual() maps window px
+		// into that space (backends/graphics/windowed.h:71-90, :277). With
+		// inGUI=false it would be GAME space (320x200) - do not "simplify".
 		const int ox = ev.mouse.x;
 		const int oy = ev.mouse.y;
 		_mouseX = ox; _mouseY = oy; markDirty(); // track for the composited crosshair
