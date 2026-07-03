@@ -421,10 +421,11 @@ tools fail) but the rules below were verified against the wiki text on 2026-07-0
 - **Reentrancy (strict):** non-const `static` locals inside function bodies are
   **forbidden** — return-to-launcher / in-process restart keeps their stale state. Non-const
   globals are strongly discouraged and need a comment saying why + where they're re-set at
-  engine start (else mark `// FIXME: non-const global var`). Known Roger violations to fix
-  before the PR pass: `roger_studio.cpp` `static bool warned` (warn-once) and
-  `file_roger_art_provider.cpp` `static uint32 lastDiagSig` (diag dedup) — both must move
-  to member/instance state.
+  engine start (else mark `// FIXME: non-const global var`). The two known Roger
+  violations (warn-once flag in `roger_studio.cpp`, diag-dedup signature in
+  `file_roger_art_provider.cpp`) were fixed by moving them to member state — keep it
+  that way; grep `static (bool|int|uint32)` under `engines/sci/roger/` before any
+  upstream slice.
 - **Naming:** `camelCase` functions/methods/locals, `_camelCase` member variables,
   `g_camelCase` globals, `CamelCase` types; constants either `kCamelCase` or `ALL_CAPS`
   (prefer enum/`const` over `#define`). Layout rules are in Code Style below (tabs w4,
