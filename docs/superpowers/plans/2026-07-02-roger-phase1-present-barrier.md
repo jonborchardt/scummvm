@@ -1070,7 +1070,9 @@ Then report: Phase 1 complete on `jon-p1-barrier`, ready to merge to `jon-refact
 
 (Filled during execution.)
 
-- **Task 1 dirty-area baseline:** _(presents/cycles/presentsPerCycle/medianArea for qfg1 + sq3)_
+- **Task 1 dirty-area baseline:**
+  - qfg1: presents=176 cycles=175 presentsPerCycle=1.01 medianArea=983202
+  - sq3: presents=183 cycles=162 presentsPerCycle=1.13 medianArea=361642
 - **Task 5 dirty-area:** _(same metrics; must be ≤ +10 % on medianArea)_
 - **Fault-injection matrix:** _(A/B/C → which checks failed)_
 - **Grow-workaround outcome:** _(removed cleanly / reinstated + evidence)_
