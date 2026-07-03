@@ -70,6 +70,29 @@ Common::String omyacPassStamp(const Common::Array<int> &passes); // "ffla" / "no
 Common::String omyacParamStamp(const OmyacParams &p);            // "default" / "mvl3-iso0"
 Common::String studioExportName(const char *kind, int id, const Common::String &detail);
 
+// ── Studio v2: per-game startup defaults ─────────────────────────────────────
+struct StudioDefaults {
+	int picId;   // -1 = first available
+	int viewId;  // -1 = first available
+	int loopNo;
+	int celNo;
+	int celX;    // native coords, cel bottom-centre anchor
+	int celY;
+};
+
+StudioDefaults studioDefaultsForGame(const Common::String &gameId);
+
+// ── Studio v2: pass-list edit ops (pure; unit-tested) ────────────────────────
+void passInsertAfter(Common::Array<int> &passes, int &selected, int passVal);
+void passRemoveAt(Common::Array<int> &passes, int &selected);
+bool passMove(Common::Array<int> &passes, int &selected, int dir); // dir in {-1,+1}
+
+// ── Studio v2: export names ──────────────────────────────────────────────────
+Common::String studioSceneExportName(int picId, char slot, const Common::String &detail);
+Common::String studioCompareExportName(int picId, bool diff,
+                                       const Common::String &stampA,
+                                       const Common::String &stampB);
+
 } // namespace Roger
 } // namespace Sci
 

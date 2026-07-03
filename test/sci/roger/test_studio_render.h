@@ -77,4 +77,59 @@ public:
 		TS_ASSERT_EQUALS(studioExportName("view", 300, "l2c0-scale6x"),
 		                 Common::String("studio-view300-l2c0-scale6x.png"));
 	}
+
+	void test_defaults_table() {
+		StudioDefaults sq3 = studioDefaultsForGame("sq3");
+		TS_ASSERT_EQUALS(sq3.picId, 2);
+		TS_ASSERT_EQUALS(sq3.viewId, 12);
+		TS_ASSERT_EQUALS(sq3.loopNo, 1);
+		TS_ASSERT_EQUALS(sq3.celNo, 0);
+		TS_ASSERT_EQUALS(sq3.celX, 160);
+		TS_ASSERT_EQUALS(sq3.celY, 150);
+		StudioDefaults other = studioDefaultsForGame("qfg1");
+		TS_ASSERT_EQUALS(other.picId, -1);
+		TS_ASSERT_EQUALS(other.viewId, -1);
+		TS_ASSERT_EQUALS(other.celX, 160);
+		TS_ASSERT_EQUALS(other.celY, 150);
+	}
+
+	void test_pass_list_ops() {
+		Common::Array<int> p; // empty
+		int sel = -1;
+		passInsertAfter(p, sel, 2);          // [f], sel 0
+		TS_ASSERT_EQUALS(p.size(), 1u);
+		TS_ASSERT_EQUALS(sel, 0);
+		passInsertAfter(p, sel, 1);          // [f l], sel 1
+		passInsertAfter(p, sel, 0);          // [f l a], sel 2
+		TS_ASSERT_EQUALS(p[0], 2); TS_ASSERT_EQUALS(p[1], 1); TS_ASSERT_EQUALS(p[2], 0);
+		sel = 0;
+		passInsertAfter(p, sel, 2);          // [f f l a], sel 1
+		TS_ASSERT_EQUALS(sel, 1);
+		TS_ASSERT_EQUALS(p[1], 2);
+		TS_ASSERT(passMove(p, sel, +1));     // [f l f a], sel 2
+		TS_ASSERT_EQUALS(sel, 2);
+		TS_ASSERT_EQUALS(p[2], 2);
+		TS_ASSERT(!passMove(p, sel, +2));    // invalid dir -> no-op? dir is -1/+1 only; +2 out of contract
+		sel = (int)p.size() - 1;
+		TS_ASSERT(!passMove(p, sel, +1));    // at right end -> false
+		passRemoveAt(p, sel);                // remove last, sel pulls back
+		TS_ASSERT_EQUALS(p.size(), 3u);
+		TS_ASSERT_EQUALS(sel, 2);
+		sel = 5;                             // out of range -> no-op
+		passRemoveAt(p, sel);
+		TS_ASSERT_EQUALS(p.size(), 3u);
+		sel = 0;
+		passRemoveAt(p, sel); passRemoveAt(p, sel); passRemoveAt(p, sel);
+		TS_ASSERT(p.empty());
+		TS_ASSERT_EQUALS(sel, -1);           // empty list -> no selection
+	}
+
+	void test_v2_export_names() {
+		TS_ASSERT_EQUALS(studioSceneExportName(2, 'A', "default-ffflffaaaa"),
+		                 Common::String("studio-scene002-A-default-ffflffaaaa.png"));
+		TS_ASSERT_EQUALS(studioCompareExportName(2, false, "default", "mvl3"),
+		                 Common::String("studio-scene002-AB-default-vs-mvl3.png"));
+		TS_ASSERT_EQUALS(studioCompareExportName(2, true, "default", "nref"),
+		                 Common::String("studio-scene002-diff-default-vs-nref.png"));
+	}
 };

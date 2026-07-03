@@ -141,5 +141,54 @@ Common::String studioExportName(const char *kind, int id, const Common::String &
 	return Common::String::format("studio-%s%03d-%s.png", kind, id, detail.c_str());
 }
 
+StudioDefaults studioDefaultsForGame(const Common::String &gameId) {
+	StudioDefaults d = { -1, -1, 0, 0, 160, 150 };
+	if (gameId == "sq3") {
+		d.picId = 2; d.viewId = 12; d.loopNo = 1; d.celNo = 0;
+	}
+	return d;
+}
+
+void passInsertAfter(Common::Array<int> &passes, int &selected, int passVal) {
+	int at = (selected < 0 || selected >= (int)passes.size())
+	         ? (int)passes.size() : selected + 1;
+	passes.insert_at(at, passVal);
+	selected = at;
+}
+
+void passRemoveAt(Common::Array<int> &passes, int &selected) {
+	if (selected < 0 || selected >= (int)passes.size())
+		return;
+	passes.remove_at(selected);
+	if (passes.empty())
+		selected = -1;
+	else if (selected >= (int)passes.size())
+		selected = (int)passes.size() - 1;
+}
+
+bool passMove(Common::Array<int> &passes, int &selected, int dir) {
+	if (dir != -1 && dir != 1)
+		return false;
+	if (selected < 0 || selected >= (int)passes.size())
+		return false;
+	const int to = selected + dir;
+	if (to < 0 || to >= (int)passes.size())
+		return false;
+	SWAP(passes[selected], passes[to]);
+	selected = to;
+	return true;
+}
+
+Common::String studioSceneExportName(int picId, char slot, const Common::String &detail) {
+	return Common::String::format("studio-scene%03d-%c-%s.png", picId, slot, detail.c_str());
+}
+
+Common::String studioCompareExportName(int picId, bool diff,
+                                       const Common::String &stampA,
+                                       const Common::String &stampB) {
+	return Common::String::format("studio-scene%03d-%s-%s-vs-%s.png",
+		picId, diff ? "diff" : "AB", stampA.c_str(), stampB.c_str());
+}
+
 } // namespace Roger
 } // namespace Sci
