@@ -26,6 +26,7 @@
 
 #include "common/str.h"
 #include "common/array.h"
+#include "sci/roger/roger_omyac.h"
 #include "sci/roger/roger_scale.h"
 
 namespace Graphics { struct Surface; }
@@ -95,6 +96,26 @@ public:
 	GenMode mode() const { return _mode; }
 	void setMode(GenMode m) { _mode = m; }
 
+	// Studio tuning support. Non-default params force kGenMemory: params are
+	// NOT part of the cache key, so caching a tuned render would poison the
+	// content-hash cache for normal launches.
+	void setOmyacParams(const OmyacParams &p) {
+		_omyacParams = p;
+		if (!p.isDefault() && _mode != kGenMemory)
+			_mode = kGenMemory;
+	}
+	const OmyacParams &omyacParams() const { return _omyacParams; }
+
+	// De-undithered native cel pixels as an IndexImage (pre-upscale). False on
+	// any failure. Extracted from generateViewCel so the studio can feed the
+	// SAME source pixels through alternative scaler variants.
+	bool nativeCelIndexImage(int viewId, int loopNo, int celNo,
+	                         IndexImage &out, byte &outClearKey);
+
+	// Palette-map an IndexImage to a new RGBA32 surface (caller owns; ->free()
+	// then delete). clearKey pixels get alpha 0. Extracted generateViewCel tail.
+	Graphics::Surface *surfaceFromIndex(const IndexImage &img, byte clearKey);
+
 	/**
 	 * Generate (or load from cache) the omyac RGBA plate for pictureId.
 	 * Returns a new Graphics::Surface (caller owns: ->free() then delete) or
@@ -154,6 +175,7 @@ private:
 	Common::String _gameId;
 	Common::String _cacheDir;
 	Common::Array<int> _passes; // empty => use defaultPasses() at generation time
+	OmyacParams _omyacParams; // default-constructed == today's constants
 	// Shared tail for native-font glyph rendering: nearest-upscale 6x + palette->RGBA.
 	// `ck` is the transparent clear-key index. Caller owns.
 	Graphics::Surface *finishGlyphSurface(const IndexImage &idx, int penColor, byte ck);

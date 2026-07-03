@@ -212,7 +212,7 @@ Graphics::Surface *RogerAssetGen::generatePlateWithIndex(int id, Common::Array<b
 	// _passes is always concrete: provider sets defaultPasses() when config is unset,
 	// empty array when config is "" (wireframe). Never substitute defaultPasses() here.
 	const Common::Array<int> &passes = _passes;
-	OmyacResult omyac = renderOmyac(ref, passes);
+	OmyacResult omyac = renderOmyac(ref, passes, _omyacParams);
 
 	// Preserve the pre-blend doubled-nibble index map BEFORE blendToSurface
 	// consumes omyac.pixels. This is the color source for live palette re-apply.
@@ -265,7 +265,99 @@ bool RogerAssetGen::priorityBands(int picId, Common::Array<byte> &outBands, int 
 }
 
 // -------------------------------------------------------------------------
-// generateViewCel
+// nativeCelIndexImage — de-undithered native cel as IndexImage (pre-upscale).
+// No cache logic; pure extraction. Returns false on any failure.
+// -------------------------------------------------------------------------
+
+bool RogerAssetGen::nativeCelIndexImage(int viewId, int loopNo, int celNo,
+                                        IndexImage &out, byte &outClearKey) {
+	if (viewId < 0)
+		return false;
+#ifdef ENABLE_SCI
+	if (!g_sci)
+		return false;
+	GfxCache *gfxCache = g_sci->_gfxCache;
+	if (!gfxCache)
+		return false;
+	GfxView *view = gfxCache->getView((GuiResourceId)viewId);
+	if (!view)
+		return false;
+	const CelInfo *celInfo = view->getCelInfo((int16)loopNo, (int16)celNo);
+	if (!celInfo)
+		return false;
+	int w = celInfo->width;
+	int h = celInfo->height;
+	if (w <= 0 || h <= 0)
+		return false;
+	const SciSpan<const byte> &bmp = view->getBitmap((int16)loopNo, (int16)celNo);
+	if (bmp.size() < (uint)(w * h))
+		return false;
+	out.w = w;
+	out.h = h;
+	out.pixels.resize((uint32)(w * h), celInfo->clearKey);
+	outClearKey = celInfo->clearKey;
+	for (int row = 0; row < h; ++row)
+		for (int col = 0; col < w; ++col)
+			out.pixels[(uint32)(row * w + col)] =
+				egaDeUndither(bmp[row * w + col], col, row, celInfo->clearKey);
+	return true;
+#else
+	return false;
+#endif
+}
+
+// -------------------------------------------------------------------------
+// surfaceFromIndex — palette-map an IndexImage to a new RGBA32 surface.
+// clearKey pixels get alpha 0. Caller owns (->free() then delete).
+// -------------------------------------------------------------------------
+
+Graphics::Surface *RogerAssetGen::surfaceFromIndex(const IndexImage &img, byte clearKey) {
+#ifdef ENABLE_SCI
+	int sw = img.w;
+	int sh = img.h;
+	if (sw <= 0 || sh <= 0)
+		return nullptr;
+	if (!g_sci)
+		return nullptr;
+
+	// Same format as loadSurfaceRGBA / the compositor. NOTE: the PixelFormat ctor is
+	// (bpp, Rbits,Gbits,Bbits,Abits, Rshift,Gshift,Bshift,Ashift), so this is
+	// rShift=24,gShift=16,bShift=8,aShift=0 (in-memory 0xRRGGBBAA, alpha in the LOW
+	// byte). Pack via ARGBToColor so the channels land correctly regardless of layout
+	// — a hand-rolled (0xff<<24|r<<16|g<<8|b) pack put alpha in the wrong byte, which
+	// made every generated cel semi-transparent (washed-out pink/orange).
+	const Graphics::PixelFormat fmt(4, 8, 8, 8, 8, 24, 16, 8, 0);
+	Graphics::Surface *surf = new Graphics::Surface();
+	surf->create((uint16)sw, (uint16)sh, fmt);
+	if (!surf->getPixels()) {
+		delete surf;
+		return nullptr;
+	}
+
+	const Palette &pal = g_sci->_gfxPalette16->_sysPalette;
+
+	for (int row = 0; row < sh; ++row) {
+		uint32 *dst = (uint32 *)surf->getBasePtr(0, row);
+		for (int col = 0; col < sw; ++col) {
+			byte idx_val = img.pixels[(uint32)(row * sw + col)];
+			if (idx_val == clearKey) {
+				dst[col] = fmt.ARGBToColor(0, 0, 0, 0); // fully transparent
+			} else {
+				const Color &c = pal.colors[idx_val];
+				dst[col] = fmt.ARGBToColor(255, c.r, c.g, c.b);
+			}
+		}
+	}
+
+	return surf;
+#else
+	(void)img; (void)clearKey;
+	return nullptr;
+#endif // ENABLE_SCI
+}
+
+// -------------------------------------------------------------------------
+// generateViewCel — delegates to nativeCelIndexImage + scale6x + surfaceFromIndex
 // -------------------------------------------------------------------------
 
 Graphics::Surface *RogerAssetGen::generateViewCel(int viewId, int loopNo, int celNo, uint32 &outMs) {
@@ -314,21 +406,11 @@ Graphics::Surface *RogerAssetGen::generateViewCel(int viewId, int loopNo, int ce
 			return cached;
 	}
 
-	// Build IndexImage from the native cel bitmap.
-	const SciSpan<const byte> &bmp = view->getBitmap((int16)loopNo, (int16)celNo);
-	if (bmp.size() < (uint)(w * h)) // need a full w*h row-major cel; else bail (Hard Constraint 6)
-		return nullptr;
-
+	// Extract de-undithered native cel pixels.
 	IndexImage idx;
-	idx.w = w;
-	idx.h = h;
-	idx.pixels.resize((uint32)(w * h), celInfo->clearKey);
-	const byte clearKeyIdx = celInfo->clearKey;
-	for (int row = 0; row < h; ++row) {
-		for (int col = 0; col < w; ++col) {
-			idx.pixels[(uint32)(row * w + col)] = egaDeUndither(bmp[row * w + col], col, row, clearKeyIdx);
-		}
-	}
+	byte clearKey;
+	if (!nativeCelIndexImage(viewId, loopNo, celNo, idx, clearKey))
+		return nullptr;
 
 	uint32 t0 = g_system->getMillis();
 	IndexImage scaled = scale6x(idx);
@@ -336,40 +418,9 @@ Graphics::Surface *RogerAssetGen::generateViewCel(int viewId, int loopNo, int ce
 	outMs = t1 - t0;
 
 	// Map indices through live palette to RGBA32.
-	int sw = scaled.w;
-	int sh = scaled.h;
-	if (sw <= 0 || sh <= 0)
+	Graphics::Surface *surf = surfaceFromIndex(scaled, clearKey);
+	if (!surf)
 		return nullptr;
-
-	// Same format as loadSurfaceRGBA / the compositor. NOTE: the PixelFormat ctor is
-	// (bpp, Rbits,Gbits,Bbits,Abits, Rshift,Gshift,Bshift,Ashift), so this is
-	// rShift=24,gShift=16,bShift=8,aShift=0 (in-memory 0xRRGGBBAA, alpha in the LOW
-	// byte). Pack via ARGBToColor so the channels land correctly regardless of layout
-	// — a hand-rolled (0xff<<24|r<<16|g<<8|b) pack put alpha in the wrong byte, which
-	// made every generated cel semi-transparent (washed-out pink/orange).
-	const Graphics::PixelFormat fmt(4, 8, 8, 8, 8, 24, 16, 8, 0);
-	Graphics::Surface *surf = new Graphics::Surface();
-	surf->create((uint16)sw, (uint16)sh, fmt);
-	if (!surf->getPixels()) {
-		delete surf;
-		return nullptr;
-	}
-
-	const Palette &pal = g_sci->_gfxPalette16->_sysPalette;
-	byte clearKey = celInfo->clearKey;
-
-	for (int row = 0; row < sh; ++row) {
-		uint32 *dst = (uint32 *)surf->getBasePtr(0, row);
-		for (int col = 0; col < sw; ++col) {
-			byte idx_val = scaled.pixels[(uint32)(row * sw + col)];
-			if (idx_val == clearKey) {
-				dst[col] = fmt.ARGBToColor(0, 0, 0, 0); // fully transparent
-			} else {
-				const Color &c = pal.colors[idx_val];
-				dst[col] = fmt.ARGBToColor(255, c.r, c.g, c.b);
-			}
-		}
-	}
 
 	if (_mode == kGenCache || _mode == kGenAlways) {
 		ensureCacheDir(_cacheDir);
@@ -468,7 +519,7 @@ bool RogerAssetGen::generatePriorityMap(int picId, Common::Array<byte> &outBands
 	NativeRef ref = nativePreRender(cmds, kDrawPriority);
 
 	// Same passes as the plate (the provider sets _passes once), so edges agree.
-	OmyacResult omyac = renderOmyac(ref, _passes);
+	OmyacResult omyac = renderOmyac(ref, _passes, _omyacParams);
 	Graphics::Surface *plate = blendToSurface(omyac.pixels, OMYAC_HYBRID_W, OMYAC_HYBRID_H);
 	if (!plate)
 		return false;
