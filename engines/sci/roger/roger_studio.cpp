@@ -81,7 +81,7 @@ void RogerStudio::rerender() {
 	switch (_mode) {
 	case kModePic:      renderPicMode(); break;
 	case kModeView:     renderViewMode(); break;
-	case kModeCombined: /* Task 8 */ _status = "combined mode: Task 8"; markDirty(); break;
+	case kModeCombined: renderCombinedMode(); break;
 	}
 }
 
@@ -181,6 +181,61 @@ void RogerStudio::renderViewMode() {
 	composed->copyFrom(grid.rawSurface());
 	setCurrent(composed, Common::String::format("view %d loop %d cel %d - variant grid",
 	                                            viewId, _loopNo, _celNo));
+}
+
+void RogerStudio::renderCombinedMode() {
+	_status.clear();
+	if (_picIds.empty() || _viewIds.empty()) {
+		_status = "need at least one pic and one view";
+		markDirty();
+		return;
+	}
+	// Combined only accepts factor-6 variants (the plate is 6x).
+	while (scalerVariantFactor(_variant) != 6)
+		_variant = (_variant + 1) % kScalerCount;
+
+	const int picId = _picIds[_picIdx];
+	_gen.setEnhancePasses(_passes);
+	_gen.setOmyacParams(_params);
+	uint32 ms = 0;
+	Graphics::Surface *plate = _gen.generatePlate(picId, ms);
+	_lastRenderMs = ms;
+	if (!plate) {
+		_status = Common::String::format("pic %d: generation FAILED", picId);
+		markDirty();
+		return;
+	}
+
+	const int viewId = _viewIds[_viewIdx];
+	IndexImage cel;
+	byte clearKey = 0;
+	Graphics::Surface *celSurf = nullptr;
+	if (_gen.nativeCelIndexImage(viewId, _loopNo, _celNo, cel, clearKey)) {
+		IndexImage scaled = applyScalerVariant(_variant, cel);
+		celSurf = _gen.surfaceFromIndex(scaled, clearKey);
+	}
+
+	Graphics::ManagedSurface composed(plate->w, plate->h, plate->format);
+	composed.blitFrom(*plate);
+	plate->free(); delete plate;
+	if (celSurf) {
+		// Cel origin: top-left at (x,y)*6 for judging purposes (edge quality against
+		// the plate, not game-exact anchoring). Alpha-aware blit so transparent pixels
+		// (clearKey -> a=0 from surfaceFromIndex) don't stomp the background.
+		composed.blendBlitFrom(*celSurf,
+			Common::Rect(0, 0, celSurf->w, celSurf->h),
+			Common::Rect(_spriteX * 6, _spriteY * 6,
+				_spriteX * 6 + celSurf->w, _spriteY * 6 + celSurf->h),
+			Graphics::FLIP_NONE);
+		celSurf->free(); delete celSurf;
+	} else {
+		_status = "cel render failed; showing plate only";
+	}
+
+	Graphics::Surface *out = new Graphics::Surface();
+	out->copyFrom(composed.rawSurface());
+	setCurrent(out, Common::String::format("pic %d + view %d l%d c%d @(%d,%d) %s",
+		picId, viewId, _loopNo, _celNo, _spriteX, _spriteY, scalerVariantName(_variant)));
 }
 
 void RogerStudio::exportCurrent() {
@@ -356,6 +411,30 @@ void RogerStudio::handleEvent(const Common::Event &ev) {
 		case Common::KEYCODE_END:  _loopNo = _loopNo + 1; _celNo = 0; rerender(); break; // clamped in render
 		case Common::KEYCODE_COMMA:  _celNo = MAX(0, _celNo - 1); rerender(); break;
 		case Common::KEYCODE_PERIOD: _celNo = _celNo + 1; rerender(); break; // clamped in render
+		default: break;
+		}
+	}
+
+	// Combined-mode keys: arrows move cel, V cycles 6x variant, PgUp/PgDn browse pics.
+	if (_mode == kModeCombined) {
+		const int d = (ev.kbd.flags & Common::KBD_SHIFT) ? 10 : 1;
+		switch (ev.kbd.keycode) {
+		case Common::KEYCODE_LEFT:  _spriteX = MAX(0, _spriteX - d); rerender(); break;
+		case Common::KEYCODE_RIGHT: _spriteX = MIN(319, _spriteX + d); rerender(); break;
+		case Common::KEYCODE_UP:    _spriteY = MAX(0, _spriteY - d); rerender(); break;
+		case Common::KEYCODE_DOWN:  _spriteY = MIN(189, _spriteY + d); rerender(); break;
+		case Common::KEYCODE_v:
+			do { _variant = (_variant + 1) % kScalerCount; }
+			while (scalerVariantFactor(_variant) != 6);
+			rerender(); break;
+		case Common::KEYCODE_PAGEUP:
+			if (_picIds.empty()) break;
+			_picIdx = (_picIdx + (int)_picIds.size() - 1) % (int)_picIds.size();
+			rerender(); break;
+		case Common::KEYCODE_PAGEDOWN:
+			if (_picIds.empty()) break;
+			_picIdx = (_picIdx + 1) % (int)_picIds.size();
+			rerender(); break;
 		default: break;
 		}
 	}
@@ -558,6 +637,13 @@ void RogerStudio::drawHud() {
 		y += lh;
 	}
 
+	if (_mode == kModeCombined) {
+		font->drawString(&small, Common::String::format(
+			"cel @(%d,%d) variant %s   arrows move (Shift x10)  V variant  PgUp/PgDn pic",
+			_spriteX, _spriteY, scalerVariantName(_variant)), 4, y, smallW - 8, fg);
+		y += lh;
+	}
+
 	if (_showKeymap) {
 		// Full keymap block (kept current as later tasks add keys).
 		static const char *KEYS[] = {
@@ -566,7 +652,7 @@ void RogerStudio::drawHud() {
 			"Pic:    PgUp/PgDn pic | Up/Dn param | Lt/Rt adjust | [ ] pass cursor",
 			"        f/l insert pass, Shift+A insert all | Del remove | Shift+9/0 reorder | R reset",
 			"View:   PgUp/PgDn view | Home/End loop | ,/. cel",
-			"Combined: V variant (6x only) | arrows move cel (Shift x10)",
+			"Combined: V variant (6x only) | arrows move cel (Shift x10) | PgUp/PgDn pic",
 		};
 		for (uint i = 0; i < ARRAYSIZE(KEYS); i++) {
 			font->drawString(&small, KEYS[i], 4, y, smallW - 8, fg);
