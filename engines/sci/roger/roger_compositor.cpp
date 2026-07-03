@@ -675,6 +675,13 @@ void RogerCompositor::presentToOverlay(Graphics::ManagedSurface &scene) {
 	if (_diag)
 		warning("ROGER-DIAG[present]: full=%d regions=%u", full ? 1 : 0, (unsigned)push.size());
 
+	if (_presentLog) {
+		uint32 area = 0;
+		for (uint i = 0; i < push.size(); i++)
+			area += (uint32)push[i].width() * (uint32)push[i].height();
+		warning("ROGER-PRESENT full=%d regions=%u area=%u", full ? 1 : 0, (unsigned)push.size(), area);
+	}
+
 	g_system->showOverlay(false);
 }
 

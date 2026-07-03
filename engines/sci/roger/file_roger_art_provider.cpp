@@ -455,6 +455,7 @@ void FileRogerArtProvider::pushHiresBackground(GuiResourceId pictureId) {
 		dirtyPresent = ConfMan.getBool("roger_dirty_present");
 	_compositor->setDirtyPresent(dirtyPresent);
 	_compositor->setDiag(_diag);
+	_compositor->setPresentLog(_cycleLog);
 	_compositor->setRoom(_plate, _viewCache);
 
 	// Derive the per-pixel overlay occlusion in-engine from the omyac-enhanced HIRES
