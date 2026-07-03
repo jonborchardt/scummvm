@@ -2,6 +2,8 @@
 
 First read CLAUDE.md, especially the "Stage 3: Fork structure & upstreaming" section — it is authoritative and overrides any framing in this prompt that conflicts with it.
 
+Prompt 0 (0-conform-code-to-scummvm-guidelines.md) should already have run: the fork diff is expected to conform to the ScummVM guidelines (local copies in docs/scumm/). Assume style/convention conformance is done — spot-check rather than redo it, and if you notice drift, flag it in the audit report instead of fixing it inline (style fixes must never mix with this pass's structural changes).
+
 I have an existing local ScummVM clone with many local commits on my current branch. The code currently works, but the project needs to be cleaned up so it supports two goals:
 
 Primary goal: deploy my Roger display-layer provider in a downstream ScummVM fork.
@@ -111,7 +113,7 @@ Keep game content licensing separate from engine code licensing.
 
 Do not rewrite history destructively in this pass unless I explicitly approve it. Instead:
 
-Produce a proposed commit slicing plan in docs/roger/PR\_PLAN.md.
+Produce a proposed commit slicing plan in docs/roger/PR\_PLAN.md. Slices must satisfy docs/scumm/commit-guidelines.md (every commit compiles, no mixed concerns, no style+functional mixing, `SUBSYSTEM:` message format) — note this in the plan so Prompt 2 inherits it.
 
 Identify candidate upstream PRs:
 

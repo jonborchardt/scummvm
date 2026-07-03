@@ -2,6 +2,8 @@
 
 First read CLAUDE.md, especially the "Stage 3: Fork structure & upstreaming" section — it is authoritative and overrides any framing in this prompt that conflicts with it. Roger is a display-layer provider inside the existing SCI engine, not a new engine.
 
+Also read the local ScummVM guideline copies in docs/scumm/ (code-formatting-conventions.md, coding-conventions.md, commit-guidelines.md). Prompts 0 and 1 should already have run: the code conforms to those guidelines and the structure audit is done, so the slices below should need NO style fixes. If you find style drift while slicing, put it in its own separate style-only commit — never mixed into a functional slice.
+
 I have a working but messy branch of ScummVM changes. The code works, but the commit history is not reviewable. I do not want to cherry-pick old commits directly because they contain mixed concerns.
 
 Help me manufacture a clean upstreamable branch from the final working diff.
@@ -59,6 +61,8 @@ For each proposed commit:
 * explain why this commit is coherent  
 * run the relevant build/test command if available (build\_tests.ps1 for unit tests; build\_and\_run.ps1 \-Script \<file.rin\> for smoke — this is a Windows/MSVC environment, not configure/make)  
 * wait for my approval before committing
+
+Commit messages on the clean branch must follow docs/scumm/commit-guidelines.md: first line `SUBSYSTEM: Short summary` (≤50 chars, present tense — `SCI:` or `SCI: ROGER:` for the seam/provider work, `GUI`/`ALL` as appropriate for the input driver), blank line, body wrapped at ~72 chars, message meaningful without the diff. Every commit must compile (bisectability), no merge commits, and the Claude-attribution footer used on the deploy branch must NOT appear on upstream-facing commits.
 
   ## **Suggested commit slices**
 
