@@ -19,6 +19,7 @@ There are no modes. The studio shows a single game-like scene: the enhanced plat
 
 ```
 Slot = { OmyacParams params; Common::Array<int> passes; int variant /* factor-6 only */;
+         PlateMode plateMode /* kPlateOmyac | kPlateNearestRef */;
          Graphics::Surface *render /* cached */; bool stale; }
 ```
 
@@ -26,10 +27,18 @@ The **scene state is shared** between slots — pic id, view id, loop, cel, cel 
 
 ### Judging
 
-- `[A] [B]` **edit tab**: selects which slot the settings panel edits. The param rows, pass chips, and variant button always reflect the active edit slot.
-- **Display buttons:** `Show A` | `Show B` | `Split A|B` (A left half, B right half, same zoom/pan, slot letter + stamp label drawn on each side). Toggling Show A / Show B in place is the blink-comparison ("flip").
+- `[A] [B]` **edit tab**: selects which slot the settings panel edits. The param rows, pass chips, variant button, and plate-mode toggle always reflect the active edit slot.
+- **Display buttons:** `Show A` | `Show B` | `Split A|B` (A left half, B right half, same zoom/pan, slot letter + stamp label drawn on each side) | `Diff` (see Shift diagnosis). Toggling Show A / Show B in place is the blink-comparison ("flip").
 - **`Copy A→B`** seeds B's settings from A (branch off a good baseline). This replaces v1's Pin; `_baseline`/`_previous`/`[PREV]` and the pin concept are removed.
-- **Export PNG** writes what is displayed. Single view: `studio-scene<pic#>-<slot>-<paramStamp>-<passStamp>.png`. Split: one side-by-side image, `studio-scene<pic#>-AB-<stampA>-vs-<stampB>.png`. Same sanitization rules as v1 (keep alnum + `-`, else `_`); files go to `screenshotpath` as before.
+- **Export PNG** writes what is displayed. Single view: `studio-scene<pic#>-<slot>-<paramStamp>-<passStamp>.png`. Split: one side-by-side image, `studio-scene<pic#>-AB-<stampA>-vs-<stampB>.png`. Diff: `studio-scene<pic#>-diff-<stampA>-vs-<stampB>.png`. Same sanitization rules as v1 (keep alnum + `-`, else `_`); files go to `screenshotpath` as before.
+
+### Shift diagnosis (rounding-error drift, omyac and scale6x)
+
+Diagnostic only — deliberately **no** shift-correction knob. Three tools, all built on the A/B machinery:
+
+1. **Reference plate mode.** Each slot's plate source is `omyac` (the pipeline) or `nearest ref` — the native 320×190 pic visual buffer upscaled nearest ×6, which is geometrically exact by construction (every native pixel maps to exactly one 6×6 block; no rounding possible). A = omyac vs B = nearest ref is the definitive plate-shift test. The cel-side equivalent already exists: variant `nearest6` vs `scale6x` on the same position.
+2. **`Diff` display.** Per-pixel |A−B| rendered white-on-black at the shared zoom/pan. Symmetric halos around edges = quality difference; **one-sided bands** (e.g. all right edges lit) = content displaced in that direction. Exposes edge-type-selective shifts that a global estimate averages away.
+3. **Automatic offset readout.** While Diff is displayed, cross-correlate A against B over a ±3 overlay-px window (SAD, 49 evaluations) and print the best-alignment offset in the status line: `best align: dx=+1 dy=0 overlay px (1/6 native)`. `dx=0 dy=0` across several pics = no global shift; a consistent nonzero = confirmed drift with direction and magnitude. Computed once per Diff render (debug tool; cost irrelevant).
 
 ### Defaults
 
@@ -57,8 +66,8 @@ Buttons are the UI. Only two keys survive, undocumented in the UI, purely for th
 
 A bottom panel (full overlay width; height set in the plan, ~500 px at 2862×1986 — panel text keeps the v1 render-small-then-2x-blit approach). Sections, left to right / top to bottom:
 
-1. **Scene row:** `pic ◀ 002 ▶` · `view ◀ 012 ▶` · `loop ◀ 1 ▶` · `cel ◀ 0 ▶` · `variant: [scale6x]` (click cycles the five factor-6 variants; 4x/8x helpers remain in code/tests but get no button) · `show view [on]` · `Fit`
-2. **Edit tab + judge row:** `edit: [A] [B]` · `Show A` `Show B` `Split` · `Copy A→B` · `Export PNG` · render-ms readout · one-line status.
+1. **Scene row:** `pic ◀ 002 ▶` · `view ◀ 012 ▶` · `loop ◀ 1 ▶` · `cel ◀ 0 ▶` · `variant: [scale6x]` (click cycles the five factor-6 variants; 4x/8x helpers remain in code/tests but get no button) · `plate: [omyac]/[nearest ref]` (active slot) · `show view [on]` · `Fit`
+2. **Edit tab + judge row:** `edit: [A] [B]` · `Show A` `Show B` `Split` `Diff` · `Copy A→B` · `Export PNG` · render-ms readout · one-line status (carries the Diff offset readout when Diff is shown).
 3. **Params (active slot):** one row per registry entry: `minVotesLine   [−] 1 [+]`; bool params render as a single `[on]/[off]` toggle. Every change re-renders the active slot.
 4. **Pass chips (active slot):** `[f ×] [f ×] [l ×] …` — click a chip to select it, click its `×` to delete it, `◀ ▶` move the selected chip, `+f` `+l` `+a` append, `Reset` restores `defaultPasses()`. Empty strip shows `(none — wireframe)`.
 
@@ -68,7 +77,7 @@ Numeric ids in the browse spinners wrap around, exactly like v1's PgUp/PgDn, wit
 
 | Unit | Kind | Responsibility |
 |------|------|----------------|
-| `roger_studio_render.h/.cpp` (extend) | SCI-free, unit-tested | **Panel layout + hit-testing**: given panel rect + a plain state snapshot (param count/values, pass list, active slot, toggles), produce a flat list of `{Common::Rect rect; uint32 id; label; state}` widgets; `hitTest(widgets, x, y) → id`. Widget ids encode kind + index (e.g. `kWidParamMinus | paramIdx`, `kWidChip | chipIdx`) so one dispatch switch handles parameterized rows. Also: the v2 export-name builders and the per-game defaults table (`studioDefaultsForGame(gameId)`). |
+| `roger_studio_render.h/.cpp` (extend) | SCI-free, unit-tested | **Panel layout + hit-testing**: given panel rect + a plain state snapshot (param count/values, pass list, active slot, toggles), produce a flat list of `{Common::Rect rect; uint32 id; label; state}` widgets; `hitTest(widgets, x, y) → id`. Widget ids encode kind + index (e.g. `kWidParamMinus | paramIdx`, `kWidChip | chipIdx`) so one dispatch switch handles parameterized rows. Also: the v2 export-name builders, the per-game defaults table (`studioDefaultsForGame(gameId)`), and the diff/shift helpers — pixel |A−B| diff into a target buffer and the SAD best-offset estimator — as pure functions over raw RGBA buffers. |
 | `roger_studio.h/.cpp` (rework) | engine | Owns the two slots + shared scene state; event loop (mouse-first); calls the layout helper each frame, draws widgets from its output (hover highlight from mouse position), dispatches clicks by widget id; `renderSlot()` composes plate + cel via the existing Task-3 plumbing (`generatePlate`, `nativeCelIndexImage`, `applyScalerVariant`, `surfaceFromIndex`, `blendBlitFrom`); display composition (single / split); click-to-place / drag / zoom / pan; export. |
 | everything else | — | unchanged (asset gen, omyac params, sci.cpp hook, build scripts). |
 
@@ -88,7 +97,8 @@ The three-mode enum + dispatchers, `renderViewMode()`'s variant grid, the shared
 
 ## Testing
 
-- **Unit (CxxTest):** layout produces non-overlapping widgets inside the panel rect; id encoding round-trips; hit-test hits the right widget and misses gaps; spinner wrap math; defaults table (sq3 → 2/12/1/0, unknown game → fallback); export-name builders incl. split naming; pass-chip edit operations expressed as pure list ops if factored that way.
+- **Unit (CxxTest):** layout produces non-overlapping widgets inside the panel rect; id encoding round-trips; hit-test hits the right widget and misses gaps; spinner wrap math; defaults table (sq3 → 2/12/1/0, unknown game → fallback); export-name builders incl. split/diff naming; pass-chip edit operations expressed as pure list ops if factored that way.
+- **Shift-regression lock (CxxTest):** feed symmetric synthetic fixtures through `scale6x` and through the default omyac pipeline and assert the output centroid stays centered within the 6× cell (no systematic dx/dy bias). Also lock the SAD offset-estimator helper itself: identical inputs → (0,0); an input deliberately shifted by +1 px → (+1,0). These make any future rounding-error drift a test failure, not a manual diagnosis.
 - **Autonomous smoke (`.rin`):** update `studio-smoke.rin` — wait for boot, `key e` (exports the default SQ3 scene: pic 2 plate + view 12 cel composited), wait, `key esc`, quit. Run on SQ3 (`-Game sq3` implicit default) since defaults are SQ3-specific; assert exit-on-own + PNG exists.
 - **Manual drive-through (user):** click-place/drag the cel; tune params on A, `Copy A→B`, diverge B, blink Show A/Show B, Split, export both ways.
 
