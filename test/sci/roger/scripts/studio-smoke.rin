@@ -1,10 +1,7 @@
-# Roger Studio loop smoke: the studio polls backend events, so the .rin driver
-# reaches it. Waits for the loop to draw, toggles the keymap, quits via Esc.
-wait 3000
-key f1
-wait 500
-key f1
-wait 500
+# Roger Studio v2 smoke: SQ3 defaults render (pic 2 + view 12 cel on it),
+# export via the automation E key, quit via Esc. No -Game flag: SQ3 is the
+# harness default and the studio defaults under test are SQ3's.
+wait 3500
 key e
 wait 800
 key esc

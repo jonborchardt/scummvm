@@ -64,6 +64,8 @@ private:
 	// Frame / input
 	void handleEvent(const Common::Event &ev);
 	void drawFrame();                // compose scene area + panel into _display, push
+	// Scaled+panned blit of one render into a scene sub-area (Split/Diff/single share it).
+	void blitRender(const Graphics::Surface &render, const Common::Rect &subArea, bool trackCel);
 	void drawPanel();                // Task 6
 	void dispatchWidget(uint32 id);  // Task 6
 	void markDirty() { _dirty = true; }
@@ -75,14 +77,16 @@ private:
 	void invalidateScene() {
 		_slots[0].stale = _slots[0].plateStale = true;
 		_slots[1].stale = _slots[1].plateStale = true;
+		_diffStale = true;
 		markDirty();
 	}
-	void invalidateActive() { activeSlot().stale = activeSlot().plateStale = true; markDirty(); }
+	void invalidateActive() { activeSlot().stale = activeSlot().plateStale = true; _diffStale = true; markDirty(); }
 	// Cel-only invalidation: plate is unchanged, so recomposite the cel over the
 	// cached plate (loop/cel/view/showView/place/drag).
-	void invalidateCelOnly() { _slots[0].stale = _slots[1].stale = true; markDirty(); }
+	void invalidateCelOnly() { _slots[0].stale = _slots[1].stale = true; _diffStale = true; markDirty(); }
 	void ensureFresh(Slot &slot) { if (slot.stale) renderSlot(slot); }
 	Common::String slotStamp(const Slot &slot) const; // "default-ffflffaaaa-6x[-nref]"
+	void ensureDiff();               // Task 8: (re)build _diffSurf + SAD readout when stale
 	void exportShown();              // Task 8 extends for split/diff
 
 	// Scene-area geometry (Task 7 fills the interaction)
@@ -126,6 +130,10 @@ private:
 
 	Common::String _status;
 	Common::String _offsetReadout;   // Task 8: SAD readout line (Diff only)
+
+	// Task 8: cached diff map (A vs B), rebuilt only when a slot changes.
+	Graphics::Surface *_diffSurf = nullptr; // 1920x1140 RGBA white-on-black diff
+	bool _diffStale = true;
 };
 
 } // namespace Roger

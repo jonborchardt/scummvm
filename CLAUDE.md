@@ -59,9 +59,13 @@ game's `screenshotpath` as `roger-<pic>-<label>-{overlay,preview}.png`; the run 
 `screenshots/roger-run.log` (grep `ROGER-SCRIPT` / `ROGER-CYCLE`).
 
 `-Studio` launches the **Roger Studio** tuning environment instead of a game
-(`ROGER_STUDIO=1`, per-launch): an interactive omyac-parameter tuner + view-scaler
-comparator on the raw overlay. Esc quits. Debug-only; it never touches the
-generation disk cache. Spec: `docs/superpowers/specs/2026-07-02-roger-studio-design.md`.
+(`ROGER_STUDIO=1`, per-launch): a mouse-driven, single-scene tuner — the enhanced
+plate with a view cel composited on it game-style (SQ3 defaults: pic 2, view 12
+loop 1), two live A/B setting slots (params + passes + scaler variant + plate
+mode each), Split and Diff comparison views with an automatic alignment readout,
+click-to-place/drag cel, and stamped PNG export. Fully button-driven; Esc quits
+and E exports (automation-only keys). Debug-only; never touches the generation
+disk cache. Spec: `docs/superpowers/specs/2026-07-02-roger-studio-v2-ui-design.md`.
 
 Grammar
 (full reference in `engines/sci/roger/roger_input.h` and `docs/roger.md`):

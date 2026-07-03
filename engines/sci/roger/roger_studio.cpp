@@ -39,6 +39,16 @@
 namespace Sci {
 namespace Roger {
 
+// Sanitize an export stamp: keep [a-z0-9-], map everything else to '_'.
+static Common::String sanitize(const Common::String &detail) {
+	Common::String safe;
+	for (uint i = 0; i < detail.size(); i++) {
+		const char c = detail[i];
+		safe += (Common::isAlnum(c) || c == '-') ? c : '_';
+	}
+	return safe;
+}
+
 RogerStudio::RogerStudio(const Common::String &gameId)
 	: _gen(gameId, "", kGenMemory) {
 	_slots[0].passes = defaultPasses();
@@ -72,6 +82,7 @@ RogerStudio::~RogerStudio() {
 		if (_slots[i].render) { _slots[i].render->free(); delete _slots[i].render; }
 		if (_slots[i].plateCache) { _slots[i].plateCache->free(); delete _slots[i].plateCache; }
 	}
+	if (_diffSurf) { _diffSurf->free(); delete _diffSurf; }
 }
 
 void RogerStudio::renderSlot(Slot &slot) {
@@ -300,47 +311,109 @@ void RogerStudio::handleEvent(const Common::Event &ev) {
 	}
 }
 
+// Blit one render into a sub-area of the scene, scaled by _viewScale and panned
+// by (_panX,_panY). Reuses v1's split-blit src/dst mapping math. If `trackCel`,
+// records _celScreenRect for hover/drag hit-testing.
+void RogerStudio::blitRender(const Graphics::Surface &render, const Common::Rect &subArea,
+                            bool trackCel) {
+	const float scale = _viewScale;
+	Common::Rect dst(subArea.left + _panX, subArea.top + _panY,
+	                 subArea.left + _panX + (int)(render.w * scale),
+	                 subArea.top + _panY + (int)(render.h * scale));
+	dst.clip(subArea);
+	if (!dst.isEmpty()) {
+		Common::Rect src((int)((dst.left - subArea.left - _panX) / scale),
+		                 (int)((dst.top - subArea.top - _panY) / scale),
+		                 (int)((dst.right - subArea.left - _panX) / scale),
+		                 (int)((dst.bottom - subArea.top - _panY) / scale));
+		src.clip(Common::Rect(render.w, render.h));
+		if (!src.isEmpty())
+			_display->blitFrom(render, src, dst);
+	}
+	if (trackCel && _showView && _celW > 0 && _celH > 0) {
+		// Bottom-centre anchor at (_celX*6, _celY*6) plate space; cel spans _celW x _celH.
+		const int px = _celX * 6 - _celW / 2;
+		const int py = _celY * 6 - _celH;
+		const int dl = subArea.left + _panX + (int)(px * scale);
+		const int dt = subArea.top + _panY + (int)(py * scale);
+		const int dr = subArea.left + _panX + (int)((px + _celW) * scale);
+		const int db = subArea.top + _panY + (int)((py + _celH) * scale);
+		_celScreenRect = Common::Rect(dl, dt, dr, db);
+	}
+}
+
+void RogerStudio::ensureDiff() {
+	Slot &a = _slots[0], &b = _slots[1];
+	ensureFresh(a); ensureFresh(b);
+	if (!a.render || !b.render) {
+		_status = "diff: a slot render is missing";
+		return;
+	}
+	if (a.render->w != b.render->w || a.render->h != b.render->h) {
+		_status = "diff: slot renders differ in size";
+		return;
+	}
+	if (!_diffStale && _diffSurf)
+		return;
+
+	const int w = a.render->w, h = a.render->h;
+	if (!_diffSurf || _diffSurf->w != w || _diffSurf->h != h) {
+		if (_diffSurf) { _diffSurf->free(); delete _diffSurf; }
+		_diffSurf = new Graphics::Surface();
+		_diffSurf->create(w, h, a.render->format);
+	}
+	diffMapRGBA((const byte *)a.render->getPixels(), (const byte *)b.render->getPixels(),
+	            w, h, (byte *)_diffSurf->getPixels());
+	int dx = 0, dy = 0;
+	estimateOffsetSAD((const byte *)a.render->getPixels(), (const byte *)b.render->getPixels(),
+	                  w, h, 3, dx, dy);
+	_offsetReadout = Common::String::format("best align: dx=%+d dy=%+d overlay px (1/6 native)", dx, dy);
+	// Evidence line (run log): only emitted when the diff is actually rebuilt.
+	debug("ROGER-STUDIO diff offset dx=%d dy=%d", dx, dy);
+	_diffStale = false;
+}
+
 void RogerStudio::drawFrame() {
 	const Graphics::PixelFormat fmt = _display->format;
 	_display->fillRect(Common::Rect(_display->w, _display->h),
 	                   fmt.RGBToColor(48, 48, 48));
 
-	// Split/Diff are treated as A until Task 8 fills them in.
-	Slot &slot = (_displayMode == kShowB) ? _slots[1] : _slots[0];
-	ensureFresh(slot);
-
 	const Common::Rect area = sceneArea();
 	_celScreenRect = Common::Rect();
-	if (slot.render) {
-		const float scale = _viewScale;
-		// Destination rect of the (scaled, panned) plate within the scene area;
-		// blitFrom scales + converts. (v1 drawFrame src/dst mapping math.)
-		Common::Rect dst(area.left + _panX, area.top + _panY,
-		                 area.left + _panX + (int)(slot.render->w * scale),
-		                 area.top + _panY + (int)(slot.render->h * scale));
-		dst.clip(area);
-		if (!dst.isEmpty()) {
-			Common::Rect src((int)((dst.left - area.left - _panX) / scale),
-			                 (int)((dst.top - area.top - _panY) / scale),
-			                 (int)((dst.right - area.left - _panX) / scale),
-			                 (int)((dst.bottom - area.top - _panY) / scale));
-			src.clip(Common::Rect(slot.render->w, slot.render->h));
-			if (!src.isEmpty())
-				_display->blitFrom(*slot.render, src, dst);
-		}
 
-		// Record the last-drawn cel rect in _display coords (for hover/drag/debug).
-		// Bottom-centre anchor at (_celX*6, _celY*6) in plate space; cel spans
-		// _celW x _celH plate px. Map plate -> display via (_panX/_panY, scale).
-		if (_showView && _celW > 0 && _celH > 0) {
-			const int px = _celX * 6 - _celW / 2; // plate-space top-left
-			const int py = _celY * 6 - _celH;
-			const int dl = area.left + _panX + (int)(px * scale);
-			const int dt = area.top + _panY + (int)(py * scale);
-			const int dr = area.left + _panX + (int)((px + _celW) * scale);
-			const int db = area.top + _panY + (int)((py + _celH) * scale);
-			_celScreenRect = Common::Rect(dl, dt, dr, db);
+	if (_displayMode == kShowSplit) {
+		ensureFresh(_slots[0]); ensureFresh(_slots[1]);
+		const int halfW = area.width() / 2;
+		const Common::Rect leftArea(area.left, area.top, area.left + halfW, area.bottom);
+		const Common::Rect rightArea(area.left + halfW, area.top, area.right, area.bottom);
+		if (_slots[0].render)
+			blitRender(*_slots[0].render, leftArea, true);
+		if (_slots[1].render)
+			blitRender(*_slots[1].render, rightArea, false);
+		_display->vLine(area.left + halfW, area.top, area.bottom - 1, fmt.RGBToColor(255, 255, 255));
+		const Graphics::Font *lf = FontMan.getFontByUsage(Graphics::FontManager::kBigGUIFont);
+		if (lf) {
+			const uint32 white = fmt.RGBToColor(255, 255, 255);
+			lf->drawString(_display, Common::String("A ") + slotStamp(_slots[0]),
+			               leftArea.left + 4, area.top + 4, halfW - 8, white);
+			lf->drawString(_display, Common::String("B ") + slotStamp(_slots[1]),
+			               rightArea.left + 4, area.top + 4, halfW - 8, white);
 		}
+	} else if (_displayMode == kShowDiff) {
+		ensureDiff();
+		if (_diffSurf) {
+			blitRender(*_diffSurf, area, false);
+		} else {
+			// Diff unavailable: fall back to Show A behavior.
+			ensureFresh(_slots[0]);
+			if (_slots[0].render)
+				blitRender(*_slots[0].render, area, true);
+		}
+	} else {
+		Slot &slot = (_displayMode == kShowB) ? _slots[1] : _slots[0];
+		ensureFresh(slot);
+		if (slot.render)
+			blitRender(*slot.render, area, true);
 	}
 
 	drawPanel();
@@ -434,15 +507,16 @@ void RogerStudio::dispatchWidget(uint32 id) {
 	case kWidFit: fitView(); break;
 	case kWidTabA: _activeSlot = 0; _selectedChip = -1; markDirty(); break;
 	case kWidTabB: _activeSlot = 1; _selectedChip = -1; markDirty(); break;
-	case kWidShowA: _displayMode = kShowA; markDirty(); break;
-	case kWidShowB: _displayMode = kShowB; markDirty(); break;
-	case kWidSplit: _displayMode = kShowSplit; markDirty(); break;
+	case kWidShowA: _displayMode = kShowA; _offsetReadout.clear(); markDirty(); break;
+	case kWidShowB: _displayMode = kShowB; _offsetReadout.clear(); markDirty(); break;
+	case kWidSplit: _displayMode = kShowSplit; _offsetReadout.clear(); markDirty(); break;
 	case kWidDiff: _displayMode = kShowDiff; markDirty(); break;
 	case kWidCopyAB: {
 		Slot &b = _slots[1];
 		b.params = _slots[0].params; b.passes = _slots[0].passes;
 		b.variant = _slots[0].variant; b.plateMode = _slots[0].plateMode;
 		b.stale = b.plateStale = true; // settings differ -> plate genuinely changes
+		_diffStale = true;
 		_status = "copied A settings to B";
 		markDirty(); break;
 	}
@@ -470,16 +544,39 @@ void RogerStudio::dispatchWidget(uint32 id) {
 }
 
 void RogerStudio::exportShown() {
-	// Task 5 minimal version: export the shown slot (A or B; Split/Diff treated as A
-	// until Task 8). v1 exportCurrent's sanitize + screenshotpath/dir-fallback logic
-	// is preserved verbatim.
-	const char slotChar = (_displayMode == kShowB) ? 'B' : 'A';
-	Slot &slot = (_displayMode == kShowB) ? _slots[1] : _slots[0];
-	ensureFresh(slot);
-	if (!slot.render) {
-		_status = "nothing to export";
-		markDirty();
-		return;
+	const int picId = _picIds.empty() ? 0 : _picIds[_picIdx];
+	Common::String name;
+	Graphics::Surface *tmp = nullptr;        // composed export needing free
+	const Graphics::Surface *src = nullptr;
+	if (_displayMode == kShowSplit || _displayMode == kShowDiff) {
+		ensureFresh(_slots[0]); ensureFresh(_slots[1]);
+		if (!_slots[0].render || !_slots[1].render) { _status = "nothing to export"; markDirty(); return; }
+		const Common::String sa = sanitize(slotStamp(_slots[0]));
+		const Common::String sb = sanitize(slotStamp(_slots[1]));
+		if (_displayMode == kShowDiff) {
+			// Build the diff on demand (E key can reach export before it was displayed).
+			ensureDiff();
+			if (!_diffSurf) { _status = "nothing to export"; markDirty(); return; }
+			name = studioCompareExportName(picId, true, sa, sb);
+			src = _diffSurf;
+		} else {
+			// Full-res side-by-side compose (independent of window/zoom).
+			const Graphics::Surface *a = _slots[0].render, *b = _slots[1].render;
+			Graphics::ManagedSurface side(a->w + b->w, MAX(a->h, b->h), a->format);
+			side.blitFrom(*a, Common::Point(0, 0));
+			side.blitFrom(*b, Common::Point(a->w, 0));
+			tmp = new Graphics::Surface();
+			tmp->copyFrom(side.rawSurface());
+			name = studioCompareExportName(picId, false, sa, sb);
+			src = tmp;
+		}
+	} else {
+		Slot &s = _slots[_displayMode == kShowB ? 1 : 0];
+		ensureFresh(s);
+		if (!s.render) { _status = "nothing to export"; markDirty(); return; }
+		name = studioSceneExportName(picId, _displayMode == kShowB ? 'B' : 'A',
+		                             sanitize(slotStamp(s)));
+		src = s.render;
 	}
 
 	bool useDefault = false;
@@ -493,17 +590,8 @@ void RogerStudio::exportShown() {
 	if (!dir.empty() && dir.lastChar() != '/')
 		dir += '/';
 
-	// Sanitize: keep [a-z0-9-], map everything else to '_'.
-	const Common::String detail = slotStamp(slot);
-	Common::String safe;
-	for (uint i = 0; i < detail.size(); i++) {
-		const char c = detail[i];
-		safe += (Common::isAlnum(c) || c == '-') ? c : '_';
-	}
-	const int picId = _picIds.empty() ? 0 : _picIds[_picIdx];
-	const Common::String name = studioSceneExportName(picId, slotChar, safe);
 	const Common::String path = dir + name;
-	if (Roger::dumpSurfacePng(*slot.render, path)) {
+	if (Roger::dumpSurfacePng(*src, path)) {
 		if (useDefault)
 			_status = "exported " + dir + name;
 		else
@@ -511,6 +599,7 @@ void RogerStudio::exportShown() {
 	} else {
 		_status = "export FAILED: cannot open " + name;
 	}
+	if (tmp) { tmp->free(); delete tmp; }
 	markDirty();
 }
 
