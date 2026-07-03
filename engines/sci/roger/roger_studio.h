@@ -144,6 +144,8 @@ private:
 	// Task 8: cached diff map (A vs B), rebuilt only when a slot changes.
 	Graphics::Surface *_diffSurf = nullptr; // 1920x1140 RGBA white-on-black diff
 	bool _diffStale = true;
+
+	bool _hudFontWarned = false;    // warn once per studio session on missing HUD font
 };
 
 } // namespace Roger

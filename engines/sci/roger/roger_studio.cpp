@@ -525,9 +525,8 @@ void RogerStudio::drawCursor() {
 void RogerStudio::drawPanel() {
 	const Graphics::Font *font = FontMan.getFontByUsage(Graphics::FontManager::kBigGUIFont);
 	if (!font) {
-		static bool warned = false;
-		if (!warned) {
-			warned = true;
+		if (!_hudFontWarned) {
+			_hudFontWarned = true;
 			warning("RogerStudio: kBigGUIFont unavailable, panel text disabled");
 		}
 		return;
