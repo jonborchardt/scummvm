@@ -111,11 +111,14 @@ void RogerStudio::exportCurrent() {
 		markDirty();
 		return;
 	}
+	bool useDefault = false;
 	Common::String dir;
 	if (ConfMan.hasKey("screenshotpath"))
 		dir = ConfMan.getPath("screenshotpath").toString('/');
-	if (dir.empty())
+	if (dir.empty()) {
 		dir = "screenshots";
+		useDefault = true;
+	}
 	if (!dir.empty() && dir.lastChar() != '/')
 		dir += '/';
 	Common::String detail, kind;
@@ -144,7 +147,10 @@ void RogerStudio::exportCurrent() {
 	const Common::String name = studioExportName(kind.c_str(), id, safe);
 	const Common::String path = dir + name;
 	if (Roger::dumpSurfacePng(*_current, path)) {
-		_status = "exported " + name;
+		if (useDefault)
+			_status = "exported " + dir + name;
+		else
+			_status = "exported " + name;
 	} else {
 		_status = "export FAILED: cannot open " + name;
 	}
@@ -221,6 +227,9 @@ void RogerStudio::handleEvent(const Common::Event &ev) {
 			_baseline->copyFrom(*_current);
 			_baselineLabel = _currentLabel;
 			_status = "baseline pinned: " + _baselineLabel;
+			markDirty();
+		} else {
+			_status = "nothing to pin (no current render)";
 			markDirty();
 		}
 		break;
