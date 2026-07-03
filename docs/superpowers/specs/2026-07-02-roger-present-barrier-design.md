@@ -188,7 +188,7 @@ Build the instrument the other phases are judged by.
   - `sq3-dismiss-matrix.rin` — ENTER / ESC / click / empty-submit dismissals (SQ3 save 1, room 2)
   - `sq3-wiggle.rin` — mouse movement interleaved with typing and dismissal (the interactive-only trigger)
   - `qfg1-walk-perf.rin` / `sq3-walk-perf.rin` — 10 s keyboard walk for `-CycleLog`
-  - `qfg1-dialog-cycle.rin` — open/dismiss look dialog ×3, ghost-text check
+  - `qfg1-dialog-cycle.rin` — open/dismiss look dialog ×2, ghost-text check
   - reuse existing `qfg1-smoke.rin`
 - A driver script `test/sci/roger/run-regression.ps1` that runs each `.rin`
   via `build_and_run.ps1 -NoBuild -TimeoutSec`,
@@ -279,7 +279,7 @@ Only after Phases 1–2 have soaked (user has played both games interactively).
 ## 8. Regression gate (run between every phase)
 
 `test/sci/roger/run-regression.ps1` executes, in order: `qfg1-smoke`,
-`qfg1-cmdbox`, `qfg1-dialog-cycle`, `sq3-dismiss-matrix`, `sq3-wiggle`,
+`qfg1-cmdbox`, `sq3-dismiss-matrix`, `sq3-wiggle`, `qfg1-dialog-cycle`,
 `qfg1-walk-perf`, `sq3-walk-perf`. PASS requires: every pixel check passes its manifest region, zero
 `ROGER-SCRIPT` parse warnings, telemetry within §7 thresholds, exit code 0
 from every run (124 = automatic FAIL). The gate result table is pasted into

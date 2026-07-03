@@ -51,6 +51,22 @@ foreach ($e in $manifest.entries) {
     }
     Add-Result $e.name "run" $true "exit 0"
 
+    # Finding 1: scan the run log for genuine ROGER-SCRIPT parse/failure warnings.
+    # Pattern matches only the engine warning messages (malformed, unknown, needs,
+    # cannot open, overwrites pending, negative wait) — NOT intentional `log` echos,
+    # which emit `ROGER-SCRIPT: <free text>` with none of these sentinel words.
+    $warnPattern = 'ROGER-SCRIPT:.*(?:malformed|unknown command skipped|unknown key token|type needs|wait needs|negative wait clamped|needs an argument|cannot open|overwrites pending)'
+    if (-not (Test-Path $RunLog)) {
+        Add-Result $e.name "scriptWarn" $false "run log missing: $RunLog"
+    } else {
+        $warnHits = Select-String -Path $RunLog -Pattern $warnPattern
+        if ($warnHits) {
+            Add-Result $e.name "scriptWarn" $false ($warnHits | Select-Object -First 1).Line
+        } else {
+            Add-Result $e.name "scriptWarn" $true ""
+        }
+    }
+
     foreach ($c in $e.checks) {
         switch ($c.type) {
             "capturesExist" {
