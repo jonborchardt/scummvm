@@ -302,16 +302,72 @@ The overlay is a full-frame ~22 MB RGBA surface (2862×1986). A **full recompose
 
 **Do NOT re-chase these dead ends** (measured, ruled out): the **render/present primitives are not the bottleneck** at this resolution — GPU flip ~0.3 ms, full 22 MB texture upload ~9.5 ms, full CPU recompose+upload ~20 ms; the **OpenGL backend ≈ software** when the whole overlay is re-touched each frame (CPU-frame-production-bound), so switching backends or micro-optimizing the present buys nothing until you *stop re-touching the whole surface*. `EventManager::updateScreen` fires only **~5–10×/sec (once per cycle), not 60**, so present-skip heuristics keyed on 60 fps are pointless. If a cycle-time/walking slowdown reappears, suspect a per-cycle path repeatedly invoking the full present/recompose — measure `kernelAnimate` span costs (invoke/draw/show/restore/rfal) busy-vs-sleep, don't optimize the present primitive.
 
-### Stage 3: Plugin migration (future)
+### Stage 3: Fork structure & upstreaming (future direction — rules apply NOW)
 
-When Roger becomes its own plugin, these existing files must be revisited — all other changes are in `engines/sci/roger/` which will move wholesale:
+This repo is a **downstream ScummVM fork** whose endgame is: (primary) ship Roger in this
+fork indefinitely; (secondary) keep a credible path to upstreaming. Two cleanup passes are
+planned (a fork audit/restructure pass, then a manufactured-clean-branch pass); nothing
+below triggers them — it exists so day-to-day work doesn't paint us into a corner before
+they run.
 
-| File | What changes |
-|------|-------------|
-| `engines/sci/graphics/paint16.cpp` | Decouple the hard-coded `g_sciRogerProvider` global — SCI engine needs to expose a registration API (e.g. `setArtProvider()`) that the plugin calls at load time |
-| `engines/sci/sci.cpp` | Remove include, instantiation (`new FileRogerArtProvider(...)`), and destruction — plugin self-registers via the new API |
-| `engines/sci/module.mk` | Remove the `# Roger art replacement` block — `roger/*.o` files move to the plugin's own `module.mk` |
-| `test/module.mk` | Change test linking from `engines/sci/libsci.a` to a roger-specific static library |
+**What Roger is (and is not).** Roger is a **display-layer provider inside the existing SCI
+engine** — NOT a new ScummVM engine. It has no engine class, no metaengine, no detection
+tables, and must never grow them; detection stays SCI's. Any plan or prompt phrased in
+"new engine in `engines/<name>/`" vocabulary translates as: "engine directory" →
+`engines/sci/roger/`; "engine registration/wiring" → the future provider-registration API
+(`setArtProvider()`); "detection/metaengine" → nothing (unchanged SCI). **Decision: never
+fork `engines/sci/` into a duplicated `sci-roger` engine** — upstream would reject engine
+duplication outright, two engines claiming the same games breaks detection, and it converts
+a ~725-line maintained diff into a whole-engine merge burden.
+
+**The real diff footprint** (vs `origin/master`, outside `engines/sci/roger/` which moves
+wholesale). Keep this inventory current when adding hooks — it pre-answers the audit pass:
+
+| Files | ~Lines | Category / upstream story |
+|-------|--------|---------------------------|
+| `graphics/paint16.{cpp,h}`, `animate.cpp`, `controls16.cpp`, `menu.{cpp,h}`, `ports.cpp`, `text16.cpp`, `transitions.cpp`, `engine/kgraphics.cpp`, `graphics/scifont.{cpp,h}` | ~590 | **Observer-seam candidates** — mechanical, null-guarded provider call sites at SCI's structural chokepoints. Upstreamable if reshaped as a neutral, engine-owned observer interface, compiled out by default. The planned frame-complete present barrier should *replace* several of these — prefer that over adding more. |
+| `sci.cpp`, `module.mk` | ~70 | **Provider wiring** — becomes plugin self-registration via `setArtProvider()`; `roger/*.o` move to the plugin's own `module.mk`; `test/module.mk` relinks tests against a roger static lib |
+| `event.cpp` + `gui/EventRecorder.h` | ~80 | **Separately pitchable upstream PR** — the `.rin` input driver is a generic headless scripted-input facility complementing EventRecorder; deliberately engine-agnostic (keep it that way) |
+| `build_and_run.ps1`, `build_tests.ps1`, `roger_run.ps1`, `CLAUDE.md`, `.claude/`, `.gitignore` | — | **Downstream-only** dev tooling; never part of an upstream PR |
+
+**Rules that keep the future cleanup cheap (enforce on every change):**
+
+- Hook sites in `engines/sci/**` stay **mechanical**: a null-guarded `g_sciRogerProvider`
+  call plus minimal argument marshalling. No Roger logic, no game-specific branches, no
+  Roger types beyond the provider interface, inline in SCI code.
+- Every new hook is a **virtual on the abstract provider** (`roger_art_provider.h`) — SCI
+  code never names `FileRogerArtProvider`.
+- Before adding a new scattered hook site, check whether the present-barrier /
+  exact-invalidation design covers the need — shrinking the hook count is an upstreaming
+  goal, not just hygiene.
+- No changes to other engines; no behavior change in SCI when the provider is null
+  (Roger-off must stay byte-identical to stock).
+- No game assets or proprietary data in the repo, ever. Game data + generation cache live
+  in sibling directories outside the repo; test fixtures must be tiny synthetic files
+  (current PNG fixtures are ~75 bytes each); screenshots stay in gitignored `screenshots/`.
+- Standard ScummVM GPL headers on every new source file (existing roger files comply).
+- Upstream-facing / fork-maintenance docs go under `docs/roger/` (audit artifacts:
+  `FORK_AUDIT.md`, `UPSTREAMING_PLAN.md`, `PR_PLAN.md`, `FORK_MAINTENANCE.md`,
+  `DATA_LAYOUT.md`, `LEGAL.md` when the audit pass runs). Superpowers working specs/plans
+  (`docs/superpowers/`) are downstream-only and never part of an upstream PR.
+
+**Branch & history policy:** upstream base is `origin/master`. The `jon-*` lineage
+(currently `jon-refactor1`) is the **deploy line** — merge-maintained, never rebased, must
+always stay deployable. Its commit history is **raw material, not a reviewable record** —
+clean upstream branches will be *manufactured from the final diff* (not cherry-picked),
+short-lived, rebase allowed there only. Any history surgery requires a backup branch/tag
+first and explicit user approval. Per-slice build verification on Windows uses
+`build_tests.ps1` (unit tests need the make-based path) and `build_and_run.ps1 -Script`
+smoke runs — the audit prompts' configure/make assumptions don't apply here.
+
+**Upstream pitch (when the time comes):** discuss on scummvm-devel/Discord *before*
+writing PRs — ScummVM has a strong talk-first culture. The story to tell is the strong
+one Roger actually has: it runs original commercial games from their original data,
+display-only enhancement, opt-in, byte-identical when disabled — not a new private game
+(any scope-risk analysis written for that scenario should be rewritten in these terms).
+Shape: one coherent engine-seam PR with a few clean commits, plus small separate PRs for
+generic pieces (the input driver). If upstream declines, the fallback is this fork with a
+deliberately minimized diff — never a duplicated engine.
 
 ## Code Style
 
