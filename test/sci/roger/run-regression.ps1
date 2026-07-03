@@ -30,7 +30,7 @@ function Add-Result($entry, $check, $ok, $detail) {
 
 $perfRecord = @{}
 foreach ($e in $manifest.entries) {
-    $isPerf = ($e.checks | Where-Object { $_.type -eq "perf" }).Count -gt 0
+    $isPerf = @($e.checks | Where-Object { $_.type -eq "perf" }).Count -gt 0
     if ($Record -and -not $isPerf) { continue }   # -Record touches only perf entries
 
     Write-Host "=== $($e.name) ===" -ForegroundColor Cyan

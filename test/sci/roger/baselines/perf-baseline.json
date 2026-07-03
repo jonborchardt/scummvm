@@ -1,0 +1,12 @@
+﻿{
+    "qfg1-walk-perf":  {
+                           "periodMedian":  83,
+                           "periodP90":  84,
+                           "busyMedian":  17
+                       },
+    "sq3-walk-perf":  {
+                          "periodMedian":  83,
+                          "periodP90":  84,
+                          "busyMedian":  5
+                      }
+}

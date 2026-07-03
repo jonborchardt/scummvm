@@ -1,0 +1,12 @@
+# Perf benchmark: ~10s alternating keyboard walk in QFG1 room 300 (save 1).
+# Run with -CycleLog; the gate reads ROGER-CYCLE medians. No captures needed.
+wait 4500
+key LEFT
+wait 2500
+key RIGHT
+wait 2500
+key LEFT
+wait 2500
+key RIGHT
+wait 2500
+quit

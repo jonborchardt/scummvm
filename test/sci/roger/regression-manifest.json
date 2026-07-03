@@ -61,6 +61,18 @@
         { "type": "sameRunDiff", "a": "g0", "b": "g2",
           "region": { "x0": 0.0, "y0": 0.08, "x1": 0.6, "y1": 0.45 } }
       ]
+    },
+    {
+      "name": "qfg1-walk-perf",
+      "target": "qfg1", "saveSlot": 1, "script": "qfg1-walk-perf.rin",
+      "timeoutSec": 90, "cycleLog": true,
+      "checks": [ { "type": "perf" } ]
+    },
+    {
+      "name": "sq3-walk-perf",
+      "target": "sq3-1", "saveSlot": 1, "script": "sq3-walk-perf.rin",
+      "timeoutSec": 90, "cycleLog": true,
+      "checks": [ { "type": "perf" } ]
     }
   ]
 }
