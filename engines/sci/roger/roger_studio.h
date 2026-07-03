@@ -46,61 +46,75 @@ public:
 	void run();
 
 private:
-	enum Mode { kModePic, kModeView, kModeCombined };
+	enum PlateMode { kPlateOmyac = 0, kPlateNearestRef };
+	enum Display { kShowA = 0, kShowB, kShowSplit, kShowDiff };
+
+	struct Slot {
+		OmyacParams        params;
+		Common::Array<int> passes;               // starts = defaultPasses()
+		int                variant = kScaler6x;  // factor-6 only
+		PlateMode          plateMode = kPlateOmyac;
+		Graphics::Surface *render = nullptr;     // cached scene render (1920x1140 RGBA)
+		bool               stale = true;
+		uint32             renderMs = 0;
+	};
 
 	// Frame / input
 	void handleEvent(const Common::Event &ev);
-	void drawFrame();               // compose _display + push to overlay
-	void drawHud();
+	void drawFrame();                // compose scene area + panel into _display, push
+	void drawPanel();                // Task 6
+	void dispatchWidget(uint32 id);  // Task 6
 	void markDirty() { _dirty = true; }
 
-	// Rendering (filled in by Tasks 5-8)
-	void rerender();                // dispatch by _mode; updates _current/_previous
-	void renderPicMode();
-	void renderViewMode();
-	void renderCombinedMode();
-	void setCurrent(Graphics::Surface *s, const Common::String &label);
-	void exportCurrent();           // write _current as PNG to screenshotpath
+	// Rendering
+	void renderSlot(Slot &slot);     // plate (+ cel) -> slot.render
+	Slot &activeSlot() { return _slots[_activeSlot]; }
+	void invalidateScene() { _slots[0].stale = _slots[1].stale = true; markDirty(); }
+	void invalidateActive() { activeSlot().stale = true; markDirty(); }
+	void ensureFresh(Slot &slot) { if (slot.stale) renderSlot(slot); }
+	Common::String slotStamp(const Slot &slot) const; // "default-ffflffaaaa-6x[-nref]"
+	void exportShown();              // Task 8 extends for split/diff
 
-	static const int kHudH = 380;  // HUD strip height (2x-scaled; fits 2+omyacParamCount()+2 lines)
+	// Scene-area geometry (Task 7 fills the interaction)
+	Common::Rect sceneArea() const;  // _display minus the panel strip
+	void fitView();                  // zoom/pan so the plate fits sceneArea
+	bool displayToNative(int mx, int my, int &nx, int &ny) const;
 
-	RogerAssetGen        _gen;      // kGenMemory, empty cache dir
-	Graphics::ManagedSurface *_display = nullptr; // overlay-format compose target
+	static const int kPanelH = 560;  // overlay px (drawn 2x from a small surface)
 
-	Mode  _mode = kModePic;
+	RogerAssetGen        _gen;       // kGenMemory, empty cache dir
+	Graphics::ManagedSurface *_display = nullptr;
+
 	bool  _dirty = true;
 	bool  _quit = false;
-	bool  _showKeymap = false;
 
-	// Current / previous / baseline renders (RGBA fmt(4,8,8,8,8,24,16,8,0)).
-	Graphics::Surface *_current = nullptr;
-	Graphics::Surface *_previous = nullptr;
-	Graphics::Surface *_baseline = nullptr;
-	Common::String _currentLabel, _previousLabel, _baselineLabel;
-	bool _showPrevious = false;     // A/B flip
-	bool _split = false;            // split view vs pinned baseline
+	Slot _slots[2];
+	int  _activeSlot = 0;            // 0 = A, 1 = B
+	int  _displayMode = kShowA;      // Display
 
-	// View transform
-	int _zoomIdx = 2;               // index into ZOOM_STEPS; 2 == 1.0
-	int _panX = 0, _panY = 0;
-	bool _dragging = false;
-	int _dragX = 0, _dragY = 0;
-
-	// Tuning state
-	OmyacParams        _params;
-	Common::Array<int> _passes;     // starts = defaultPasses()
-	int _paramCursor = 0;
-	int _passCursor = 0;
-
-	// Resource browsing
-	Common::Array<int> _picIds;     int _picIdx = 0;
-	Common::Array<int> _viewIds;    int _viewIdx = 0;
+	// Shared scene state
+	Common::Array<int> _picIds;  int _picIdx = 0;
+	Common::Array<int> _viewIds; int _viewIdx = 0;
 	int _loopNo = 0, _celNo = 0;
-	int _variant = kScaler6x;       // view-mode highlight / combined-mode active
-	int _spriteX = 160, _spriteY = 120; // combined-mode cel position (native coords)
+	int _celX = 160, _celY = 150;    // native coords, cel BOTTOM-CENTRE anchor
+	bool _showView = true;
 
-	uint32 _lastRenderMs = 0;
-	Common::String _status;         // one-line HUD status / error line
+	// View transform (scene area only)
+	float _viewScale = 1.0f;         // set by fitView()
+	float _fitScale = 1.0f;
+	int _panX = 0, _panY = 0;        // overlay px offset of plate origin in sceneArea
+	bool _draggingCel = false;
+	bool _panning = false;
+	int _dragLastX = 0, _dragLastY = 0;
+	Common::Rect _celScreenRect;     // last-drawn cel rect in _display coords (for drag hit)
+
+	// Panel (Task 6)
+	Common::Array<StudioWidget> _widgets;   // panel-local small coords
+	int _selectedChip = -1;
+	uint32 _hoverWid = 0;
+
+	Common::String _status;
+	Common::String _offsetReadout;   // Task 8: SAD readout line (Diff only)
 };
 
 } // namespace Roger
