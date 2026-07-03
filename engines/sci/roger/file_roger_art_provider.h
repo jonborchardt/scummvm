@@ -125,6 +125,7 @@ private:
 	Roger::CompareDisplayMode _mode = Roger::kModeEnhanced; // F10 cycles enhanced/original/side-by-side
 	bool overlayShown() const { return _mode != Roger::kModeOriginal; } // overlay visible (enhanced OR side-by-side)
 	bool _debugLog = false;      // per-frame diagnostic logging
+	uint32 _lastUiDiagSig = 0;   // ROGER-UI diag dump dedup: signature of the last dumped UI display-list
 	bool _diag = false;          // roger_diag: one-line overlay-state trace at room-load/present/transition seams (revertible instrumentation)
 	void diagDumpState(const char *where);
 public:

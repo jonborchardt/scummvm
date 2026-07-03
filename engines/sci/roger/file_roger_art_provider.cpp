@@ -1144,15 +1144,14 @@ void FileRogerArtProvider::presentWithUi() {
 		// distinct dialog (signature over token/rect/type) so it does not spam per frame.
 		if (_debugLog) {
 			const Common::Array<Roger::UiElement> &els = _uiLayer->elements();
-			static uint32 lastDiagSig = 0;
 			uint32 dsig = 2166136261u;
 			for (uint i = 0; i < els.size(); i++) {
 				dsig = (dsig ^ (uint32)els[i].token) * 16777619u;
 				dsig = (dsig ^ (uint32)(els[i].nativeRect.left * 31 + els[i].nativeRect.top)) * 16777619u;
 				dsig = (dsig ^ (uint32)(els[i].type * 7 + els[i].textRole)) * 16777619u;
 			}
-			if (dsig != lastDiagSig) {
-				lastDiagSig = dsig;
+			if (dsig != _lastUiDiagSig) {
+				_lastUiDiagSig = dsig;
 				warning("ROGER-UI: gameRect=(%d,%d,%d,%d)", _lastGameRect.left, _lastGameRect.top,
 				        _lastGameRect.right, _lastGameRect.bottom);
 				for (uint i = 0; i < els.size(); i++) {
