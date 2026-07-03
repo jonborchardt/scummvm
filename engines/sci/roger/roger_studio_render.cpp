@@ -39,6 +39,8 @@ int omyacParamCount() {
 }
 
 OmyacParamDesc omyacParamDesc(int i) {
+	if (i < 0 || i >= omyacParamCount())
+		return PARAM_DESCS[0];
 	return PARAM_DESCS[i];
 }
 
@@ -56,6 +58,8 @@ int omyacParamGet(const OmyacParams &p, int i) {
 }
 
 void omyacParamSet(OmyacParams &p, int i, int value) {
+	if (i < 0 || i >= omyacParamCount())
+		return;
 	const OmyacParamDesc &d = PARAM_DESCS[i];
 	value = CLIP(value, d.minV, d.maxV);
 	switch (i) {
