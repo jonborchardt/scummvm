@@ -64,6 +64,7 @@ Coordinates are game-space 320×200 and the `-preview.png` is exactly the game r
 | Walking-speed / perf | add `-CycleLog`; grep `ROGER-CYCLE`; period ≈83 ms healthy, ≥150 suspicious, ≈225 = the historic bitsRestore regression |
 | Watch motion mid-action | several `capture step<N>` spaced by `wait 800` (each with its flush move) |
 | Interactive probing | `-Live cmd.txt` (background run, PID printed); append `.rin` lines to the file; finish with a `quit` line |
+| Full regression gate (present-barrier phases) | `powershell -File test\sci\roger\run-regression.ps1` — all entries green twice = gate pass; `-Record` re-baselines perf (deliberate act only). |
 
 ## Known state
 

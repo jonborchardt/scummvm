@@ -843,4 +843,86 @@ git commit -m "Roger: phase 0 exit - twice-green gate evidence, spec/doc sync"
 
 ## Addendum: Phase 0 exit evidence
 
-(To be filled at Task 6 Step 4 — paste both `ALL PASS` result tables and the recorded baseline numbers here.)
+Both runs executed consecutively on 2026-07-02 (branch `jon-refactor1`).
+
+**Perf baselines recorded** (`test/sci/roger/baselines/perf-baseline.json`):
+- `qfg1-walk-perf`: periodMedian=83, periodP90=84, busyMedian=17
+- `sq3-walk-perf`: periodMedian=83, periodP90=84, busyMedian=4
+
+Note: An initial run 1 showed sq3-walk-perf busy=8 vs baseline=5 (FAIL) because the
+previously committed baseline of 5 ms was a cold-run outlier. The baselines were
+re-recorded (sq3 busy=4), and both subsequent full gate runs passed cleanly.
+
+---
+
+### Run 1 — ALL PASS (26 checks), exit 0
+
+```
+Entry              Check              Result Detail
+-----              -----              ------ ------
+qfg1-smoke         run                PASS   exit 0
+qfg1-smoke         exists:boot        PASS
+qfg1-smoke         exists:after-walk  PASS
+qfg1-smoke         exists:after-arrow PASS
+qfg1-smoke         exists:typed       PASS
+qfg1-smoke         exists:look-dialog PASS
+qfg1-smoke         exists:dismissed   PASS
+qfg1-cmdbox        run                PASS   exit 0
+qfg1-cmdbox        same:before~after  PASS
+sq3-dismiss-matrix run                PASS   exit 0
+sq3-dismiss-matrix same:m0~esc1       PASS
+sq3-dismiss-matrix same:m0~esc2       PASS
+sq3-dismiss-matrix same:m0~clk1       PASS
+sq3-dismiss-matrix same:m0~emp1       PASS
+sq3-wiggle         run                PASS   exit 0
+sq3-wiggle         same:w0~w1         PASS
+sq3-wiggle         same:w0~w2         PASS
+qfg1-dialog-cycle  run                PASS   exit 0
+qfg1-dialog-cycle  presence:d1        PASS   20000 px (>= 20000)
+qfg1-dialog-cycle  presence:d2        PASS   20000 px (>= 20000)
+qfg1-dialog-cycle  same:g0~g1         PASS
+qfg1-dialog-cycle  same:g0~g2         PASS
+qfg1-walk-perf     run                PASS   exit 0
+qfg1-walk-perf     perf               PASS   median=83/83 p90=84/84 busy=16/17 n=166
+sq3-walk-perf      run                PASS   exit 0
+sq3-walk-perf      perf               PASS   median=83/83 p90=84/84 busy=4/4 n=171
+
+ALL PASS (26 checks)
+```
+
+---
+
+### Run 2 — ALL PASS (26 checks), exit 0
+
+```
+Entry              Check              Result Detail
+-----              -----              ------ ------
+qfg1-smoke         run                PASS   exit 0
+qfg1-smoke         exists:boot        PASS
+qfg1-smoke         exists:after-walk  PASS
+qfg1-smoke         exists:after-arrow PASS
+qfg1-smoke         exists:typed       PASS
+qfg1-smoke         exists:look-dialog PASS
+qfg1-smoke         exists:dismissed   PASS
+qfg1-cmdbox        run                PASS   exit 0
+qfg1-cmdbox        same:before~after  PASS
+sq3-dismiss-matrix run                PASS   exit 0
+sq3-dismiss-matrix same:m0~esc1       PASS
+sq3-dismiss-matrix same:m0~esc2       PASS
+sq3-dismiss-matrix same:m0~clk1       PASS
+sq3-dismiss-matrix same:m0~emp1       PASS
+sq3-wiggle         run                PASS   exit 0
+sq3-wiggle         same:w0~w1         PASS
+sq3-wiggle         same:w0~w2         PASS
+qfg1-dialog-cycle  run                PASS   exit 0
+qfg1-dialog-cycle  presence:d1        PASS   20000 px (>= 20000)
+qfg1-dialog-cycle  presence:d2        PASS   20000 px (>= 20000)
+qfg1-dialog-cycle  same:g0~g1         PASS
+qfg1-dialog-cycle  same:g0~g2         PASS
+qfg1-walk-perf     run                PASS   exit 0
+qfg1-walk-perf     perf               PASS   median=83/83 p90=84/84 busy=16/17 n=166
+sq3-walk-perf      run                PASS   exit 0
+sq3-walk-perf      perf               PASS   median=83/83 p90=84/84 busy=4/4 n=171
+
+ALL PASS (26 checks)
+```

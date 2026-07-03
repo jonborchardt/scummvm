@@ -67,6 +67,9 @@ wait <ms> | capture <label> | log <text> | quit        # '#' = comment
 Coordinates are game space (320×200). Smoke script:
 `test/sci/roger/scripts/qfg1-smoke.rin`. The injection seam is a registered backend
 `EventSource` — keep `roger_input.{h,cpp}` free of SCI includes (engine-agnostic).
+The phase-gate regression suite for the present-barrier refactor lives at
+`test/sci/roger/run-regression.ps1` (manifest-driven; see the spec §8) — run it
+after any change to the per-cycle or present path.
 
 Automation rules (each violated once at real cost — don't re-learn them):
 
