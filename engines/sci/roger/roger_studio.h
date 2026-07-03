@@ -55,7 +55,9 @@ private:
 		int                variant = kScaler6x;  // factor-6 only
 		PlateMode          plateMode = kPlateOmyac;
 		Graphics::Surface *render = nullptr;     // cached scene render (1920x1140 RGBA)
+		Graphics::Surface *plateCache = nullptr; // cached plate (no cel); reused while !plateStale
 		bool               stale = true;
+		bool               plateStale = true;
 		uint32             renderMs = 0;
 	};
 
@@ -69,8 +71,16 @@ private:
 	// Rendering
 	void renderSlot(Slot &slot);     // plate (+ cel) -> slot.render
 	Slot &activeSlot() { return _slots[_activeSlot]; }
-	void invalidateScene() { _slots[0].stale = _slots[1].stale = true; markDirty(); }
-	void invalidateActive() { activeSlot().stale = true; markDirty(); }
+	// Full invalidation: plate genuinely changes (pic/variant/plateMode/params/passes).
+	void invalidateScene() {
+		_slots[0].stale = _slots[0].plateStale = true;
+		_slots[1].stale = _slots[1].plateStale = true;
+		markDirty();
+	}
+	void invalidateActive() { activeSlot().stale = activeSlot().plateStale = true; markDirty(); }
+	// Cel-only invalidation: plate is unchanged, so recomposite the cel over the
+	// cached plate (loop/cel/view/showView/place/drag).
+	void invalidateCelOnly() { _slots[0].stale = _slots[1].stale = true; markDirty(); }
 	void ensureFresh(Slot &slot) { if (slot.stale) renderSlot(slot); }
 	Common::String slotStamp(const Slot &slot) const; // "default-ffflffaaaa-6x[-nref]"
 	void exportShown();              // Task 8 extends for split/diff
@@ -97,6 +107,7 @@ private:
 	Common::Array<int> _viewIds; int _viewIdx = 0;
 	int _loopNo = 0, _celNo = 0;
 	int _celX = 160, _celY = 150;    // native coords, cel BOTTOM-CENTRE anchor
+	int _celW = 0, _celH = 0;        // last-rendered cel dims (plate/6x px); for _celScreenRect
 	bool _showView = true;
 
 	// View transform (scene area only)

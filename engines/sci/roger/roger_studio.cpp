@@ -68,8 +68,10 @@ RogerStudio::RogerStudio(const Common::String &gameId)
 
 RogerStudio::~RogerStudio() {
 	if (_display) { _display->free(); delete _display; }
-	for (int i = 0; i < 2; i++)
+	for (int i = 0; i < 2; i++) {
 		if (_slots[i].render) { _slots[i].render->free(); delete _slots[i].render; }
+		if (_slots[i].plateCache) { _slots[i].plateCache->free(); delete _slots[i].plateCache; }
+	}
 }
 
 void RogerStudio::renderSlot(Slot &slot) {
@@ -88,22 +90,31 @@ void RogerStudio::renderSlot(Slot &slot) {
 	}
 #endif
 
-	_gen.setEnhancePasses(slot.passes);
-	_gen.setOmyacParams(slot.params);
-	uint32 ms = 0;
-	Graphics::Surface *plate = (slot.plateMode == kPlateNearestRef)
-		? _gen.generatePlateNearest(_picIds[_picIdx], ms)
-		: _gen.generatePlate(_picIds[_picIdx], ms);
-	if (!plate) {
-		_status = Common::String::format("pic %d: generation FAILED", _picIds[_picIdx]);
-		markDirty();
-		return;
+	// Plate cache: regenerate the (expensive) omyac plate only when plateStale.
+	// A cel place/drag or loop/cel/view/showView change reuses the cached plate and
+	// only recomposites the cel over it — no omyac regen at drag rate.
+	if (slot.plateStale || !slot.plateCache) {
+		if (slot.plateCache) { slot.plateCache->free(); delete slot.plateCache; slot.plateCache = nullptr; }
+		_gen.setEnhancePasses(slot.passes);
+		_gen.setOmyacParams(slot.params);
+		uint32 ms = 0;
+		Graphics::Surface *plate = (slot.plateMode == kPlateNearestRef)
+			? _gen.generatePlateNearest(_picIds[_picIdx], ms)
+			: _gen.generatePlate(_picIds[_picIdx], ms);
+		if (!plate) {
+			_status = Common::String::format("pic %d: generation FAILED", _picIds[_picIdx]);
+			markDirty();
+			return;
+		}
+		slot.plateCache = plate;
+		slot.renderMs = ms;
+		slot.plateStale = false;
 	}
 
-	Graphics::ManagedSurface composed(plate->w, plate->h, plate->format);
-	composed.blitFrom(*plate);
-	plate->free(); delete plate;
+	Graphics::ManagedSurface composed(slot.plateCache->w, slot.plateCache->h, slot.plateCache->format);
+	composed.blitFrom(*slot.plateCache);
 
+	_celW = _celH = 0;
 	if (_showView && !_viewIds.empty()) {
 		IndexImage cel;
 		byte clearKey = 0;
@@ -112,6 +123,7 @@ void RogerStudio::renderSlot(Slot &slot) {
 			Graphics::Surface *celSurf = _gen.surfaceFromIndex(scaled, clearKey);
 			if (celSurf) {
 				// Bottom-centre anchor at (_celX, _celY) native.
+				_celW = celSurf->w; _celH = celSurf->h;
 				const int dx = _celX * 6 - celSurf->w / 2;
 				const int dy = _celY * 6 - celSurf->h;
 				composed.blendBlitFrom(*celSurf,
@@ -129,7 +141,6 @@ void RogerStudio::renderSlot(Slot &slot) {
 
 	slot.render = new Graphics::Surface();
 	slot.render->copyFrom(composed.rawSurface());
-	slot.renderMs = ms;
 	markDirty();
 }
 
@@ -204,7 +215,21 @@ void RogerStudio::handleEvent(const Common::Event &ev) {
 		if (oy >= panelTop)
 			h = hitTestWidgets(_widgets, ox / 2, (oy - panelTop) / 2);
 		if (h != _hoverWid) { _hoverWid = h; markDirty(); }
-		// Task 7 adds cel-drag / pan handling for scene-area moves here.
+		// Scene-area cel-drag / pan (overlay px throughout).
+		if (_draggingCel) {
+			int nx, ny;
+			if (displayToNative(ox, oy, nx, ny)) {
+				if (nx != _celX || ny != _celY) {
+					_celX = nx; _celY = ny;
+					invalidateCelOnly();
+				}
+			}
+		} else if (_panning) {
+			_panX += ox - _dragLastX;
+			_panY += oy - _dragLastY;
+			_dragLastX = ox; _dragLastY = oy;
+			markDirty();
+		}
 		return;
 	}
 	case Common::EVENT_LBUTTONDOWN: {
@@ -218,7 +243,45 @@ void RogerStudio::handleEvent(const Common::Event &ev) {
 				dispatchWidget(id);
 			return;
 		}
-		// Task 7 handles scene-area clicks.
+		// Scene-area click: place the cel (bottom-centre at the click) and begin drag.
+		int nx, ny;
+		if (displayToNative(ox, oy, nx, ny)) {
+			if (_showView) {
+				_celX = CLIP(nx, 0, 319);
+				_celY = CLIP(ny, 0, 189);
+				_draggingCel = true;
+				invalidateCelOnly();
+			}
+		}
+		return;
+	}
+	case Common::EVENT_LBUTTONUP:
+		_draggingCel = false;
+		return;
+	case Common::EVENT_RBUTTONDOWN: {
+		const int ox = ev.mouse.x * _display->w / 320;
+		const int oy = ev.mouse.y * _display->h / 200;
+		_panning = true; _dragLastX = ox; _dragLastY = oy;
+		return;
+	}
+	case Common::EVENT_RBUTTONUP:
+		_panning = false;
+		return;
+	case Common::EVENT_WHEELUP:
+	case Common::EVENT_WHEELDOWN: {
+		const int ox = ev.mouse.x * _display->w / 320;
+		const int oy = ev.mouse.y * _display->h / 200;
+		const Common::Rect area = sceneArea();
+		if (!area.contains((int16)ox, (int16)oy))
+			return;
+		const float oldScale = _viewScale;
+		_viewScale = CLIP(_viewScale * (ev.type == Common::EVENT_WHEELUP ? 1.25f : 0.8f),
+		                  _fitScale * 0.5f, 8.0f);
+		// Keep the plate point under the cursor fixed.
+		const float k = _viewScale / oldScale;
+		_panX = (int)(ox - area.left - k * (ox - area.left - _panX));
+		_panY = (int)(oy - area.top - k * (oy - area.top - _panY));
+		markDirty();
 		return;
 	}
 	default:
@@ -266,13 +329,17 @@ void RogerStudio::drawFrame() {
 				_display->blitFrom(*slot.render, src, dst);
 		}
 
-		// Record the last-drawn cel rect in _display coords (for Task 7 drag hit).
-		if (_showView) {
-			// Plate-space bottom-centre anchor at (_celX*6, _celY*6); the exact cel
-			// dimensions are re-derived per render, so record the anchor point only.
-			const int ax = area.left + _panX + (int)(_celX * 6 * scale);
-			const int ay = area.top + _panY + (int)(_celY * 6 * scale);
-			_celScreenRect = Common::Rect(ax, ay, ax, ay);
+		// Record the last-drawn cel rect in _display coords (for hover/drag/debug).
+		// Bottom-centre anchor at (_celX*6, _celY*6) in plate space; cel spans
+		// _celW x _celH plate px. Map plate -> display via (_panX/_panY, scale).
+		if (_showView && _celW > 0 && _celH > 0) {
+			const int px = _celX * 6 - _celW / 2; // plate-space top-left
+			const int py = _celY * 6 - _celH;
+			const int dl = area.left + _panX + (int)(px * scale);
+			const int dt = area.top + _panY + (int)(py * scale);
+			const int dr = area.left + _panX + (int)((px + _celW) * scale);
+			const int db = area.top + _panY + (int)((py + _celH) * scale);
+			_celScreenRect = Common::Rect(dl, dt, dr, db);
 		}
 	}
 
@@ -351,11 +418,11 @@ void RogerStudio::dispatchWidget(uint32 id) {
 		if (_viewIds.empty()) break;
 		_viewIdx = (_viewIdx + (kind == kWidViewPrev ? (int)_viewIds.size() - 1 : 1)) % (int)_viewIds.size();
 		_loopNo = _celNo = 0;
-		invalidateScene(); break;
-	case kWidLoopPrev: _loopNo = MAX(0, _loopNo - 1); _celNo = 0; invalidateScene(); break;
-	case kWidLoopNext: _loopNo++; _celNo = 0; invalidateScene(); break; // clamped in renderSlot
-	case kWidCelPrev: _celNo = MAX(0, _celNo - 1); invalidateScene(); break;
-	case kWidCelNext: _celNo++; invalidateScene(); break;              // clamped in renderSlot
+		invalidateCelOnly(); break; // view swap changes only the cel, not the plate
+	case kWidLoopPrev: _loopNo = MAX(0, _loopNo - 1); _celNo = 0; invalidateCelOnly(); break;
+	case kWidLoopNext: _loopNo++; _celNo = 0; invalidateCelOnly(); break; // clamped in renderSlot
+	case kWidCelPrev: _celNo = MAX(0, _celNo - 1); invalidateCelOnly(); break;
+	case kWidCelNext: _celNo++; invalidateCelOnly(); break;              // clamped in renderSlot
 	case kWidVariantCycle:
 		do { s.variant = (s.variant + 1) % kScalerCount; }
 		while (scalerVariantFactor(s.variant) != 6);
@@ -363,7 +430,7 @@ void RogerStudio::dispatchWidget(uint32 id) {
 	case kWidPlateMode:
 		s.plateMode = (s.plateMode == kPlateOmyac) ? kPlateNearestRef : kPlateOmyac;
 		invalidateActive(); break;
-	case kWidShowView: _showView = !_showView; invalidateScene(); break;
+	case kWidShowView: _showView = !_showView; invalidateCelOnly(); break;
 	case kWidFit: fitView(); break;
 	case kWidTabA: _activeSlot = 0; _selectedChip = -1; markDirty(); break;
 	case kWidTabB: _activeSlot = 1; _selectedChip = -1; markDirty(); break;
@@ -375,7 +442,7 @@ void RogerStudio::dispatchWidget(uint32 id) {
 		Slot &b = _slots[1];
 		b.params = _slots[0].params; b.passes = _slots[0].passes;
 		b.variant = _slots[0].variant; b.plateMode = _slots[0].plateMode;
-		b.stale = true;
+		b.stale = b.plateStale = true; // settings differ -> plate genuinely changes
 		_status = "copied A settings to B";
 		markDirty(); break;
 	}
