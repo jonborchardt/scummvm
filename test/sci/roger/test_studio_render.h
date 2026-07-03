@@ -367,6 +367,14 @@ public:
 		}
 		TS_ASSERT(lastXRight >= 0);
 
+		// Find the kWidChipLeft nav button.
+		int navLeft = 99999;
+		for (uint i = 0; i < w.size(); i++) {
+			if (widKind(w[i].id) == kWidChipLeft)
+				navLeft = w[i].rect.left;
+		}
+		TS_ASSERT(navLeft < 99999);
+
 		int caretCount = 0;
 		int caretLeft = -1;
 		for (uint i = 0; i < w.size(); i++) {
@@ -377,6 +385,7 @@ public:
 		}
 		TS_ASSERT_EQUALS(caretCount, 1);
 		TS_ASSERT(caretLeft >= lastXRight);
+		TS_ASSERT(caretLeft < navLeft);
 	}
 
 	void test_all_params_have_nonempty_help() {
