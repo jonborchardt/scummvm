@@ -317,7 +317,7 @@ Graphics::Surface *RogerAssetGen::surfaceFromIndex(const IndexImage &img, byte c
 	int sh = img.h;
 	if (sw <= 0 || sh <= 0)
 		return nullptr;
-	if (!g_sci)
+	if (!g_sci || !g_sci->_gfxPalette16)
 		return nullptr;
 
 	// Same format as loadSurfaceRGBA / the compositor. NOTE: the PixelFormat ctor is
