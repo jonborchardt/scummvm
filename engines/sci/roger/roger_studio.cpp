@@ -195,8 +195,34 @@ void RogerStudio::handleEvent(const Common::Event &ev) {
 		return;
 	case Common::EVENT_KEYDOWN:
 		break; // handled below
+	case Common::EVENT_MOUSEMOVE: {
+		// ev.mouse is in game space (0-320, 0-200); scale to overlay px.
+		const int ox = ev.mouse.x * _display->w / 320;
+		const int oy = ev.mouse.y * _display->h / 200;
+		const int panelTop = _display->h - kPanelH;
+		uint32 h = 0;
+		if (oy >= panelTop)
+			h = hitTestWidgets(_widgets, ox / 2, (oy - panelTop) / 2);
+		if (h != _hoverWid) { _hoverWid = h; markDirty(); }
+		// Task 7 adds cel-drag / pan handling for scene-area moves here.
+		return;
+	}
+	case Common::EVENT_LBUTTONDOWN: {
+		// ev.mouse is in game space (0-320, 0-200); scale to overlay px.
+		const int ox = ev.mouse.x * _display->w / 320;
+		const int oy = ev.mouse.y * _display->h / 200;
+		const int panelTop = _display->h - kPanelH;
+		if (oy >= panelTop) {
+			const uint32 id = hitTestWidgets(_widgets, ox / 2, (oy - panelTop) / 2);
+			if (id != (uint32)kWidNone)
+				dispatchWidget(id);
+			return;
+		}
+		// Task 7 handles scene-area clicks.
+		return;
+	}
 	default:
-		return; // mouse handling arrives in Tasks 6-7
+		return;
 	}
 
 	switch (ev.kbd.keycode) {
@@ -258,14 +284,6 @@ void RogerStudio::drawFrame() {
 }
 
 void RogerStudio::drawPanel() {
-	// Task 5 stub: fill the panel strip black, draw the status line. Task 6 replaces
-	// this with the widget layer. Text is rendered into a small surface then blitted
-	// 2x so it is legible on the hires overlay (v1 drawHud small-font-then-2x pattern).
-	const int panelH = kPanelH;
-	const Common::Rect panelDst(0, _display->h - panelH, _display->w, _display->h);
-	const Graphics::PixelFormat fmt = _display->format;
-	_display->fillRect(panelDst, fmt.RGBToColor(0, 0, 0));
-
 	const Graphics::Font *font = FontMan.getFontByUsage(Graphics::FontManager::kBigGUIFont);
 	if (!font) {
 		static bool warned = false;
@@ -275,37 +293,113 @@ void RogerStudio::drawPanel() {
 		}
 		return;
 	}
-
-	const int smallW = _display->w / 2, smallH = panelH / 2;
+	const int smallW = _display->w / 2, smallH = kPanelH / 2;
 	Graphics::ManagedSurface small(smallW, smallH, _display->format);
 	const uint32 bg = _display->format.RGBToColor(0, 0, 0);
 	const uint32 fg = _display->format.RGBToColor(220, 220, 220);
+	const uint32 hi = _display->format.RGBToColor(255, 255, 0);
+	const uint32 hov = _display->format.RGBToColor(90, 90, 140);
 	small.fillRect(Common::Rect(smallW, smallH), bg);
-	small.frameRect(Common::Rect(smallW, smallH), fg);
 
-	const int lh = font->getFontHeight() + 2;
-	int y = 2;
-	Slot &slot = (_displayMode == kShowB) ? _slots[1] : _slots[0];
-	font->drawString(&small, Common::String::format(
-		"pic %d  view %d l%d c%d  slot %c  %s  render %ums   E=export Esc=quit",
-		_picIds.empty() ? -1 : _picIds[_picIdx],
-		_viewIds.empty() ? -1 : _viewIds[_viewIdx], _loopNo, _celNo,
-		_activeSlot == 0 ? 'A' : 'B', slotStamp(slot).c_str(), slot.renderMs),
-		4, y, smallW - 8, fg);
-	y += lh;
-	if (!_status.empty()) {
-		const uint32 hi = _display->format.RGBToColor(255, 255, 0);
-		font->drawString(&small, _status, 4, y, smallW - 8, hi);
-		y += lh;
+	// Rebuild widgets from current state (cheap; keeps rects in lockstep with state).
+	StudioPanelState st;
+	const Slot &s = _slots[_activeSlot];
+	st.picId = _picIds.empty() ? -1 : _picIds[_picIdx];
+	st.viewId = _viewIds.empty() ? -1 : _viewIds[_viewIdx];
+	st.loopNo = _loopNo; st.celNo = _celNo;
+	st.variantName = scalerVariantName(s.variant);
+	st.plateNearest = s.plateMode == kPlateNearestRef;
+	st.showView = _showView;
+	st.activeSlot = _activeSlot;
+	st.displayMode = _displayMode;
+	st.selectedChip = _selectedChip;
+	st.passes = s.passes;
+	for (int i = 0; i < omyacParamCount(); i++)
+		st.paramValues.push_back(omyacParamGet(s.params, i));
+	buildStudioPanel(Common::Rect(0, 0, smallW, smallH - kStudioRowH), st, _widgets);
+
+	for (uint i = 0; i < _widgets.size(); i++) {
+		const StudioWidget &wg = _widgets[i];
+		if (wg.enabled) {
+			if (wg.id == _hoverWid)
+				small.fillRect(wg.rect, hov);
+			small.frameRect(wg.rect, wg.on ? hi : fg);
+		}
+		font->drawString(&small, wg.label, wg.rect.left + 4, wg.rect.top + 2,
+		                 wg.rect.width() - 6, wg.on ? hi : fg);
 	}
 
+	// Bottom line: render ms + status + (Task 8) offset readout.
+	font->drawString(&small, Common::String::format("%ums  %s  %s",
+		s.renderMs, _status.c_str(), _offsetReadout.c_str()),
+		4, smallH - kStudioRowH + 4, smallW - 8, hi);
+
 	const Common::Rect srcR(0, 0, smallW, smallH);
-	_display->blitFrom(small.rawSurface(), srcR, panelDst);
+	const Common::Rect dstR(0, _display->h - kPanelH, _display->w, _display->h);
+	_display->blitFrom(small.rawSurface(), srcR, dstR);
 }
 
 void RogerStudio::dispatchWidget(uint32 id) {
-	// Task 6 wires the widget layer; nothing dispatched in Task 5.
-	(void)id;
+	Slot &s = activeSlot();
+	const int kind = widKind(id), idx = widIndex(id);
+	switch (kind) {
+	case kWidPicPrev: case kWidPicNext:
+		if (_picIds.empty()) break;
+		_picIdx = (_picIdx + (kind == kWidPicPrev ? (int)_picIds.size() - 1 : 1)) % (int)_picIds.size();
+		invalidateScene(); break;
+	case kWidViewPrev: case kWidViewNext:
+		if (_viewIds.empty()) break;
+		_viewIdx = (_viewIdx + (kind == kWidViewPrev ? (int)_viewIds.size() - 1 : 1)) % (int)_viewIds.size();
+		_loopNo = _celNo = 0;
+		invalidateScene(); break;
+	case kWidLoopPrev: _loopNo = MAX(0, _loopNo - 1); _celNo = 0; invalidateScene(); break;
+	case kWidLoopNext: _loopNo++; _celNo = 0; invalidateScene(); break; // clamped in renderSlot
+	case kWidCelPrev: _celNo = MAX(0, _celNo - 1); invalidateScene(); break;
+	case kWidCelNext: _celNo++; invalidateScene(); break;              // clamped in renderSlot
+	case kWidVariantCycle:
+		do { s.variant = (s.variant + 1) % kScalerCount; }
+		while (scalerVariantFactor(s.variant) != 6);
+		invalidateActive(); break;
+	case kWidPlateMode:
+		s.plateMode = (s.plateMode == kPlateOmyac) ? kPlateNearestRef : kPlateOmyac;
+		invalidateActive(); break;
+	case kWidShowView: _showView = !_showView; invalidateScene(); break;
+	case kWidFit: fitView(); break;
+	case kWidTabA: _activeSlot = 0; _selectedChip = -1; markDirty(); break;
+	case kWidTabB: _activeSlot = 1; _selectedChip = -1; markDirty(); break;
+	case kWidShowA: _displayMode = kShowA; markDirty(); break;
+	case kWidShowB: _displayMode = kShowB; markDirty(); break;
+	case kWidSplit: _displayMode = kShowSplit; markDirty(); break;
+	case kWidDiff: _displayMode = kShowDiff; markDirty(); break;
+	case kWidCopyAB: {
+		Slot &b = _slots[1];
+		b.params = _slots[0].params; b.passes = _slots[0].passes;
+		b.variant = _slots[0].variant; b.plateMode = _slots[0].plateMode;
+		b.stale = true;
+		_status = "copied A settings to B";
+		markDirty(); break;
+	}
+	case kWidExport: exportShown(); break;
+	case kWidParamMinus:
+		omyacParamSet(s.params, idx, omyacParamGet(s.params, idx) - omyacParamDesc(idx).step);
+		invalidateActive(); break;
+	case kWidParamPlus:
+		omyacParamSet(s.params, idx, omyacParamGet(s.params, idx) + omyacParamDesc(idx).step);
+		invalidateActive(); break;
+	case kWidParamToggle:
+		omyacParamSet(s.params, idx, omyacParamGet(s.params, idx) ? 0 : 1);
+		invalidateActive(); break;
+	case kWidChip: _selectedChip = idx; markDirty(); break;
+	case kWidChipX: { int sel = idx; passRemoveAt(s.passes, sel); _selectedChip = sel; invalidateActive(); break; }
+	case kWidChipLeft:  if (passMove(s.passes, _selectedChip, -1)) invalidateActive(); break;
+	case kWidChipRight: if (passMove(s.passes, _selectedChip, +1)) invalidateActive(); break;
+	case kWidChipAddF: passInsertAfter(s.passes, _selectedChip, 2); invalidateActive(); break;
+	case kWidChipAddL: passInsertAfter(s.passes, _selectedChip, 1); invalidateActive(); break;
+	case kWidChipAddA: passInsertAfter(s.passes, _selectedChip, 0); invalidateActive(); break;
+	case kWidChipReset:
+		s.passes = defaultPasses(); _selectedChip = -1; invalidateActive(); break;
+	default: break;
+	}
 }
 
 void RogerStudio::exportShown() {
