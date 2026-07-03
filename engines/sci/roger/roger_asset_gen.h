@@ -132,6 +132,14 @@ public:
 	Graphics::Surface *generatePlateWithIndex(int id, Common::Array<byte> &outIndex, uint32 &outMs);
 
 	/**
+	 * Reference plate for shift diagnosis: the native 320x190 pre-render
+	 * (NativeRef.refPixel) replicated x6 nearest-neighbour — geometrically
+	 * exact by construction (every native pixel -> exactly one 6x6 block).
+	 * Studio-only; never cached. Caller owns (->free() then delete).
+	 */
+	Graphics::Surface *generatePlateNearest(int id, uint32 &outMs);
+
+	/**
 	 * Generate a scale6x RGBA cel from the native GfxView cel.
 	 * Returns nullptr on any failure or in kGenPrebuilt mode.
 	 * @param outMs Generation time in ms (0 on cache hit).

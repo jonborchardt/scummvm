@@ -242,6 +242,48 @@ Graphics::Surface *RogerAssetGen::generatePlateWithIndex(int id, Common::Array<b
 }
 
 // -------------------------------------------------------------------------
+// generatePlateNearest — zero-shift reference plate for shift diagnosis.
+// The native 320x190 pre-render (NativeRef.refPixel) replicated x6 via
+// nearest-neighbour: every native pixel maps to exactly one 6x6 block.
+// Studio-only; never cached; never reads or writes the disk cache.
+// -------------------------------------------------------------------------
+
+Graphics::Surface *RogerAssetGen::generatePlateNearest(int id, uint32 &outMs) {
+	outMs = 0;
+	if (_mode == kGenPrebuilt)
+		return nullptr;
+#ifdef ENABLE_SCI
+	if (!g_sci)
+		return nullptr;
+	ResourceManager *resMan = g_sci->getResMan();
+	if (!resMan)
+		return nullptr;
+	Resource *res = resMan->findResource(ResourceId(kResourceTypePic, (uint16)id), false);
+	if (!res || res->size() == 0)
+		return nullptr;
+
+	uint32 t0 = g_system->getMillis();
+	Common::Array<DrawCommand> cmds = parsePic(res->data(), (uint32)res->size());
+	NativeRef ref = nativePreRender(cmds);
+
+	// refPixel is 320x190 doubled-nibble bytes (0xff init == EGA white, which
+	// is also SCI0's screen-clear colour, so untouched pixels render correctly).
+	IndexImage nat;
+	nat.w = OMYAC_NATIVE_W;
+	nat.h = OMYAC_NATIVE_H;
+	nat.pixels = ref.refPixel;
+	IndexImage big = scaleNearest(nat, OMYAC_SCALE);
+
+	Graphics::Surface *plate = blendToSurface(big.pixels, OMYAC_HYBRID_W, OMYAC_HYBRID_H);
+	outMs = g_system->getMillis() - t0;
+	return plate;
+#else
+	(void)id;
+	return nullptr;
+#endif
+}
+
+// -------------------------------------------------------------------------
 // priorityBands — native priority bands for overlay occlusion
 // -------------------------------------------------------------------------
 
