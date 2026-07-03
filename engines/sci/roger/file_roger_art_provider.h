@@ -235,6 +235,22 @@ private:
 	// present full. Gated by _mode == kModeSideBySide; called from renderFrame/presentWithUi.
 	void presentComparison();
 
+	// ── Present barrier (spec §3.2) ────────────────────────────────────────────
+	// The ONLY entry point that pushes to the overlay outside transitions. O(1)
+	// when nothing changed. Defers while the animate cycle is mid-draw
+	// (_inAnimateCycle) — the end-of-renderFromAnimateList call flushes.
+	void presentBarrier();
+	void markUiDirty(const Common::Rect &nativeRect);      // element pushed/redrawn at nr
+	void markVacatedDirty(const Common::Rect &nativeRect); // element removed at nr
+	void markNativeDirty(const Common::Rect &nativeRect);  // §3.1: exact rect SCI touched
+	void markFullDirty();                                  // room/F10/font/plate change
+	// Overlay-space rect the cursor would occupy right now (empty when not drawable).
+	// Extracted from compositeCursor so the barrier can detect cursor movement.
+	Common::Rect cursorDstRect(const Common::Rect &gameRect);
+	bool _barrierDirty = false;      // any mark since the last barrier present
+	bool _inAnimateCycle = false;    // set at snapshotNativeBaseline, cleared at cycle end
+	bool _frameJustComposed = false; // renderFrame composed this cycle (Task 4 uses it)
+
 	// Last status/title banner so it can be re-applied on room load / F10 enable
 	// (the game only redraws it on score/text change).
 	bool _haveStatus = false;

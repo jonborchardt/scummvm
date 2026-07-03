@@ -100,6 +100,32 @@ inline Common::Rect sciRectToDest(const Common::Rect &nr, const Common::Rect &ga
 }
 
 /**
+ * Full overlay paint extent of a UI element pushed at native rect `nr`: the
+ * compositor paints kUiWindow fills at nr.grow(2) native px, and TTF glyphs can
+ * overshoot the native box by ~2 overlay px. Marks made with this cover every
+ * pixel the element's draw can touch (the 2026-07-02 shipped overdraw math).
+ */
+inline Common::Rect uiPaintExtent(const Common::Rect &nr, const Common::Rect &gameRect) {
+	Common::Rect n = nr;
+	n.grow(2);
+	Common::Rect d = sciRectToDest(n, gameRect);
+	d.grow(2);
+	return d;
+}
+
+/**
+ * Overlay extent a REMOVED element must invalidate: exact native rect + the TTF
+ * overshoot pad only. The compositor-overdraw ring beyond it is covered by
+ * bitsRestore's exact erase rect once §3.1 exact invalidation is wired (Task 5
+ * switches removal marks to this; the gate proves the coverage claim).
+ */
+inline Common::Rect uiVacatedExtent(const Common::Rect &nr, const Common::Rect &gameRect) {
+	Common::Rect d = sciRectToDest(nr, gameRect);
+	d.grow(2);
+	return d;
+}
+
+/**
  * Return the SCI0 priority band (0..14) for a given y coordinate.
  *
  * Band 0 for y < 42 (above the horizon); bands 1..14 are distributed

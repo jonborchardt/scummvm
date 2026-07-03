@@ -113,6 +113,10 @@ public:
 	// One-shot: true once per executed `capture`, handing over its label.
 	bool takeCaptureRequest(Common::String &label);
 
+	// Non-consuming peek: a `capture` command has executed and its dump is still
+	// pending. The present barrier must not skip a present while this is true.
+	bool capturePending() const { return _capturePending; }
+
 	// Live-mode core (also the unit-test hook): parse complete lines out of
 	// `text` (buffering a trailing partial line), scheduling new commands to
 	// fire from `nowMs` onward.

@@ -670,6 +670,8 @@ void FileRogerArtProvider::renderFrame(const Common::Array<Roger::Sprite> &sprit
 
 	maybeScriptCapture(scene, gameRect);
 
+	_barrierDirty = false; // this cycle's present flushed all accumulated marks
+
 	// roger_diff_check: gated in-engine native-vs-overlay diff (off by default). Cheap early-
 	// return when off or already run this pic; never on the steady-state path.
 	if (_diffCheck)
@@ -1024,23 +1026,10 @@ void FileRogerArtProvider::buildCursorFromView(int viewId, int loopNo, int celNo
 void FileRogerArtProvider::compositeCursor(Graphics::ManagedSurface &scene,
                                            const Common::Rect &gameRect) {
 	// The native OS cursor is invisible over the OSystem overlay, so draw our own
-	// arrow into the overlay scene at the mouse position. The mouse is in game space
-	// (320x200) while the overlay is shown; map it into the on-screen game rect.
-	if (!enabled)
+	// arrow into the overlay scene at the mouse position.
+	const Common::Rect dst = cursorDstRect(gameRect);
+	if (dst.isEmpty())
 		return;
-	if (_useHwCursor)
-		return; // native hardware cursor is shown over the overlay instead (preferred)
-	if (!_cursorVisible)
-		return; // game hid the cursor; do not draw anything
-	ensureCursor();
-	if (!_cursorSurf)
-		return;
-	const Common::Point mp = g_system->getEventManager()->getMousePos();
-	const int ox = gameRect.left + mp.x * gameRect.width() / 320;
-	const int oy = gameRect.top + mp.y * gameRect.height() / 200;
-	const Common::Rect dst(ox - _cursorHotspot.x, oy - _cursorHotspot.y,
-	                       ox - _cursorHotspot.x + _cursorSurf->w,
-	                       oy - _cursorHotspot.y + _cursorSurf->h);
 	scene.blendBlitFrom(*_cursorSurf, Common::Rect(0, 0, _cursorSurf->w, _cursorSurf->h), dst);
 	if (_compositor)
 		_compositor->addDirtyRect(dst); // cursor moved here this frame (dirty-rect present)
@@ -1202,6 +1191,68 @@ void FileRogerArtProvider::presentWithUi() {
 	}
 }
 
+void FileRogerArtProvider::markUiDirty(const Common::Rect &nativeRect) {
+	if (!overlayShown() || !_compositor)
+		return;
+	_barrierDirty = true;
+	if (_lastGameRect.isEmpty()) { _compositor->forceFullPresent(); return; }
+	_compositor->addDirtyRect(Roger::uiPaintExtent(nativeRect, _lastGameRect));
+}
+
+void FileRogerArtProvider::markVacatedDirty(const Common::Rect &nativeRect) {
+	// Task 2..4: same coverage as a push (status quo). Task 5 switches the body to
+	// uiVacatedExtent once §3.1 exact erase rects are wired.
+	markUiDirty(nativeRect);
+}
+
+void FileRogerArtProvider::markNativeDirty(const Common::Rect &nativeRect) {
+	// §3.1 exact invalidation: SCI touched these native pixels. grow(1) native
+	// absorbs integer-scaler rounding differences vs the sprite-path mapper.
+	// O(1) accumulate; NEVER presents.
+	if (!overlayShown() || !_compositor || nativeRect.isEmpty())
+		return;
+	_barrierDirty = true;
+	if (_lastGameRect.isEmpty()) { _compositor->forceFullPresent(); return; }
+	Common::Rect n = nativeRect;
+	n.grow(1);
+	_compositor->addDirtyRect(Roger::sciRectToDest(n, _lastGameRect));
+}
+
+void FileRogerArtProvider::markFullDirty() {
+	_barrierDirty = true;
+	_compositeCacheValid = false;
+	if (_compositor)
+		_compositor->forceFullPresent();
+}
+
+Common::Rect FileRogerArtProvider::cursorDstRect(const Common::Rect &gameRect) {
+	if (!enabled || _useHwCursor || !_cursorVisible || gameRect.isEmpty())
+		return Common::Rect();
+	ensureCursor();
+	if (!_cursorSurf)
+		return Common::Rect();
+	const Common::Point mp = g_system->getEventManager()->getMousePos();
+	const int ox = gameRect.left + mp.x * gameRect.width() / 320;
+	const int oy = gameRect.top + mp.y * gameRect.height() / 200;
+	return Common::Rect(ox - _cursorHotspot.x, oy - _cursorHotspot.y,
+	                    ox - _cursorHotspot.x + _cursorSurf->w,
+	                    oy - _cursorHotspot.y + _cursorSurf->h);
+}
+
+void FileRogerArtProvider::presentBarrier() {
+	// The single gated present (spec §3.2). Every skip path below is O(1).
+	if (_inAnimateCycle)
+		return; // mid-cycle marks accumulate; the end-of-cycle call flushes them
+	if (!overlayShown() || !_compositor || !_haveScene || !_sceneCache)
+		return;
+	const bool capture = _inputDriver && _inputDriver->capturePending();
+	const bool cursorMoved = cursorDstRect(_lastGameRect) != _lastCursorDstRect;
+	if (!_barrierDirty && !_compositor->hasPendingDirty() && !cursorMoved && !capture)
+		return;
+	_barrierDirty = false;
+	presentWithUi();
+}
+
 void FileRogerArtProvider::presentComparison() {
 	if (_mode != Roger::kModeSideBySide || !_compositor)
 		return;
@@ -1330,7 +1381,8 @@ void FileRogerArtProvider::uiPushWindow(const Common::Rect &r, int backColor, in
 		        r.left, r.top, r.right, r.bottom, wndStyle, backColor, e.backColor,
 		        (int)e.hasFrame, (int)pictureBackedOrTransparent, token);
 	_uiLayer->push(e);
-	presentWithUi();
+	markUiDirty(r);
+	presentBarrier();
 }
 
 void FileRogerArtProvider::uiPushText(const Common::Rect &r, const char *text, int penColor,
@@ -1348,7 +1400,8 @@ void FileRogerArtProvider::uiPushText(const Common::Rect &r, const char *text, i
 	e.nativeFontH = nativeFontH; e.nativeTextW = nativeTextW;
 	buildGlyphs(text, fontId, penColor, e.glyphs);
 	_uiLayer->push(e);
-	presentWithUi();
+	markUiDirty(r);
+	presentBarrier();
 }
 
 void FileRogerArtProvider::uiPushButton(const Common::Rect &r, const char *text, int fontId,
@@ -1364,7 +1417,8 @@ void FileRogerArtProvider::uiPushButton(const Common::Rect &r, const char *text,
 	e.nativeFontH = nativeFontH; e.nativeTextW = nativeTextW;
 	buildGlyphs(text, fontId, e.penColor, e.glyphs);
 	_uiLayer->push(e);
-	presentWithUi();
+	markUiDirty(r);
+	presentBarrier();
 }
 
 void FileRogerArtProvider::uiPushTextEdit(const Common::Rect &r, const char *text, int fontId,
@@ -1382,7 +1436,8 @@ void FileRogerArtProvider::uiPushTextEdit(const Common::Rect &r, const char *tex
 	e.nativeFontH = nativeFontH; e.nativeTextW = nativeTextW;
 	buildGlyphs(text, fontId, e.penColor, e.glyphs);
 	_uiLayer->push(e);
-	presentWithUi();
+	markUiDirty(r);
+	presentBarrier();
 }
 
 void FileRogerArtProvider::uiPushIcon(const Common::Rect &r, int viewId, int loopNo, int celNo,
@@ -1403,7 +1458,8 @@ void FileRogerArtProvider::uiPushIcon(const Common::Rect &r, int viewId, int loo
 		if (cel) { _uiIcons.push_back(cel); e.iconSurface = cel; }
 	}
 	_uiLayer->push(e);
-	presentWithUi();
+	markUiDirty(r);
+	presentBarrier();
 }
 
 void FileRogerArtProvider::onDrawCel(const Common::Rect &r, int viewId, int loopNo, int celNo) {
@@ -1447,7 +1503,8 @@ void FileRogerArtProvider::onDrawCel(const Common::Rect &r, int viewId, int loop
 	}
 
 	_uiLayer->push(e);
-	presentWithUi();
+	markUiDirty(r);
+	presentBarrier();
 }
 
 void FileRogerArtProvider::uiPushStatus(const Common::Rect &r, const char *text, int fontId,
@@ -1483,7 +1540,8 @@ void FileRogerArtProvider::uiPushStatus(const Common::Rect &r, const char *text,
 	e.nativeFontH = nativeFontH; e.nativeTextW = nativeTextW;
 	buildGlyphs(text, fontId, penColor, e.glyphs);
 	_uiLayer->push(e);
-	presentWithUi();
+	markUiDirty(r);
+	presentBarrier();
 }
 
 void FileRogerArtProvider::reapplyStatus() {
@@ -1545,26 +1603,13 @@ void FileRogerArtProvider::uiClearToken(uint32 token) {
 	}
 	if (_diag && (token & GENERIC_TEXT_MASK) == GENERIC_TEXT_TOKEN)
 		warning("ROGER-DIAG[clearToken]: tok=0x%08x removed=1", token);
-	// Dirty the overlay regions the removed elements occupied so this present repaints
-	// them with the clean background. Without this, the dirty-rect present skips the
-	// vacated area and the stale text/box lingers until another draw touches it (the
-	// "text does not clear until the next message" symptom).
-	if (_compositor)
-		for (uint i = 0; i < removedRects.size(); i++) {
-			// Grow by 2 NATIVE px before mapping: the compositor paints kUiWindow at
-			// nr.grow(2) — and at FULL window dims + 2 when a present fires before the
-			// window's controls are pushed (mouse-move presents do this constantly), so
-			// the vacated dirty must cover that worst-case overdraw. A 2-overlay-px grow
-			// (a fraction of one native pixel at ~9x scale) left a white band of the
-			// window fill behind (the SQ3 "line at the bottom after typing" bug).
-			Common::Rect n = removedRects[i];
-			n.grow(2);
-			Common::Rect d = Roger::sciRectToDest(n, _lastGameRect);
-			d.grow(2); // cover TTF glyph overshoot past the native box
-			_compositor->addDirtyRect(d);
-		}
+	// Dirty the overlay regions the removed elements occupied so the barrier's
+	// present repaints them with clean background (else they ghost until another
+	// draw touches them). markVacatedDirty centralizes the extent math.
+	for (uint i = 0; i < removedRects.size(); i++)
+		markVacatedDirty(removedRects[i]);
 	_compositeCacheValid = false;
-	if (overlayShown() && _plate) presentWithUi();
+	presentBarrier();
 }
 
 void FileRogerArtProvider::onNativeEraseRect(const Common::Rect &nativeRect) {
@@ -1586,18 +1631,13 @@ void FileRogerArtProvider::onNativeEraseRect(const Common::Rect &nativeRect) {
 	_uiLayer->clearAll();
 	for (uint i = 0; i < kept.size(); i++)
 		_uiLayer->push(kept[i]);
-	// Dirty the vacated regions so the present repaints them (see uiClearToken).
-	if (_compositor)
-		for (uint i = 0; i < droppedRects.size(); i++) {
-			Common::Rect d = Roger::sciRectToDest(droppedRects[i], _lastGameRect);
-			d.grow(2);
-			_compositor->addDirtyRect(d);
-		}
+	for (uint i = 0; i < droppedRects.size(); i++)
+		markVacatedDirty(droppedRects[i]);
 	_compositeCacheValid = false; // UI changed: match the uiPush*/uiClear* invalidation pattern
 	if (_diag)
 		warning("ROGER-DIAG[eraseText]: rect=(%d,%d,%d,%d) remaining=%u",
 		        nativeRect.left, nativeRect.top, nativeRect.right, nativeRect.bottom, (unsigned)kept.size());
-	presentWithUi(); // UI-only present; reflects the removal without a full renderScene
+	presentBarrier();
 }
 
 void FileRogerArtProvider::uiClearAll() {
@@ -1607,7 +1647,7 @@ void FileRogerArtProvider::uiClearAll() {
 	_uiIcons.clear();
 	_genericGlyphCache.clear(); // surfaces were owned by _uiIcons (freed above)
 	_drawCelNativeCache.clear(); // surfaces were owned by _uiIcons (freed above)
-	if (overlayShown() && _plate) presentWithUi();
+	if (overlayShown() && _plate) { markFullDirty(); presentBarrier(); }
 }
 
 // Fixed token for the kGraphFrameBox selection highlight. Room-scoped: cleared by
@@ -1625,10 +1665,12 @@ void FileRogerArtProvider::uiPushFrameBox(const Common::Rect &r, int penColor) {
 	// hover, any redraw) while the selection has not actually moved or changed color.
 	// Per CLAUDE.md per-cycle discipline: only mutate + present when the frame changed.
 	const Common::Array<Roger::UiElement> &elems = _uiLayer->elements();
+	Common::Rect oldFrameRect; // empty when no existing frame element
 	for (uint i = 0; i < elems.size(); i++) {
 		if (elems[i].token == FRAME_BOX_TOKEN) {
 			if (elems[i].nativeRect == r && elems[i].penColor == penColor)
 				return; // identical — nothing to do
+			oldFrameRect = elems[i].nativeRect;
 			break; // found but different — fall through to update
 		}
 	}
@@ -1645,7 +1687,9 @@ void FileRogerArtProvider::uiPushFrameBox(const Common::Rect &r, int penColor) {
 	e.token = FRAME_BOX_TOKEN;
 	_uiLayer->push(e);
 	_compositeCacheValid = false;
-	presentWithUi();
+	if (!oldFrameRect.isEmpty()) markVacatedDirty(oldFrameRect);
+	markUiDirty(r);
+	presentBarrier();
 }
 
 Graphics::Surface *FileRogerArtProvider::renderNativeCel(int viewId, int loopNo, int celNo) const {
@@ -1972,6 +2016,11 @@ void FileRogerArtProvider::flushGenericText() {
 }
 
 void FileRogerArtProvider::snapshotNativeBaseline() {
+	// kernelAnimate is mid-cycle from this hook until renderFromAnimateList runs.
+	// While it is, blocking-seam barrier calls defer (the cycle's own tail call
+	// flushes them) — this is what makes a bitsRestore storm structurally unable
+	// to present per-hook (the bb65c56b75a class).
+	_inAnimateCycle = true;
 	// Side-by-side compare mode also needs this snapshot: it is taken at the one moment
 	// the native visual buffer holds the WHOLE frame (pic + addToPic + animate cast),
 	// just before restoreAndDelete() erases the animating cast (ego/moving views). The
@@ -2171,6 +2220,7 @@ void FileRogerArtProvider::renderFromAnimateList(const AnimateList &list) {
 		nativeSurfaces[i]->free();
 		delete nativeSurfaces[i];
 	}
+	_inAnimateCycle = false; // cycle draw complete — reopen the barrier
 }
 
 void FileRogerArtProvider::remapComparisonMouse(Common::Point &mousePos) {
@@ -2210,13 +2260,11 @@ void FileRogerArtProvider::toggleOverlay() {
 		// the overlay was off (snapshotNativeBaseline early-returns when hidden); force a
 		// fresh snapshot on the next kernelAnimate before any Feeder-B diff runs.
 		_haveBaseline = false;
-		if (_compositor) _compositor->forceFullPresent(); // layout changed: full present next frame
-		if (_haveScene) presentWithUi();
+		if (_haveScene) { markFullDirty(); presentBarrier(); }
 		reapplyStatus();
 	} else {
 		// Enhanced <-> SideBySide: overlay already shown, but the layout changes wholesale.
-		if (_compositor) _compositor->forceFullPresent();
-		if (_haveScene) presentWithUi();
+		if (_haveScene) { markFullDirty(); presentBarrier(); }
 	}
 
 	const char *name = _mode == Roger::kModeEnhanced ? "ENHANCED (upscaled)"
@@ -2268,7 +2316,7 @@ void FileRogerArtProvider::cycleBodyFont() {
 	        kBodyFontShortlistLen, _textRenderer->ttfLoaded() ? "" : " [FAILED -> bitmap fallback]");
 
 	// Redraw any open dialog/list with the new font, and restore the banner.
-	if (_haveScene) presentWithUi();
+	if (_haveScene) { markFullDirty(); presentBarrier(); }
 	reapplyStatus();
 }
 
@@ -2308,7 +2356,8 @@ void FileRogerArtProvider::regenInPlace() {
 	const int saved = _loadedPicId;
 	_loadedPicId = -1; // invalidate early-return guard in pushHiresBackground
 	pushHiresBackground(saved);
-	presentWithUi();
+	markFullDirty();
+	presentBarrier();
 }
 
 void FileRogerArtProvider::tuneEnhancePasses(int delta, int which) {
@@ -2439,7 +2488,7 @@ void FileRogerArtProvider::onMouseMoved() {
 	}
 
 	// Slow fallback: full rebuild — handles first present, resize, or stale cache.
-	presentWithUi();
+	presentBarrier();
 }
 
 void FileRogerArtProvider::composeRoomScene(Graphics::ManagedSurface &out) {

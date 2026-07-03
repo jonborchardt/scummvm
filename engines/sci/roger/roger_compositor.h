@@ -186,6 +186,13 @@ public:
 	// area in overlay px). Off by default; the Phase 1 dirty-area gate reads it.
 	void setPresentLog(bool on) { _presentLog = on; }
 
+	// True when any dirty accumulator is non-empty — i.e. the next present would
+	// push at least one region. The present barrier's O(1) skip gate reads this.
+	bool hasPendingDirty() const {
+		return !_dirtyCur.empty() || !_dirtyPrev.empty() ||
+		       !_sceneDirtyCur.empty() || !_sceneDirtyPrev.empty();
+	}
+
 	// Coalesced union (clamped to bounds) of every dynamic dirty rect that may need
 	// repainting this present: UI/cursor rects at PRESENT granularity (_dirtyCur this
 	// present + _dirtyPrev last present) plus sprite rects at SCENE/renderScene granularity
