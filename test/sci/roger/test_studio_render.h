@@ -224,4 +224,21 @@ public:
 		TS_ASSERT_EQUALS(hitTestWidgets(w, panel.right - 1, panel.bottom - 1), (uint32)kWidNone);
 		TS_ASSERT_EQUALS(hitTestWidgets(w, -5, -5), (uint32)kWidNone);
 	}
+
+	void test_panel_layout_non_zero_origin() {
+		// Regression: PanelCursor.newRow() must respect panel.left, not hardcode 4.
+		// Test panel with non-zero left and top origins.
+		const Common::Rect panel(20, 10, 1420, 290);
+		Common::Array<StudioWidget> w;
+		buildStudioPanel(panel, samplePanelState(), w);
+		TS_ASSERT(!w.empty());
+		// Every widget rect must be fully inside the panel.
+		for (uint i = 0; i < w.size(); i++) {
+			const Common::Rect &r = w[i].rect;
+			TS_ASSERT(r.left >= panel.left);
+			TS_ASSERT(r.top >= panel.top);
+			TS_ASSERT(r.right <= panel.right);
+			TS_ASSERT(r.bottom <= panel.bottom);
+		}
+	}
 };

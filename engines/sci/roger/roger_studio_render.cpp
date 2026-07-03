@@ -203,8 +203,9 @@ struct PanelCursor {
 	int x, y;
 	int rowH;
 	int right;
+	int leftEdge;
 
-	void newRow() { x = 4; y += rowH; }
+	void newRow() { x = leftEdge; y += rowH; }
 
 	// Emits one widget; returns its rect. Non-clickable text -> id kWidNone.
 	Common::Rect emit(const Common::String &label, uint32 id, bool on, bool enabled) {
@@ -227,7 +228,7 @@ void buildStudioPanel(const Common::Rect &panel, const StudioPanelState &st,
                       Common::Array<StudioWidget> &out) {
 	out.clear();
 	PanelCursor c;
-	c.out = &out; c.x = panel.left + 4; c.y = panel.top; c.rowH = kStudioRowH;
+	c.out = &out; c.leftEdge = panel.left + 4; c.x = c.leftEdge; c.y = panel.top; c.rowH = kStudioRowH;
 	c.right = panel.right - 4;
 
 	// Row 1: scene
