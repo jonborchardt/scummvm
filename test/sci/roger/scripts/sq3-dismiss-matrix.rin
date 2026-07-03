@@ -1,0 +1,39 @@
+# Regression: input-box dismissal matrix - ESC-cancel, click-dismiss, empty-submit.
+# Each must leave the bottom band pixel-identical to the pre-typing baseline m0
+# (2026-07-02 "white line" bug family). SQ3 target sq3-1, save slot 1 -> room 2.
+wait 4500
+capture m0
+move 160 100
+wait 500
+# (a) type then ESC-cancel the input box
+type "look"
+wait 900
+key ESC
+wait 1000
+capture esc1
+move 200 120
+wait 500
+capture esc2
+move 150 100
+wait 500
+# (b) type then ENTER, dismiss the response with a CLICK
+type "look"
+wait 900
+key ENTER
+wait 2000
+click 160 100
+wait 1200
+capture clk1
+move 200 120
+wait 500
+# (c) open the box and submit EMPTY (ENTER with no text)
+type "x"
+wait 700
+key BACKSPACE
+wait 500
+key ENTER
+wait 1200
+capture emp1
+move 150 100
+wait 500
+quit

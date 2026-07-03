@@ -11,6 +11,41 @@
         { "type": "capturesExist",
           "labels": ["boot", "after-walk", "after-arrow", "typed", "look-dialog", "dismissed"] }
       ]
+    },
+    {
+      "name": "qfg1-cmdbox",
+      "target": "qfg1", "saveSlot": 3, "script": "qfg1-cmdbox.rin",
+      "timeoutSec": 120, "cycleLog": false,
+      "checks": [
+        { "type": "sameRunDiff", "a": "before", "b": "after",
+          "region": { "x0": 0.0, "y0": 0.78, "x1": 1.0, "y1": 1.0 } }
+      ]
+    },
+    {
+      "name": "sq3-dismiss-matrix",
+      "target": "sq3-1", "saveSlot": 1, "script": "sq3-dismiss-matrix.rin",
+      "timeoutSec": 150, "cycleLog": false,
+      "checks": [
+        { "type": "sameRunDiff", "a": "m0", "b": "esc1",
+          "region": { "x0": 0.0, "y0": 0.75, "x1": 1.0, "y1": 1.0 } },
+        { "type": "sameRunDiff", "a": "m0", "b": "esc2",
+          "region": { "x0": 0.0, "y0": 0.75, "x1": 1.0, "y1": 1.0 } },
+        { "type": "sameRunDiff", "a": "m0", "b": "clk1",
+          "region": { "x0": 0.0, "y0": 0.75, "x1": 1.0, "y1": 1.0 } },
+        { "type": "sameRunDiff", "a": "m0", "b": "emp1",
+          "region": { "x0": 0.0, "y0": 0.75, "x1": 1.0, "y1": 1.0 } }
+      ]
+    },
+    {
+      "name": "sq3-wiggle",
+      "target": "sq3-1", "saveSlot": 1, "script": "sq3-wiggle.rin",
+      "timeoutSec": 120, "cycleLog": false,
+      "checks": [
+        { "type": "sameRunDiff", "a": "w0", "b": "w1",
+          "region": { "x0": 0.0, "y0": 0.70, "x1": 1.0, "y1": 1.0 } },
+        { "type": "sameRunDiff", "a": "w0", "b": "w2",
+          "region": { "x0": 0.0, "y0": 0.70, "x1": 1.0, "y1": 1.0 } }
+      ]
     }
   ]
 }

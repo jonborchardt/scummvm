@@ -1,0 +1,46 @@
+# Regression: mouse wiggle DURING typing/dismissal. onMouseMoved presents fire
+# mid-window-lifetime - the trigger class scripted runs otherwise never hit
+# (2026-07-02 white line was interactive-only). SQ3 target sq3-1, save 1, room 2.
+wait 4500
+capture w0
+move 160 100
+wait 400
+type "l"
+wait 200
+move 100 180
+wait 100
+move 240 190
+wait 100
+move 60 170
+wait 100
+type "o"
+wait 150
+move 280 195
+wait 100
+move 40 185
+wait 100
+type "ok"
+wait 300
+move 200 60
+wait 150
+move 120 190
+wait 150
+key ENTER
+wait 400
+move 80 180
+wait 200
+move 260 190
+wait 1500
+key ENTER
+wait 500
+move 100 185
+wait 200
+move 220 195
+wait 600
+capture w1
+move 150 100
+wait 500
+capture w2
+move 200 120
+wait 500
+quit

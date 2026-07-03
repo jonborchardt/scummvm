@@ -1,0 +1,22 @@
+# Regression: typed-command input box must leave no stale pixels after dismissal
+# (2026-07-02 "un-enhanced band" bug). QFG1 save slot 3 -> room 320 (market street).
+wait 4500            # boot + save-restore settle
+capture before
+move 160 100
+wait 600
+type "look"
+wait 1200
+capture typed
+move 200 120
+wait 600
+key ENTER
+wait 2500            # response message appears (blocking Print)
+capture response
+move 210 130
+wait 500
+key ENTER            # dismiss response
+wait 1500
+capture after
+move 150 100
+wait 800
+quit
