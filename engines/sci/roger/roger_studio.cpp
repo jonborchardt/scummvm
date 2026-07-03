@@ -351,7 +351,7 @@ void RogerStudio::handleEvent(const Common::Event &ev) {
 		if (ev.kbd.flags & Common::KBD_SHIFT)
 			break; // Shift+A = pic-mode insert-all-pass, handled there
 		if (_previous) { _showPrevious = !_showPrevious; markDirty(); }
-		else _status = "no previous render to flip to";
+		else { _status = "no previous render to flip to"; markDirty(); }
 		break;
 	case Common::KEYCODE_p:
 		if (_current) {
@@ -368,7 +368,7 @@ void RogerStudio::handleEvent(const Common::Event &ev) {
 		break;
 	case Common::KEYCODE_s:
 		if (_baseline) { _split = !_split; markDirty(); }
-		else _status = "pin a baseline first (P)";
+		else { _status = "pin a baseline first (P)"; markDirty(); }
 		break;
 	case Common::KEYCODE_e:
 		exportCurrent();
@@ -596,9 +596,14 @@ void RogerStudio::drawHud() {
 	int y = 2;
 	const int lh = font->getFontHeight() + 2;
 	small.frameRect(Common::Rect(smallW, smallH), fg);
+	// When showing the previous render (A/B flip), display its label so the user
+	// knows which version is on screen. The [PREV] prefix makes the state obvious.
+	const Common::String headerLabel = (_showPrevious && _previous)
+		? "[PREV] " + _previousLabel
+		: _currentLabel;
 	font->drawString(&small, Common::String::format(
 		"[%s]  %s  render %ums   Tab=mode A=flip P=pin S=split E=export F1=keys Esc=quit",
-		MODE_NAMES[_mode], _currentLabel.c_str(), _lastRenderMs), 4, y, smallW - 8, fg);
+		MODE_NAMES[_mode], headerLabel.c_str(), _lastRenderMs), 4, y, smallW - 8, fg);
 	y += lh;
 	if (!_status.empty()) {
 		font->drawString(&small, _status, 4, y, smallW - 8, hi);
