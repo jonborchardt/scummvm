@@ -200,6 +200,13 @@ private:
 	Common::Array<Common::Rect> _genRegions;  // Feeder B native rects captured this frame
 	Common::Array<byte> _nativeBaseline;      // last "known" native visual buffer (Feeder B diff)
 	bool _haveBaseline = false;
+	// ── Cycle-diff backstop net (spec Phase 2) ─────────────────────────────────
+	bool _diffNet = false;               // roger_diff_net; default ON (escape hatch: =false)
+	Common::Array<byte> _netPrevVisual;  // previous cycle's native visual buffer
+	Common::Array<byte> _netCurVisual;   // this cycle's read (member: no per-cycle alloc)
+	bool _haveNetPrev = false;           // false until the first cycle and after room change
+	uint32 _netCycleCount = 0;           // 1-in-32 cost-log counter
+	uint32 _netCostAccumMs = 0;          // summed ms over the last 32 cycles (ROGER-NET sum32)
 	bool _haveScene = false;                         // _sceneCache valid this room
 	bool _transitionsEnabled = true;                 // roger_transitions knob (default on)
 	bool _paletteLive = true;                        // roger_palette_live knob (default on)

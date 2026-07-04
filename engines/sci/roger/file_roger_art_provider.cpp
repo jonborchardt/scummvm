@@ -122,6 +122,17 @@ FileRogerArtProvider::FileRogerArtProvider(const Common::String &gameId,
 	_truthCapture = envTruth ? (Common::String(envTruth) != "0" && Common::String(envTruth) != "false")
 	                         : (ConfMan.hasKey("roger_truth_capture") && ConfMan.getBool("roger_truth_capture"));
 
+	// Cycle-diff backstop net (spec Phase 2): at the snapshotNativeBaseline seam, diff
+	// the native visual buffer against the previous cycle's copy and invalidate the
+	// changed boxes — a native change that slipped past every invalidation hook heals
+	// on the next cycle's present (brief flicker at worst, never persistent staleness).
+	// Default ON; roger_diff_net=false is the runtime escape hatch (spec §6).
+	{
+		const char *envNet = getenv("ROGER_DIFF_NET");
+		_diffNet = envNet ? (Common::String(envNet) != "0" && Common::String(envNet) != "false")
+		                  : (!ConfMan.hasKey("roger_diff_net") || ConfMan.getBool("roger_diff_net"));
+	}
+
 	// Input automation (scripted verification loop / live remote control). Env-first
 	// so build_and_run.ps1 -Script/-Live/-CycleLog can arm a single launch without
 	// touching scummvm.ini (same pattern as ROGER_NO_LAUNCHER); the ConfMan knobs
@@ -419,6 +430,7 @@ void FileRogerArtProvider::pushHiresBackground(GuiResourceId pictureId) {
 	_genTextPending.clear(); // discard any pending generic text from the departing room
 	_debugDumpedPic = -1;   // allow a fresh debug-capture dump for this room
 	_diffCheckedPic = -1;   // allow a fresh diff-check run for this room
+	_haveNetPrev = false;   // room changed: don't diff across rooms (full present covers entry)
 	// New room must fully refresh the cursor-restore cache; the transition path pre-validates
 	// _bgCache via composeRoomScene so the first renderFrame may not be a full-seed.
 	_compositeCacheValid = false;
@@ -2174,6 +2186,41 @@ void FileRogerArtProvider::snapshotNativeBaseline() {
 	// flushes them) — this is what makes a bitsRestore storm structurally unable
 	// to present per-hook (the bb65c56b75a class).
 	_inAnimateCycle = true;
+	// ── Cycle-diff backstop net (spec Phase 2) ──────────────────────────────
+	// The visual buffer holds the WHOLE previous frame at this seam (see the
+	// side-by-side comment below). Diff it against the previous cycle's copy and
+	// mark the changed boxes dirty via markNativeDirty — which clips the status
+	// strip, grows 1 native px, maps to overlay space, and (because _inAnimateCycle
+	// is already set) routes to the scene seed union so the cycle-tail present
+	// re-seeds clean background. Anything a hook missed heals here within one
+	// cycle. Cost budget < 1.0 ms median: ROGER-NET sum32 under -CycleLog is the
+	// measurement; the perf gate's busy+1ms threshold is the hard backstop.
+	if (_diffNet && overlayShown() && g_sci && g_sci->_gfxScreen) {
+		const uint32 netT0 = _cycleLog ? g_system->getMillis() : 0;
+		GfxScreen *netScreen = g_sci->_gfxScreen;
+		const int nw = netScreen->getWidth(), nh = netScreen->getHeight();
+		_netCurVisual.resize((uint)nw * nh); // no-op after the first cycle
+		for (int y = 0; y < nh; y++)
+			for (int x = 0; x < nw; x++)
+				_netCurVisual[(uint)y * nw + x] = netScreen->getVisual((int16)x, (int16)y);
+		uint netBoxes = 0;
+		if (_haveNetPrev && _netPrevVisual.size() == _netCurVisual.size()) {
+			Common::Array<Common::Rect> changed;
+			Roger::extractChangedBoxes(_netPrevVisual.begin(), _netCurVisual.begin(), nw, nh, changed);
+			netBoxes = changed.size();
+			for (uint i = 0; i < changed.size(); i++)
+				markNativeDirty(changed[i]);
+		}
+		_netPrevVisual = _netCurVisual;
+		_haveNetPrev = true;
+		if (_cycleLog) {
+			_netCostAccumMs += g_system->getMillis() - netT0;
+			if ((++_netCycleCount & 31) == 0) {
+				warning("ROGER-NET sum32=%ums boxes=%u", _netCostAccumMs, netBoxes);
+				_netCostAccumMs = 0;
+			}
+		}
+	}
 	// Side-by-side compare mode also needs this snapshot: it is taken at the one moment
 	// the native visual buffer holds the WHOLE frame (pic + addToPic + animate cast),
 	// just before restoreAndDelete() erases the animating cast (ego/moving views). The
