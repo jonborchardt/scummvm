@@ -311,15 +311,22 @@ the lifetime traps as the remaining manual discipline.
 Phase 1 shipped on branch `jon-p1-barrier` (plan:
 docs/superpowers/plans/2026-07-02-roger-phase1-present-barrier.md — gate tables,
 dirty-area telemetry, and fault-injection matrix are in that plan's addendum).
-Grow-workaround removed cleanly — gate proves bitsRestore's exact erase rect covers
-the compositor overdraw ring; the `n.grow(2)` fallback in `uiClearToken` was not
+Grow-workaround removed cleanly — bitsRestore's exact erase rect covers the compositor
+overdraw ring (verified by interactive soak, NOT provable by the capture-based gate,
+which forces a full recompose); the `n.grow(2)` fallback in `uiClearToken` was not
 needed after `markNativeDirty` in `onNativeEraseRect` was wired.
 Re-verification (2026-07-03): prior report of Injection A turning the gate red was a
 transient flake (single run, qfg1-cmdbox hang unrelated to the mark). Re-run twice: A
 green both times. B green (one run). C (A+B) green. Injection D (all three marks: A+B
 plus `markNativeDirty(screenRect)` at the top of `onNativeShowRect`) also green across
 three runs (run 2 had one sq3 busy-count jitter, runs 1 and 3 fully green). Gate is
-blind to removal of the entire §3.1 mark set — the bitsShow hook, sprite dirty path,
-and barrier accumulator provide sufficient coverage for all gated scenarios. All three
-marks are Phase 3 deletion candidates. Escalated to human; see the plan's Addendum
-fault-injection matrix (rows A–D) for full evidence.
+blind to removal of the entire §3.1 mark set — but this does NOT establish redundancy.
+The gate is blind *by construction*: its capture path forces a full clean recompose
+(`needFullSource`), so a missing-mark fault — which only manifests as a stale region in
+the *incrementally* seeded scratch — cannot appear in any capture. D's green is equally
+consistent with the marks being load-bearing for on-screen correctness. The three marks
+are therefore **unverifiable with the current gate**, not confirmed deletion candidates.
+Before any Phase 3 deletion, add an overlay-truth capture mode (dump the presented
+scratch / `grabOverlay` WITHOUT forcing full source) and re-run injections A–D against
+it; only a red there would justify calling any mark redundant. Escalated to human; see
+the plan's Addendum fault-injection matrix (rows A–D) for full evidence.
