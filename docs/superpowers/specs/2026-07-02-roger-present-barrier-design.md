@@ -1,7 +1,7 @@
 # Roger: present barrier + exact invalidation (design)
 
 **Date:** 2026-07-02
-**Status:** approved design, pending implementation
+**Status:** COMPLETE 2026-07-04 — all four phases shipped (see the per-phase result addenda at the end)
 **Execution model:** four phases; each phase gets its own implementation plan
 (superpowers:writing-plans) and must pass the shared roger-loop regression gate
 (§8) before the next phase's plan is written. Any phase that cannot hold the
