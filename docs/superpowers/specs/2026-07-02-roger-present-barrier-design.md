@@ -314,7 +314,10 @@ dirty-area telemetry, and fault-injection matrix are in that plan's addendum).
 Grow-workaround removed cleanly — gate proves bitsRestore's exact erase rect covers
 the compositor overdraw ring; the `n.grow(2)` fallback in `uiClearToken` was not
 needed after `markNativeDirty` in `onNativeEraseRect` was wired.
-Injection A (`markNativeDirty` in `onNativeEraseRect`) turned the gate red (qfg1-cmdbox
-run FAIL — game hung without the exact erase mark); Injection B (`markVacatedDirty` in
-`uiClearToken`) stayed green — that mark is covered by A's `onNativeEraseRect` path and
-is a Phase 3 deletion candidate.
+Re-verification (2026-07-03): prior report of Injection A turning the gate red was a
+transient flake (single run, qfg1-cmdbox hang unrelated to the mark). Re-run twice: A
+green both times. B green (one run). C (A+B) green. All injections green — the gate does
+NOT structurally detect removal of either mark. Both marks remain architecturally correct
+(exact dirty coverage, belt-and-suspenders), but the exit criterion ("at least one
+injection red") is not met. Escalated to human; see the plan's Addendum fault-injection
+matrix for full evidence.

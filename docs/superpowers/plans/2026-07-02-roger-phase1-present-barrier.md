@@ -1079,14 +1079,14 @@ Then report: Phase 1 complete on `jon-p1-barrier`, ready to merge to `jon-refact
   - sq3: presents=193 cycles=181 presentsPerCycle=1.07 medianArea=446093 (+23.4% vs Task 1 — EXCEEDS the +10% watch-item)
   - Note on sq3 +23.4%: Task 4 alone contributed +17.6% (region-bounded compose; larger per-present areas because small UI-only presents are now merged into the next cycle present instead of firing separately). Task 5 delta was +4.9%. The perf gate stayed green both tasks (period/p90 unchanged). presents-per-cycle fell from 1.13 → 1.07 — the barrier eliminated small UI-only presents, shifting the per-present median up. Regression risk: low — walking speed and p90 are unchanged; the larger median area is a present-consolidation effect, not wasted work.
 
-- **Fault-injection matrix** (2026-07-03, scratch edits, never committed):
+- **Fault-injection matrix** (2026-07-03 initial; re-verified 2026-07-03 after contradiction, scratch edits, never committed):
   | Injection | Edit | Build | Gate result | Failing checks |
   |---|---|---|---|---|
-  | A | Comment out `markNativeDirty(nativeRect);` in `onNativeEraseRect` | OK | **RED** (1 failure) | `qfg1-cmdbox run FAIL exit code -1 (124 = hung script)` — the game process hung/timed out without the exact erase mark |
+  | A | Comment out `markNativeDirty(nativeRect);` in `onNativeEraseRect` | OK | **GREEN** (33/33) — two runs | Prior report of RED was a transient flake (single run); re-verified twice, both green. Gate does NOT detect removal of this mark. |
   | B | Comment out `markVacatedDirty(removedRects[i]);` loop body in `uiClearToken` | OK | **GREEN** (33/33) | Stayed green — `markVacatedDirty` in `uiClearToken` is covered by `markNativeDirty` in `onNativeEraseRect` (bitsRestore's save-under rect always fires after token clear and covers the same region); evidence for the Phase 3 deletion list |
-  | C | Both A + B simultaneously | OK | **GREEN** (33/33) | Stayed green — without `markNativeDirty`, the game hangs before the cmdbox sameRunDiff check can fire; the B redundancy result holds when A is also removed |
+  | C | Both A + B simultaneously | OK | **GREEN** (33/33) | Stayed green — consistent with A green; both marks are covered by the barrier's dirty-accumulator path and the bitsShow hook. |
 
-  Gate detection summary: Injection A turned the gate red (qfg1-cmdbox run FAIL). The minimum exit criterion ("at least one injection red") is satisfied. Injection B green confirms `markVacatedDirty` in `uiClearToken` is redundant — it is on the Phase 3 deletion candidate list.
+  Gate detection summary: **ESCALATION — all injections green.** The minimum exit criterion ("at least one injection red") is NOT met. The prior A-red was a single-run transient flake (likely a timing or save-state variance in the qfg1-cmdbox script). The gate cannot structurally detect removal of `markNativeDirty` in `onNativeEraseRect` or `markVacatedDirty` in `uiClearToken`. Both marks are architecturally correct (belt-and-suspenders dirty coverage for exact rects) but the regression suite lacks a test scenario that fails visually when they are absent. Escalated to human for decision on Phase 1 exit criterion.
 
 - **Grow-workaround outcome:** Removed cleanly — gate proves bitsRestore's exact erase rect covers the compositor overdraw ring; the `n.grow(2)` / `d.grow(2)` fallback was not needed after Task 5's `markNativeDirty` hook in `onNativeEraseRect` was wired. `uiVacatedExtent` (the exact-only math, no native grow) is what `markVacatedDirty` now calls.
 
