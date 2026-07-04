@@ -463,7 +463,7 @@ Then report: Phase 3 complete on `jon-p3-cleanup`, ready to merge (human's call)
 
 - **Deletion/retention outcome:** Executed exactly per the table — `onNativeEraseRect` loop DELETED (commit `fd356b50b37`); `uiClearToken` + `uiPushFrameBox` RETAINED + documented with `RETAINED duty-3 exception` comments (commit `17b9d1fb839`); no deviation found during execution.
 
-- **Line counts:** before 13,128 → after **11,900** total (`engines/sci/roger` *.cpp/*.h); `file_roger_art_provider.cpp` baseline 2,773 → after **2,560**.
+- **Line counts:** before 13,128 → after **13,125** total (`engines/sci/roger` *.cpp/*.h, raw `(Get-Content).Count` sum); `file_roger_art_provider.cpp` baseline 2,773 → after **2,771** (raw). Net −3; git numstat vs base `1534324182c`: 19 ins / 22 del across file_roger_art_provider.cpp −2 and roger_coords.h −1. Note: the plan's dossier command (`Measure-Object -Line`) excludes blank lines and reports 11,900 at HEAD; the recorded 13,128 baseline was a raw line count, so the like-for-like comparison uses raw `(Get-Content).Count` sums.
 
 - **Twice-green gate tables:**
 

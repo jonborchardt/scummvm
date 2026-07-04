@@ -382,7 +382,7 @@ and deleted (`onNativeEraseRect`'s vacated loop — containment under the same f
 (`uiClearToken`: no-save-under disposals skip bitsRestore + Feeder B stamp overhang;
 `uiPushFrameBox`: no save-under exists and the net cannot see overlay-only draws) —
 per this spec's own "provably covered" rule, which governs over its examples.
-`engines/sci/roger` line count: 13,128 → 11,900. CLAUDE.md invariants rewritten
+`engines/sci/roger` line count: 13,128 → 13,125 (raw `(Get-Content).Count`; net −3). CLAUDE.md invariants rewritten
 (duty 3 retired; barrier + net + layered invalidation documented; Phase 2 traps added).
 Gate twice-green. No fault injections were run (Phase 2 established the gate cannot
 verify invalidation marks either way); the deletion is verified by containment proof,
