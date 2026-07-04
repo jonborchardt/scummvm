@@ -138,13 +138,17 @@ void comparePanelRects(int overlayW, int overlayH,
 void scaleBlitNearest(Graphics::Surface &dest, const Common::Rect &destRect,
                       const Graphics::Surface &src);
 
-// Alpha-aware nearest scale-blit of a cel into dest's destRect (clipped to dest),
-// with the SAME exact rational mapping as scaleBlitNearest (sx = dx*srcW/dstW) so
-// cel content aligns with the plate. Per-pixel src-over; a cel's alpha is 0/255 in
-// practice, so the blend collapses to skip/copy. Replaces blendBlitFrom for scene
-// sprites — its truncated 8.8 fixed-point step misplaced content by a few px.
+// Alpha-aware nearest scale-blit of a cel into dest's destRect, with the SAME exact
+// rational mapping as scaleBlitNearest (sx = dx*srcW/dstW) so cel content aligns with
+// the plate. Per-pixel src-over; a cel's alpha is 0/255 in practice, so the blend
+// collapses to skip/copy. Replaces blendBlitFrom for scene sprites — its truncated
+// 8.8 fixed-point step misplaced content by a few px. Painting is CLIPPED to the dest
+// surface and (when given) to `clip`, but the source is always sampled against the
+// FULL destRect — a destRect extending past the clip is CROPPED, never compressed
+// (native SCI port clipping, and how sprites exit the screen edge without squishing).
 void blendScaleBlitNearest(Graphics::ManagedSurface &dest, const Graphics::Surface &cel,
-                           const Common::Rect &destRect, bool flipH);
+                           const Common::Rect &destRect, bool flipH,
+                           const Common::Rect *clip = nullptr);
 
 // §3.3 support: grow `regions` (coalesced, clamped to `bounds`) to a fixpoint over
 // every UI element whose paint extent (uiPaintExtent) intersects them, closed over

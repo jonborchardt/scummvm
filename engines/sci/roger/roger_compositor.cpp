@@ -165,7 +165,8 @@ void scaleBlitNearest(Graphics::Surface &dest, const Common::Rect &destRect,
 }
 
 void blendScaleBlitNearest(Graphics::ManagedSurface &dest, const Graphics::Surface &cel,
-                           const Common::Rect &destRect, bool flipH) {
+                           const Common::Rect &destRect, bool flipH,
+                           const Common::Rect *clip) {
 	const int dw = destRect.width(), dh = destRect.height();
 	if (dw <= 0 || dh <= 0 || cel.w <= 0 || cel.h <= 0)
 		return;
@@ -173,6 +174,7 @@ void blendScaleBlitNearest(Graphics::ManagedSurface &dest, const Graphics::Surfa
 	// Fallback for formats the fast path can't take (never hit in practice: the scene
 	// and all cel sources are RGBA32). blendBlitFrom scales with the truncated step,
 	// but on a mismatched-format path exact geometry is already lost to conversion.
+	// (`clip` is not honored here — acceptable on a path that never runs.)
 	if (d->format != cel.format || d->format.bytesPerPixel != 4) {
 		dest.blendBlitFrom(cel, Common::Rect(0, 0, cel.w, cel.h), destRect,
 		                   flipH ? Graphics::FLIP_H : Graphics::FLIP_NONE);
@@ -181,8 +183,17 @@ void blendScaleBlitNearest(Graphics::ManagedSurface &dest, const Graphics::Surfa
 	// EXACT rational mapping (sx = dx*celW/dstW) so the cel's content occupies exactly
 	// the dest rect the caller computed with the same rational math — matching the
 	// plate's scaleBlitNearest. Src-over per pixel (cel alpha is 0/255 in practice).
-	const int x0 = MAX<int>(destRect.left, 0), x1 = MIN<int>(destRect.right, d->w);
-	const int y0 = MAX<int>(destRect.top, 0), y1 = MIN<int>(destRect.bottom, d->h);
+	// The paint window is the dest surface ∩ `clip`; source coords stay relative to
+	// the FULL destRect, so off-window extent is cropped, never squished.
+	int cl = 0, ct = 0, cr = d->w, cb = d->h;
+	if (clip) {
+		cl = MAX<int>(cl, clip->left);
+		ct = MAX<int>(ct, clip->top);
+		cr = MIN<int>(cr, clip->right);
+		cb = MIN<int>(cb, clip->bottom);
+	}
+	const int x0 = MAX<int>(destRect.left, cl), x1 = MIN<int>(destRect.right, cr);
+	const int y0 = MAX<int>(destRect.top, ct), y1 = MIN<int>(destRect.bottom, cb);
 	if (x0 >= x1 || y0 >= y1)
 		return;
 	Common::Array<int> colMap;
@@ -454,13 +465,15 @@ void RogerCompositor::renderScene(Graphics::ManagedSurface &dest, const Common::
 			// stretch on normal cels. Capped to 1/8 of the dest size so tiny cels
 			// (projectiles, sparks) don't visibly fatten. Feeder B stamps and
 			// exact-geometry tests keep coverGrow off.
+			// NEVER clip dst itself to picRect: amputating the off-screen extent
+			// from the rect while the full cel scales into what remains compressed
+			// sprites at every screen edge (the "views squish as they exit" bug).
+			// The blit crops to picRect instead (blendScaleBlitNearest's clip arg).
 			static const int kCelCoverPx = 3;
 			if (s.coverGrow && !dst.isEmpty()) {
 				const int g = MIN<int>(kCelCoverPx, MIN<int>(dst.width() / 8, dst.height() / 8));
-				if (g > 0) {
+				if (g > 0)
 					dst.grow((int16)g);
-					dst.clip(picRect);
-				}
 			}
 		}
 		spriteDst.push_back(dst);
@@ -597,7 +610,9 @@ void RogerCompositor::renderScene(Graphics::ManagedSurface &dest, const Common::
 		// No FLIP_H here: GfxView::getBitmap() already mirrors a mirrored loop's pixels,
 		// and BOTH cel sources (renderNativeCel + the hires ViewCache's generateViewCel)
 		// read through it, so the cel arrives already-mirrored. s.mirror stays false.
-		blendScaleBlitNearest(dest, *cel, dst, s.mirror);
+		// picRect clips the PAINT (crop at the screen edge / letterbox boundary); the
+		// dst rect keeps its off-screen extent so the cel is never compressed.
+		blendScaleBlitNearest(dest, *cel, dst, s.mirror, &picRect);
 
 		// Per-pixel priority occlusion against the plate.
 		if (_priority && _plate) {

@@ -267,6 +267,58 @@ public:
 		plate.free();
 	}
 
+	void test_sprite_leaving_screen_is_cropped_not_squished() {
+		// REGRESSION for the "views squish as they exit the screen" bug: the
+		// coverGrow block clipped the sprite's DEST rect to picRect, so a sprite
+		// partially off-screen had its whole off-screen extent amputated from the
+		// rect while the full cel was still scaled into what remained — visible
+		// compression at every screen edge. The dest rect must keep its off-screen
+		// extent; the BLIT is what clips (crop), sampling the source against the
+		// full rect, matching native SCI's port clipping.
+		const Graphics::PixelFormat rgba(4, 8, 8, 8, 8, 24, 16, 8, 0);
+		const uint32 red  = rgba.ARGBToColor(255, 255, 0, 0);
+		const uint32 blue = rgba.ARGBToColor(255, 0, 0, 255);
+		const uint32 gray = rgba.ARGBToColor(255, 64, 64, 64);
+
+		Graphics::Surface plate;
+		plate.create(64, 64, rgba);
+		plate.fillRect(Common::Rect(0, 0, 64, 64), gray);
+		// Cel: left half red, right half blue.
+		Graphics::Surface cel;
+		cel.create(32, 32, rgba);
+		cel.fillRect(Common::Rect(0, 0, 16, 32), red);
+		cel.fillRect(Common::Rect(16, 0, 32, 32), blue);
+
+		// Half off the left edge: celRect (-16,16)-(16,48). PIC == surface -> 1:1.
+		// Only the cel's RIGHT (blue) half is on-screen; red must never appear.
+		Sci::Roger::Sprite spr;
+		spr.viewId = -1; spr.loopNo = 0; spr.celNo = 0;
+		spr.priority = 1; spr.mirror = false;
+		spr.celRect = Common::Rect(-16, 16, 16, 48);
+		spr.celOverride = &cel;
+		spr.coverGrow = true; // the game-cel path (grow fed the clipping bug)
+
+		Sci::Roger::RogerCompositor comp;
+		comp.setRoom(&plate, nullptr);
+		comp.setPicture(64, 64, 0);
+		Graphics::ManagedSurface dest(64, 64, rgba);
+		Common::Array<Sci::Roger::Sprite> list;
+		list.push_back(spr);
+		comp.renderScene(dest, list, Common::Rect(0, 0, 64, 64));
+
+		// Crop: the screen-left column shows the cel's blue half (squish showed red).
+		TS_ASSERT_EQUALS(dest.surfacePtr()->getPixel(0, 32), blue);
+		TS_ASSERT_EQUALS(dest.surfacePtr()->getPixel(9, 32), blue);
+		// No red anywhere on the sprite's row.
+		for (int x = 0; x < 64; x++)
+			TS_ASSERT_DIFFERS(dest.surfacePtr()->getPixel(x, 32), red);
+		// Past the (grown) dest rect the plate shows through.
+		TS_ASSERT_EQUALS(dest.surfacePtr()->getPixel(24, 32), gray);
+
+		cel.free();
+		plate.free();
+	}
+
 	void test_splat_matches_background_scaler_under_scaling() {
 		// REGRESSION for the "splatted pixels are off by a few px" bug. When the plate
 		// is scaled into the game rect (plate wider than picRect), the occlusion
