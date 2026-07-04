@@ -89,6 +89,7 @@ public:
 		p.tieBreakBlend = false;   TS_ASSERT(!p.isDefault()); p.tieBreakBlend = true;
 		p.diagFlankSuppress = false; TS_ASSERT(!p.isDefault()); p.diagFlankSuppress = true;
 		p.backfillOwnCell = false; TS_ASSERT(!p.isDefault()); p.backfillOwnCell = true;
+		p.backfillFloodRounds = 0; TS_ASSERT(!p.isDefault()); p.backfillFloodRounds = 3;
 
 		TS_ASSERT(p.isDefault()); // restored to all-defaults
 	}
@@ -121,8 +122,8 @@ public:
 		//           diagFlankSuppress=true backfillOwnCell=true (kTransformVersion 5);
 		//           passes=3f1l2f4a (defaultPasses()).
 		// NOTE: identical to the legacy (backfillOwnCell=false) hash — over this
-		// fixture every backfilled pixel's own-cell colour equals the flood majority,
-		// so v5's change is output-neutral here; it only alters cross-cell cascades.
+		// fixture the bounded flood (3 rounds + own-cell fill) reproduces the scan
+		// flood exactly; the v6 change only manifests at long-range cascades.
 		static const uint32 kDefaultPipelineGolden = 0x40B38BFFu; // FNV-1a over pixels+cmdType
 		NativeRef ref = crossingLinesRef();
 		Common::Array<int> passes = defaultPasses();
@@ -145,13 +146,18 @@ public:
 		TS_ASSERT_EQUALS(got, kLegacyPipelineGolden);
 	}
 
-	// backfillOwnCell invariant: every pixel fillNullPixels painted equals its own
-	// native cell's refPixel — an unclaimed pixel never takes a neighbouring cell's
-	// colour (the down-right cascade of the legacy majority flood).
+	// backfillOwnCell invariant (bounded-flood disabled, rounds=0): every pixel
+	// fillNullPixels painted equals its own native cell's refPixel — an unclaimed
+	// pixel never takes a neighbouring cell's colour (the down-right cascade of
+	// the legacy majority flood). The shipping default adds backfillFloodRounds
+	// bounded flood rounds before this terminal fill; rounds=0 isolates the
+	// own-cell phase for the invariant.
 	void test_backfill_own_cell_is_native_faithful() {
 		NativeRef ref = crossingLinesRef();
 		Common::Array<int> passes; // wireframe: large null regions -> heavy backfill
-		OmyacResult out = renderOmyac(ref, passes, OmyacParams());
+		OmyacParams pOwnOnly;
+		pOwnOnly.backfillFloodRounds = 0;
+		OmyacResult out = renderOmyac(ref, passes, pOwnOnly);
 		int checked = 0;
 		for (int y = 0; y < OMYAC_HYBRID_H; y++) {
 			for (int x = 0; x < OMYAC_HYBRID_W; x++) {

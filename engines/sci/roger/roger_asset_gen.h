@@ -67,8 +67,12 @@ enum GenMode {
 //   v5: fillNullPixels backfills unclaimed pixels with their own native cell's
 //       colour (OmyacParams::backfillOwnCell) instead of the scan-order majority
 //       flood, which cascaded foreign colours down-right across cells (the SQ3
-//       pod-door cyan artifact).
-static const int kTransformVersion = 5;
+//       pod-door cyan artifact). Superseded same day by v6 — pure own-cell reads
+//       too blocky under sparse pass lists.
+//   v6: bounded direction-neutral backfill — backfillFloodRounds breadth-first
+//       majority rounds (frozen src per round), then own-cell fill. Keeps the
+//       flood-rasterized smooth look, kills the unbounded cascade.
+static const int kTransformVersion = 6;
 
 /**
  * Orchestrates on-the-fly omyac plate generation and scale6x view-cel

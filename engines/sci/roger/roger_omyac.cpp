@@ -658,12 +658,61 @@ static void fillNullPixels(const NativeRef &ref, Common::Array<byte> &buf,
 		backfilled[i] = 0;
 
 	if (params.backfillOwnCell) {
-		// Native-fidelity backfill (shipping default): a pixel nothing claimed takes
-		// its OWN native cell's colour. Interiors are unchanged vs the majority flood
-		// (the neighbourhood is the same colour there); what dies is the scan-order
-		// CASCADE of the legacy path below, which let a foreign colour flood
-		// arbitrarily far down-right across cells it had no claim to (the pod-door
-		// "cyan through the transparent corner" artifact).
+		// Bounded, direction-neutral backfill (shipping default). Phase 1: up to
+		// backfillFloodRounds breadth-first majority rounds. Each round votes on a
+		// FROZEN copy of the buffers, so claimed colours advance exactly 1 px per
+		// round and opposing fronts meet symmetrically — unlike the legacy path
+		// below, whose in-place scan-order vote let a foreign colour cascade
+		// arbitrarily far down-right (the pod-door "cyan through the transparent
+		// corner" artifact). Interior gaps between hybrid strokes are <= ~3 px, so
+		// the smooth flood-rasterized look survives. Phase 2: anything still
+		// unclaimed takes its OWN native cell's colour (native-faithful).
+		int count[256];
+		for (int round = 0; round < params.backfillFloodRounds; round++) {
+			Common::Array<byte> srcBuf(buf);
+			Common::Array<byte> srcType(typeBuf);
+			bool any = false;
+			for (int y = 0; y < OMYAC_HYBRID_H; y++) {
+				for (int x = 0; x < OMYAC_HYBRID_W; x++) {
+					int idx = y * OMYAC_HYBRID_W + x;
+					if (srcType[idx] != CMD_NONE)
+						continue;
+					for (int c = 0; c < 256; c++)
+						count[c] = 0;
+					byte bestColor = 0x00;
+					int bestCount = 0;
+					for (int dy = -1; dy <= 1; dy++) {
+						for (int dx = -1; dx <= 1; dx++) {
+							if (!dx && !dy)
+								continue;
+							int nx = x + dx;
+							int ny = y + dy;
+							if (nx < 0 || nx >= OMYAC_HYBRID_W || ny < 0 || ny >= OMYAC_HYBRID_H)
+								continue;
+							int nidx = ny * OMYAC_HYBRID_W + nx;
+							if (srcType[nidx] == CMD_NONE)
+								continue;
+							byte c = srcBuf[nidx];
+							count[c]++;
+							if (count[c] > bestCount) {
+								bestCount = count[c];
+								bestColor = c;
+							}
+						}
+					}
+					if (bestCount > 0) {
+						buf[idx] = bestColor;
+						typeBuf[idx] = CMD_FILL;
+						backfilled[idx] = 1;
+						any = true;
+					}
+				}
+			}
+			if (!any)
+				break;
+		}
+		// Phase 2: native-faithful terminal fill for everything the bounded flood
+		// never reached.
 		for (int y = 0; y < OMYAC_HYBRID_H; y++) {
 			for (int x = 0; x < OMYAC_HYBRID_W; x++) {
 				int idx = y * OMYAC_HYBRID_W + x;

@@ -39,6 +39,10 @@ static const OmyacParamDesc PARAM_DESCS[] = {
 	  "On voting ties blend okLab colours instead of picking the first candidate" },
 	{ "diagFlankSuppress",  0, 1, 1, true,
 	  "Skip diagonal fill connections when both cardinal flanks are line pixels" },
+	// backfillOwnCell / backfillFloodRounds (v6 bounded backfill) are deliberately
+	// NOT registered: the settings panel layout (and its tests) are sized for 7
+	// rows. Expose them together with a panel-layout change if studio tuning is
+	// ever wanted; the shipping defaults are what matter.
 };
 
 int omyacParamCount() {

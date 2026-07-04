@@ -61,16 +61,23 @@ struct OmyacParams {
 	bool isolatedPixelPass = true;      // enhance() isolated-pixel dilation pass
 	bool tieBreakBlend = true;          // tie-break by BLEND_TABLE-nearest (false = first tied)
 	bool diagFlankSuppress = true;      // fill-anchor diagonal-flanking suppression rule
-	// fillNullPixels mode. true (shipping default since kTransformVersion 5):
-	// a pixel nothing claimed (no stroke, no enhance pass) takes its OWN native
-	// cell's colour — smoothing keeps every pixel it actively claimed, everything
-	// else stays native-faithful. false: the original TS-port behaviour — an
-	// 8-neighbour majority vote computed IN SCAN ORDER on the buffer being
-	// mutated, which lets a foreign colour at a null region's top-left frontier
-	// cascade arbitrarily far down-right (the SQ3 pic-2 "cyan through the pod
-	// door's transparent corner" artifact: the doorway fill, natively hidden
-	// under the baked door cel, flooded the dark ring's cells).
+	// fillNullPixels mode. true (shipping default since kTransformVersion 6):
+	// bounded, direction-neutral backfill — backfillFloodRounds breadth-first
+	// majority rounds (each round votes on a FROZEN copy, so claimed colours
+	// spread exactly 1 px per round and opposing fronts meet symmetrically),
+	// then any pixel still unclaimed takes its OWN native cell's colour.
+	// Interior lattice gaps between strokes are <= ~3 px, so the smooth
+	// flood-rasterized look is preserved; what dies is the legacy cascade.
+	// false: the original TS-port behaviour — an 8-neighbour majority vote
+	// computed IN SCAN ORDER on the buffer being mutated, which lets a foreign
+	// colour at a null region's top-left frontier cascade arbitrarily far
+	// down-right (the SQ3 pic-2 "cyan through the pod door's transparent
+	// corner" artifact: the doorway fill, natively hidden under the baked door
+	// cel, flooded the dark ring's cells). A pure own-cell fill (rounds = 0)
+	// was tried first and reads too blocky under sparse pass lists ("2 1") —
+	// the flood is what rasterizes between the hybrid strokes.
 	bool backfillOwnCell = true;
+	int backfillFloodRounds = 3; // bounded-flood rounds before the own-cell fill
 
 	bool isDefault() const {
 		const OmyacParams d;
@@ -81,7 +88,8 @@ struct OmyacParams {
 		       isolatedPixelPass == d.isolatedPixelPass &&
 		       tieBreakBlend == d.tieBreakBlend &&
 		       diagFlankSuppress == d.diagFlankSuppress &&
-		       backfillOwnCell == d.backfillOwnCell;
+		       backfillOwnCell == d.backfillOwnCell &&
+		       backfillFloodRounds == d.backfillFloodRounds;
 	}
 };
 
