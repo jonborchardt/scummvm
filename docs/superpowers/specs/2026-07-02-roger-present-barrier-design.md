@@ -371,3 +371,21 @@ about interactive-only triggers still stands and requires an interactive soak be
 Phase 3 begins; and the marks remain load-bearing as the **first** layer of a
 redundant invalidation stack — their unique value is intra-freeze correctness (the
 at-dismissal present itself), which the net cannot provide.
+
+## Addendum: Phase 3 result (2026-07-04)
+
+Phase 3 shipped on branch `jon-p3-cleanup` (plan:
+docs/superpowers/plans/2026-07-04-roger-phase3-delete-redundant-bookkeeping.md — evidence
+in that plan's addendum). Of §5 Phase 3's three named targets, one was provably covered
+and deleted (`onNativeEraseRect`'s vacated loop — containment under the same function's
+§3.1 mark); two were RETAINED as documented duty-3 exceptions with the gaps named
+(`uiClearToken`: no-save-under disposals skip bitsRestore + Feeder B stamp overhang;
+`uiPushFrameBox`: no save-under exists and the net cannot see overlay-only draws) —
+per this spec's own "provably covered" rule, which governs over its examples.
+`engines/sci/roger` line count: 13,128 → 11,900. CLAUDE.md invariants rewritten
+(duty 3 retired; barrier + net + layered invalidation documented; Phase 2 traps added).
+Gate twice-green. No fault injections were run (Phase 2 established the gate cannot
+verify invalidation marks either way); the deletion is verified by containment proof,
+gate, and the user's interactive soak. This completes the spec's four-phase execution
+model; remaining manual disciplines are lifetime (window tokens / owner gating) and
+the two documented duty-3 exceptions.
