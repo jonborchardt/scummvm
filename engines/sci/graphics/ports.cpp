@@ -523,15 +523,19 @@ void GfxPorts::drawWindow(Window *pWnd) {
 
 		if (g_sciRogerProvider && g_sciRogerProvider->enabled) {
 			const uint32 tok = 0x40000000u | (uint32)pWnd->id;
-			g_sciRogerProvider->uiPushWindow(pWnd->dims, pWnd->backClr, pWnd->penClr,
+			// Provider rects are global 320x200 screen space; dims is _wmgrPort-local
+			// (the current port here), so globalize exactly like bitsShow below does.
+			Common::Rect globalDims = pWnd->dims;
+			offsetRect(globalDims);
+			g_sciRogerProvider->uiPushWindow(globalDims, pWnd->backClr, pWnd->penClr,
 			                                 wndStyle, tok);
 			// A titled window (e.g. the inventory's "You are carrying:") draws its title in
 			// a titlebar strip that uiPushWindow does not reproduce. Capture it so the hires
 			// overlay shows the title too: a dark titlebar (grey for SCI0, black later) with
 			// centered white text, matching the native bar.
 			if ((wndStyle & SCI_WINDOWMGR_STYLE_TITLE) && !pWnd->title.empty()) {
-				Common::Rect titleRect(pWnd->dims.left, pWnd->dims.top,
-				                       pWnd->dims.right, (int16)(pWnd->dims.top + 10));
+				Common::Rect titleRect(globalDims.left, globalDims.top,
+				                       globalDims.right, (int16)(globalDims.top + 10));
 				const int titleBack = (getSciVersion() <= SCI_VERSION_0_LATE) ? 8 : 0;
 				int16 nfw = 0, nfh = 0;
 				_text16->StringWidth(pWnd->title, 0, nfw, nfh);

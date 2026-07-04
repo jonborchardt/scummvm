@@ -299,6 +299,20 @@ void filterForegroundCaptureRegionsCovered(const Common::Array<Common::Rect> &ca
 	}
 }
 
+bool regionIsCapturedWindowBody(const Common::Array<UiElement> &elems, uint32 owner,
+                                const Common::Rect &region, int minMutualPct) {
+	if (owner == 0)
+		return false;
+	for (uint i = 0; i < elems.size(); i++) {
+		if (elems[i].type != kUiWindow || elems[i].token != owner)
+			continue;
+		if (rectCoverageFraction(region, elems[i].nativeRect) >= minMutualPct &&
+		    rectCoverageFraction(elems[i].nativeRect, region) >= minMutualPct)
+			return true;
+	}
+	return false;
+}
+
 void dedupeGenericTextElements(Common::Array<UiElement> &elems, uint32 genericToken) {
 	// genericToken is a namespace prefix (high nibble): generic text is tokened per window
 	// (0x60000000 | port->id), so match on the namespace, not an exact value.

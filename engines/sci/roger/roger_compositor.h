@@ -97,6 +97,16 @@ void filterForegroundCaptureRegionsCovered(const Common::Array<Common::Rect> &ca
                                            const Common::Array<Common::Rect> &exclude,
                                            int minCoveragePct, Common::Array<Common::Rect> &out);
 
+// True when `region` is the shown body of a window the UI layer already reproduces
+// semantically: some kUiWindow element carries the same `owner` token and the two rects
+// mutually cover >= minMutualPct of each other (bitsShow byte-aligns left/right, so the
+// native show rect can be up to a pixel wider per side than the window element). Used to
+// scope pixel capture: the window's own frame+fill draw must never be pixel-stamped (it
+// would put the blocky native dialog under the enhanced one), while a graphic drawn
+// INSIDE the window (a dialog icon covers far less of it) stays stampable.
+bool regionIsCapturedWindowBody(const Common::Array<UiElement> &elems, uint32 owner,
+                                const Common::Rect &region, int minMutualPct);
+
 // Drop each element tagged with `genericToken` whose rect is contained in a non-generic
 // element that itself renders the SAME text (kUiText / kUiButton / kUiTextEdit) — so a
 // label controls16/menu already captured semantically is not rendered twice by the generic

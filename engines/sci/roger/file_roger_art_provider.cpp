@@ -1958,6 +1958,14 @@ void FileRogerArtProvider::processForegroundCaptures(const Common::Array<Common:
 	_foregroundRegions.clear();
 	for (uint i = 0; i < pending.size(); i++) {
 		const Common::Rect &nr = pending[i].rect;
+		// The window's own frame+fill draw (GfxPorts::drawWindow's bitsShow, tagged with
+		// the window token) is already reproduced semantically as a kUiWindow element —
+		// pixel-stamping it puts the blocky native dialog under the enhanced one (the SQ3
+		// death-message bug; visible whenever the game cycle keeps running under a
+		// non-modal window). Match by token + near-equal rect so a graphic drawn INSIDE
+		// the window (dialog icons) still stamps.
+		if (_uiLayer && Roger::regionIsCapturedWindowBody(_uiLayer->elements(), pending[i].owner, nr, 90))
+			continue;
 		Common::Array<Common::Rect> one, keep;
 		one.push_back(nr);
 		// Live cast: exclude on any intersection (moving actors must never be pixel-stamped).
