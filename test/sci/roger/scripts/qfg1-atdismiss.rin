@@ -1,0 +1,36 @@
+# RESEARCH ARTIFACT (Phase 2, 2026-07-04) -- NOT a gate entry; kept as documentation.
+# At-dismissal stale-window capture: with truth-capture mode on (ROGER_TRUTH_CAPTURE=1),
+# the pending `capture atdismiss` is consumed by the DISMISS present itself
+# (presentWithUi bounded path, Diag-verified), i.e. the earliest reachable capture point.
+#
+# Finding: this scenario CANNOT detect invalidation-fault injections. Post-Phase-1
+# invalidation is layered -- the UI-layer _dirtyPrev loop, the scene seed union
+# (incl. the deferred-vacate cover), and compose-time dirtying each independently
+# reseed the vacated region -- so the captures stay clean even with all three
+# invalidation marks AND renderUiLayer's per-element dirty-adds disabled.
+# See docs/superpowers/plans/2026-07-03-roger-phase2-diff-net.md (Amendment/Resolution).
+#
+# Technique notes (reusable): no move between `capture` and the dismissing key --
+# a move fires a cursor-only present that would consume the pending capture early.
+# QFG1 save slot 3 -> room 320 (market street).
+wait 4500
+capture base
+move 160 100
+wait 500
+type "look"
+wait 900
+key ENTER
+wait 2500
+# Dialog is now blocking (kernelAnimate frozen, _dirtyPrev = showRect text rect only).
+# The pending capture stays here until the dismiss present consumes it.
+capture atdismiss
+key enter
+# Dismiss fires bitsRestore/uiClearToken -> presentBarrier -> presentWithUi (bounded).
+# With marks: dialog rect in _dirtyCur -> full dialog cleared. Without: only text
+# area (from _dirtyPrev) cleared, border pixels stale -> sameRunDiff FAILS under injection.
+# maybeScriptCapture fires after presentToOverlay via grabOverlay (truth mode).
+wait 400
+capture healed
+move 160 100
+wait 500
+quit
