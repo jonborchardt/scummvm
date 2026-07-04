@@ -632,50 +632,25 @@ void FileRogerArtProvider::renderFrame(const Common::Array<Roger::Sprite> &sprit
 		g_system->getPaletteManager()->grabPalette(pal, 0, 256);
 		_compositor->renderUiLayer(scene, _uiLayer->elements(), pal, gameRect, _textRenderer, _altTextRenderer);
 	}
-	// Snapshot scene+UI (no cursor) — cursor-only onMouseMoved restores from here.
-	// Only the software-cursor onMouseMoved fast path reads _compositeCache; under the
-	// hardware cursor that path early-returns and compositeCursor no-ops, so the cache
-	// has no reader. Skip the ~22 MB copy entirely in the hw-cursor case.
-	if (!_useHwCursor) {
-		// _compositeCacheValid coming in tells us a full cursor-free snapshot from a prior
-		// frame is intact; ensureCompositeCache clears it on (re)alloc. The onMouseMoved fast
-		// path reads arbitrary cursor-position rects from this cache (not just the seed union),
-		// so a bounded copy is only safe when that full prior snapshot exists AND this frame
-		// touched only the union; otherwise (realloc, full-seed, generic regions, or a prior
-		// invalidation) do a full copy. Copies into the existing allocation.
-		const bool priorValid = _compositeCacheValid;
-		ensureCompositeCache(OW, OH);
-		if (fullSceneCopy || !priorValid || !_compositeCacheValid) {
-			_compositeCache->copyRectToSurface(scene.rawSurface(), 0, 0, Common::Rect(0, 0, scene.w, scene.h));
-		} else {
-			const Common::Array<Common::Rect> &u = _compositor->lastSeedUnion();
-			for (uint i = 0; i < u.size(); i++)
-				_compositeCache->copyRectToSurface(scene.rawSurface(), u[i].left, u[i].top, u[i]);
-		}
-		_compositeCacheValid = true;
-	}
-	if (_mode == Roger::kModeSideBySide) {
-		presentComparison(); // draws its own split layout + cursor; the enhanced `scene` cursor is unused
+	// Snapshot scene+UI (no cursor) — the barrier's bounded path patches and
+	// presents from this cache, so it must stay valid under BOTH cursor modes.
+	// _compositeCacheValid coming in tells us a full cursor-free snapshot from a prior
+	// frame is intact; ensureCompositeCache clears it on (re)alloc. The bounded path
+	// reads arbitrary rects from this cache (not just the seed union), so a bounded copy
+	// is only safe when that full prior snapshot exists AND this frame touched only the
+	// union; otherwise (realloc, full-seed, generic regions, or a prior invalidation) do
+	// a full copy. Copies into the existing allocation.
+	const bool priorValid = _compositeCacheValid;
+	ensureCompositeCache(OW, OH);
+	if (fullSceneCopy || !priorValid || !_compositeCacheValid) {
+		_compositeCache->copyRectToSurface(scene.rawSurface(), 0, 0, Common::Rect(0, 0, scene.w, scene.h));
 	} else {
-		compositeCursor(scene, gameRect);
-		_compositor->presentToOverlay(scene);
+		const Common::Array<Common::Rect> &u = _compositor->lastSeedUnion();
+		for (uint i = 0; i < u.size(); i++)
+			_compositeCache->copyRectToSurface(scene.rawSurface(), u[i].left, u[i].top, u[i]);
 	}
-
-	// roger_autoshot (verification harness): dump once per room. Deterministic — no
-	// keystrokes/focus needed.
-	if (_autoshot && _autoshotPicId != _loadedPicId) {
-		dumpAutoshot(scene, gameRect, "");
-		_autoshotPicId = _loadedPicId;
-	}
-
-	maybeScriptCapture(scene, gameRect);
-
-	_barrierDirty = false; // this cycle's present flushed all accumulated marks
-
-	// roger_diff_check: gated in-engine native-vs-overlay diff (off by default). Cheap early-
-	// return when off or already run this pic; never on the steady-state path.
-	if (_diffCheck)
-		runDiffCheck();
+	_compositeCacheValid = true;
+	_frameJustComposed = true; // presentBarrier() (the renderFromAnimateList tail) presents this frame
 }
 
 void FileRogerArtProvider::maybeScriptCapture(Graphics::ManagedSurface &scene,
@@ -1125,11 +1100,66 @@ void FileRogerArtProvider::presentWithUi() {
 		_compositeCacheValid = false;
 		_lastCursorDstRect = Common::Rect(); // position was in old overlay space; invalid
 	}
+	byte pal[256 * 3];
+	g_system->getPaletteManager()->grabPalette(pal, 0, 256);
+	ensureCompositeCache(OW, OH); // invalidates _compositeCacheValid on (re)alloc
 	Graphics::ManagedSurface &scene = *scratchScene(_sceneCache->w, _sceneCache->h);
+	const Common::Rect fullR(0, 0, (int16)OW, (int16)OH);
+
+	// The .rin capture and the -ui autoshot dump read the WHOLE present source,
+	// so those presents need a fully composed frame — and so does a present that
+	// presentToOverlay will decide to push FULL (heal frame / dirty-present off /
+	// bg rebuild): the bounded path only makes the pushed regions valid.
+	const bool needFullSource = (_inputDriver && _inputDriver->capturePending()) || _autoshot ||
+	                            _compositor->nextPresentIsFull();
+
+	if (_compositeCacheValid && !needFullSource && _mode != Roger::kModeSideBySide) {
+		// §3.3 region-bounded recompose: patch the composite cache only inside the
+		// dirty union, then source the present from it. No full-frame copy, no
+		// full UI re-render — this is the latency win at dialog time.
+		Common::Array<Common::Rect> regions;
+		_compositor->dirtyUnion(fullR, regions);
+		if (!regions.empty()) {
+			if (_uiLayer && !_uiLayer->empty() && _textRenderer)
+				_compositor->patchCompositeRegions(*_compositeCache, *_sceneCache,
+				                                   _uiLayer->elements(), regions, pal,
+				                                   _lastGameRect, _textRenderer, _altTextRenderer);
+			else
+				for (uint i = 0; i < regions.size(); i++)
+					_compositeCache->copyRectToSurface(_sceneCache->rawSurface(),
+					                                   regions[i].left, regions[i].top, regions[i]);
+		}
+		// Present source: composite pixels over every region this present pushes.
+		// patchCompositeRegions may have expanded beyond `regions`; re-read the
+		// union AFTER adding the expanded rects is unnecessary because expansion
+		// only recomputes pixels that are bit-identical outside `regions` (the
+		// re-rendered elements were unchanged there) — pushing `regions` suffices.
+		for (uint i = 0; i < regions.size(); i++)
+			scene.copyRectToSurface(_compositeCache->rawSurface(),
+			                        regions[i].left, regions[i].top, regions[i]);
+		// Cursor: vacate the old position and prepare the base under the new one.
+		if (!_lastCursorDstRect.isEmpty()) {
+			Common::Rect oldCur = _lastCursorDstRect;
+			oldCur.clip(fullR);
+			if (!oldCur.isEmpty()) {
+				scene.copyRectToSurface(_compositeCache->rawSurface(), oldCur.left, oldCur.top, oldCur);
+				_compositor->addDirtyRect(oldCur);
+			}
+		}
+		Common::Rect newCur = cursorDstRect(_lastGameRect);
+		newCur.clip(fullR);
+		if (!newCur.isEmpty())
+			scene.copyRectToSurface(_compositeCache->rawSurface(), newCur.left, newCur.top, newCur);
+		compositeCursor(scene, _lastGameRect); // paints + addDirtyRect + _lastCursorDstRect
+		_compositor->presentToOverlay(scene);
+		maybeScriptCapture(scene, _lastGameRect); // guaranteed no-op (needFullSource)
+		return;
+	}
+
+	// Legacy full path: rebuild scene+UI wholesale. Runs on room/geometry/F10/font
+	// changes, resize, sbs mode, hw-cursor-invalidated caches, capture/autoshot.
 	scene.copyFrom(*_sceneCache); // fully overwrites the scratch buffer
 	if (_uiLayer && !_uiLayer->empty() && _textRenderer) {
-		byte pal[256 * 3];
-		g_system->getPaletteManager()->grabPalette(pal, 0, 256);
 		// Diagnostic dump of the UI element rects (roger_debug), throttled to one dump per
 		// distinct dialog (signature over token/rect/type) so it does not spam per frame.
 		if (_debugLog) {
@@ -1156,7 +1186,6 @@ void FileRogerArtProvider::presentWithUi() {
 		}
 		_compositor->renderUiLayer(scene, _uiLayer->elements(), pal, _lastGameRect, _textRenderer, _altTextRenderer);
 	}
-	ensureCompositeCache(OW, OH);
 	_compositeCache->copyFrom(scene);
 	_compositeCacheValid = true;
 	if (_mode == Roger::kModeSideBySide) {
@@ -1245,6 +1274,27 @@ void FileRogerArtProvider::presentBarrier() {
 		return; // mid-cycle marks accumulate; the end-of-cycle call flushes them
 	if (!overlayShown() || !_compositor || !_haveScene || !_sceneCache)
 		return;
+	if (_frameJustComposed && _scratchScene) {
+		// Per-cycle present: renderFrame just composed scene+UI into _scratchScene
+		// and refreshed the caches — present that frame directly. No recompose.
+		_frameJustComposed = false;
+		_barrierDirty = false;
+		Graphics::ManagedSurface &scene = *_scratchScene;
+		if (_mode == Roger::kModeSideBySide) {
+			presentComparison();
+		} else {
+			compositeCursor(scene, _lastGameRect);
+			_compositor->presentToOverlay(scene);
+		}
+		if (_autoshot && _autoshotPicId != _loadedPicId) {
+			dumpAutoshot(scene, _lastGameRect, "");
+			_autoshotPicId = _loadedPicId;
+		}
+		maybeScriptCapture(scene, _lastGameRect);
+		if (_diffCheck)
+			runDiffCheck();
+		return;
+	}
 	const bool capture = _inputDriver && _inputDriver->capturePending();
 	const bool cursorMoved = cursorDstRect(_lastGameRect) != _lastCursorDstRect;
 	if (!_barrierDirty && !_compositor->hasPendingDirty() && !cursorMoved && !capture)
@@ -1358,7 +1408,6 @@ void FileRogerArtProvider::buildGlyphs(const char *text, int fontId, int penColo
 
 void FileRogerArtProvider::uiPushWindow(const Common::Rect &r, int backColor, int penColor,
                                         uint16 wndStyle, uint32 token) {
-	_compositeCacheValid = false;
 	if (!overlayShown() || !_plate) return; // no hires scene -> leave native UI visible
 	ensureUi();
 	Roger::UiElement e;
@@ -1389,7 +1438,6 @@ void FileRogerArtProvider::uiPushText(const Common::Rect &r, const char *text, i
                                       int backColor, int fontId, int align, uint32 token,
                                       int textRole, bool useAltFont,
                                       int nativeFontH, int nativeTextW) {
-	_compositeCacheValid = false;
 	if (!overlayShown() || !_plate) return;
 	ensureUi();
 	Roger::UiElement e;
@@ -1407,7 +1455,6 @@ void FileRogerArtProvider::uiPushText(const Common::Rect &r, const char *text, i
 void FileRogerArtProvider::uiPushButton(const Common::Rect &r, const char *text, int fontId,
                                         int style, uint32 token,
                                         int nativeFontH, int nativeTextW) {
-	_compositeCacheValid = false;
 	if (!overlayShown() || !_plate) return;
 	ensureUi();
 	Roger::UiElement e;
@@ -1424,7 +1471,6 @@ void FileRogerArtProvider::uiPushButton(const Common::Rect &r, const char *text,
 void FileRogerArtProvider::uiPushTextEdit(const Common::Rect &r, const char *text, int fontId,
                                           int style, int cursorPos, uint32 token,
                                           int nativeFontH, int nativeTextW) {
-	_compositeCacheValid = false;
 	if (!overlayShown() || !_plate) return;
 	ensureUi();
 	Roger::UiElement e;
@@ -1442,7 +1488,6 @@ void FileRogerArtProvider::uiPushTextEdit(const Common::Rect &r, const char *tex
 
 void FileRogerArtProvider::uiPushIcon(const Common::Rect &r, int viewId, int loopNo, int celNo,
                                       uint32 token) {
-	_compositeCacheValid = false;
 	if (!overlayShown() || !_plate) return;
 	ensureUi();
 	Roger::UiElement e;
@@ -1510,7 +1555,6 @@ void FileRogerArtProvider::onDrawCel(const Common::Rect &r, int viewId, int loop
 void FileRogerArtProvider::uiPushStatus(const Common::Rect &r, const char *text, int fontId,
                                         int penColor, int backColor, uint32 token,
                                         int nativeFontH, int nativeTextW) {
-	_compositeCacheValid = false;
 	// Remember the banner so it can be re-applied on room load / F10 enable, even if
 	// the overlay was not ready when the game first drew it.
 	_haveStatus = true; _statusRect = r; _statusText = text ? text : "";
@@ -1608,7 +1652,6 @@ void FileRogerArtProvider::uiClearToken(uint32 token) {
 	// draw touches them). markVacatedDirty centralizes the extent math.
 	for (uint i = 0; i < removedRects.size(); i++)
 		markVacatedDirty(removedRects[i]);
-	_compositeCacheValid = false;
 	presentBarrier();
 }
 
@@ -1633,7 +1676,6 @@ void FileRogerArtProvider::onNativeEraseRect(const Common::Rect &nativeRect) {
 		_uiLayer->push(kept[i]);
 	for (uint i = 0; i < droppedRects.size(); i++)
 		markVacatedDirty(droppedRects[i]);
-	_compositeCacheValid = false; // UI changed: match the uiPush*/uiClear* invalidation pattern
 	if (_diag)
 		warning("ROGER-DIAG[eraseText]: rect=(%d,%d,%d,%d) remaining=%u",
 		        nativeRect.left, nativeRect.top, nativeRect.right, nativeRect.bottom, (unsigned)kept.size());
@@ -1641,7 +1683,6 @@ void FileRogerArtProvider::onNativeEraseRect(const Common::Rect &nativeRect) {
 }
 
 void FileRogerArtProvider::uiClearAll() {
-	_compositeCacheValid = false;
 	if (_uiLayer) _uiLayer->clearAll();
 	for (uint i = 0; i < _uiIcons.size(); i++) { _uiIcons[i]->free(); delete _uiIcons[i]; }
 	_uiIcons.clear();
@@ -1686,7 +1727,6 @@ void FileRogerArtProvider::uiPushFrameBox(const Common::Rect &r, int penColor) {
 	e.hasFrame = true;
 	e.token = FRAME_BOX_TOKEN;
 	_uiLayer->push(e);
-	_compositeCacheValid = false;
 	if (!oldFrameRect.isEmpty()) markVacatedDirty(oldFrameRect);
 	markUiDirty(r);
 	presentBarrier();
@@ -2221,6 +2261,7 @@ void FileRogerArtProvider::renderFromAnimateList(const AnimateList &list) {
 		delete nativeSurfaces[i];
 	}
 	_inAnimateCycle = false; // cycle draw complete — reopen the barrier
+	presentBarrier(); // spec §3.2: the per-cycle present (fresh-frame branch — no recompose)
 }
 
 void FileRogerArtProvider::remapComparisonMouse(Common::Point &mousePos) {
@@ -2467,27 +2508,9 @@ void FileRogerArtProvider::onMouseMoved() {
 	}
 	if (_useHwCursor)
 		return; // hardware cursor moves itself; no recomposite needed
-
-	// Fast path: composite cache is valid — patch _scratchScene in-place rather than
-	// doing a full 22 MB copyFrom(_sceneCache) + re-render UI on every mouse event.
-	if (_compositeCache && _compositeCacheValid && _scratchScene &&
-	        _compositor && _haveScene && !_lastGameRect.isEmpty()) {
-		// Restore the old cursor region from the cursor-free composite cache.
-		if (!_lastCursorDstRect.isEmpty()) {
-			_compositor->addDirtyRect(_lastCursorDstRect);
-			_scratchScene->blitFrom(*_compositeCache, _lastCursorDstRect, _lastCursorDstRect);
-		}
-		// Paint cursor at new position (updates _lastCursorDstRect, adds new dirty rect).
-		compositeCursor(*_scratchScene, _lastGameRect);
-		// Present only the changed regions (two small cursor-sized rects).
-		_compositor->presentToOverlay(*_scratchScene);
-		// A pending script capture must be consumed even on the fast path; presentWithUi
-		// (the slow fallback below) already calls it, so mirror it here too.
-		maybeScriptCapture(*_scratchScene, _lastGameRect);
-		return;
-	}
-
-	// Slow fallback: full rebuild — handles first present, resize, or stale cache.
+	// The barrier's bounded path IS the cursor fast path now: it restores the old
+	// cursor region from the composite cache, repaints at the pointer, and pushes
+	// only the two cursor-sized rects.
 	presentBarrier();
 }
 
