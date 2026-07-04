@@ -113,11 +113,11 @@ FileRogerArtProvider::FileRogerArtProvider(const Common::String &gameId,
 	// never on steady-state path). Logs ROGER-DIAG[diff] boxes for the missing-graphics audit.
 	_diffCheck = ConfMan.hasKey("roger_diff_check") && ConfMan.getBool("roger_diff_check");
 
-	// Overlay-truth captures (spec Phase 2 / Phase 1 lesson): with this on, a pending
-	// .rin capture no longer forces the full clean recompose — the capture is dumped
-	// from the persistent scratch, which mirrors the overlay byte-for-byte. This is
-	// the evidence channel for invalidation faults: Phase 1's injections A–D all
-	// stayed green because needFullSource masked them from every capture.
+	// Overlay-truth captures (spec Phase 2 / Phase 1 fix): with this on, a pending
+	// .rin capture grabs the REAL overlay pixels via grabOverlay — the presented pixels,
+	// what the player actually sees. The scratch buffer self-heals every cycle (renderFrame
+	// fully recomposes it), so a scratch-sourced capture can never witness a missing
+	// invalidation mark; grabOverlay reveals stale regions that were never pushed.
 	const char *envTruth = getenv("ROGER_TRUTH_CAPTURE");
 	_truthCapture = envTruth ? (Common::String(envTruth) != "0" && Common::String(envTruth) != "false")
 	                         : (ConfMan.hasKey("roger_truth_capture") && ConfMan.getBool("roger_truth_capture"));
@@ -687,8 +687,39 @@ void FileRogerArtProvider::maybeScriptCapture(Graphics::ManagedSurface &scene,
 	if (!_inputDriver)
 		return;
 	Common::String label;
-	if (_inputDriver->takeCaptureRequest(label))
+	if (!_inputDriver->takeCaptureRequest(label))
+		return;
+	if (_truthCapture) {
+		// Truth-capture mode: dump the REAL overlay pixels — the frame the player
+		// actually sees — via grabOverlay. The scratch buffer self-heals every cycle
+		// (renderFrame fully recomposes it), so a scratch-sourced capture can never
+		// witness a missing invalidation mark; the overlay holds stale pixels until
+		// the ~300-present periodic heal. grabOverlay is called AFTER presentToOverlay
+		// has pushed this present's regions, so the grab reflects those pushes plus
+		// any regions that were never pushed (stale from a missing mark).
+		// The overlay format is often NOT RGBA32 (e.g. RGB565) — convert to RGBA32
+		// so dumpAutoshot's blendBlitFrom can composite the native screen over it.
+		const int OW = g_system->getOverlayWidth();
+		const int OH = g_system->getOverlayHeight();
+		if (OW > 0 && OH > 0) {
+			const Graphics::PixelFormat rgba(4, 8, 8, 8, 8, 24, 16, 8, 0);
+			const Graphics::PixelFormat overlayFmt = g_system->getOverlayFormat();
+			Graphics::Surface raw;
+			raw.create(OW, OH, overlayFmt);
+			g_system->grabOverlay(raw);
+			Graphics::ManagedSurface overlayRGBA(OW, OH, rgba);
+			Graphics::Surface *converted = raw.convertTo(rgba);
+			if (converted) {
+				overlayRGBA.copyRectToSurface(*converted, 0, 0, Common::Rect(0, 0, OW, OH));
+				converted->free();
+				delete converted;
+			}
+			raw.free();
+			dumpAutoshot(overlayRGBA, gameRect, ("-" + label).c_str());
+		}
+	} else {
 		dumpAutoshot(scene, gameRect, ("-" + label).c_str());
+	}
 }
 
 void FileRogerArtProvider::dumpAutoshot(Graphics::ManagedSurface &scene,
@@ -1136,9 +1167,11 @@ void FileRogerArtProvider::presentWithUi() {
 	// presentToOverlay will decide to push FULL (heal frame / dirty-present off /
 	// bg rebuild) needs a fully composed frame: the bounded path only makes the
 	// pushed regions valid. A pending .rin capture also forces the full source —
-	// UNLESS _truthCapture: then the capture reads the bounded path's scratch,
-	// which mirrors the overlay byte-for-byte (every present writes scratch and
-	// overlay identically), i.e. the frame the player actually sees.
+	// UNLESS _truthCapture: then the capture grabs the REAL overlay pixels via
+	// grabOverlay (NOT the scratch buffer), so stale never-pushed regions are
+	// visible in the capture. The scratch self-heals every cycle (renderFrame
+	// fully recomposes it), so scratch-sourced captures can never witness a
+	// missing invalidation mark.
 	const bool captureForcesFull = _inputDriver && _inputDriver->capturePending() && !_truthCapture;
 	const bool needFullSource = captureForcesFull || _autoshot ||
 	                            _compositor->nextPresentIsFull();
@@ -1182,7 +1215,7 @@ void FileRogerArtProvider::presentWithUi() {
 			scene.copyRectToSurface(_compositeCache->rawSurface(), newCur.left, newCur.top, newCur);
 		compositeCursor(scene, _lastGameRect); // paints + addDirtyRect + _lastCursorDstRect
 		_compositor->presentToOverlay(scene);
-		maybeScriptCapture(scene, _lastGameRect); // no-op unless _truthCapture (scratch mirrors the overlay)
+		maybeScriptCapture(scene, _lastGameRect); // grabs real overlay when _truthCapture; otherwise no-op (capture forces full path above)
 		return;
 	}
 

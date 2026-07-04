@@ -136,7 +136,7 @@ private:
 	bool _selfTest = false;      // roger_selftest: log structural invariant PASS/FAIL per room (off by default)
 	bool _diffBackstop = false;  // roger_diff_backstop: Feeder B pixel-diff backstop (default off; per-frame full-buffer diff is costly and can stamp blocky native pixels over the plate around moving sprites)
 	bool _diffCheck = false;     // roger_diff_check: gated in-engine native-vs-overlay diff (off by default; once per pic; never on steady-state path)
-	bool _truthCapture = false; // .rin captures read the bounded-path scratch (overlay mirror) instead of forcing a full recompose — evidence mode, default off
+	bool _truthCapture = false; // .rin captures grab the REAL overlay pixels (grabOverlay) instead of forcing a full recompose — evidence mode, default off; stale never-pushed regions are visible
 	// Input automation (scripted verification loop / live control) — roger_input.h.
 	Roger::InputScriptDriver *_inputDriver = nullptr;
 	bool _cycleLog = false;

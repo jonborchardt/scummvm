@@ -106,7 +106,7 @@ All are optional `scummvm.ini` keys (only read when present).
 | `roger_input_live`   | unset | Path to an append-only live command file, tailed at ~10 Hz (also env `ROGER_INPUT_LIVE`). |
 | `roger_cycle_log`    | off   | Per-kernelAnimate `ROGER-CYCLE period=<ms> busy=<ms>` telemetry line (also env `ROGER_CYCLE_LOG`). |
 | `roger_diag`          | off   | Structured `ROGER-DIAG` overlay-state trace at room-load/present/cel-draw seams (also env `ROGER_DIAG` / `build_and_run.ps1 -Diag` for a single launch — preferred over editing the ini). |
-| `roger_truth_capture` | off | Evidence mode: `.rin` captures dump the frame the present path actually produced (the persistent scratch, a byte-for-byte overlay mirror) instead of forcing a full clean recompose. Required for fault-injection evidence — with it off, missing invalidation marks can never appear in a capture. Per-launch: `build_and_run.ps1 -TruthCap` (env `ROGER_TRUTH_CAPTURE`). |
+| `roger_truth_capture` | off | Evidence mode: `.rin` captures dump the REAL overlay pixels via `grabOverlay` (the presented pixels — what the player actually sees) instead of forcing a full clean recompose. Required for fault-injection evidence — with it off, missing invalidation marks are invisible in captures (the scratch buffer self-heals every cycle). Per-launch: `build_and_run.ps1 -TruthCap` (env `ROGER_TRUTH_CAPTURE`). |
 
 ### Text sizing
 
