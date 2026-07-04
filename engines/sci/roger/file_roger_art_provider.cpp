@@ -418,10 +418,16 @@ void FileRogerArtProvider::pushHiresBackground(GuiResourceId pictureId) {
 		return;
 	}
 
-	if (_loadedPicId == pictureId && _plate)
-		return; // already loaded for this room
+	// Same pic re-entered (a script kDrawPic redraw, or an in-game restore into the
+	// room already shown): the plate and occlusion map are content-keyed to the pic,
+	// so keep them — but SCI just rebuilt the native surface from scratch, and the
+	// overlay may hold foreign pixels (the ScummVM GUI after the restore chooser), so
+	// the room-entry reset + full re-present below must still run. Early-returning
+	// here instead left the restore dialog on screen for seconds (heal-frame latency)
+	// with only incrementally-dirtied regions repainting.
+	const bool samePlate = (_loadedPicId == pictureId && _plate);
 
-	diagDumpState("pushBG-enter");
+	diagDumpState(samePlate ? "pushBG-enter-samepic" : "pushBG-enter");
 
 	// New room: drop the previous room's captured addToPic cels (Feeder A) + init-baked cels.
 	_staticSprites.clear();
@@ -446,18 +452,18 @@ void FileRogerArtProvider::pushHiresBackground(GuiResourceId pictureId) {
 	_drawCelNativeCache.clear(); // surfaces were owned by _uiIcons (freed above)
 	_haveScene = false;
 
-	// Evict previous room.
-	if (_plate) { _plate->free(); delete _plate; _plate = nullptr; }
-
 	uint32 genMs = 0;
-	_plate = nullptr;
-	const char *plateSrc = "none";
+	const char *plateSrc = samePlate ? "kept(same-pic)" : "none";
 	uint32 tAcq0 = g_system->getMillis();
-	if (_assetGen && _assetGen->mode() != Roger::kGenPrebuilt) {
-		_plateIndex.clear();
-		_plate = _assetGen->generatePlateWithIndex(pictureId, _plateIndex, genMs);
-		if (_plate)
-			plateSrc = genMs ? "generated(miss)" : "cache-hit";
+	if (!samePlate) {
+		// Evict previous room.
+		if (_plate) { _plate->free(); delete _plate; _plate = nullptr; }
+		if (_assetGen && _assetGen->mode() != Roger::kGenPrebuilt) {
+			_plateIndex.clear();
+			_plate = _assetGen->generatePlateWithIndex(pictureId, _plateIndex, genMs);
+			if (_plate)
+				plateSrc = genMs ? "generated(miss)" : "cache-hit";
+		}
 	}
 	// NOTE: no prebuilt-visual fallback. If generation yields nothing, the native
 	// render shows (handled by the !_plate block below).
@@ -501,22 +507,24 @@ void FileRogerArtProvider::pushHiresBackground(GuiResourceId pictureId) {
 	// so occlusion tracks the displayed background instead of a clean 6x grid (the old
 	// native-res priorityBands drift). Cached as the "omyacprio" transform. No prebuilt
 	// occlusion map is consumed.
-	int prW = 0, prH = 0;
-	_priorityMap.clear();
-	uint32 occGenMs = 0;
-	uint32 tOcc0 = g_system->getMillis();
-	bool haveOcc = (_assetGen && _assetGen->mode() != Roger::kGenPrebuilt &&
-	                _assetGen->generatePriorityMap(pictureId, _priorityMap, prW, prH, occGenMs));
-	uint32 occMs = g_system->getMillis() - tOcc0;
-
+	uint32 occMs = 0;
 	// _picW x _picH is the SCI picture window (320x190); sprite cel rects live in that
 	// space, so picH stays 190 regardless of the priority map's hires resolution. (The
 	// old code passed prH here only because native priorityBands also returned 190.)
 	_compositor->setPicture(320, 190, 0);
-	if (haveOcc)
-		_compositor->setPriorityMask(_priorityMap.begin(), prW, prH); // hires bands (1920x1140)
-	else
-		_compositor->setPriorityMask(nullptr, 0, 0); // no bands -> sprites draw without occlusion
+	if (!samePlate) {
+		int prW = 0, prH = 0;
+		_priorityMap.clear();
+		uint32 occGenMs = 0;
+		uint32 tOcc0 = g_system->getMillis();
+		bool haveOcc = (_assetGen && _assetGen->mode() != Roger::kGenPrebuilt &&
+		                _assetGen->generatePriorityMap(pictureId, _priorityMap, prW, prH, occGenMs));
+		occMs = g_system->getMillis() - tOcc0;
+		if (haveOcc)
+			_compositor->setPriorityMask(_priorityMap.begin(), prW, prH); // hires bands (1920x1140)
+		else
+			_compositor->setPriorityMask(nullptr, 0, 0); // no bands -> sprites draw without occlusion
+	} // samePlate: the compositor already holds this pic's mask; _priorityMap is intact
 	_loadedPicId = pictureId;
 
 	// Snapshot the room-load EGA palette for live re-apply. The first 16 OSystem palette
