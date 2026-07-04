@@ -113,6 +113,15 @@ FileRogerArtProvider::FileRogerArtProvider(const Common::String &gameId,
 	// never on steady-state path). Logs ROGER-DIAG[diff] boxes for the missing-graphics audit.
 	_diffCheck = ConfMan.hasKey("roger_diff_check") && ConfMan.getBool("roger_diff_check");
 
+	// Overlay-truth captures (spec Phase 2 / Phase 1 lesson): with this on, a pending
+	// .rin capture no longer forces the full clean recompose — the capture is dumped
+	// from the persistent scratch, which mirrors the overlay byte-for-byte. This is
+	// the evidence channel for invalidation faults: Phase 1's injections A–D all
+	// stayed green because needFullSource masked them from every capture.
+	const char *envTruth = getenv("ROGER_TRUTH_CAPTURE");
+	_truthCapture = envTruth ? (Common::String(envTruth) != "0" && Common::String(envTruth) != "false")
+	                         : (ConfMan.hasKey("roger_truth_capture") && ConfMan.getBool("roger_truth_capture"));
+
 	// Input automation (scripted verification loop / live remote control). Env-first
 	// so build_and_run.ps1 -Script/-Live/-CycleLog can arm a single launch without
 	// touching scummvm.ini (same pattern as ROGER_NO_LAUNCHER); the ConfMan knobs
@@ -1123,11 +1132,15 @@ void FileRogerArtProvider::presentWithUi() {
 	Graphics::ManagedSurface &scene = *scratchScene(_sceneCache->w, _sceneCache->h);
 	const Common::Rect fullR(0, 0, (int16)OW, (int16)OH);
 
-	// The .rin capture and the -ui autoshot dump read the WHOLE present source,
-	// so those presents need a fully composed frame — and so does a present that
+	// The -ui autoshot dump reads the WHOLE present source, and a present that
 	// presentToOverlay will decide to push FULL (heal frame / dirty-present off /
-	// bg rebuild): the bounded path only makes the pushed regions valid.
-	const bool needFullSource = (_inputDriver && _inputDriver->capturePending()) || _autoshot ||
+	// bg rebuild) needs a fully composed frame: the bounded path only makes the
+	// pushed regions valid. A pending .rin capture also forces the full source —
+	// UNLESS _truthCapture: then the capture reads the bounded path's scratch,
+	// which mirrors the overlay byte-for-byte (every present writes scratch and
+	// overlay identically), i.e. the frame the player actually sees.
+	const bool captureForcesFull = _inputDriver && _inputDriver->capturePending() && !_truthCapture;
+	const bool needFullSource = captureForcesFull || _autoshot ||
 	                            _compositor->nextPresentIsFull();
 
 	if (_compositeCacheValid && !needFullSource && _mode != Roger::kModeSideBySide) {
@@ -1169,7 +1182,7 @@ void FileRogerArtProvider::presentWithUi() {
 			scene.copyRectToSurface(_compositeCache->rawSurface(), newCur.left, newCur.top, newCur);
 		compositeCursor(scene, _lastGameRect); // paints + addDirtyRect + _lastCursorDstRect
 		_compositor->presentToOverlay(scene);
-		maybeScriptCapture(scene, _lastGameRect); // guaranteed no-op (needFullSource)
+		maybeScriptCapture(scene, _lastGameRect); // no-op unless _truthCapture (scratch mirrors the overlay)
 		return;
 	}
 

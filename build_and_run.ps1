@@ -39,9 +39,12 @@ param(
                               # behavior?"). Sets ROGER_DISPLAY_MODE for this launch only.
     [switch]$NoBuild,         # skip dependency install + build entirely and launch the
                               # existing exe (fast .rin-script iteration: seconds, not minutes)
-    [int]$TimeoutSec  = 0     # watchdog for blocking runs: kill scummvm and exit 124 if it
+    [int]$TimeoutSec  = 0,    # watchdog for blocking runs: kill scummvm and exit 124 if it
                               # hasn't exited after this many seconds (hung script protection).
                               # 0 = no watchdog.
+    [switch]$TruthCap         # evidence mode: .rin captures read the presented frame (bounded-path
+                              # scratch = overlay mirror) instead of forcing a full clean recompose.
+                              # Required to make invalidation faults visible in captures.
 )
 
 $ErrorActionPreference = "Stop"
@@ -296,6 +299,10 @@ if ($CycleLog) {
 if ($Diag) {
     $env:ROGER_DIAG = "1"
     Write-Host "Diag trace: ROGER-DIAG lines in screenshots\roger-run.log (this launch only)" -ForegroundColor Cyan
+}
+if ($TruthCap) {
+    $env:ROGER_TRUTH_CAPTURE = "1"
+    Write-Host "Truth captures: .rin captures read the presented frame, not a forced full recompose" -ForegroundColor Cyan
 }
 if ($Studio) {
     $env:ROGER_STUDIO = "1"
