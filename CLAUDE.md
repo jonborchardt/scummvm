@@ -248,6 +248,14 @@ room-entry position or wiped the room signs — both shipped as bugs once.
 - A per-cycle hook that forces a full present/recompose when nothing changed → walking slowdown.
 - Gating the text hook on `show == true` → misses all SCI0 EGA text.
 - Using port-local rects without `offsetRect` → offset text that never matches global erase rects.
+- Handing a **screen-global** rect (bitsShow / UiElement nativeRects, 320×200) to a
+  `Roger::Sprite.celRect` (**picture-local**, 320×190, origin below the status strip) → the
+  stamp composites `picScreenTop` rows too low; the menu bar's black underline row (screen
+  row 9) stamped as a full-width dark line across the top of every scene (fixed 2026-07-04,
+  `c8f3d44ecc3`). Convert at the seam: `renderFromAnimateList` translates fg stamps to
+  picture-local and compares the live-cast exclusion in screen space. Related: only windows
+  with `hasFrame` get the compositor's black border — the status banner is frameless (SCI
+  NOFRAME), and framing every `kUiWindow` drew a border line under the bar (same commit).
 - Clipping a sprite's **dest rect** to `picRect` when it hangs off the screen edge → the full
   cel still scales into whatever rect remains, a visible squish at every edge. Clip the
   **paint** instead: `blendScaleBlitNearest`'s optional clip rect samples source coords
