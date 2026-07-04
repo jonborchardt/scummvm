@@ -78,6 +78,15 @@ struct OmyacParams {
 	// the flood is what rasterizes between the hybrid strokes.
 	bool backfillOwnCell = true;
 	int backfillFloodRounds = 3; // bounded-flood rounds before the own-cell fill
+	// Erode foreign fill fringes (shipping default since kTransformVersion 7):
+	// after the enhance passes, a CMD_FILL pixel whose colour is foreign to its
+	// own drawn native cell survives only as a 1 px rim attached to home
+	// territory (an 8-neighbour of the same colour whose cell is undrawn or
+	// natively that colour); anything deeper reverts to its own cell's colour.
+	// Keeps boundary smoothing to a +-1 px midline instead of +-2, so a bright
+	// fill natively hidden under a baked view (the SQ3 pod doorway) cannot poke
+	// a 2 px dashed seam past the view's edge through its transparent margin.
+	bool erodeForeignFill = true;
 
 	bool isDefault() const {
 		const OmyacParams d;
@@ -89,7 +98,8 @@ struct OmyacParams {
 		       tieBreakBlend == d.tieBreakBlend &&
 		       diagFlankSuppress == d.diagFlankSuppress &&
 		       backfillOwnCell == d.backfillOwnCell &&
-		       backfillFloodRounds == d.backfillFloodRounds;
+		       backfillFloodRounds == d.backfillFloodRounds &&
+		       erodeForeignFill == d.erodeForeignFill;
 	}
 };
 

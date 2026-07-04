@@ -648,6 +648,57 @@ static void enhance(Common::Array<byte> &buf, Common::Array<byte> &typeBuf, int 
 	}
 }
 
+// ─── Step 7b: Erode foreign fill fringes ────────────────────────────────────────
+// A CMD_FILL pixel whose colour is foreign to its own DRAWN native cell (cell
+// cmdType != CMD_NONE and refPixel != colour) survives only as a 1 px rim
+// anchored to home territory: some 8-neighbour of the same colour whose own
+// cell is undrawn or natively that colour. Anything deeper reverts to its own
+// cell's colour (a direct revert, not back to null — the backfill flood could
+// re-import the same foreign colour). Line-typed pixels are untouched: line
+// smoothing is not the leak class. Bounds enhance's boundary smoothing to a
+// +-1 px midline so a bright fill natively hidden under a baked view cannot
+// poke a 2 px dashed seam past the view edge (SQ3 pic-2 pod doorway).
+static void erodeForeignFillClaims(const NativeRef &ref, Common::Array<byte> &buf,
+                                   Common::Array<byte> &typeBuf) {
+	Common::Array<byte> srcBuf(buf);
+	Common::Array<byte> srcType(typeBuf);
+	for (int y = 0; y < OMYAC_HYBRID_H; y++) {
+		for (int x = 0; x < OMYAC_HYBRID_W; x++) {
+			int idx = y * OMYAC_HYBRID_W + x;
+			if (srcType[idx] != CMD_FILL)
+				continue;
+			int cell = (y / OMYAC_SCALE) * OMYAC_NATIVE_W + (x / OMYAC_SCALE);
+			if (ref.cmdType[cell] == CMD_NONE)
+				continue; // undrawn cell: free territory
+			byte c = srcBuf[idx];
+			if (c == ref.refPixel[cell])
+				continue; // home colour
+			bool anchored = false;
+			for (int dy = -1; dy <= 1 && !anchored; dy++) {
+				for (int dx = -1; dx <= 1 && !anchored; dx++) {
+					if (!dx && !dy)
+						continue;
+					int nx = x + dx;
+					int ny = y + dy;
+					if (nx < 0 || nx >= OMYAC_HYBRID_W || ny < 0 || ny >= OMYAC_HYBRID_H)
+						continue;
+					int nidx = ny * OMYAC_HYBRID_W + nx;
+					if (srcType[nidx] == CMD_NONE || srcBuf[nidx] != c)
+						continue;
+					int ncell = (ny / OMYAC_SCALE) * OMYAC_NATIVE_W + (nx / OMYAC_SCALE);
+					if (ref.cmdType[ncell] == CMD_NONE || ref.refPixel[ncell] == c)
+						anchored = true;
+				}
+			}
+			if (!anchored) {
+				buf[idx] = ref.refPixel[cell];
+				// typeBuf stays CMD_FILL: the pixel remains claimed (with its
+				// native colour), so the backfill flood cannot repaint it.
+			}
+		}
+	}
+}
+
 // ─── Step 8: Final null-pixel mode fill ─────────────────────────────────────────
 static void fillNullPixels(const NativeRef &ref, Common::Array<byte> &buf,
                            Common::Array<byte> &typeBuf, Common::Array<byte> &backfilled,
@@ -797,7 +848,17 @@ OmyacResult renderOmyac(const NativeRef &ref, const Common::Array<int> &passes,
 	for (uint i = 0; i < passes.size(); i++)
 		enhance(out.pixels, out.cmdType, passes[i], params);
 
+	// Erode BEFORE the backfill (so the flood seeds from trimmed fringes) and
+	// AFTER it (the flood itself can re-import a foreign fringe past the rim).
+	// Together they establish the global invariant: a fill colour never sits
+	// deeper than 1 px inside a drawn native cell of a different colour.
+	if (params.erodeForeignFill)
+		erodeForeignFillClaims(ref, out.pixels, out.cmdType);
+
 	fillNullPixels(ref, out.pixels, out.cmdType, out.backfilled, params);
+
+	if (params.erodeForeignFill)
+		erodeForeignFillClaims(ref, out.pixels, out.cmdType);
 
 	return out;
 }

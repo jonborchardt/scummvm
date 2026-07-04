@@ -72,7 +72,10 @@ enum GenMode {
 //   v6: bounded direction-neutral backfill — backfillFloodRounds breadth-first
 //       majority rounds (frozen src per round), then own-cell fill. Keeps the
 //       flood-rasterized smooth look, kills the unbounded cascade.
-static const int kTransformVersion = 6;
+//   v7: foreign fill fringes eroded to a 1 px anchored rim (before + after the
+//       backfill) — a fill colour never sits deeper than 1 px inside a drawn
+//       native cell of another colour (the pod-door dashed-seam residue).
+static const int kTransformVersion = 7;
 
 /**
  * Orchestrates on-the-fly omyac plate generation and scale6x view-cel
