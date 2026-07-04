@@ -136,11 +136,87 @@ void scaleBlitNearest(Graphics::Surface &dest, const Common::Rect &destRect,
 	const int dw = destRect.width(), dh = destRect.height();
 	if (dw <= 0 || dh <= 0 || src.w <= 0 || src.h <= 0)
 		return;
+	// EXACT rational mapping (sx = dx*srcW/dstW), deliberately NOT ManagedSurface's
+	// truncated 8.8 fixed-point step (scaleX = 256*srcW/dstW): that truncation drifts
+	// by up to ~1 src px per 256 dest px (~12 overlay px across a 2862-wide plate),
+	// which visibly skewed the plate down-right relative to the exactly-placed cels.
+	// Fast path: same 32bpp format -> row pointers + a precomputed column map.
+	if (dest.format == src.format && dest.format.bytesPerPixel == 4) {
+		Common::Array<int> colMap;
+		colMap.resize(dw);
+		for (int dx = 0; dx < dw; dx++)
+			colMap[dx] = dx * src.w / dw;
+		for (int dy = 0; dy < dh; dy++) {
+			const int sy = dy * src.h / dh;
+			const uint32 *srcRow = (const uint32 *)src.getBasePtr(0, sy);
+			uint32 *destRow = (uint32 *)dest.getBasePtr(destRect.left, destRect.top + dy);
+			for (int dx = 0; dx < dw; dx++)
+				destRow[dx] = srcRow[colMap[dx]];
+		}
+		return;
+	}
 	for (int dy = 0; dy < dh; dy++) {
 		const int sy = dy * src.h / dh;
 		for (int dx = 0; dx < dw; dx++) {
 			const int sx = dx * src.w / dw;
 			dest.setPixel(destRect.left + dx, destRect.top + dy, src.getPixel(sx, sy));
+		}
+	}
+}
+
+void blendScaleBlitNearest(Graphics::ManagedSurface &dest, const Graphics::Surface &cel,
+                           const Common::Rect &destRect, bool flipH) {
+	const int dw = destRect.width(), dh = destRect.height();
+	if (dw <= 0 || dh <= 0 || cel.w <= 0 || cel.h <= 0)
+		return;
+	Graphics::Surface *d = dest.surfacePtr();
+	// Fallback for formats the fast path can't take (never hit in practice: the scene
+	// and all cel sources are RGBA32). blendBlitFrom scales with the truncated step,
+	// but on a mismatched-format path exact geometry is already lost to conversion.
+	if (d->format != cel.format || d->format.bytesPerPixel != 4) {
+		dest.blendBlitFrom(cel, Common::Rect(0, 0, cel.w, cel.h), destRect,
+		                   flipH ? Graphics::FLIP_H : Graphics::FLIP_NONE);
+		return;
+	}
+	// EXACT rational mapping (sx = dx*celW/dstW) so the cel's content occupies exactly
+	// the dest rect the caller computed with the same rational math — matching the
+	// plate's scaleBlitNearest. Src-over per pixel (cel alpha is 0/255 in practice).
+	const int x0 = MAX<int>(destRect.left, 0), x1 = MIN<int>(destRect.right, d->w);
+	const int y0 = MAX<int>(destRect.top, 0), y1 = MIN<int>(destRect.bottom, d->h);
+	if (x0 >= x1 || y0 >= y1)
+		return;
+	Common::Array<int> colMap;
+	colMap.resize(x1 - x0);
+	for (int ox = x0; ox < x1; ox++) {
+		const int dx = ox - destRect.left;
+		const int sx = dx * cel.w / dw;
+		colMap[ox - x0] = flipH ? (cel.w - 1 - sx) : sx;
+	}
+	const int aShift = d->format.aShift;
+	for (int oy = y0; oy < y1; oy++) {
+		const int sy = (oy - destRect.top) * cel.h / dh;
+		const uint32 *srcRow = (const uint32 *)cel.getBasePtr(0, sy);
+		uint32 *destRow = (uint32 *)d->getBasePtr(0, oy);
+		for (int ox = x0; ox < x1; ox++) {
+			const uint32 s = srcRow[colMap[ox - x0]];
+			const uint32 a = (s >> aShift) & 0xFF;
+			if (a == 0)
+				continue;
+			if (a == 255) {
+				destRow[ox] = s;
+				continue;
+			}
+			// Rare general case: integer src-over on each 8-bit channel.
+			const uint32 dPix = destRow[ox];
+			uint32 out = 0;
+			for (int shift = 0; shift <= 24; shift += 8) {
+				const uint32 sc = (s >> shift) & 0xFF;
+				const uint32 dc = (dPix >> shift) & 0xFF;
+				const uint32 oc = (shift == aShift) ? MIN<uint32>(255, sc + dc * (255 - a) / 255)
+				                                    : (sc * a + dc * (255 - a)) / 255;
+				out |= oc << shift;
+			}
+			destRow[ox] = out;
 		}
 	}
 }
@@ -450,9 +526,13 @@ void RogerCompositor::renderScene(Graphics::ManagedSurface &dest, const Common::
 			if (gl > 0) dest.fillRect(Common::Rect(0, gt, gl, gb), black);
 			if (gr < W) dest.fillRect(Common::Rect(gr, gt, (int16)W, gb), black);
 		}
-		// Clean plate, scaled into the game rect (aspect preserved).
+		// Clean plate, scaled into the game rect (aspect preserved). EXACT nearest
+		// scale — NOT ManagedSurface::blitFrom, whose truncated 8.8 fixed-point step
+		// (scaleX = 256*srcW/dstW) drifted plate content down-right by up to ~12
+		// overlay px across the screen while cel dest rects use exact rational math
+		// (the SQ3 pod-door "cyan gap" misalignment).
 		if (_plate)
-			dest.blitFrom(*_plate, Common::Rect(0, 0, _plate->w, _plate->h), picRect);
+			scaleBlitNearest(*dest.surfacePtr(), picRect, *_plate);
 
 		// Snapshot this fully-drawn background into the cache for subsequent frames —
 		// but only when a plate was actually drawn, so we never cache an empty picRect.
@@ -490,11 +570,13 @@ void RogerCompositor::renderScene(Graphics::ManagedSurface &dest, const Common::
 		const Common::Rect &dst = spriteDst[i];
 		// Alpha-aware blit: respects each pixel's alpha so transparent non-black
 		// pixels (common in exported spritesheets) do not render opaque (halos).
+		// Exact-rational scaling (blendScaleBlitNearest), matching the plate's
+		// scaleBlitNearest — blendBlitFrom's truncated 8.8 step squished large cels
+		// by a few px toward their top-left.
 		// No FLIP_H here: GfxView::getBitmap() already mirrors a mirrored loop's pixels,
 		// and BOTH cel sources (renderNativeCel + the hires ViewCache's generateViewCel)
 		// read through it, so the cel arrives already-mirrored. s.mirror stays false.
-		dest.blendBlitFrom(*cel, Common::Rect(0, 0, cel->w, cel->h), dst,
-		                   s.mirror ? Graphics::FLIP_H : Graphics::FLIP_NONE);
+		blendScaleBlitNearest(dest, *cel, dst, s.mirror);
 
 		// Per-pixel priority occlusion against the plate.
 		if (_priority && _plate) {
@@ -503,21 +585,15 @@ void RogerCompositor::renderScene(Graphics::ManagedSurface &dest, const Common::
 			const int x1 = MIN<int>(dst.right, picRect.right);
 			const int y1 = MIN<int>(dst.bottom, picRect.bottom);
 
-			// CRITICAL: sample the plate with the SAME integer scaler ScummVM's
-			// blitFrom used to draw the background plate above (see
-			// graphics/managed_surface.cpp::blitFromInner: scaleX = 256*srcW/dstW,
-			// then srcX = i*scaleX/256). A plain `i*srcW/dstW` resample uses a
-			// *different* rounding and drifts from the scaler by up to ~10px across a
-			// wide rect, so the splatted foreground pixels would not match the
-			// displayed background (the "off by a few pixels" bug). Matching the
-			// scaler makes a splatted pixel byte-identical to the background at (ox,oy).
+			// CRITICAL: sample the plate with the SAME mapping the compositor's
+			// scaleBlitNearest used to draw the background plate above — the exact
+			// rational `i*srcW/dstW`. (Historically this matched blitFrom's truncated
+			// 8.8 fixed-point step instead; that kept the splat consistent with the
+			// displayed background but baked blitFrom's ~12px down-right content drift
+			// into the scene — the plate-vs-cel misalignment. Both now use exact math.)
 			// With the hires priority map, _priorityW/_priorityH == _plate->w/h, so
 			// the overlay->plate->priority mapping below collapses to a 1:1 lookup at
-			// the displayed plate pixel — the few-px drift of the old native-res map
-			// (320x190 sampled /6) is gone. The math still generalises if they differ.
-			const int SCALE = 0x100; // == SCALE_THRESHOLD in managed_surface.cpp
-			const int scaleX = SCALE * _plate->w / GW;
-			const int scaleY = SCALE * _plate->h / GH;
+			// the displayed plate pixel. The math still generalises if they differ.
 			const int pw = _plate->w, ph = _plate->h;
 			const byte spritePri = s.priority;
 
@@ -525,17 +601,17 @@ void RogerCompositor::renderScene(Graphics::ManagedSurface &dest, const Common::
 			// scene and plate share the exact RGBA32 layout, an occluded pixel is a raw
 			// 32-bit word copy via row pointers — no per-pixel virtual getPixel/setPixel
 			// (each of those does format dispatch + bounds checks). The plate column is
-			// advanced incrementally (accX += scaleX) instead of a multiply+divide per
-			// pixel, and picX collapses to plX when the priority map matches the plate
-			// resolution (the normal hires case). Falls back to getPixel/setPixel if the
-			// formats ever differ. Same priority>sprite rule, identical output.
+			// advanced incrementally (accX += pw, plX = accX/GW — exact rational, no
+			// per-pixel multiply), and picX collapses to plX when the priority map
+			// matches the plate resolution (the normal hires case). Falls back to
+			// getPixel/setPixel if the formats ever differ. Same priority>sprite rule.
 			const bool fast = (destSurf->format == _plate->format &&
 			                   destSurf->format.bytesPerPixel == 4);
 			const bool priMatchesPlate = (_priorityW == pw);
 
 			for (int oy = y0; oy < y1; oy++) {
 				// Plate row the background scaler drew at this overlay row.
-				const int plY = (oy - picRect.top) * scaleY / SCALE;
+				const int plY = (oy - picRect.top) * ph / GH;
 				if (plY < 0 || plY >= ph)
 					continue;
 				// Sample the priority at the SAME scene location the displayed plate
@@ -547,9 +623,9 @@ void RogerCompositor::renderScene(Graphics::ManagedSurface &dest, const Common::
 				const uint32 *plateRow = fast ? (const uint32 *)_plate->getBasePtr(0, plY) : nullptr;
 				uint32 *destRow = fast ? (uint32 *)destSurf->getBasePtr(0, oy) : nullptr;
 
-				int accX = (x0 - picRect.left) * scaleX;
-				for (int ox = x0; ox < x1; ox++, accX += scaleX) {
-					const int plX = accX / SCALE;
+				int accX = (x0 - picRect.left) * pw;
+				for (int ox = x0; ox < x1; ox++, accX += pw) {
+					const int plX = accX / GW;
 					if (plX < 0 || plX >= pw)
 						continue;
 					const int picX = priMatchesPlate ? plX : (plX * _priorityW / pw);

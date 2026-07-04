@@ -1,0 +1,8 @@
+# SQ3 save 1 (pod interior, pic 1): pod-door view vs omyac plate alignment.
+# Evidence for the plate/cel misalignment fix (exact-rational scalers): with the
+# fix, no cyan plate trim may peek out around the door view cel.
+wait 4500
+capture door-align
+move 160 100
+wait 800
+quit

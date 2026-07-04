@@ -32,6 +32,7 @@
 // The Makefile (and build_tests.ps1 for MSVC) sets this automatically.
 
 class TestCompositor : public CxxTest::TestSuite {
+	static int iabs(int v) { return v < 0 ? -v : v; }
 public:
 	// RogerCompositor reads files via ViewCache/SliceSet which dereference
 	// the global OSystem (g_system). Install the null backend for each test.
@@ -95,14 +96,117 @@ public:
 		plate->free(); delete plate;
 	}
 
+	void test_plate_and_cel_content_align_under_scaling() {
+		// ROOT-CAUSE REGRESSION for the "6x view doesn't line up with the omyac plate"
+		// bug (SQ3 pic 1 pod door showing cyan). ManagedSurface::blitFrom scales with a
+		// TRUNCATED 8.8 fixed-point step (scaleX = 256*srcW/dstW), so plate content
+		// drifted right/down by up to ~12 overlay px across the screen, while sprite
+		// dest rects use exact rational math. The compositor must draw the plate with
+		// an EXACT nearest scaler so a cel and the plate content for the same native
+		// rect land at the same overlay position.
+		//
+		// Plate: black 1920x1140 (6x of 320x190) with a white 1-native-px vertical line
+		// at native x=300 and a white horizontal line at native y=180 (far right/bottom,
+		// where the truncation drift is largest). Render A: plate alone. Render B: black
+		// plate + white line CELS at the same native rects. The white bands of A and B
+		// must coincide within 1 px (pre-fix, A's vertical line sat ~11 px right of B's).
+		const Graphics::PixelFormat rgba(4, 8, 8, 8, 8, 24, 16, 8, 0);
+		const int SRCW = 1920, SRCH = 1140; // 6x of 320x190
+		const int DW = 2862, DH = 1699;     // realistic overlay picture rect
+		const uint32 white = rgba.ARGBToColor(255, 255, 255, 255);
+		const uint32 black = rgba.ARGBToColor(255, 0, 0, 0);
+		const int LX = 300, LY = 180;       // native line positions
+
+		Graphics::Surface plate;
+		plate.create(SRCW, SRCH, rgba);
+		plate.fillRect(Common::Rect(0, 0, SRCW, SRCH), black);
+		plate.fillRect(Common::Rect(LX * 6, 0, LX * 6 + 6, SRCH), white);
+		plate.fillRect(Common::Rect(0, LY * 6, SRCW, LY * 6 + 6), white);
+
+		Graphics::Surface blackPlate;
+		blackPlate.create(SRCW, SRCH, rgba);
+		blackPlate.fillRect(Common::Rect(0, 0, SRCW, SRCH), black);
+
+		// Render A: the patterned plate, no sprites.
+		Sci::Roger::RogerCompositor compA;
+		compA.setRoom(&plate, nullptr);
+		compA.setPicture(320, 190, 0);
+		Graphics::ManagedSurface destA(DW, DH, rgba);
+		Common::Array<Sci::Roger::Sprite> none;
+		compA.renderScene(destA, none);
+
+		// Render B: black plate + the same lines as sprite cels (exact 6x content).
+		Graphics::Surface vCel, hCel;
+		vCel.create(6, SRCH, rgba);
+		vCel.fillRect(Common::Rect(0, 0, 6, SRCH), white);
+		hCel.create(SRCW, 6, rgba);
+		hCel.fillRect(Common::Rect(0, 0, SRCW, 6), white);
+
+		Sci::Roger::Sprite v, hs;
+		v.viewId = -1; v.loopNo = 0; v.celNo = 0; v.priority = 1; v.mirror = false;
+		v.celRect = Common::Rect(LX, 0, LX + 1, 190);
+		v.celOverride = &vCel;
+		hs = v;
+		hs.celRect = Common::Rect(0, LY, 320, LY + 1);
+		hs.celOverride = &hCel;
+		Common::Array<Sci::Roger::Sprite> list;
+		list.push_back(v);
+		list.push_back(hs);
+
+		Sci::Roger::RogerCompositor compB;
+		compB.setRoom(&blackPlate, nullptr);
+		compB.setPicture(320, 190, 0);
+		Graphics::ManagedSurface destB(DW, DH, rgba);
+		compB.renderScene(destB, list);
+
+		// White vertical-band extents on a probe row away from the horizontal line.
+		int aL = -1, aR = -1, bL = -1, bR = -1;
+		const int probeY = DH / 4;
+		for (int x = 0; x < DW; x++) {
+			if (destA.surfacePtr()->getPixel(x, probeY) == white) {
+				if (aL < 0) aL = x;
+				aR = x;
+			}
+			if (destB.surfacePtr()->getPixel(x, probeY) == white) {
+				if (bL < 0) bL = x;
+				bR = x;
+			}
+		}
+		TS_ASSERT(aL >= 0); TS_ASSERT(bL >= 0);
+		TS_ASSERT_LESS_THAN_EQUALS(iabs(aL - bL), 1);
+		TS_ASSERT_LESS_THAN_EQUALS(iabs(aR - bR), 1);
+
+		// White horizontal-band extents on a probe column away from the vertical line.
+		int aT = -1, aB = -1, bT = -1, bB = -1;
+		const int probeX = DW / 4;
+		for (int y = 0; y < DH; y++) {
+			if (destA.surfacePtr()->getPixel(probeX, y) == white) {
+				if (aT < 0) aT = y;
+				aB = y;
+			}
+			if (destB.surfacePtr()->getPixel(probeX, y) == white) {
+				if (bT < 0) bT = y;
+				bB = y;
+			}
+		}
+		TS_ASSERT(aT >= 0); TS_ASSERT(bT >= 0);
+		TS_ASSERT_LESS_THAN_EQUALS(iabs(aT - bT), 1);
+		TS_ASSERT_LESS_THAN_EQUALS(iabs(aB - bB), 1);
+
+		vCel.free();
+		hCel.free();
+		blackPlate.free();
+		plate.free();
+	}
+
 	void test_splat_matches_background_scaler_under_scaling() {
 		// REGRESSION for the "splatted pixels are off by a few px" bug. When the plate
 		// is scaled into the game rect (plate wider than picRect), the occlusion
-		// punch-back must sample the plate with the SAME integer scaler that blitFrom
-		// used to draw the background — otherwise the restored foreground pixels drift
-		// from the background. Here: a 10x2 gradient plate scaled into a 6x2 rect, a
+		// punch-back must sample the plate with the SAME scaler the compositor used to
+		// draw the background — otherwise the restored foreground pixels drift from
+		// the background. Here: a 10x2 gradient plate scaled into a 6x2 rect, a
 		// sprite covering it all, priority everywhere > sprite -> splat everywhere.
-		// The result must be pixel-identical to blitFrom(plate -> 6x2).
+		// The result must be pixel-identical to the exact nearest scale (plate -> 6x2).
 		const Graphics::PixelFormat rgba(4, 8, 8, 8, 8, 24, 16, 8, 0);
 
 		Graphics::Surface plate;
@@ -136,9 +240,9 @@ public:
 		Graphics::ManagedSurface dest(6, 2, rgba);
 		comp.renderScene(dest, list);
 
-		// Reference: the background plate as ScummVM's own scaler draws it.
+		// Reference: the background plate as the compositor's exact scaler draws it.
 		Graphics::ManagedSurface ref(6, 2, rgba);
-		ref.blitFrom(plate, Common::Rect(0, 0, 10, 2), Common::Rect(0, 0, 6, 2));
+		Sci::Roger::scaleBlitNearest(*ref.surfacePtr(), Common::Rect(0, 0, 6, 2), plate);
 
 		for (int y = 0; y < 2; y++)
 			for (int x = 0; x < 6; x++)
