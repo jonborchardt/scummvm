@@ -482,6 +482,12 @@ void RogerCompositor::renderScene(Graphics::ManagedSurface &dest, const Common::
 		for (uint i = 0; i < _sceneDirtyCur.size(); i++) raw.push_back(_sceneDirtyCur[i]);
 		for (uint i = 0; i < _sceneDirtyPrev.size(); i++) raw.push_back(_sceneDirtyPrev[i]);
 		for (uint i = 0; i < _dirtyPrev.size(); i++) raw.push_back(_dirtyPrev[i]);
+		// Deferred mid-cycle content-removal rects (present-barrier ghost fix): the fresh-frame
+		// present that consumes this frame's scratch would otherwise push these from stale last-
+		// frame pixels, since _dirtyCur is excluded from the seed. Re-seed clean background over
+		// them here. Empty in the common no-deferred-marks case (no added cost on the walking path).
+		for (uint i = 0; i < _sceneDeferredDirty.size(); i++) raw.push_back(_sceneDeferredDirty[i]);
+		_sceneDeferredDirty.clear();
 		Common::Rect bounds = _bgGameRect;
 		bounds.clip(Common::Rect(0, 0, (int16)W, (int16)H));
 		coalesceDirtyRects(raw, bounds, _lastSeedUnion);

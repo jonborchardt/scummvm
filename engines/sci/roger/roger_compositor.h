@@ -190,6 +190,12 @@ public:
 	// cursor. (Sprite rects are recorded separately by renderScene into the scene-granularity
 	// set — see _sceneDirtyCur.) presentToOverlay pushes the dirtyUnion of all of these.
 	void addDirtyRect(const Common::Rect &destRect) { if (!destRect.isEmpty()) _dirtyCur.push_back(destRect); }
+	// Present-barrier ghost fix: record a dest-space rect that renderScene's seed union must
+	// re-seed with clean background this frame, in ADDITION to the present-granularity _dirtyCur.
+	// The provider calls this ONLY for content-removing marks made mid-cycle (_inAnimateCycle),
+	// whose deferred fresh-frame present would otherwise push stale scratch pixels (see
+	// _sceneDeferredDirty). O(1) append; empty and free in the common no-deferred-marks case.
+	void addSceneDirtyRect(const Common::Rect &destRect) { if (!destRect.isEmpty()) _sceneDeferredDirty.push_back(destRect); }
 	// Enable/disable dirty present (roger_dirty_present knob). When off, presentToOverlay
 	// always does a full region push (the pre-dirty behavior).
 	void setDirtyPresent(bool enabled) { _dirtyPresent = enabled; }
@@ -308,6 +314,7 @@ public:
 		_dirtyPrev.clear();
 		_sceneDirtyCur.clear();
 		_sceneDirtyPrev.clear();
+		_sceneDeferredDirty.clear();
 		_lastSeedUnion.clear();
 		_framesSinceFullPresent = 0;
 		_framesSinceFullSeed = 0;
@@ -369,6 +376,18 @@ private:
 	// vacated even if several UI-only presents happened in between. Without this split, a
 	// mouse-move during an animation clobbered _dirtyPrev and left a shadow of old frames.
 	Common::Array<Common::Rect> _sceneDirtyCur, _sceneDirtyPrev;
+
+	// Deferred mid-cycle scene invalidations (present-barrier ghost fix). When a mark that
+	// removes previously-painted content (markVacatedDirty / markNativeDirty) fires DURING the
+	// animate cycle, the barrier defers and the end-of-cycle fresh-frame present re-uses the
+	// scratch composed by renderFrame WITHOUT a synchronous recompose. Those vacated rects land
+	// in _dirtyCur, which the seed union deliberately EXCLUDES, so renderScene would leave the
+	// removed element's stale pixels in the persistent scratch and the fresh-frame present would
+	// push them (a one-cycle ghost). The provider routes such deferred marks here (via
+	// addSceneDirtyRect, gated on _inAnimateCycle) so renderScene's seed union re-seeds clean
+	// background over them. Consumed and cleared by renderScene; EMPTY in the common case (no
+	// mid-cycle removal), so the walking path pays nothing.
+	Common::Array<Common::Rect> _sceneDeferredDirty;
 
 	// Bounded background-seed bookkeeping. renderScene re-seeds _bgCache->dest only over the
 	// coalesced union of this frame's + last frame's sprite rects (everything else in the

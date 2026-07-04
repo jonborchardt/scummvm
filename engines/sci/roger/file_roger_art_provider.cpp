@@ -1243,6 +1243,10 @@ void FileRogerArtProvider::markUiDirty(const Common::Rect &nativeRect) {
 	_barrierDirty = true;
 	if (_lastGameRect.isEmpty()) { _compositor->forceFullPresent(); return; }
 	_compositor->addDirtyRect(Roger::uiPaintExtent(nativeRect, _lastGameRect));
+	// No addSceneDirtyRect here (unlike markVacated/markNativeDirty): markUiDirty accompanies a
+	// UI element being pushed/repainted, and renderFrame's renderUiLayer draws that element into
+	// the SAME fresh-frame scratch the deferred present emits. There is no stale-pixel window —
+	// the element is present in the scratch this frame, not left over from last frame.
 }
 
 void FileRogerArtProvider::markVacatedDirty(const Common::Rect &nativeRect) {
@@ -1252,8 +1256,17 @@ void FileRogerArtProvider::markVacatedDirty(const Common::Rect &nativeRect) {
 	if (_lastGameRect.isEmpty()) { _compositor->forceFullPresent(); return; }
 	// Exact rect + TTF pad. The compositor-overdraw ring beyond it is covered by
 	// bitsRestore's exact erase rect (markNativeDirty in onNativeEraseRect) — the
-	// spec's §3.1 claim; the gate proves it (see the fallback note in the plan).
-	_compositor->addDirtyRect(Roger::uiVacatedExtent(nativeRect, _lastGameRect));
+	// spec's §3.1 claim, verified by interactive soak, NOT provable by the capture-based
+	// gate (its capture path forces a full clean recompose via needFullSource, so a
+	// missing-mark fault cannot appear in any capture by construction).
+	const Common::Rect dest = Roger::uiVacatedExtent(nativeRect, _lastGameRect);
+	_compositor->addDirtyRect(dest);
+	// This mark REMOVES previously-painted content. If it fires mid-cycle, the barrier
+	// defers and the end-of-cycle fresh-frame present re-uses renderFrame's scratch with no
+	// recompose; _dirtyCur alone is excluded from renderScene's seed union, so the removed
+	// element's stale pixels would ghost for one cycle. Route it to the scene seed too.
+	if (_inAnimateCycle)
+		_compositor->addSceneDirtyRect(dest);
 }
 
 void FileRogerArtProvider::markNativeDirty(const Common::Rect &nativeRect) {
@@ -1277,7 +1290,13 @@ void FileRogerArtProvider::markNativeDirty(const Common::Rect &nativeRect) {
 	if (_lastGameRect.isEmpty()) { _compositor->forceFullPresent(); return; }
 	Common::Rect n = pic;
 	n.grow(1);
-	_compositor->addDirtyRect(Roger::sciRectToDest(n, _lastGameRect));
+	const Common::Rect dest = Roger::sciRectToDest(n, _lastGameRect);
+	_compositor->addDirtyRect(dest);
+	// Same deferred-mid-cycle ghost hazard as markVacatedDirty: bitsRestore's erase rect can
+	// uncover previously-painted content mid-cycle, and the deferred fresh-frame present would
+	// otherwise push it from stale scratch. Route to the scene seed union too (empty otherwise).
+	if (_inAnimateCycle)
+		_compositor->addSceneDirtyRect(dest);
 }
 
 void FileRogerArtProvider::markFullDirty() {
