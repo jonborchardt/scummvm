@@ -1099,12 +1099,9 @@ void FileRogerArtProvider::ensureUi() {
 		Common::String ttf = "GoMono-Regular.ttf";
 		if (ConfMan.hasKey("roger_ui_font"))
 			ttf = ConfMan.get("roger_ui_font");
-		// A ladder of pixel sizes for fit-to-box selection (cell mode, hires).
-		Common::Array<int> sizes;
-		sizes.push_back(18); sizes.push_back(24); sizes.push_back(32);
-		sizes.push_back(42); sizes.push_back(56); sizes.push_back(72);
-		sizes.push_back(96); sizes.push_back(120); sizes.push_back(160);
-		_textRenderer = new Roger::RogerTextRenderer(ttf, sizes);
+		// Exact sizes are loaded on demand (no ladder): each element renders at the
+		// cell height the shared type-scale pass computes for it.
+		_textRenderer = new Roger::RogerTextRenderer(ttf);
 		// roger_ui_font_scale: global size multiplier (percent) applied to each element's
 		// target cell height. Wrapping text fits its box by height, so a larger scale grows
 		// (and re-wraps) the text rather than clipping. Default 150.
@@ -1120,11 +1117,7 @@ void FileRogerArtProvider::ensureUi() {
 		Common::String headerTtf = "NotoSans-Regular.ttf";
 		if (ConfMan.hasKey("roger_ui_header_font"))
 			headerTtf = ConfMan.get("roger_ui_header_font");
-		Common::Array<int> sizes;
-		sizes.push_back(18); sizes.push_back(24); sizes.push_back(32);
-		sizes.push_back(42); sizes.push_back(56); sizes.push_back(72);
-		sizes.push_back(96); sizes.push_back(120); sizes.push_back(160);
-		_altTextRenderer = new Roger::RogerTextRenderer(headerTtf, sizes);
+		_altTextRenderer = new Roger::RogerTextRenderer(headerTtf);
 		// Same global size multiplier so headings scale with the body text.
 		int scale = 150;
 		if (ConfMan.hasKey("roger_ui_font_scale"))
@@ -2530,17 +2523,11 @@ void FileRogerArtProvider::cycleBodyFont() {
 	_bodyFontIdx = (_bodyFontIdx + 1) % kBodyFontShortlistLen;
 	const char *next = kBodyFontShortlist[_bodyFontIdx];
 
-	// Same size ladder as ensureUi().
-	Common::Array<int> sizes;
-	sizes.push_back(18); sizes.push_back(24); sizes.push_back(32);
-	sizes.push_back(42); sizes.push_back(56); sizes.push_back(72);
-	sizes.push_back(96); sizes.push_back(120); sizes.push_back(160);
-
 	int scale = 150;
 	if (ConfMan.hasKey("roger_ui_font_scale"))
 		scale = ConfMan.getInt("roger_ui_font_scale");
 
-	Roger::RogerTextRenderer *rebuilt = new Roger::RogerTextRenderer(Common::String(next), sizes);
+	Roger::RogerTextRenderer *rebuilt = new Roger::RogerTextRenderer(Common::String(next));
 	rebuilt->setGlobalScale(scale);
 	delete _textRenderer;
 	_textRenderer = rebuilt;

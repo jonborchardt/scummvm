@@ -62,34 +62,80 @@ int rogerTargetPx(int nativeFontH, int overlayH, int globalScalePct);
 // (matches SCI's native top-aligned text-edit fields). Pure: unit-testable.
 int firstLineTop(int top, int boxH, int lineCount, int lineH, bool vAlignTop);
 
+// Cell-top Y that OPTICALLY centres a text block in [top, top+boxH): centres the
+// ink span, not the font cell. inkTop/inkBottom are the first/last line's drawn
+// extent relative to their cell top (Font::getBoundingBox); TTF cells carry
+// internal leading above the ink, so cell centring sits label text visibly low.
+// Degenerate ink (inkBottom <= inkTop) falls back to cell centring. Pure.
+int opticalBlockTop(int top, int boxH, int lineCount, int lineH, int inkTop, int inkBottom);
+
+// One text element's sizing inputs/outputs for the shared type-scale pass.
+struct TextSizeFit {
+	uint32 group;  // sizing group (window id + font namespace); scale is shared per group
+	int idealPx;   // desired cell height (dest px, global multiplier applied); 0 = not text
+	int fitPx;     // in: largest height <= idealPx that fits THIS element's own caps
+	               // out: final render height after the group's shared scale
+	TextSizeFit() : group(0), idealPx(0), fitPx(0) {}
+};
+
+// Shared proportional type scale: every element in a group shrinks TOGETHER by the
+// group's worst (smallest) fit/ideal ratio, so siblings keep the size relationship
+// the game gave them (a 2x heading and 1x label become 1.8x/0.9x, never one unified
+// size) while the tightest element still fits its box. Entries with idealPx <= 0 are
+// ignored (left untouched, excluded from the ratio). Pure: unit-testable.
+void applySharedGroupScale(Common::Array<TextSizeFit> &items);
+
 class RogerTextRenderer {
 public:
-	// ttfName: a TTF inside ScummVM's fonts.dat (e.g. "LiberationSans-Regular.ttf");
-	// empty or load failure => built-in FontMan fonts. sizes: pixel sizes (ascending).
-	RogerTextRenderer(const Common::String &ttfName, const Common::Array<int> &sizes);
+	// ttfName: a TTF inside ScummVM's fonts.dat (e.g. "GoMono-Regular.ttf"); empty or
+	// load failure => built-in FontMan bitmap fonts. TTF sizes are loaded on demand at
+	// the exact requested cell height and cached — there is no fixed size ladder.
+	explicit RogerTextRenderer(const Common::String &ttfName);
 	~RogerTextRenderer();
 
-	bool ok() const { return !_fonts.empty(); }
+	bool ok() const { return _ttfLoaded || !_fonts.empty(); }
 	// True only if the requested TTF actually loaded (false => bitmap fallback).
 	bool ttfLoaded() const { return _ttfLoaded; }
 	// Global size multiplier (percent) applied to every target height — the user's
 	// roger_ui_font_scale knob. 100 = use the role's target height as-is.
 	void setGlobalScale(int pct) { _globalScalePct = pct > 0 ? pct : 100; }
-	// Draw word-wrapped, vertically-centred text. The font is chosen by `targetPx`
-	// (an on-screen cell height in dest pixels), scaled by the global multiplier and
-	// then capped to rect.height() so tight strips/rows shrink to fit rather than
-	// overlapping. targetPx <= 0 => fill the box height. maxTextW > 0 caps the
-	// single-line width (native footprint scaled to dest; 0 = box width / unbounded).
+	// The size an element WANTS: target cell height * the global multiplier.
+	int scaledIdealPx(int targetPx) const {
+		return targetPx > 0 ? targetPx * _globalScalePct / 100 : 0;
+	}
+	// Largest cell height <= idealPx that keeps `text` inside its caps: the box
+	// height always; for single-line fields (maxTextW > 0) the rendered string width
+	// must not exceed maxTextW; for multi-line text (maxTextW == 0) the word-wrapped
+	// block (wrapped to boxW) must fit boxH. Re-measures at each candidate size (TTF
+	// metrics are not linear in size). Feed the result to applySharedGroupScale, then
+	// drawAtPx. idealPx <= 0 => fill the box height.
+	int fitPx(const Common::String &text, int boxW, int boxH, int idealPx,
+	          int maxTextW, const Common::Array<UiGlyph> *glyphs = nullptr) const;
+	// Draw word-wrapped, vertically-centred text at EXACTLY finalPx (as chosen by
+	// fitPx + applySharedGroupScale): no re-fitting, no global multiplier; lines that
+	// fall past rect.bottom clip silently.
+	void drawAtPx(Graphics::ManagedSurface &dst, const Common::String &text,
+	              const Common::Rect &rect, uint32 color, int align, int finalPx,
+	              bool vAlignTop = false, const Common::Array<UiGlyph> *glyphs = nullptr) const;
+	// Legacy convenience: fitPx (with the global multiplier) + drawAtPx in one call.
+	// targetPx <= 0 => fill the box height.
 	void drawPx(Graphics::ManagedSurface &dst, const Common::String &text,
 	            const Common::Rect &rect, uint32 color, int align, int targetPx,
 	            bool vAlignTop = false, const Common::Array<UiGlyph> *glyphs = nullptr,
 	            int maxTextW = 0) const;
-	int caretPx(const Common::String &text, int cursorPos,
-	            const Common::Rect &rect, int targetPx, int maxTextW = 0) const;
+	// Caret x offset (px from the text left edge) for a caret before char cursorPos,
+	// measured with the font drawAtPx would use at finalPx.
+	int caretAtPx(const Common::String &text, int cursorPos, int finalPx) const;
 
 private:
-	Common::Array<const Graphics::Font *> _fonts; // ascending by size
-	Common::Array<bool> _owned;                   // parallel: delete on dtor?
+	// Font for an exact cell height: TTF loaded on demand (kTTFSizeModeCell) and
+	// cached per size; bitmap fallback picks the largest built-in font that fits.
+	const Graphics::Font *fontForPx(int px) const;
+
+	struct SizedFont { int px; Graphics::Font *font; };
+	Common::String _ttfName;                       // TTF to load sizes from (empty = bitmap)
+	mutable Common::Array<SizedFont> _sizeCache;   // exact-size TTF instances (owned; lazy)
+	Common::Array<const Graphics::Font *> _fonts;  // bitmap fallback fonts, ascending (borrowed)
 	bool _ttfLoaded = false;                       // requested TTF loaded (not bitmap fallback)?
 	int _globalScalePct = 100;                     // user size multiplier (roger_ui_font_scale)
 };

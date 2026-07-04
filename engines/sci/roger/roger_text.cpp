@@ -83,35 +83,112 @@ int firstLineTop(int top, int boxH, int lineCount, int lineH, bool vAlignTop) {
 	return y < top ? top : y;
 }
 
-RogerTextRenderer::RogerTextRenderer(const Common::String &ttfName,
-                                     const Common::Array<int> &sizes) {
-#ifdef USE_FREETYPE2
-	if (!ttfName.empty()) {
-		for (uint i = 0; i < sizes.size(); i++) {
-			Graphics::Font *f = Graphics::loadTTFFontFromArchive(
-				ttfName, sizes[i], Graphics::kTTFSizeModeCell, 0, 0,
-				Graphics::kTTFRenderModeLight);
-			if (f) {
-				_fonts.push_back(f);
-				_owned.push_back(true);
-			}
+int opticalBlockTop(int top, int boxH, int lineCount, int lineH, int inkTop, int inkBottom) {
+	if (inkBottom <= inkTop || lineCount < 1)
+		return firstLineTop(top, boxH, lineCount, lineH, false);
+	const int blockInkTop = inkTop;
+	const int blockInkBottom = (lineCount - 1) * lineH + inkBottom;
+	int y = top + (boxH - (blockInkBottom - blockInkTop)) / 2 - blockInkTop;
+	// Never let the ink start above the box (oversized ink degenerates to top-ink-flush).
+	if (y + blockInkTop < top)
+		y = top - blockInkTop;
+	return y;
+}
+
+void applySharedGroupScale(Common::Array<TextSizeFit> &items) {
+	// Track each group's worst fit/ideal ratio as an exact fraction (num/den) so
+	// the element that set the minimum lands back on exactly its own fitPx.
+	Common::Array<uint32> groups;
+	Common::Array<int> nums, dens;
+	for (uint i = 0; i < items.size(); i++) {
+		if (items[i].idealPx <= 0)
+			continue;
+		if (items[i].fitPx > items[i].idealPx)
+			items[i].fitPx = items[i].idealPx; // never grow past the game-suggested size
+		uint g;
+		for (g = 0; g < groups.size(); g++)
+			if (groups[g] == items[i].group)
+				break;
+		if (g == groups.size()) {
+			groups.push_back(items[i].group);
+			nums.push_back(1);
+			dens.push_back(1);
+		}
+		// fit/ideal < num/den ?
+		if ((int64)items[i].fitPx * dens[g] < (int64)nums[g] * items[i].idealPx) {
+			nums[g] = items[i].fitPx;
+			dens[g] = items[i].idealPx;
 		}
 	}
-	_ttfLoaded = !_fonts.empty();
+	for (uint i = 0; i < items.size(); i++) {
+		if (items[i].idealPx <= 0)
+			continue;
+		for (uint g = 0; g < groups.size(); g++) {
+			if (groups[g] != items[i].group)
+				continue;
+			int px = (int)((int64)items[i].idealPx * nums[g] / dens[g]);
+			items[i].fitPx = px < 1 ? 1 : px;
+			break;
+		}
+	}
+}
+
+// Sane bounds for on-demand font sizes: below ~7 px TTF glyphs are unreadable
+// noise, and the cap keeps a corrupt metric from allocating a monster font.
+static const int kMinFontPx = 7;
+static const int kMaxFontPx = 300;
+
+RogerTextRenderer::RogerTextRenderer(const Common::String &ttfName) : _ttfName(ttfName) {
+#ifdef USE_FREETYPE2
+	if (!_ttfName.empty()) {
+		// Probe load: proves the TTF exists in fonts.dat and seeds the size cache.
+		Graphics::Font *probe = Graphics::loadTTFFontFromArchive(
+			_ttfName, 32, Graphics::kTTFSizeModeCell, 0, 0,
+			Graphics::kTTFRenderModeLight);
+		if (probe) {
+			SizedFont sf; sf.px = 32; sf.font = probe;
+			_sizeCache.push_back(sf);
+			_ttfLoaded = true;
+		}
+	}
 #endif
-	if (_fonts.empty()) {
+	if (!_ttfLoaded) {
 		// Fallback: built-in bitmap fonts (always present, no files/FreeType).
 		const Graphics::Font *g = FontMan.getFontByUsage(Graphics::FontManager::kGUIFont);
 		const Graphics::Font *b = FontMan.getFontByUsage(Graphics::FontManager::kBigGUIFont);
-		if (g) { _fonts.push_back(g); _owned.push_back(false); }
-		if (b) { _fonts.push_back(b); _owned.push_back(false); }
+		if (g) _fonts.push_back(g);
+		if (b) _fonts.push_back(b);
 	}
 }
 
 RogerTextRenderer::~RogerTextRenderer() {
-	for (uint i = 0; i < _fonts.size(); i++)
-		if (_owned[i])
-			delete _fonts[i];
+	for (uint i = 0; i < _sizeCache.size(); i++)
+		delete _sizeCache[i].font;
+}
+
+const Graphics::Font *RogerTextRenderer::fontForPx(int px) const {
+	if (px < kMinFontPx) px = kMinFontPx;
+	if (px > kMaxFontPx) px = kMaxFontPx;
+#ifdef USE_FREETYPE2
+	if (_ttfLoaded) {
+		for (uint i = 0; i < _sizeCache.size(); i++)
+			if (_sizeCache[i].px == px)
+				return _sizeCache[i].font;
+		Graphics::Font *f = Graphics::loadTTFFontFromArchive(
+			_ttfName, px, Graphics::kTTFSizeModeCell, 0, 0,
+			Graphics::kTTFRenderModeLight);
+		if (f) {
+			SizedFont sf; sf.px = px; sf.font = f;
+			_sizeCache.push_back(sf);
+			return f;
+		}
+		// Load failure at this size: fall through to the bitmap fallback (if any).
+	}
+#endif
+	if (_fonts.empty())
+		return nullptr;
+	int idx = fitFontIndexByHeight(_fonts, px);
+	return _fonts[idx < 0 ? 0 : idx];
 }
 
 // Look up the pre-rendered surface for byte `c` in the element's glyph list (nullptr if none).
@@ -155,53 +232,102 @@ static int mixedLineWidth(const Graphics::Font *f, const Common::String &line,
 	return w;
 }
 
+int RogerTextRenderer::fitPx(const Common::String &text, int boxW, int boxH, int idealPx,
+                             int maxTextW, const Common::Array<UiGlyph> *glyphs) const {
+	// Start from the ideal, capped to the box height (a tight strip can never host
+	// text taller than itself).
+	int h = idealPx > 0 ? idealPx : boxH;
+	if (h > boxH)
+		h = boxH;
+	if (h < 1)
+		h = 1;
+	if (text.empty())
+		return h;
+	// Shrink proportionally until the constraint is met, re-measuring each step
+	// because glyph metrics do not scale perfectly linearly. Bounded iterations:
+	// with the bitmap fallback the measured width may not shrink with h at all,
+	// so every path must terminate without convergence.
+	if (maxTextW > 0) {
+		// Single-line field: the rendered string must fit the native footprint width.
+		for (int i = 0; i < 5; i++) {
+			const Graphics::Font *f = fontForPx(h);
+			if (!f)
+				return h;
+			const int w = mixedLineWidth(f, text, glyphs, f->getFontHeight());
+			if (w <= maxTextW || h <= 1)
+				break;
+			int nh = (int)((int64)h * maxTextW / w);
+			if (nh >= h)
+				nh = h - 1;
+			h = nh < 1 ? 1 : nh;
+		}
+	} else {
+		// Multi-line text: the word-wrapped block (at the box width) must fit the
+		// box height. Comparing the FULL unwrapped string width against the box
+		// would reject every usable size — wrap first, then compare heights.
+		Common::Array<Common::String> lines;
+		for (int i = 0; i < 5; i++) {
+			const Graphics::Font *f = fontForPx(h);
+			if (!f)
+				return h;
+			lines.clear();
+			f->wordWrapText(text, boxW, lines);
+			const int totalH = (int)lines.size() * f->getFontHeight();
+			if (totalH <= boxH || h <= 1)
+				break;
+			int nh = (int)((int64)h * boxH / totalH);
+			if (nh >= h)
+				nh = h - 1;
+			h = nh < 1 ? 1 : nh;
+		}
+	}
+	return h;
+}
+
 void RogerTextRenderer::drawPx(Graphics::ManagedSurface &dst, const Common::String &text,
                                const Common::Rect &rect, uint32 color, int align, int targetPx,
                                bool vAlignTop, const Common::Array<UiGlyph> *glyphs,
                                int maxTextW) const {
-	if (_fonts.empty())
-		return;
-	// Target on-screen cell height (native metric * global multiplier), capped to box.
-	int h = targetPx > 0 ? targetPx * _globalScalePct / 100 : rect.height();
-	if (h > rect.height())
-		h = rect.height();
-	// Width cap applies only to SINGLE-LINE fields (maxTextW > 0): buttons, text-edit,
-	// status. For wrapping (multi-line) message text we pass 0 — comparing the FULL
-	// unwrapped string width against the box width would reject every usable size and
-	// collapse the text to the smallest font. Instead select by height only and let the
-	// word-wrap + height-fit loop below size it to the box (so the scale knob works too).
-	const int wCap = maxTextW > 0 ? maxTextW : 0;
-	int idx = fitFontIndexByHeightAndWidth(_fonts, text, h, wCap);
-	if (idx < 0)
+	const int ideal = targetPx > 0 ? scaledIdealPx(targetPx) : rect.height();
+	const int fit = fitPx(text, rect.width(), rect.height(), ideal, maxTextW, glyphs);
+	drawAtPx(dst, text, rect, color, align, fit, vAlignTop, glyphs);
+}
+
+void RogerTextRenderer::drawAtPx(Graphics::ManagedSurface &dst, const Common::String &text,
+                                 const Common::Rect &rect, uint32 color, int align, int finalPx,
+                                 bool vAlignTop, const Common::Array<UiGlyph> *glyphs) const {
+	const Graphics::Font *f = fontForPx(finalPx);
+	if (!f)
 		return;
 
 	Graphics::TextAlign ta = Graphics::kTextAlignLeft;
 	if (align == 1) ta = Graphics::kTextAlignCenter;
 	else if (align == -1) ta = Graphics::kTextAlignRight;
 
-	// Pick the largest font (at or below the target) whose word-wrapped block also
-	// FITS the box height. SCI sizes its dialog boxes for the text, so the hires text
-	// must not spill past the box bottom (which the bold window border makes obvious).
 	Common::Array<Common::String> lines;
-	const Graphics::Font *f = _fonts[idx];
-	for (;;) {
-		f = _fonts[idx];
-		lines.clear();
-		f->wordWrapText(text, rect.width(), lines);
-		const int totalH = (int)lines.size() * f->getFontHeight();
-		if (totalH <= rect.height() || idx == 0)
-			break;
-		idx--;
-	}
+	f->wordWrapText(text, rect.width(), lines);
 	if (lines.empty())
 		return;
 	// Centred vertically by default; vAlignTop draws from the top of the box (SCI's
-	// native text-edit position). firstLineTop clamps to the top if still too tall.
+	// native text-edit position). Centring uses the INK extent, not the font cell:
+	// TTF cells carry internal leading above the glyphs, so cell centring sat label
+	// text visibly low in buttons (QFG1 main menu vs the native mirror, 2026-07-04).
 	const int lh = f->getFontHeight();
-	int y = firstLineTop(rect.top, rect.height(), (int)lines.size(), lh, vAlignTop);
+	Common::Rect inkFirst = f->getBoundingBox(lines[0]);
+	Common::Rect inkLast = lines.size() == 1 ? inkFirst
+	                                         : f->getBoundingBox(lines[lines.size() - 1]);
+	int y;
+	if (vAlignTop)
+		y = rect.top;
+	else
+		y = opticalBlockTop(rect.top, rect.height(), (int)lines.size(), lh,
+		                    inkFirst.top, inkLast.bottom);
+	// Clip guard uses the ink bottom, not the cell bottom: an ink-centred cell may
+	// legitimately overhang the box with empty descent/leading rows.
+	const int inkBot = inkLast.bottom > 0 ? inkLast.bottom : lh;
 	for (uint i = 0; i < lines.size(); i++) {
-		if (y + lh > rect.bottom)
-			break; // line starts below the box — clip silently
+		if (y + inkBot > rect.bottom)
+			break; // line's ink would pass the box bottom — clip silently
 		if (lineHasGlyph(lines[i], glyphs)) {
 			// Mixed TTF + native-glyph layout: lay out left->right, drawing ASCII runs
 			// with the TTF font and blitting each non-ASCII glyph scaled to the line
@@ -242,18 +368,13 @@ void RogerTextRenderer::drawPx(Graphics::ManagedSurface &dst, const Common::Stri
 	}
 }
 
-int RogerTextRenderer::caretPx(const Common::String &text, int cursorPos,
-                               const Common::Rect &rect, int targetPx, int maxTextW) const {
-	int h = targetPx > 0 ? targetPx * _globalScalePct / 100 : rect.height();
-	if (h > rect.height())
-		h = rect.height();
-	const int wCap = maxTextW > 0 ? maxTextW : rect.width();
-	int idx = fitFontIndexByHeightAndWidth(_fonts, text, h, wCap);
-	if (idx < 0)
+int RogerTextRenderer::caretAtPx(const Common::String &text, int cursorPos, int finalPx) const {
+	const Graphics::Font *f = fontForPx(finalPx);
+	if (!f)
 		return 0;
-	const Graphics::Font *f = _fonts[idx];
 	int n = cursorPos;
 	if (n > (int)text.size()) n = (int)text.size();
+	if (n < 0) n = 0;
 	return f->getStringWidth(Common::String(text.c_str(), n));
 }
 

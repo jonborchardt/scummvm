@@ -160,8 +160,7 @@ public:
 		Common::Array<UiElement> elems;
 		elems.push_back(e);
 
-		Common::Array<int> sizes;
-		RogerTextRenderer tr("", sizes); // bitmap fallback — no game files needed
+		RogerTextRenderer tr(""); // bitmap fallback — no game files needed
 		RogerCompositor comp;
 		comp.renderUiLayer(dst, elems, pal, Common::Rect(0, 0, 320, 200), &tr);
 

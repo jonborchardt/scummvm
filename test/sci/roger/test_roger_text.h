@@ -104,10 +104,113 @@ public:
 		TS_ASSERT_EQUALS(rogerTargetPx(0, 2000, 100), 0);
 	}
 
+	void test_shared_group_scale_shrinks_group_proportionally() {
+		// One element only fits at 90% of its ideal; its sibling fits fully.
+		// Both must shrink by the group's worst ratio, preserving the 2:1
+		// native size relationship (100:50 -> 90:45), never unifying to one size.
+		Common::Array<TextSizeFit> items;
+		TextSizeFit a; a.group = 1; a.idealPx = 100; a.fitPx = 90;
+		TextSizeFit b; b.group = 1; b.idealPx = 50;  b.fitPx = 50;
+		items.push_back(a); items.push_back(b);
+		applySharedGroupScale(items);
+		TS_ASSERT_EQUALS(items[0].fitPx, 90);
+		TS_ASSERT_EQUALS(items[1].fitPx, 45);
+	}
+
+	void test_shared_group_scale_groups_are_independent() {
+		// A squeezed element in group 1 must not shrink group 2.
+		Common::Array<TextSizeFit> items;
+		TextSizeFit a; a.group = 1; a.idealPx = 100; a.fitPx = 50;
+		TextSizeFit b; b.group = 2; b.idealPx = 100; b.fitPx = 100;
+		items.push_back(a); items.push_back(b);
+		applySharedGroupScale(items);
+		TS_ASSERT_EQUALS(items[0].fitPx, 50);
+		TS_ASSERT_EQUALS(items[1].fitPx, 100);
+	}
+
+	void test_shared_group_scale_takes_group_minimum() {
+		Common::Array<TextSizeFit> items;
+		TextSizeFit a; a.group = 7; a.idealPx = 60; a.fitPx = 60;  // fits fully
+		TextSizeFit b; b.group = 7; b.idealPx = 60; b.fitPx = 30;  // worst: 50%
+		TextSizeFit c; c.group = 7; c.idealPx = 60; c.fitPx = 45;  // 75%
+		items.push_back(a); items.push_back(b); items.push_back(c);
+		applySharedGroupScale(items);
+		TS_ASSERT_EQUALS(items[0].fitPx, 30);
+		TS_ASSERT_EQUALS(items[1].fitPx, 30);
+		TS_ASSERT_EQUALS(items[2].fitPx, 30);
+	}
+
+	void test_shared_group_scale_ignores_non_text_entries() {
+		// idealPx == 0 marks a non-text element: it must neither poison the
+		// group ratio nor be rescaled itself.
+		Common::Array<TextSizeFit> items;
+		TextSizeFit a; a.group = 1; a.idealPx = 0;   a.fitPx = 0;
+		TextSizeFit b; b.group = 1; b.idealPx = 100; b.fitPx = 80;
+		items.push_back(a); items.push_back(b);
+		applySharedGroupScale(items);
+		TS_ASSERT_EQUALS(items[0].fitPx, 0);
+		TS_ASSERT_EQUALS(items[1].fitPx, 80);
+	}
+
+	void test_shared_group_scale_never_grows_an_element() {
+		// A fit reported above ideal (defensive) is treated as ratio 1.
+		Common::Array<TextSizeFit> items;
+		TextSizeFit a; a.group = 3; a.idealPx = 50; a.fitPx = 80;
+		items.push_back(a);
+		applySharedGroupScale(items);
+		TS_ASSERT_EQUALS(items[0].fitPx, 50);
+	}
+
+	void test_optical_block_top_centres_ink_not_cell() {
+		// Single line, cell 24 with ink rows 10..20 (TTF-style top leading):
+		// centring the INK in a 100-tall box puts the ink top at (100-10)/2 = 45,
+		// so the cell top the draw call needs is 45 - 10 = 35. Cell centring
+		// would have said (100-24)/2 = 38 — visibly low.
+		TS_ASSERT_EQUALS(opticalBlockTop(0, 100, 1, 24, 10, 20), 35);
+		// Ink that fills the cell exactly == the old cell centring.
+		TS_ASSERT_EQUALS(opticalBlockTop(0, 100, 1, 20, 0, 20), 40);
+		// Two lines, lh 20, per-line ink 4..16: block ink spans 4..36 (h=32) ->
+		// ink top at (100-32)/2 = 34 -> cell top = 30.
+		TS_ASSERT_EQUALS(opticalBlockTop(0, 100, 2, 20, 4, 16), 30);
+		// Degenerate ink (empty bbox) falls back to cell centring.
+		TS_ASSERT_EQUALS(opticalBlockTop(0, 100, 1, 20, 5, 5),
+		                 firstLineTop(0, 100, 1, 20, false));
+		// Non-zero box top offsets the result.
+		TS_ASSERT_EQUALS(opticalBlockTop(10, 100, 1, 24, 10, 20), 45);
+	}
+
+	void test_scaled_ideal_px_applies_global_multiplier() {
+		RogerTextRenderer tr("");
+		TS_ASSERT(tr.ok());
+		tr.setGlobalScale(150);
+		TS_ASSERT_EQUALS(tr.scaledIdealPx(40), 60);
+		tr.setGlobalScale(100);
+		TS_ASSERT_EQUALS(tr.scaledIdealPx(40), 40);
+	}
+
+	void test_fit_px_caps_to_ideal_and_box_height() {
+		RogerTextRenderer tr("");
+		TS_ASSERT(tr.ok());
+		// Roomy box, no width cap: the element fits at its ideal size.
+		TS_ASSERT_EQUALS(tr.fitPx("OK", 500, 300, 40, 0), 40);
+		// Box shorter than the ideal: capped to the box height.
+		TS_ASSERT_EQUALS(tr.fitPx("OK", 500, 20, 40, 0), 20);
+	}
+
+	void test_fit_px_width_cap_shrinks_below_ideal() {
+		RogerTextRenderer tr("");
+		TS_ASSERT(tr.ok());
+		// A generous width cap leaves the ideal size untouched...
+		TS_ASSERT_EQUALS(tr.fitPx("Introduction", 500, 300, 40, 10000), 40);
+		// ...a tiny one forces the size down (but never to zero).
+		const int narrow = tr.fitPx("Introduction", 500, 300, 40, 8);
+		TS_ASSERT_LESS_THAN(narrow, 40);
+		TS_ASSERT_LESS_THAN_EQUALS(1, narrow);
+	}
+
 	void test_draw_px_clips_to_rect_bottom() {
 		// Build a renderer using the bitmap fallback (no game files needed).
-		Common::Array<int> sizes;
-		RogerTextRenderer tr("", sizes);
+		RogerTextRenderer tr("");
 		TS_ASSERT(tr.ok());
 
 		const Graphics::PixelFormat rgba(4, 8, 8, 8, 8, 24, 16, 8, 0);

@@ -822,6 +822,44 @@ void RogerCompositor::renderUiLayer(Graphics::ManagedSurface &dest,
 	const int overlayH = gameRect.height();
 	const int fallbackBodyPx    = nativeRowsToOverlay(kRoleBodyNativeH,    overlayH);
 	const int fallbackHeadingPx = nativeRowsToOverlay(kRoleHeadingNativeH, overlayH);
+
+	// Shared type-scale pass: size every text element by its own caps first, then
+	// let applySharedGroupScale shrink each sizing group together so siblings on
+	// one screen/window render at one consistent scale (preserving native size
+	// ratios) instead of each string fitting its own rect independently. A group
+	// is the window id (token low bits — the 0x40000000 control and 0x60000000
+	// generic-text namespaces of the same window must share) plus the font
+	// namespace (body vs alt/header font sizes are judged per renderer).
+	Common::Array<TextSizeFit> fits;
+	fits.resize(elems.size());
+	for (uint i = 0; i < elems.size(); i++) {
+		const UiElement &e = elems[i];
+		if (e.type != kUiText && e.type != kUiButton && e.type != kUiTextEdit)
+			continue;
+		const RogerTextRenderer *tr = (e.useAltFont && altText) ? altText : text;
+		if (!tr)
+			continue;
+		const Common::Rect d = sciRectToDest(e.nativeRect, gameRect);
+		if (d.isEmpty())
+			continue;
+		const bool frame = e.hasFrame || e.type == kUiTextEdit ||
+		                   (e.type == kUiText && (e.style & 0x8)) ||
+		                   e.type == kUiButton;
+		Common::Rect textRect = d;
+		textRect.grow(-((frame ? 1 : 0) + kUiTextPad));
+		if (textRect.isEmpty())
+			continue;
+		int targetPx = rogerTargetPx(e.nativeFontH, overlayH, 100);
+		if (targetPx <= 0)
+			targetPx = (e.textRole == kRoleHeading) ? fallbackHeadingPx : fallbackBodyPx;
+		const int wCap = e.nativeTextW > 0 ? nativeRowsToOverlay(e.nativeTextW, overlayH) : 0;
+		fits[i].group = (e.token & 0x0FFFFFFFu) | (e.useAltFont ? 0x80000000u : 0);
+		fits[i].idealPx = tr->scaledIdealPx(targetPx);
+		fits[i].fitPx = tr->fitPx(e.text, textRect.width(), textRect.height(),
+		                          fits[i].idealPx, wCap, &e.glyphs);
+	}
+	applySharedGroupScale(fits);
+
 	for (uint i = 0; i < elems.size(); i++) {
 		const UiElement &e = elems[i];
 		Common::Rect nr = e.nativeRect;
@@ -852,9 +890,9 @@ void RogerCompositor::renderUiLayer(Graphics::ManagedSurface &dest,
 			continue;
 		// Pick the font renderer for this element (header/menu use the alt font).
 		const RogerTextRenderer *tr = (e.useAltFont && altText) ? altText : text;
-		int targetPx = rogerTargetPx(e.nativeFontH, overlayH, 100);
-		if (targetPx <= 0)
-			targetPx = (e.textRole == kRoleHeading) ? fallbackHeadingPx : fallbackBodyPx;
+		// Final render size from the shared type-scale pass above (0 for non-text
+		// elements and degenerate rects, which never reach the text path anyway).
+		const int finalPx = fits[i].fitPx;
 
 		// Background fill (opaque) for windows / buttons / edit fields.
 		if (palette && e.backColor >= 0) {
@@ -902,18 +940,15 @@ void RogerCompositor::renderUiLayer(Graphics::ManagedSurface &dest,
 		textRect.grow(-(textThick + kUiTextPad));
 
 		// Text + caret.
-		if (tr && (e.type == kUiText || e.type == kUiButton || e.type == kUiTextEdit)
+		if (tr && finalPx > 0 && (e.type == kUiText || e.type == kUiButton || e.type == kUiTextEdit)
 		    && !e.text.empty() && !textRect.isEmpty()) {
 			const byte *pc = palette ? palette + (e.penColor >= 0 ? e.penColor : 0) * 3 : nullptr;
 			const uint32 col = pc ? fmt.ARGBToColor(255, pc[0], pc[1], pc[2])
 			                      : fmt.ARGBToColor(255, 255, 255, 255);
-			// Native single-line width cap, scaled to the overlay (0 => multi-line: box width).
-			const int wCap = e.nativeTextW > 0 ? nativeRowsToOverlay(e.nativeTextW, overlayH) : 0;
-			tr->drawPx(dest, e.text, textRect, col, e.align, targetPx, e.vAlignTop, &e.glyphs, wCap);
+			tr->drawAtPx(dest, e.text, textRect, col, e.align, finalPx, e.vAlignTop, &e.glyphs);
 		}
-		if (tr && e.type == kUiTextEdit && (e.style & 0x8) && !textRect.isEmpty()) { // SELECTED -> caret
-			const int wCap = e.nativeTextW > 0 ? nativeRowsToOverlay(e.nativeTextW, overlayH) : 0;
-			const int cx = textRect.left + tr->caretPx(e.text, e.cursorPos, textRect, targetPx, wCap);
+		if (tr && finalPx > 0 && e.type == kUiTextEdit && (e.style & 0x8) && !textRect.isEmpty()) { // SELECTED -> caret
+			const int cx = textRect.left + tr->caretAtPx(e.text, e.cursorPos, finalPx);
 			const byte *pc = palette ? palette + (e.penColor >= 0 ? e.penColor : 0) * 3 : nullptr;
 			const uint32 col = pc ? fmt.ARGBToColor(255, pc[0], pc[1], pc[2])
 			                      : fmt.ARGBToColor(255, 255, 255, 255);
