@@ -166,7 +166,7 @@ A/B capture notes in Stage 2.
   vacated-geometry code to new hooks.** Exactly two documented duty-3 exceptions keep a
   manual `markVacatedDirty` — no-save-under window disposals (`uiClearToken`) and the
   frame box (`uiPushFrameBox`) — classes where no bitsRestore rect ever fires and the
-  net is blind (it diffs the NATIVE buffer, and a frozen cycle takes no snapshots).)
+  net is blind (it diffs the NATIVE buffer, and a frozen cycle takes no snapshots).
 - **The game cycle is a single synchronous heartbeat: `kernelAnimate`.** Game *logic*
   (walking, input) advances one step per cycle. Anything reachable per-cycle must be O(1)
   and must not force a full present/recompose unless the scene actually changed — a heavy
