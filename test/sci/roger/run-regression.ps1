@@ -43,6 +43,7 @@ foreach ($e in $manifest.entries) {
         NoBuild    = $true
     }
     if ($e.cycleLog) { $harnessArgs["CycleLog"] = $true }
+    if ($e.truthCap) { $harnessArgs["TruthCap"] = $true }
     & $Harness @harnessArgs | Out-Host
     $code = $LASTEXITCODE
     if ($code -ne 0) {
