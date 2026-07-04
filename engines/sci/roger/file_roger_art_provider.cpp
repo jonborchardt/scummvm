@@ -1229,9 +1229,14 @@ void FileRogerArtProvider::markUiDirty(const Common::Rect &nativeRect) {
 }
 
 void FileRogerArtProvider::markVacatedDirty(const Common::Rect &nativeRect) {
-	// Task 2..4: same coverage as a push (status quo). Task 5 switches the body to
-	// uiVacatedExtent once §3.1 exact erase rects are wired.
-	markUiDirty(nativeRect);
+	if (!overlayShown() || !_compositor)
+		return;
+	_barrierDirty = true;
+	if (_lastGameRect.isEmpty()) { _compositor->forceFullPresent(); return; }
+	// Exact rect + TTF pad. The compositor-overdraw ring beyond it is covered by
+	// bitsRestore's exact erase rect (markNativeDirty in onNativeEraseRect) — the
+	// spec's §3.1 claim; the gate proves it (see the fallback note in the plan).
+	_compositor->addDirtyRect(Roger::uiVacatedExtent(nativeRect, _lastGameRect));
 }
 
 void FileRogerArtProvider::markNativeDirty(const Common::Rect &nativeRect) {
@@ -1240,9 +1245,17 @@ void FileRogerArtProvider::markNativeDirty(const Common::Rect &nativeRect) {
 	// O(1) accumulate; NEVER presents.
 	if (!overlayShown() || !_compositor || nativeRect.isEmpty())
 		return;
+	// The status-bar strip (rows 0.._statusBarH) is TRANSPARENT in the Roger overlay
+	// (computePictureRect reserves it for the native score to show through). Marking it
+	// dirty is a no-op visually but inflates the dirty area on every bitsShow tick,
+	// since SCI re-blits the native score row every cycle. Clip to the picture region.
+	Common::Rect pic = nativeRect;
+	pic.clip(Common::Rect(0, _statusBarH, 320, 200));
+	if (pic.isEmpty())
+		return;
 	_barrierDirty = true;
 	if (_lastGameRect.isEmpty()) { _compositor->forceFullPresent(); return; }
-	Common::Rect n = nativeRect;
+	Common::Rect n = pic;
 	n.grow(1);
 	_compositor->addDirtyRect(Roger::sciRectToDest(n, _lastGameRect));
 }
@@ -1656,10 +1669,18 @@ void FileRogerArtProvider::uiClearToken(uint32 token) {
 }
 
 void FileRogerArtProvider::onNativeEraseRect(const Common::Rect &nativeRect) {
-	if (!overlayShown() || !_plate || !_uiLayer || nativeRect.isEmpty())
+	// §3.1 exact invalidation: the restored save-under rect, straight from SCI.
+	// This is what makes the SQ3 white-line class structurally dead — the region
+	// is invalidated no matter what any element bookkeeping thought was there.
+	markNativeDirty(nativeRect);
+	if (!overlayShown() || !_plate || !_uiLayer || nativeRect.isEmpty()) {
+		presentBarrier(); // mid-cycle: defers; frozen-cycle: flushes the mark
 		return;
-	// Remove persisted generic text whose box lies within the erased region. Gate the present
-	// on a real removal (CLAUDE.md per-cycle discipline: bitsRestore fires ~2x/sprite/cycle).
+	}
+	// Remove persisted generic text whose box lies within the erased region.
+	// No early-out on !removed — the barrier must always fire to flush the
+	// markNativeDirty above (bitsRestore walking storm: barrier defers mid-cycle,
+	// so no per-hook present; the deferral, not a token match, guards the cycle).
 	bool removed = false;
 	const Common::Array<Roger::UiElement> &els = _uiLayer->elements();
 	Common::Array<Roger::UiElement> kept;
@@ -1669,16 +1690,16 @@ void FileRogerArtProvider::onNativeEraseRect(const Common::Rect &nativeRect) {
 			{ removed = true; droppedRects.push_back(els[i].nativeRect); continue; }
 		kept.push_back(els[i]);
 	}
-	if (!removed)
-		return;
-	_uiLayer->clearAll();
-	for (uint i = 0; i < kept.size(); i++)
-		_uiLayer->push(kept[i]);
-	for (uint i = 0; i < droppedRects.size(); i++)
-		markVacatedDirty(droppedRects[i]);
-	if (_diag)
-		warning("ROGER-DIAG[eraseText]: rect=(%d,%d,%d,%d) remaining=%u",
-		        nativeRect.left, nativeRect.top, nativeRect.right, nativeRect.bottom, (unsigned)kept.size());
+	if (removed) {
+		_uiLayer->clearAll();
+		for (uint i = 0; i < kept.size(); i++)
+			_uiLayer->push(kept[i]);
+		for (uint i = 0; i < droppedRects.size(); i++)
+			markVacatedDirty(droppedRects[i]);
+		if (_diag)
+			warning("ROGER-DIAG[eraseText]: rect=(%d,%d,%d,%d) remaining=%u",
+			        nativeRect.left, nativeRect.top, nativeRect.right, nativeRect.bottom, (unsigned)kept.size());
+	}
 	presentBarrier();
 }
 
@@ -1949,6 +1970,11 @@ void FileRogerArtProvider::beginNativeDraw() { _nativeDrawDepth++; }
 void FileRogerArtProvider::endNativeDraw()   { if (_nativeDrawDepth > 0) _nativeDrawDepth--; }
 
 void FileRogerArtProvider::onNativeShowRect(const Common::Rect &screenRect, uint32 ownerToken) {
+	// §3.1 exact invalidation: SCI showed these native pixels, so the overlay
+	// region is stale regardless of any capture bookkeeping below. Deliberately
+	// NOT gated on _nativeDrawDepth: invalidation is dumb and exact; only the
+	// content capture below is scoped. O(1); never presents.
+	markNativeDirty(screenRect);
 	if (!overlayShown() || _nativeDrawDepth > 0 || !_plate)
 		return; // overlay off, inside a Roger-handled draw, or no hires plate
 	if (screenRect.isEmpty())
