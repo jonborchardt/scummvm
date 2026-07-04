@@ -447,16 +447,20 @@ void RogerCompositor::renderScene(Graphics::ManagedSurface &dest, const Common::
 				(int16)(picRect.top  + (int)s.celRect.top    * GH / PIC_H2),
 				(int16)(picRect.left + (int)s.celRect.right  * GW / PIC_W2),
 				(int16)(picRect.top  + (int)s.celRect.bottom * GH / PIC_H2));
-			// Static baked cels (addToPic / promoted init cels) sit flush in plate
-			// openings whose omyac-smoothed boundary can poke 1-2 px past the exact
-			// edge (the SQ3 pod-door cyan seam through the cel's transparent margin).
-			// Draw them a few px larger so the cel covers the fringe on every side —
-			// a <1% content stretch, invisible on a static prop. Animate sprites
-			// stay geometrically exact.
-			static const int kStaticCelCoverPx = 3;
-			if (s.staticSource && !dst.isEmpty()) {
-				dst.grow(kStaticCelCoverPx);
-				dst.clip(picRect);
+			// Game view cels sit flush in plate openings whose omyac-smoothed
+			// boundary can poke 1-2 px past the exact edge (the SQ3 pod-door cyan
+			// seam through the cel's transparent margin). Draw them a few px larger
+			// so the opaque content covers the fringe on every side — a <1% content
+			// stretch on normal cels. Capped to 1/8 of the dest size so tiny cels
+			// (projectiles, sparks) don't visibly fatten. Feeder B stamps and
+			// exact-geometry tests keep coverGrow off.
+			static const int kCelCoverPx = 3;
+			if (s.coverGrow && !dst.isEmpty()) {
+				const int g = MIN<int>(kCelCoverPx, MIN<int>(dst.width() / 8, dst.height() / 8));
+				if (g > 0) {
+					dst.grow((int16)g);
+					dst.clip(picRect);
+				}
 			}
 		}
 		spriteDst.push_back(dst);

@@ -199,11 +199,12 @@ public:
 		plate.free();
 	}
 
-	void test_static_source_sprite_drawn_larger() {
-		// Static baked cels (Feeder A: addToPic / promoted init cels) are drawn
-		// kStaticCelCoverPx (3) larger on every side so the cel covers the plate's
-		// smoothed boundary fringe (the SQ3 pod-door cyan-seam class). Animate
-		// sprites stay geometrically exact.
+	void test_cover_grow_sprite_drawn_larger() {
+		// Game view cels (coverGrow) are drawn kCelCoverPx (3) larger on every
+		// side — capped at 1/8 of the dest size so tiny cels barely grow — so the
+		// cel's opaque content covers the plate's smoothed boundary fringe (the
+		// SQ3 pod-door cyan-seam class). coverGrow=false sprites (Feeder B
+		// stamps, exact-geometry tests) stay geometrically exact.
 		const Graphics::PixelFormat rgba(4, 8, 8, 8, 8, 24, 16, 8, 0);
 		const uint32 green = rgba.ARGBToColor(255, 0, 255, 0);
 
@@ -211,40 +212,57 @@ public:
 		plate.create(64, 64, rgba);
 		plate.fillRect(Common::Rect(0, 0, 64, 64), rgba.ARGBToColor(255, 64, 64, 64));
 		Graphics::Surface cel;
-		cel.create(8, 8, rgba);
-		cel.fillRect(Common::Rect(0, 0, 8, 8), green);
+		cel.create(32, 32, rgba);
+		cel.fillRect(Common::Rect(0, 0, 32, 32), green);
 
 		Sci::Roger::Sprite spr;
 		spr.viewId = -1; spr.loopNo = 0; spr.celNo = 0;
 		spr.priority = 1; spr.mirror = false;
-		spr.celRect = Common::Rect(20, 20, 28, 28); // PIC == surface -> dst == celRect
+		spr.celRect = Common::Rect(16, 16, 48, 48); // PIC == surface -> dst == celRect
 		spr.celOverride = &cel;
 		Common::Array<Sci::Roger::Sprite> list;
 
 		const Common::Rect gameRect(0, 0, 64, 64);
 
-		// Animate sprite: exact rect, nothing outside it.
+		// coverGrow off: exact rect, nothing outside it.
 		Sci::Roger::RogerCompositor compA;
 		compA.setRoom(&plate, nullptr);
 		compA.setPicture(64, 64, 0);
 		Graphics::ManagedSurface destA(64, 64, rgba);
 		list.push_back(spr);
 		compA.renderScene(destA, list, gameRect);
-		TS_ASSERT_EQUALS(destA.surfacePtr()->getPixel(20, 24), green);
-		TS_ASSERT_DIFFERS(destA.surfacePtr()->getPixel(18, 24), green);
+		TS_ASSERT_EQUALS(destA.surfacePtr()->getPixel(16, 32), green);
+		TS_ASSERT_DIFFERS(destA.surfacePtr()->getPixel(15, 32), green);
 
-		// Static baked cel: grown by 3 px on every side.
+		// coverGrow cel (32 px dest -> cap 32/8=4 >= 3): grown by 3 px each side.
 		Sci::Roger::RogerCompositor compB;
 		compB.setRoom(&plate, nullptr);
 		compB.setPicture(64, 64, 0);
 		Graphics::ManagedSurface destB(64, 64, rgba);
-		spr.staticSource = true;
+		spr.coverGrow = true;
 		list.clear(); list.push_back(spr);
 		compB.renderScene(destB, list, gameRect);
-		TS_ASSERT_EQUALS(destB.surfacePtr()->getPixel(17, 24), green);  // grown left edge
-		TS_ASSERT_EQUALS(destB.surfacePtr()->getPixel(30, 24), green);  // grown right edge
-		TS_ASSERT_DIFFERS(destB.surfacePtr()->getPixel(15, 24), green); // but only by 3 px
+		TS_ASSERT_EQUALS(destB.surfacePtr()->getPixel(13, 32), green);  // grown left edge
+		TS_ASSERT_EQUALS(destB.surfacePtr()->getPixel(50, 32), green);  // grown right edge
+		TS_ASSERT_DIFFERS(destB.surfacePtr()->getPixel(11, 32), green); // but only by 3 px
 
+		// Tiny cel (8 px dest -> cap 1): grows 1 px, not 3.
+		Graphics::Surface tiny;
+		tiny.create(8, 8, rgba);
+		tiny.fillRect(Common::Rect(0, 0, 8, 8), green);
+		Sci::Roger::Sprite tspr = spr;
+		tspr.celRect = Common::Rect(28, 28, 36, 36);
+		tspr.celOverride = &tiny;
+		Sci::Roger::RogerCompositor compC;
+		compC.setRoom(&plate, nullptr);
+		compC.setPicture(64, 64, 0);
+		Graphics::ManagedSurface destC(64, 64, rgba);
+		list.clear(); list.push_back(tspr);
+		compC.renderScene(destC, list, gameRect);
+		TS_ASSERT_EQUALS(destC.surfacePtr()->getPixel(27, 32), green);  // 1 px growth
+		TS_ASSERT_DIFFERS(destC.surfacePtr()->getPixel(25, 32), green); // not 3
+
+		tiny.free();
 		cel.free();
 		plate.free();
 	}
