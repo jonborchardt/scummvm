@@ -330,3 +330,43 @@ Before any Phase 3 deletion, add an overlay-truth capture mode (dump the present
 scratch / `grabOverlay` WITHOUT forcing full source) and re-run injections A–D against
 it; only a red there would justify calling any mark redundant. Escalated to human; see
 the plan's Addendum fault-injection matrix (rows A–D) for full evidence.
+
+## Addendum: Phase 2 result (2026-07-04)
+
+Phase 2 shipped on branch `jon-p2-diffnet` (plan:
+docs/superpowers/plans/2026-07-03-roger-phase2-diff-net.md — evidence tables in that
+plan's addendum). Measured net cost: qfg1 avg sum32 ~5.4 ms / sq3 avg sum32 ~5.0 ms
+(budget 32 ≈ 1 ms/cycle); net ships default-ON. Overlay-truth capture mode
+(`roger_truth_capture`) shipped as the evidence channel: captures read the REAL
+overlay via `g_system->grabOverlay` instead of forcing a full clean recompose —
+closing the capture-masking hole Phase 1 identified.
+
+The detection criterion proved **unsatisfiable**: four experiments (scratch-source
+captures; grabOverlay captures; Diag-verified at-dismissal capture consumed by the
+dismissal present; calibration with all three §3.1 marks AND `renderUiLayer`'s
+per-element dirty-adds all disabled) all stayed GREEN. Post-Phase-1 invalidation is
+**layered** — the `_dirtyPrev` self-perpetuating UI loop, the scene seed union
+(including Phase 1's deferred-vacate cover), and compose-time dirtying each
+independently reseed a vacated region. No scriptable fault produces observable
+staleness at any reachable capture point. This is the **strongest possible validation**
+of Phase 1's architecture: the marks cannot be made to fail the gate even when every
+known redundant path is removed.
+
+The net is **structurally blind to blocking-dialog dismissals**: zero `kernelAnimate`
+ticks while the dialog is frozen → the native visual buffer round-trips identically
+across the entire dialog episode → the cycle diff sees zero changed boxes. The
+`_dirtyPrev` UI loop redundantly covers this class.
+
+The net ships default-ON as insurance against future invalidation holes in
+never-hooked native draw paths (the class the diff backstop was designed for); the
+runtime escape hatch is `roger_diff_net=false`. The `qfg1-atdismiss.rin` script
+exists as a research artifact (committed as such) with a header comment recording why
+the at-dismissal manifest entry was not added (zero detection power).
+
+Phase 3's mark-deletion list must be re-derived per-injection with truth captures,
+noting that: deletions are lower-risk than feared (the `_dirtyPrev` loop and
+scene-seed union independently cover the gate scenarios); the wiggle-class caveat
+about interactive-only triggers still stands and requires an interactive soak before
+Phase 3 begins; and the marks remain load-bearing as the **first** layer of a
+redundant invalidation stack — their unique value is intra-freeze correctness (the
+at-dismissal present itself), which the net cannot provide.
