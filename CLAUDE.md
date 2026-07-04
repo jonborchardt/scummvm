@@ -157,10 +157,16 @@ A/B capture notes in Stage 2.
   priority/control stay native, which is why walkability and native occlusion "just work".
 - **The overlay is retained; the native screen is immediate.** SCI "erases" transient
   content (text, dialogs) simply by **redrawing the scene underneath it**. The overlay has
-  **no automatic erase** — nothing repaints a region until something dirties it. So *every
-  removal* of an overlay element MUST explicitly dirty the vacated dest rect, or the
-  dirty-rectangle present skips it and the pixels ghost. (Fix pattern: `clearToken`/
-  `onNativeEraseRect` collect removed native rects → `addDirtyRect(sciRectToDest(...))`.)
+  **no automatic erase** — a region repaints only when something dirties it. Since the
+  present-barrier work (Phases 1–2, 2026-07-03/04), invalidation is AUTOMATIC and
+  **layered**: the §3.1 exact seams (`markNativeDirty` fed by SCI's own bitsShow /
+  bitsRestore / kGraphRedrawBox rects), the UI layer's per-element dirty loop
+  (`_dirtyPrev`), the scene seed union, and the cycle-diff net (`roger_diff_net`) each
+  independently reseed vacated regions. **Duty 3 is retired: do NOT add manual
+  vacated-geometry code to new hooks.** Exactly two documented duty-3 exceptions keep a
+  manual `markVacatedDirty` — no-save-under window disposals (`uiClearToken`) and the
+  frame box (`uiPushFrameBox`) — classes where no bitsRestore rect ever fires and the
+  net is blind (it diffs the NATIVE buffer, and a frozen cycle takes no snapshots).)
 - **The game cycle is a single synchronous heartbeat: `kernelAnimate`.** Game *logic*
   (walking, input) advances one step per cycle. Anything reachable per-cycle must be O(1)
   and must not force a full present/recompose unless the scene actually changed — a heavy
@@ -231,7 +237,13 @@ room-entry position or wiped the room signs — both shipped as bugs once.
 **Traps — do NOT re-fall into these (each cost a debugging session):**
 
 - Deferring lifetime-bound overlay state to the animate cycle → ghosts through blocking dialogs.
-- Removing an overlay element without dirtying its vacated rect → stale pixels until the next redraw.
+- Assuming every disposal fires bitsRestore → transparent / no-save-under windows and the
+  frame box never do; their retained `markVacatedDirty` calls (the two documented duty-3
+  exceptions) are the only same-present invalidation for that class.
+- Trusting a green gate on invalidation-mark changes → layered redundancy makes mark
+  removal invisible to every scripted capture (Phase 2 proved it four ways, including
+  real-overlay grabOverlay captures landing on the dismissal present); invalidation
+  changes are verified by interactive soak, not by the gate.
 - Clearing/erasing by **geometry** (rect containment) instead of by **window token** → false drops (a popup over the char sheet wipes stat text beneath it).
 - A per-cycle hook that forces a full present/recompose when nothing changed → walking slowdown.
 - Gating the text hook on `show == true` → misses all SCI0 EGA text.
@@ -247,9 +259,10 @@ room-entry position or wiped the room signs — both shipped as bugs once.
   or resource ids.
 
 **Underused SCI signals worth exploiting later** (highest value first): per-line text rects
-via a `Draw`/`Show` hook (kills the multi-line re-wrap drift); a single **frame-complete**
-present barrier around `updateScreen` in `kernelAnimate` (cleaner than scattered per-primitive
-presents, and closes the stale-overlay-during-blocking-dialog class); a **palette-vary
+via a `Draw`/`Show` hook (kills the multi-line re-wrap drift);
+(the frame-complete present barrier shipped 2026-07-03 as `presentBarrier` — all presents
+funnel through it, with the cycle-diff net at the same seam);
+a **palette-vary
 per-tick** hook for smooth fades/cycling (current re-apply is binary); semantic TextEdit-caret
 and list-selection hooks (vs pixel/diff capture). `kMessage` exists but SCI0 (QFG1/SQ3) uses
 Print/Display — low priority. Verify a signal's current hook state before adding — several are
@@ -290,7 +303,7 @@ sq3-roger/
 ```
 Plates and VIEW cels are generated in-engine from the SCI resources and written here on a cache miss (modes `cache`/`always`); `memory` generates without writing. The cache key embeds `kTransformVersion`, so a pipeline change invalidates stale files automatically.
 
-**Config knobs** (all `ConfMan.hasKey(...)`-gated; see `docs/roger.md` for the full table): `roger_gen_mode` (default `cache`; `prebuilt` = native-only off-switch, `memory`, `always`), `roger_precache` (default `all`; `pics`|`views`|`off`), `roger_omyac_passes`, `roger_ui_font_scale` (default 150; percent multiplier, 100 = no nudge), `roger_ui_font`, `roger_ui_header_font`, `roger_hw_cursor`, `roger_cursor_size`, `roger_dirty_present` (default on; convert+push only the changed regions each frame — dirty-rectangle present — set false to force a full-region present), `roger_transitions` (default on; mirrors SCI fade/dissolve/wipe/scroll and shake in the overlay; Wipe/Scroll currently render as Dissolve), `roger_palette_live` (default on; re-applies the live SCI EGA palette to the hires plate each frame for cycling, fade-to-black, and flash effects), `roger_autoshot`, `roger_debug`, `roger_diag` (default off; structured overlay-state trace at room-load/present/cel-draw seams — arm per-launch with `build_and_run.ps1 -Diag` (the `ROGER_DIAG` env var, env-first like `-Mode`; preferred over an ini edit, which races a running instance's config rewrite-on-exit), then grep `ROGER-DIAG[` in the ScummVM log; covers `drawPicture`, `drawCelAndShow`, `kDrawCel`, `kGraphUpdateBox`, `bitsShow`, `addToPic`, `initCel`, `genRegions`, `pushBG`, `transition`, `renderFrame`, `toggle`; kept permanently for the overlay-diagnosis class), `roger_diff_backstop` (default off; Feeder B pixel-diff backstop for unhooked native draws — off by default because the per-frame full-buffer diff is costly and can stamp blocky native pixels around moving sprites; the bitsShow-hook path and addToPic capture remain on). The `roger_visual_variant`/`roger_priority_variant` knobs are retired (they selected prebuilt files). `roger_display_mode` (default `enhanced`; `original`|`sbs`) sets the STARTUP display mode — `build_and_run.ps1 -Mode <m>` pins it per-launch via the `ROGER_DISPLAY_MODE` env var (env-first, never touches the ini). F10 (and Ctrl+Shift+U) cycles three display modes — Enhanced → Original (native) → Side-by-Side → Enhanced. Side-by-side: left = enhanced view (backgrounds/cels/dialogs/updates); right = passive native mirror (pics/views/animations) for old-vs-new comparison and intro screenshots. It's a view-only mode — a single composited cursor floats under the pointer, but clicks aren't remapped; switch to Enhanced to play. Ctrl+Shift+[ ] / ; ' tune enhance passes live. Ctrl+Shift+F cycles the dialog/body font through a fonts.dat shortlist.
+**Config knobs** (all `ConfMan.hasKey(...)`-gated; see `docs/roger.md` for the full table): `roger_gen_mode` (default `cache`; `prebuilt` = native-only off-switch, `memory`, `always`), `roger_precache` (default `all`; `pics`|`views`|`off`), `roger_omyac_passes`, `roger_ui_font_scale` (default 150; percent multiplier, 100 = no nudge), `roger_ui_font`, `roger_ui_header_font`, `roger_hw_cursor`, `roger_cursor_size`, `roger_dirty_present` (default on; convert+push only the changed regions each frame — dirty-rectangle present — set false to force a full-region present), `roger_transitions` (default on; mirrors SCI fade/dissolve/wipe/scroll and shake in the overlay; Wipe/Scroll currently render as Dissolve), `roger_palette_live` (default on; re-applies the live SCI EGA palette to the hires plate each frame for cycling, fade-to-black, and flash effects), `roger_autoshot`, `roger_debug`, `roger_diag` (default off; structured overlay-state trace at room-load/present/cel-draw seams — arm per-launch with `build_and_run.ps1 -Diag` (the `ROGER_DIAG` env var, env-first like `-Mode`; preferred over an ini edit, which races a running instance's config rewrite-on-exit), then grep `ROGER-DIAG[` in the ScummVM log; covers `drawPicture`, `drawCelAndShow`, `kDrawCel`, `kGraphUpdateBox`, `bitsShow`, `addToPic`, `initCel`, `genRegions`, `pushBG`, `transition`, `renderFrame`, `toggle`; kept permanently for the overlay-diagnosis class), `roger_diff_backstop` (default off; Feeder B pixel-diff backstop for unhooked native draws — off by default because the per-frame full-buffer diff is costly and can stamp blocky native pixels around moving sprites; the bitsShow-hook path and addToPic capture remain on), `roger_diff_net` (default on; per-cycle native-buffer diff at the animate seam invalidates changed regions — heals missed invalidation within one cycle; invalidation-only, never stamps pixels; escape hatch `=false` / env `ROGER_DIFF_NET=0`; `ROGER-NET sum32=<ms> boxes=<n>` telemetry under `-CycleLog`, where `boxes` is the last cycle's count), `roger_truth_capture` (default off; evidence mode — `.rin` captures dump the real overlay via `grabOverlay` instead of forcing a full recompose; per-launch `-TruthCap` / `ROGER_TRUTH_CAPTURE`; per-entry `truthCap` flag in the gate manifest). The `roger_visual_variant`/`roger_priority_variant` knobs are retired (they selected prebuilt files). `roger_display_mode` (default `enhanced`; `original`|`sbs`) sets the STARTUP display mode — `build_and_run.ps1 -Mode <m>` pins it per-launch via the `ROGER_DISPLAY_MODE` env var (env-first, never touches the ini). F10 (and Ctrl+Shift+U) cycles three display modes — Enhanced → Original (native) → Side-by-Side → Enhanced. Side-by-side: left = enhanced view (backgrounds/cels/dialogs/updates); right = passive native mirror (pics/views/animations) for old-vs-new comparison and intro screenshots. It's a view-only mode — a single composited cursor floats under the pointer, but clicks aren't remapped; switch to Enhanced to play. Ctrl+Shift+[ ] / ; ' tune enhance passes live. Ctrl+Shift+F cycles the dialog/body font through a fonts.dat shortlist.
 
 **Integration test:** Room 2 (pic resource 2). Walkability/native occlusion ride SCI's native render; overlay sprite occlusion uses the omyac-rendered priority screen (`omyacprio`, colour), so occlusion edges get the same upscaling as the plate.
 
