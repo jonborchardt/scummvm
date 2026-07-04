@@ -72,12 +72,13 @@ enum GenMode {
 //   v6: bounded direction-neutral backfill — backfillFloodRounds breadth-first
 //       majority rounds (frozen src per round), then own-cell fill. Keeps the
 //       flood-rasterized smooth look, kills the unbounded cascade.
-//   v7: foreign fill fringes eroded to a 1 px anchored rim (before + after the
-//       backfill) — a fill colour never sits deeper than 1 px inside a drawn
-//       native cell of another colour (the pod-door dashed-seam residue).
-//   v8: zero rim in LINE cells — a fill colour never enters a line-drawn cell
-//       (fills no longer thin lines; kills the remaining 1 px pod-door seam).
-static const int kTransformVersion = 8;
+//   v7/v8 (WITHDRAWN, same day): foreign-fill-fringe erosion — bounded the
+//       pod-door seam but visibly blockified scenes (the fringes ARE the
+//       boundary smoothing). erodeForeignFill now defaults OFF, making the
+//       default pipeline bit-identical to v6 again, so the version goes BACK
+//       to 6 and existing v6 cache files are valid. The seam is fixed in the
+//       compositor instead (static baked cels drawn a few px larger).
+static const int kTransformVersion = 6;
 
 /**
  * Orchestrates on-the-fly omyac plate generation and scale6x view-cel

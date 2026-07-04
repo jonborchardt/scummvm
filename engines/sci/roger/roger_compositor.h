@@ -43,6 +43,12 @@ struct Sprite {
 	Graphics::Surface *celOverride = nullptr; // optional pre-rendered native cel (RGBA); used when no hires cel. Borrowed unless celOverrideOwned.
 	bool celOverrideOwned = false;            // true => this Sprite owns celOverride and must free it; false => borrowed (freed elsewhere)
 	uint32 owner = 0;      // init-cel captures: opaque animate-object token, shown only while the owner is absent from the live cast. Feeder B pixel stamps (_textSprites): owning-window token (0x40000000 | id), dropped on that window's dispose. 0 = none.
+	// Static baked cels (Feeder A: addToPic + promoted init cels) are drawn with
+	// their dest rect grown a few overlay px (kStaticCelCoverPx in renderScene):
+	// they sit flush in plate openings whose smoothed boundary can poke 1-2 px
+	// past the exact edge (the SQ3 pod-door cyan seam), and a slightly larger
+	// cover hides that on every side. Animate-cast sprites stay exact.
+	bool staticSource = false;
 };
 
 // Clamp each rect in `in` to `bounds`, drop empties, and merge any that intersect into

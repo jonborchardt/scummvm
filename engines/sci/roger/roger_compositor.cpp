@@ -447,6 +447,17 @@ void RogerCompositor::renderScene(Graphics::ManagedSurface &dest, const Common::
 				(int16)(picRect.top  + (int)s.celRect.top    * GH / PIC_H2),
 				(int16)(picRect.left + (int)s.celRect.right  * GW / PIC_W2),
 				(int16)(picRect.top  + (int)s.celRect.bottom * GH / PIC_H2));
+			// Static baked cels (addToPic / promoted init cels) sit flush in plate
+			// openings whose omyac-smoothed boundary can poke 1-2 px past the exact
+			// edge (the SQ3 pod-door cyan seam through the cel's transparent margin).
+			// Draw them a few px larger so the cel covers the fringe on every side —
+			// a <1% content stretch, invisible on a static prop. Animate sprites
+			// stay geometrically exact.
+			static const int kStaticCelCoverPx = 3;
+			if (s.staticSource && !dst.isEmpty()) {
+				dst.grow(kStaticCelCoverPx);
+				dst.clip(picRect);
+			}
 		}
 		spriteDst.push_back(dst);
 		if (!dst.isEmpty())

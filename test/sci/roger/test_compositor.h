@@ -199,6 +199,56 @@ public:
 		plate.free();
 	}
 
+	void test_static_source_sprite_drawn_larger() {
+		// Static baked cels (Feeder A: addToPic / promoted init cels) are drawn
+		// kStaticCelCoverPx (3) larger on every side so the cel covers the plate's
+		// smoothed boundary fringe (the SQ3 pod-door cyan-seam class). Animate
+		// sprites stay geometrically exact.
+		const Graphics::PixelFormat rgba(4, 8, 8, 8, 8, 24, 16, 8, 0);
+		const uint32 green = rgba.ARGBToColor(255, 0, 255, 0);
+
+		Graphics::Surface plate;
+		plate.create(64, 64, rgba);
+		plate.fillRect(Common::Rect(0, 0, 64, 64), rgba.ARGBToColor(255, 64, 64, 64));
+		Graphics::Surface cel;
+		cel.create(8, 8, rgba);
+		cel.fillRect(Common::Rect(0, 0, 8, 8), green);
+
+		Sci::Roger::Sprite spr;
+		spr.viewId = -1; spr.loopNo = 0; spr.celNo = 0;
+		spr.priority = 1; spr.mirror = false;
+		spr.celRect = Common::Rect(20, 20, 28, 28); // PIC == surface -> dst == celRect
+		spr.celOverride = &cel;
+		Common::Array<Sci::Roger::Sprite> list;
+
+		const Common::Rect gameRect(0, 0, 64, 64);
+
+		// Animate sprite: exact rect, nothing outside it.
+		Sci::Roger::RogerCompositor compA;
+		compA.setRoom(&plate, nullptr);
+		compA.setPicture(64, 64, 0);
+		Graphics::ManagedSurface destA(64, 64, rgba);
+		list.push_back(spr);
+		compA.renderScene(destA, list, gameRect);
+		TS_ASSERT_EQUALS(destA.surfacePtr()->getPixel(20, 24), green);
+		TS_ASSERT_DIFFERS(destA.surfacePtr()->getPixel(18, 24), green);
+
+		// Static baked cel: grown by 3 px on every side.
+		Sci::Roger::RogerCompositor compB;
+		compB.setRoom(&plate, nullptr);
+		compB.setPicture(64, 64, 0);
+		Graphics::ManagedSurface destB(64, 64, rgba);
+		spr.staticSource = true;
+		list.clear(); list.push_back(spr);
+		compB.renderScene(destB, list, gameRect);
+		TS_ASSERT_EQUALS(destB.surfacePtr()->getPixel(17, 24), green);  // grown left edge
+		TS_ASSERT_EQUALS(destB.surfacePtr()->getPixel(30, 24), green);  // grown right edge
+		TS_ASSERT_DIFFERS(destB.surfacePtr()->getPixel(15, 24), green); // but only by 3 px
+
+		cel.free();
+		plate.free();
+	}
+
 	void test_splat_matches_background_scaler_under_scaling() {
 		// REGRESSION for the "splatted pixels are off by a few px" bug. When the plate
 		// is scaled into the game rect (plate wider than picRect), the occlusion

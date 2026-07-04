@@ -1964,6 +1964,7 @@ void FileRogerArtProvider::onAddToPicCel(int viewId, int loopNo, int celNo,
 	// flip again — keep mirror false here.
 	s.mirror = false;
 	s.celOverride = nullptr;
+	s.staticSource = true; // baked into the pic natively -> compositor draws it slightly larger
 	_staticSprites.push_back(s);
 	if (_diag)
 		warning("ROGER-DIAG[addToPic]: pic=%d view=%d loop=%d cel=%d pri=%d rect=(%d,%d,%d,%d) nowHave=%u",
@@ -1998,6 +1999,7 @@ void FileRogerArtProvider::onInitCel(int viewId, int loopNo, int celNo,
 	s.viewId = viewId; s.loopNo = loopNo; s.celNo = celNo;
 	s.celRect = celRect; s.priority = priority; s.mirror = false; s.celOverride = nullptr;
 	s.owner = owner;
+	s.staticSource = true; // bakes into the pic natively -> compositor draws it slightly larger
 	_initCels.push_back(s);
 	if (_diag)
 		warning("ROGER-DIAG[initCel]: pic=%d view=%d loop=%d cel=%d pri=%d rect=(%d,%d,%d,%d) owner=%08x now=%u",

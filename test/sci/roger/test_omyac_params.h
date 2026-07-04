@@ -159,7 +159,7 @@ public:
 		p.diagFlankSuppress = false; TS_ASSERT(!p.isDefault()); p.diagFlankSuppress = true;
 		p.backfillOwnCell = false; TS_ASSERT(!p.isDefault()); p.backfillOwnCell = true;
 		p.backfillFloodRounds = 0; TS_ASSERT(!p.isDefault()); p.backfillFloodRounds = 3;
-		p.erodeForeignFill = false; TS_ASSERT(!p.isDefault()); p.erodeForeignFill = true;
+		p.erodeForeignFill = true; TS_ASSERT(!p.isDefault()); p.erodeForeignFill = false;
 
 		TS_ASSERT(p.isDefault()); // restored to all-defaults
 	}
@@ -191,7 +191,9 @@ public:
 		//           endpointMaxSame=2 isolatedPixelPass=true tieBreakBlend=true
 		//           diagFlankSuppress=true backfillOwnCell=true (kTransformVersion 5);
 		//           passes=3f1l2f4a (defaultPasses()).
-		static const uint32 kDefaultPipelineGolden = 0xBA1D1C23u; // FNV-1a over pixels+cmdType (v8)
+		// NOTE: identical to the legacy hash — the bounded backfill (v6) reproduces
+		// the scan flood on this fixture, and erosion defaults OFF (v7/v8 withdrawn).
+		static const uint32 kDefaultPipelineGolden = 0x40B38BFFu; // FNV-1a over pixels+cmdType
 		NativeRef ref = crossingLinesRef();
 		Common::Array<int> passes = defaultPasses();
 		OmyacResult out = renderOmyac(ref, passes, OmyacParams());
@@ -288,22 +290,23 @@ public:
 			if (out.backfilled[i]) { TS_ASSERT(out.cmdType[i] != 0 /*CMD_NONE*/); break; }
 	}
 
-	// erodeForeignFill invariant (v7): in the final default-pipeline output, a
-	// fill colour never sits deeper than 1 px inside a drawn native cell of a
-	// different colour — every foreign CMD_FILL pixel is anchored to home
-	// territory. The sanity half proves the fixture actually exercises the leak
-	// (with erosion off, unanchored foreign pixels exist), so the invariant half
-	// cannot pass vacuously.
+	// erodeForeignFill mechanism test (the param defaults OFF — the erosion was
+	// withdrawn as a shipping default because bounding the fringes blockified
+	// scenes; it remains available for Studio experimentation): with erosion ON,
+	// a fill colour never sits deeper than 1 px inside a drawn FILL cell of a
+	// different colour and never enters a LINE cell at all. The sanity half
+	// proves the fixture actually exercises the leak (default pipeline leaves
+	// unanchored foreign pixels), so the invariant half cannot pass vacuously.
 	void test_erode_foreign_fill_bounds_fringes() {
 		NativeRef ref = dividedFillsRef();
 		Common::Array<int> passes = defaultPasses();
 
-		OmyacParams noErode;
-		noErode.erodeForeignFill = false;
-		OmyacResult leaky = renderOmyac(ref, passes, noErode);
+		OmyacResult leaky = renderOmyac(ref, passes, OmyacParams());
 		TS_ASSERT(countUnanchoredForeignFill(ref, leaky) > 0);
 
-		OmyacResult out = renderOmyac(ref, passes, OmyacParams());
+		OmyacParams erode;
+		erode.erodeForeignFill = true;
+		OmyacResult out = renderOmyac(ref, passes, erode);
 		TS_ASSERT_EQUALS(countUnanchoredForeignFill(ref, out), 0);
 	}
 
