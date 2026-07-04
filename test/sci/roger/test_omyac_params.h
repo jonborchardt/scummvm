@@ -88,6 +88,7 @@ public:
 		p.isolatedPixelPass = false; TS_ASSERT(!p.isDefault()); p.isolatedPixelPass = true;
 		p.tieBreakBlend = false;   TS_ASSERT(!p.isDefault()); p.tieBreakBlend = true;
 		p.diagFlankSuppress = false; TS_ASSERT(!p.isDefault()); p.diagFlankSuppress = true;
+		p.backfillOwnCell = false; TS_ASSERT(!p.isDefault()); p.backfillOwnCell = true;
 
 		TS_ASSERT(p.isDefault()); // restored to all-defaults
 	}
@@ -117,13 +118,54 @@ public:
 		// 0 and reading the CxxTest failure output, then baked here permanently.
 		// Pipeline: minVotesLine=1 minVotesFillAll=2 fillSuppressLineNeighbours=3
 		//           endpointMaxSame=2 isolatedPixelPass=true tieBreakBlend=true
-		//           diagFlankSuppress=true ; passes=3f1l2f4a (defaultPasses()).
+		//           diagFlankSuppress=true backfillOwnCell=true (kTransformVersion 5);
+		//           passes=3f1l2f4a (defaultPasses()).
+		// NOTE: identical to the legacy (backfillOwnCell=false) hash — over this
+		// fixture every backfilled pixel's own-cell colour equals the flood majority,
+		// so v5's change is output-neutral here; it only alters cross-cell cascades.
 		static const uint32 kDefaultPipelineGolden = 0x40B38BFFu; // FNV-1a over pixels+cmdType
 		NativeRef ref = crossingLinesRef();
 		Common::Array<int> passes = defaultPasses();
 		OmyacResult out = renderOmyac(ref, passes, OmyacParams());
 		uint32 got = omyacResultHash(out);
 		TS_ASSERT_EQUALS(got, kDefaultPipelineGolden);
+	}
+
+	// TS-port fidelity lock: with backfillOwnCell=false the pipeline reproduces the
+	// original agi-up/sci.js port bit-exactly — this hash is the pre-v5 default
+	// pipeline golden and must never change.
+	void test_legacy_backfill_pipeline_golden_checksum() {
+		static const uint32 kLegacyPipelineGolden = 0x40B38BFFu; // FNV-1a over pixels+cmdType
+		NativeRef ref = crossingLinesRef();
+		Common::Array<int> passes = defaultPasses();
+		OmyacParams p;
+		p.backfillOwnCell = false;
+		OmyacResult out = renderOmyac(ref, passes, p);
+		uint32 got = omyacResultHash(out);
+		TS_ASSERT_EQUALS(got, kLegacyPipelineGolden);
+	}
+
+	// backfillOwnCell invariant: every pixel fillNullPixels painted equals its own
+	// native cell's refPixel — an unclaimed pixel never takes a neighbouring cell's
+	// colour (the down-right cascade of the legacy majority flood).
+	void test_backfill_own_cell_is_native_faithful() {
+		NativeRef ref = crossingLinesRef();
+		Common::Array<int> passes; // wireframe: large null regions -> heavy backfill
+		OmyacResult out = renderOmyac(ref, passes, OmyacParams());
+		int checked = 0;
+		for (int y = 0; y < OMYAC_HYBRID_H; y++) {
+			for (int x = 0; x < OMYAC_HYBRID_W; x++) {
+				uint idx = (uint)y * OMYAC_HYBRID_W + x;
+				if (!out.backfilled[idx])
+					continue;
+				int cell = (y / OMYAC_SCALE) * OMYAC_NATIVE_W + (x / OMYAC_SCALE);
+				TS_ASSERT_EQUALS(out.pixels[idx], ref.refPixel[cell]);
+				if (out.pixels[idx] != ref.refPixel[cell])
+					return; // one failure is enough; don't spam 2M asserts
+				checked++;
+			}
+		}
+		TS_ASSERT(checked > 0);
 	}
 
 	// Plumbing check: a non-default param actually reaches the pipeline.

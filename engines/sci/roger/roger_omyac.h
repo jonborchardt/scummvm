@@ -47,11 +47,12 @@ struct OmyacResult {
 // use this or a custom list; renderOmyac itself runs exactly the passes given.)
 Common::Array<int> defaultPasses();
 
-// Tunable internals of the omyac pipeline. Every field defaults to the
-// constant that was hard-coded before this struct existed, so a
-// default-constructed OmyacParams produces BIT-IDENTICAL output (locked by
-// test_omyac_params.h). Shipping callers never construct a non-default one;
-// only the Roger Studio debug tool does.
+// Tunable internals of the omyac pipeline. A default-constructed OmyacParams
+// is the SHIPPING configuration (the 2-arg renderOmyac overload forwards it;
+// locked by test_omyac_params.h). All fields except backfillOwnCell default to
+// the constants hard-coded before this struct existed; backfillOwnCell=false
+// reproduces the original TS-port pipeline bit-exactly. Only the Roger Studio
+// debug tool constructs non-default params.
 struct OmyacParams {
 	int minVotesLine = 1;               // enhance() vote floor, line mode
 	int minVotesFillAll = 2;            // enhance() vote floor, fill/all modes
@@ -60,6 +61,16 @@ struct OmyacParams {
 	bool isolatedPixelPass = true;      // enhance() isolated-pixel dilation pass
 	bool tieBreakBlend = true;          // tie-break by BLEND_TABLE-nearest (false = first tied)
 	bool diagFlankSuppress = true;      // fill-anchor diagonal-flanking suppression rule
+	// fillNullPixels mode. true (shipping default since kTransformVersion 5):
+	// a pixel nothing claimed (no stroke, no enhance pass) takes its OWN native
+	// cell's colour — smoothing keeps every pixel it actively claimed, everything
+	// else stays native-faithful. false: the original TS-port behaviour — an
+	// 8-neighbour majority vote computed IN SCAN ORDER on the buffer being
+	// mutated, which lets a foreign colour at a null region's top-left frontier
+	// cascade arbitrarily far down-right (the SQ3 pic-2 "cyan through the pod
+	// door's transparent corner" artifact: the doorway fill, natively hidden
+	// under the baked door cel, flooded the dark ring's cells).
+	bool backfillOwnCell = true;
 
 	bool isDefault() const {
 		const OmyacParams d;
@@ -69,7 +80,8 @@ struct OmyacParams {
 		       endpointMaxSame == d.endpointMaxSame &&
 		       isolatedPixelPass == d.isolatedPixelPass &&
 		       tieBreakBlend == d.tieBreakBlend &&
-		       diagFlankSuppress == d.diagFlankSuppress;
+		       diagFlankSuppress == d.diagFlankSuppress &&
+		       backfillOwnCell == d.backfillOwnCell;
 	}
 };
 

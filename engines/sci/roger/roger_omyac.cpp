@@ -649,13 +649,37 @@ static void enhance(Common::Array<byte> &buf, Common::Array<byte> &typeBuf, int 
 }
 
 // ─── Step 8: Final null-pixel mode fill ─────────────────────────────────────────
-static void fillNullPixels(Common::Array<byte> &buf, Common::Array<byte> &typeBuf,
-                           Common::Array<byte> &backfilled) {
-	// Diagnostic mask: 1 wherever this pass paints a pixel. Recording it does not
-	// alter buf/typeBuf, so default output stays bit-identical (golden checksum).
+static void fillNullPixels(const NativeRef &ref, Common::Array<byte> &buf,
+                           Common::Array<byte> &typeBuf, Common::Array<byte> &backfilled,
+                           const OmyacParams &params) {
+	// Diagnostic mask: 1 wherever this pass paints a pixel.
 	backfilled.resize(OMYAC_HYBRID_W * OMYAC_HYBRID_H);
 	for (uint i = 0; i < backfilled.size(); i++)
 		backfilled[i] = 0;
+
+	if (params.backfillOwnCell) {
+		// Native-fidelity backfill (shipping default): a pixel nothing claimed takes
+		// its OWN native cell's colour. Interiors are unchanged vs the majority flood
+		// (the neighbourhood is the same colour there); what dies is the scan-order
+		// CASCADE of the legacy path below, which let a foreign colour flood
+		// arbitrarily far down-right across cells it had no claim to (the pod-door
+		// "cyan through the transparent corner" artifact).
+		for (int y = 0; y < OMYAC_HYBRID_H; y++) {
+			for (int x = 0; x < OMYAC_HYBRID_W; x++) {
+				int idx = y * OMYAC_HYBRID_W + x;
+				if (typeBuf[idx] != CMD_NONE)
+					continue;
+				backfilled[idx] = 1;
+				int cell = (y / OMYAC_SCALE) * OMYAC_NATIVE_W + (x / OMYAC_SCALE);
+				buf[idx] = ref.refPixel[cell];
+				typeBuf[idx] = CMD_FILL;
+			}
+		}
+		return;
+	}
+
+	// Legacy TS-port behaviour (backfillOwnCell == false): 8-neighbour majority in
+	// scan order on the buffer being mutated.
 	int count[256];
 	for (int y = 0; y < OMYAC_HYBRID_H; y++) {
 		for (int x = 0; x < OMYAC_HYBRID_W; x++) {
@@ -724,7 +748,7 @@ OmyacResult renderOmyac(const NativeRef &ref, const Common::Array<int> &passes,
 	for (uint i = 0; i < passes.size(); i++)
 		enhance(out.pixels, out.cmdType, passes[i], params);
 
-	fillNullPixels(out.pixels, out.cmdType, out.backfilled);
+	fillNullPixels(ref, out.pixels, out.cmdType, out.backfilled, params);
 
 	return out;
 }

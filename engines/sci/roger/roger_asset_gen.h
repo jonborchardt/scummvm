@@ -64,7 +64,11 @@ enum GenMode {
 //   v2: in-engine art path; overlay occlusion from native priority bands.
 //   v3: view cels de-undither EGA bytes (egaDeUndither).
 //   v4: view cels pack pixels via PixelFormat::ARGBToColor.
-static const int kTransformVersion = 4;
+//   v5: fillNullPixels backfills unclaimed pixels with their own native cell's
+//       colour (OmyacParams::backfillOwnCell) instead of the scan-order majority
+//       flood, which cascaded foreign colours down-right across cells (the SQ3
+//       pod-door cyan artifact).
+static const int kTransformVersion = 5;
 
 /**
  * Orchestrates on-the-fly omyac plate generation and scale6x view-cel
