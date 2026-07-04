@@ -1781,18 +1781,17 @@ void FileRogerArtProvider::onNativeEraseRect(const Common::Rect &nativeRect) {
 	bool removed = false;
 	const Common::Array<Roger::UiElement> &els = _uiLayer->elements();
 	Common::Array<Roger::UiElement> kept;
-	Common::Array<Common::Rect> droppedRects;
 	for (uint i = 0; i < els.size(); i++) {
 		if (isGenericTextToken(els[i].token) && nativeRect.contains(els[i].nativeRect))
-			{ removed = true; droppedRects.push_back(els[i].nativeRect); continue; }
+			{ removed = true; continue; }
 		kept.push_back(els[i]);
 	}
 	if (removed) {
 		_uiLayer->clearAll();
 		for (uint i = 0; i < kept.size(); i++)
 			_uiLayer->push(kept[i]);
-		for (uint i = 0; i < droppedRects.size(); i++)
-			markVacatedDirty(droppedRects[i]);
+		// No vacated marks: the containment guard means markNativeDirty(nativeRect)
+		// above already invalidated a superset of every dropped element (§3.1).
 		if (_diag)
 			warning("ROGER-DIAG[eraseText]: rect=(%d,%d,%d,%d) remaining=%u",
 			        nativeRect.left, nativeRect.top, nativeRect.right, nativeRect.bottom, (unsigned)kept.size());
