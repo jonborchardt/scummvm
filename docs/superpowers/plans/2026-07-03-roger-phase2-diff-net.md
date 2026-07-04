@@ -524,7 +524,7 @@ User-approved final shape:
 
 - **Task 4 dirty-area (net on):**
   - qfg1: `presents=187 cycles=176 medianArea=850137 totalAreaPerCycle=927044` — gate: 927044 ≤ 1,034,739 (Task1×1.10) PASS
-  - sq3:  `presents=194 cycles=181 medianArea=378185 totalAreaPerCycle=576665` — gate: 576665 ≤ 709,218 (Task1×1.10) PASS
+  - sq3:  `presents=194 cycles=181 medianArea=378185 totalAreaPerCycle=576665` — gate: 576665 ≤ 644,744 (Task1×1.10) PASS
   - Net boxes stay ~0-75/cycle while walking (boxes is last-cycle count, not 32-cycle sum); dirty-area not inflated vs Task 1 baseline.
 - **Twice-green gate tables:**
 
