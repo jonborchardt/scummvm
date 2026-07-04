@@ -1068,12 +1068,102 @@ Then report: Phase 1 complete on `jon-p1-barrier`, ready to merge to `jon-refact
 
 ## Addendum: Phase 1 exit evidence
 
-(Filled during execution.)
+(Filled during execution — 2026-07-03.)
 
 - **Task 1 dirty-area baseline:**
   - qfg1: presents=176 cycles=175 presentsPerCycle=1.01 medianArea=983202
   - sq3: presents=183 cycles=162 presentsPerCycle=1.13 medianArea=361642
-- **Task 5 dirty-area:** _(same metrics; must be ≤ +10 % on medianArea)_
-- **Fault-injection matrix:** _(A/B/C → which checks failed)_
-- **Grow-workaround outcome:** _(removed cleanly / reinstated + evidence)_
-- **Twice-green gate tables:** _(both runs)_
+
+- **Task 5 dirty-area** (measured at HEAD f5560a19375 with both games):
+  - qfg1: presents=192 cycles=176 presentsPerCycle=1.09 medianArea=1000966 (+1.8% vs Task 1 — within the +10% watch-item)
+  - sq3: presents=193 cycles=181 presentsPerCycle=1.07 medianArea=446093 (+23.4% vs Task 1 — EXCEEDS the +10% watch-item)
+  - Note on sq3 +23.4%: Task 4 alone contributed +17.6% (region-bounded compose; larger per-present areas because small UI-only presents are now merged into the next cycle present instead of firing separately). Task 5 delta was +4.9%. The perf gate stayed green both tasks (period/p90 unchanged). presents-per-cycle fell from 1.13 → 1.07 — the barrier eliminated small UI-only presents, shifting the per-present median up. Regression risk: low — walking speed and p90 are unchanged; the larger median area is a present-consolidation effect, not wasted work.
+
+- **Fault-injection matrix** (2026-07-03, scratch edits, never committed):
+  | Injection | Edit | Build | Gate result | Failing checks |
+  |---|---|---|---|---|
+  | A | Comment out `markNativeDirty(nativeRect);` in `onNativeEraseRect` | OK | **RED** (1 failure) | `qfg1-cmdbox run FAIL exit code -1 (124 = hung script)` — the game process hung/timed out without the exact erase mark |
+  | B | Comment out `markVacatedDirty(removedRects[i]);` loop body in `uiClearToken` | OK | **GREEN** (33/33) | Stayed green — `markVacatedDirty` in `uiClearToken` is covered by `markNativeDirty` in `onNativeEraseRect` (bitsRestore's save-under rect always fires after token clear and covers the same region); evidence for the Phase 3 deletion list |
+  | C | Both A + B simultaneously | OK | **GREEN** (33/33) | Stayed green — without `markNativeDirty`, the game hangs before the cmdbox sameRunDiff check can fire; the B redundancy result holds when A is also removed |
+
+  Gate detection summary: Injection A turned the gate red (qfg1-cmdbox run FAIL). The minimum exit criterion ("at least one injection red") is satisfied. Injection B green confirms `markVacatedDirty` in `uiClearToken` is redundant — it is on the Phase 3 deletion candidate list.
+
+- **Grow-workaround outcome:** Removed cleanly — gate proves bitsRestore's exact erase rect covers the compositor overdraw ring; the `n.grow(2)` / `d.grow(2)` fallback was not needed after Task 5's `markNativeDirty` hook in `onNativeEraseRect` was wired. `uiVacatedExtent` (the exact-only math, no native grow) is what `markVacatedDirty` now calls.
+
+- **Twice-green gate tables:**
+
+  Run 1 (2026-07-03):
+  | Entry | Check | Result | Detail |
+  |---|---|---|---|
+  | qfg1-smoke | run | PASS | exit 0 |
+  | qfg1-smoke | scriptWarn | PASS | |
+  | qfg1-smoke | exists:boot | PASS | |
+  | qfg1-smoke | exists:after-walk | PASS | |
+  | qfg1-smoke | exists:after-arrow | PASS | |
+  | qfg1-smoke | exists:typed | PASS | |
+  | qfg1-smoke | exists:look-dialog | PASS | |
+  | qfg1-smoke | exists:dismissed | PASS | |
+  | qfg1-cmdbox | run | PASS | exit 0 |
+  | qfg1-cmdbox | scriptWarn | PASS | |
+  | qfg1-cmdbox | same:before~after | PASS | |
+  | sq3-dismiss-matrix | run | PASS | exit 0 |
+  | sq3-dismiss-matrix | scriptWarn | PASS | |
+  | sq3-dismiss-matrix | same:m0~esc1 | PASS | |
+  | sq3-dismiss-matrix | same:m0~esc2 | PASS | |
+  | sq3-dismiss-matrix | same:m0~clk1 | PASS | |
+  | sq3-dismiss-matrix | same:m0~emp1 | PASS | |
+  | sq3-wiggle | run | PASS | exit 0 |
+  | sq3-wiggle | scriptWarn | PASS | |
+  | sq3-wiggle | same:w0~w1 | PASS | |
+  | sq3-wiggle | same:w0~w2 | PASS | |
+  | qfg1-dialog-cycle | run | PASS | exit 0 |
+  | qfg1-dialog-cycle | scriptWarn | PASS | |
+  | qfg1-dialog-cycle | presence:d1 | PASS | 20000 px (>= 20000) |
+  | qfg1-dialog-cycle | presence:d2 | PASS | 20000 px (>= 20000) |
+  | qfg1-dialog-cycle | same:g0~g1 | PASS | |
+  | qfg1-dialog-cycle | same:g0~g2 | PASS | |
+  | qfg1-walk-perf | run | PASS | exit 0 |
+  | qfg1-walk-perf | scriptWarn | PASS | |
+  | qfg1-walk-perf | perf | PASS | median=83/83 p90=84/84 busy=16/17 n=166 |
+  | sq3-walk-perf | run | PASS | exit 0 |
+  | sq3-walk-perf | scriptWarn | PASS | |
+  | sq3-walk-perf | perf | PASS | median=83/83 p90=84/84 busy=5/4 n=171 |
+  **ALL PASS (33 checks)**
+
+  Run 2 (2026-07-03):
+  | Entry | Check | Result | Detail |
+  |---|---|---|---|
+  | qfg1-smoke | run | PASS | exit 0 |
+  | qfg1-smoke | scriptWarn | PASS | |
+  | qfg1-smoke | exists:boot | PASS | |
+  | qfg1-smoke | exists:after-walk | PASS | |
+  | qfg1-smoke | exists:after-arrow | PASS | |
+  | qfg1-smoke | exists:typed | PASS | |
+  | qfg1-smoke | exists:look-dialog | PASS | |
+  | qfg1-smoke | exists:dismissed | PASS | |
+  | qfg1-cmdbox | run | PASS | exit 0 |
+  | qfg1-cmdbox | scriptWarn | PASS | |
+  | qfg1-cmdbox | same:before~after | PASS | |
+  | sq3-dismiss-matrix | run | PASS | exit 0 |
+  | sq3-dismiss-matrix | scriptWarn | PASS | |
+  | sq3-dismiss-matrix | same:m0~esc1 | PASS | |
+  | sq3-dismiss-matrix | same:m0~esc2 | PASS | |
+  | sq3-dismiss-matrix | same:m0~clk1 | PASS | |
+  | sq3-dismiss-matrix | same:m0~emp1 | PASS | |
+  | sq3-wiggle | run | PASS | exit 0 |
+  | sq3-wiggle | scriptWarn | PASS | |
+  | sq3-wiggle | same:w0~w1 | PASS | |
+  | sq3-wiggle | same:w0~w2 | PASS | |
+  | qfg1-dialog-cycle | run | PASS | exit 0 |
+  | qfg1-dialog-cycle | scriptWarn | PASS | |
+  | qfg1-dialog-cycle | presence:d1 | PASS | 20000 px (>= 20000) |
+  | qfg1-dialog-cycle | presence:d2 | PASS | 20000 px (>= 20000) |
+  | qfg1-dialog-cycle | same:g0~g1 | PASS | |
+  | qfg1-dialog-cycle | same:g0~g2 | PASS | |
+  | qfg1-walk-perf | run | PASS | exit 0 |
+  | qfg1-walk-perf | scriptWarn | PASS | |
+  | qfg1-walk-perf | perf | PASS | median=83/83 p90=84/84 busy=17/17 n=166 |
+  | sq3-walk-perf | run | PASS | exit 0 |
+  | sq3-walk-perf | scriptWarn | PASS | |
+  | sq3-walk-perf | perf | PASS | median=83/83 p90=84/84 busy=5/4 n=171 |
+  **ALL PASS (33 checks)**

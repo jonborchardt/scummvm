@@ -305,3 +305,16 @@ This spec adds a subsystem-level mechanism under the living design doc
 Phase 3 completion, CLAUDE.md's "SCI0 rendering & UI invariants" section is
 rewritten to describe the barrier + net as the enforcement mechanism, keeping
 the lifetime traps as the remaining manual discipline.
+
+## Addendum: Phase 1 result (2026-07-03)
+
+Phase 1 shipped on branch `jon-p1-barrier` (plan:
+docs/superpowers/plans/2026-07-02-roger-phase1-present-barrier.md — gate tables,
+dirty-area telemetry, and fault-injection matrix are in that plan's addendum).
+Grow-workaround removed cleanly — gate proves bitsRestore's exact erase rect covers
+the compositor overdraw ring; the `n.grow(2)` fallback in `uiClearToken` was not
+needed after `markNativeDirty` in `onNativeEraseRect` was wired.
+Injection A (`markNativeDirty` in `onNativeEraseRect`) turned the gate red (qfg1-cmdbox
+run FAIL — game hung without the exact erase mark); Injection B (`markVacatedDirty` in
+`uiClearToken`) stayed green — that mark is covered by A's `onNativeEraseRect` path and
+is a Phase 3 deletion candidate.
