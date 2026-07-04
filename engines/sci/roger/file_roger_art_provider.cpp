@@ -2092,6 +2092,11 @@ void FileRogerArtProvider::onNativeShowRect(const Common::Rect &screenRect, uint
 		return; // overlay off, inside a Roger-handled draw, or no hires plate
 	if (screenRect.isEmpty())
 		return;
+	// The status/menu strip is the banner's business (uiPushStatus/reapplyStatus); the
+	// overlay leaves it transparent so the native bar shows through. A strip-only show
+	// (e.g. the menu bar's black underline row) must not become a picture stamp.
+	if (screenRect.bottom <= (int16)_statusBarH)
+		return;
 	if (_diag)
 		warning("ROGER-DIAG[showRect]: pic=%d rect=(%d,%d,%d,%d) owner=0x%08x", _loadedPicId,
 		        screenRect.left, screenRect.top, screenRect.right, screenRect.bottom, ownerToken);
@@ -2394,14 +2399,26 @@ void FileRogerArtProvider::renderFromAnimateList(const AnimateList &list) {
 
 	// Capture native foreground (menu/stat labels, buttons, software cursor) into persistent
 	// sprites, scoped against the live cast so moving actors are never re-captured.
+	// COORDINATE SEAM: fg capture rects are screen-global (bitsShow globalizes via
+	// offsetRect), while sprite celRects are picture-local — mixing them drew every
+	// stamp picScreenTop rows too low (the status bar's black underline row stamped
+	// as a dark line across the top of every scene). Compare in screen space here,
+	// convert to picture-local at the statics hand-off below.
+	const int picTop = _compositor ? _compositor->picScreenTop() : _statusBarH;
 	if (!_foregroundRegions.empty()) {
 		Common::Array<Common::Rect> liveRects;
-		for (uint i = 0; i < sprites.size(); i++)
-			liveRects.push_back(sprites[i].celRect);
+		for (uint i = 0; i < sprites.size(); i++) {
+			Common::Rect lr = sprites[i].celRect;
+			lr.translate(0, (int16)picTop); // picture-local -> screen space
+			liveRects.push_back(lr);
+		}
 		processForegroundCaptures(liveRects);
 	}
-	for (uint i = 0; i < _textSprites.size(); i++)
-		statics.push_back(_textSprites[i]);
+	for (uint i = 0; i < _textSprites.size(); i++) {
+		Roger::Sprite s = _textSprites[i];
+		s.celRect.translate(0, (int16)-picTop); // screen -> picture-local (compositor space)
+		statics.push_back(s);
+	}
 
 	// Merge captured static cels (addToPic + init-baked) with the animate cast, priority-sorted,
 	// so static props occlude/are-occluded correctly against the ego.
