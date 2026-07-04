@@ -197,6 +197,23 @@ FileRogerArtProvider::FileRogerArtProvider(const Common::String &gameId,
 	const Common::String cacheDir = _basePath + "/cache";
 	_assetGen = new Roger::RogerAssetGen(gameId, cacheDir, genMode);
 
+	// Aspect-ratio correction stretches the 320x200 frame to 4:3 (200 -> 240 rows,
+	// +20% vertical) and upstream enables it BY DEFAULT (commit 2870f3627c3). Roger's
+	// art is square-pixel (the plate is an exact 6x of the 320x190 picture), so the
+	// default stretch resamples the enhanced scene 20% too tall — the picture band
+	// measures 228 game-rows instead of 190. While the generating path is active, pin
+	// the correction off. An EXPLICIT aspect_ratio in the config (ini / command line)
+	// still wins: ConfMan.hasKey skips the defaults domain, so only the silent
+	// upstream default is overridden.
+	if (genMode != Roger::kGenPrebuilt && !ConfMan.hasKey("aspect_ratio") &&
+	    g_system->hasFeature(OSystem::kFeatureAspectRatioCorrection) &&
+	    g_system->getFeatureState(OSystem::kFeatureAspectRatioCorrection)) {
+		g_system->beginGFXTransaction();
+		g_system->setFeatureState(OSystem::kFeatureAspectRatioCorrection, false);
+		g_system->endGFXTransaction();
+		warning("ROGER: aspect-ratio correction (default-on upstream) disabled for square-pixel art; set aspect_ratio in scummvm.ini to override");
+	}
+
 	// roger_omyac_passes: three-state semantics —
 	//   unset           => default sequence (defaultPasses())
 	//   set to ""       => wireframe (empty array = zero passes)
