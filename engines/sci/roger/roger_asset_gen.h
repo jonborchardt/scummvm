@@ -75,7 +75,9 @@ enum GenMode {
 //   v7: foreign fill fringes eroded to a 1 px anchored rim (before + after the
 //       backfill) — a fill colour never sits deeper than 1 px inside a drawn
 //       native cell of another colour (the pod-door dashed-seam residue).
-static const int kTransformVersion = 7;
+//   v8: zero rim in LINE cells — a fill colour never enters a line-drawn cell
+//       (fills no longer thin lines; kills the remaining 1 px pod-door seam).
+static const int kTransformVersion = 8;
 
 /**
  * Orchestrates on-the-fly omyac plate generation and scale6x view-cel

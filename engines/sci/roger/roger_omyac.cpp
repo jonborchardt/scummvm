@@ -673,6 +673,14 @@ static void erodeForeignFillClaims(const NativeRef &ref, Common::Array<byte> &bu
 			byte c = srcBuf[idx];
 			if (c == ref.refPixel[cell])
 				continue; // home colour
+			if (ref.cmdType[cell] == CMD_LINE) {
+				// No rim allowance in LINE cells (v8): a fill colour may not enter a
+				// line-drawn cell at all — fills no longer thin line features, and a
+				// bright fill can't dash along a line boundary hidden under a view
+				// edge (the pod-door 1 px seam). Fill-vs-fill keeps the 1 px rim.
+				buf[idx] = ref.refPixel[cell];
+				continue;
+			}
 			bool anchored = false;
 			for (int dy = -1; dy <= 1 && !anchored; dy++) {
 				for (int dx = -1; dx <= 1 && !anchored; dx++) {

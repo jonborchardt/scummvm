@@ -57,10 +57,10 @@ static NativeRef dividedFillsRef() {
 	return nativePreRender(cmds);
 }
 
-// Count final CMD_FILL pixels whose colour is foreign to their own drawn native
-// cell AND not anchored to home territory (an 8-neighbour of the same colour
-// whose cell is undrawn or natively that colour) — the pixels erodeForeignFill
-// must eliminate.
+// Count final CMD_FILL pixels erodeForeignFill must eliminate: in a LINE cell,
+// ANY colour foreign to the cell (zero rim, v8); in a FILL cell, a foreign
+// colour not anchored to home territory (an 8-neighbour of the same colour
+// whose cell is undrawn or natively that colour — the 1 px rim allowance).
 static int countUnanchoredForeignFill(const NativeRef &ref, const OmyacResult &out) {
 	int bad = 0;
 	for (int y = 0; y < OMYAC_HYBRID_H; y++) {
@@ -74,6 +74,10 @@ static int countUnanchoredForeignFill(const NativeRef &ref, const OmyacResult &o
 			byte c = out.pixels[idx];
 			if (c == ref.refPixel[cell])
 				continue;
+			if (ref.cmdType[cell] == CMD_LINE) {
+				bad++; // zero rim in line cells
+				continue;
+			}
 			bool anchored = false;
 			for (int dy = -1; dy <= 1 && !anchored; dy++) {
 				for (int dx = -1; dx <= 1 && !anchored; dx++) {
@@ -187,7 +191,7 @@ public:
 		//           endpointMaxSame=2 isolatedPixelPass=true tieBreakBlend=true
 		//           diagFlankSuppress=true backfillOwnCell=true (kTransformVersion 5);
 		//           passes=3f1l2f4a (defaultPasses()).
-		static const uint32 kDefaultPipelineGolden = 0x7C9D2B7Au; // FNV-1a over pixels+cmdType (v7)
+		static const uint32 kDefaultPipelineGolden = 0xBA1D1C23u; // FNV-1a over pixels+cmdType (v8)
 		NativeRef ref = crossingLinesRef();
 		Common::Array<int> passes = defaultPasses();
 		OmyacResult out = renderOmyac(ref, passes, OmyacParams());
