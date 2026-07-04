@@ -1313,10 +1313,9 @@ void FileRogerArtProvider::markVacatedDirty(const Common::Rect &nativeRect) {
 	_barrierDirty = true;
 	if (_lastGameRect.isEmpty()) { _compositor->forceFullPresent(); return; }
 	// Exact rect + TTF pad. The compositor-overdraw ring beyond it is covered by
-	// bitsRestore's exact erase rect (markNativeDirty in onNativeEraseRect) — the
-	// spec's §3.1 claim, verified by interactive soak, NOT provable by the capture-based
-	// gate (its capture path forces a full clean recompose via needFullSource, so a
-	// missing-mark fault cannot appear in any capture by construction).
+	// bitsRestore's exact erase rect (markNativeDirty in onNativeEraseRect). Phase 2
+	// proved the gate cannot verify invalidation marks either way (layered redundancy:
+	// _dirtyPrev loop + scene seed union) — invalidation changes are soak-verified.
 	const Common::Rect dest = Roger::uiVacatedExtent(nativeRect, _lastGameRect);
 	_compositor->addDirtyRect(dest);
 	// This mark REMOVES previously-painted content. If it fires mid-cycle, the barrier
@@ -1716,12 +1715,10 @@ static const uint32 GENERIC_TEXT_MASK = 0xF0000000u;
 static inline bool isGenericTextToken(uint32 t) { return (t & GENERIC_TEXT_MASK) == GENERIC_TEXT_TOKEN; }
 
 void FileRogerArtProvider::uiClearToken(uint32 token) {
-	// SCI calls this from bitsRestore for every save-under region it restores — which, while
-	// walking, is ~2× per updated sprite EVERY game cycle, almost always for a token that matches
-	// no UI element. presentWithUi() is a full-overlay re-present (copy + convert + copyRectToOverlay)
-	// and the cache-invalidate forces a full recompose next frame, so an unconditional present here
-	// dominated the cycle (~196 ms — the game ran ~2.7× slow). Only invalidate + present when an
-	// element was actually removed (e.g. a dialog/look-at dismissal); otherwise this is a no-op.
+	// bitsRestore calls this ~2× per moving sprite EVERY cycle, almost always with a
+	// token matching no element — so all work below is gated on an actual removal
+	// (the bb65c56b75a walking-storm class; the barrier gates presents, but staying
+	// no-op on the walking path keeps the per-cycle cost trivial).
 	Common::Array<Common::Rect> removedRects;
 	const bool removedUi = _uiLayer && _uiLayer->clearToken(token, &removedRects);
 
@@ -1757,9 +1754,9 @@ void FileRogerArtProvider::uiClearToken(uint32 token) {
 	}
 	if (_diag && (token & GENERIC_TEXT_MASK) == GENERIC_TEXT_TOKEN)
 		warning("ROGER-DIAG[clearToken]: tok=0x%08x removed=1", token);
-	// Dirty the overlay regions the removed elements occupied so the barrier's
-	// present repaints them with clean background (else they ghost until another
-	// draw touches them). markVacatedDirty centralizes the extent math.
+	// RETAINED duty-3 exception (Phase 3): no-save-under / reanimate==false disposals
+	// never fire bitsRestore, and Feeder B stamp rects can exceed the save-under rect —
+	// this is their only same-present invalidation (net blind while frozen; _dirtyPrev a frame late).
 	for (uint i = 0; i < removedRects.size(); i++)
 		markVacatedDirty(removedRects[i]);
 	presentBarrier();
@@ -1844,6 +1841,8 @@ void FileRogerArtProvider::uiPushFrameBox(const Common::Rect &r, int penColor) {
 	e.hasFrame = true;
 	e.token = FRAME_BOX_TOKEN;
 	_uiLayer->push(e);
+	// RETAINED duty-3 exception (Phase 3, uiClearToken's twin): no SCI save-under exists
+	// for the frame box, and the net can't see overlay-only draws — old position would ghost.
 	if (!oldFrameRect.isEmpty()) markVacatedDirty(oldFrameRect);
 	markUiDirty(r);
 	presentBarrier();
