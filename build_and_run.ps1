@@ -42,8 +42,8 @@ param(
     [int]$TimeoutSec  = 0,    # watchdog for blocking runs: kill scummvm and exit 124 if it
                               # hasn't exited after this many seconds (hung script protection).
                               # 0 = no watchdog.
-    [switch]$TruthCap         # evidence mode: .rin captures read the presented frame (bounded-path
-                              # scratch = overlay mirror) instead of forcing a full clean recompose.
+    [switch]$TruthCap         # evidence mode: .rin captures grab the real overlay pixels
+                              # (g_system->grabOverlay) instead of forcing a full clean recompose.
                               # Required to make invalidation faults visible in captures.
 )
 

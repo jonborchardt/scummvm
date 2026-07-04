@@ -44,7 +44,19 @@ foreach ($e in $manifest.entries) {
     }
     if ($e.cycleLog) { $harnessArgs["CycleLog"] = $true }
     if ($e.truthCap) { $harnessArgs["TruthCap"] = $true }
+    # A truthCap entry sets ROGER_TRUTH_CAPTURE in THIS session (the harness runs
+    # in-process), which would leak truth-capture semantics into every later entry's
+    # checks. Save/restore around the launch so only this entry sees the flag —
+    # while a caller-set session value (the documented whole-gate truth-run
+    # workflow: `$env:ROGER_TRUTH_CAPTURE = "1"; run-regression.ps1`) still
+    # inherits into every entry untouched.
+    $truthEnvBefore = $env:ROGER_TRUTH_CAPTURE
     & $Harness @harnessArgs | Out-Host
+    if ($null -eq $truthEnvBefore) {
+        Remove-Item Env:ROGER_TRUTH_CAPTURE -ErrorAction SilentlyContinue
+    } else {
+        $env:ROGER_TRUTH_CAPTURE = $truthEnvBefore
+    }
     $code = $LASTEXITCODE
     if ($code -ne 0) {
         Add-Result $e.name "run" $false "exit code $code (124 = hung script)"
