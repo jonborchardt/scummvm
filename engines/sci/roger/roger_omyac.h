@@ -78,16 +78,11 @@ struct OmyacParams {
 	// the flood is what rasterizes between the hybrid strokes.
 	bool backfillOwnCell = true;
 	int backfillFloodRounds = 3; // bounded-flood rounds before the own-cell fill
-	// Erode foreign fill fringes (default OFF — shipped briefly as v7/v8 and
-	// REJECTED: bounding the fringes visibly blockified the scene; the foreign
-	// fringes ARE the boundary smoothing). Kept for Studio experimentation.
-	// When on: after the enhance passes (and again after the backfill), a
-	// CMD_FILL pixel whose colour is foreign to its own drawn native cell is
-	// bounded — in a FILL cell it survives only as a 1 px rim attached to home
-	// territory; in a LINE cell it never survives. Reverts take the cell's own
-	// colour. The baked-view seam this chased (SQ3 pod door) is instead fixed
-	// in the compositor by growing static baked cels a few overlay px.
-	bool erodeForeignFill = false;
+	// (A "foreign fill fringe erosion" step shipped briefly as v7/v8 and was
+	// withdrawn — bounding the fringes visibly blockified scenes; the fringes
+	// ARE the boundary smoothing. The baked-view seam it chased (SQ3 pod door)
+	// is fixed in the compositor instead: game cels draw slightly larger
+	// (Sprite::coverGrow). The removed code is in git history at e23ff7f7151.)
 
 	bool isDefault() const {
 		const OmyacParams d;
@@ -99,8 +94,7 @@ struct OmyacParams {
 		       tieBreakBlend == d.tieBreakBlend &&
 		       diagFlankSuppress == d.diagFlankSuppress &&
 		       backfillOwnCell == d.backfillOwnCell &&
-		       backfillFloodRounds == d.backfillFloodRounds &&
-		       erodeForeignFill == d.erodeForeignFill;
+		       backfillFloodRounds == d.backfillFloodRounds;
 	}
 };
 

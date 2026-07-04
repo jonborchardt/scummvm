@@ -72,12 +72,12 @@ enum GenMode {
 //   v6: bounded direction-neutral backfill — backfillFloodRounds breadth-first
 //       majority rounds (frozen src per round), then own-cell fill. Keeps the
 //       flood-rasterized smooth look, kills the unbounded cascade.
-//   v7/v8 (WITHDRAWN, same day): foreign-fill-fringe erosion — bounded the
-//       pod-door seam but visibly blockified scenes (the fringes ARE the
-//       boundary smoothing). erodeForeignFill now defaults OFF, making the
-//       default pipeline bit-identical to v6 again, so the version goes BACK
-//       to 6 and existing v6 cache files are valid. The seam is fixed in the
-//       compositor instead (static baked cels drawn a few px larger).
+//   v7/v8 (WITHDRAWN same day, code removed — see git history e23ff7f7151):
+//       foreign-fill-fringe erosion bounded the pod-door seam but visibly
+//       blockified scenes (the fringes ARE the boundary smoothing). The
+//       pipeline is bit-identical to v6, so the version stays 6 and v6 cache
+//       files remain valid. The seam is fixed in the compositor instead
+//       (game cels drawn slightly larger — Sprite::coverGrow).
 static const int kTransformVersion = 6;
 
 /**

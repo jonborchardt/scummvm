@@ -32,75 +32,6 @@ static NativeRef crossingLinesRef() {
 	return nativePreRender(cmds);
 }
 
-// Two flood-filled halves split by a vertical line: exercises fill-vs-fill and
-// fill-vs-line boundaries, where enhance/backfill can push one fill's colour
-// into the other's native cells (the erodeForeignFill leak class).
-static NativeRef dividedFillsRef() {
-	Common::Array<DrawCommand> cmds;
-	// Border box so the fills are bounded.
-	DrawCommand box; box.kind = kCmdPline; box.drawMode = kDrawVisual; box.drawCodes[0] = 0;
-	Point p0 = {10, 10}, p1 = {150, 10}, p2 = {150, 100}, p3 = {10, 100}, p4 = {10, 10};
-	box.points.push_back(p0); box.points.push_back(p1); box.points.push_back(p2);
-	box.points.push_back(p3); box.points.push_back(p4);
-	cmds.push_back(box);
-	// Diagonal-ish divider (staircase boundary -> smoothing has work to do).
-	DrawCommand div; div.kind = kCmdPline; div.drawMode = kDrawVisual; div.drawCodes[0] = 0;
-	Point d0 = {75, 10}, d1 = {90, 100}; div.points.push_back(d0); div.points.push_back(d1);
-	cmds.push_back(div);
-	// Fill left half colour 11 (light cyan), right half colour 4 (dark red).
-	DrawCommand fl; fl.kind = kCmdFill; fl.drawMode = kDrawVisual; fl.drawCodes[0] = 11;
-	Point sl = {40, 50}; fl.points.push_back(sl);
-	cmds.push_back(fl);
-	DrawCommand fr; fr.kind = kCmdFill; fr.drawMode = kDrawVisual; fr.drawCodes[0] = 4;
-	Point sr = {120, 50}; fr.points.push_back(sr);
-	cmds.push_back(fr);
-	return nativePreRender(cmds);
-}
-
-// Count final CMD_FILL pixels erodeForeignFill must eliminate: in a LINE cell,
-// ANY colour foreign to the cell (zero rim, v8); in a FILL cell, a foreign
-// colour not anchored to home territory (an 8-neighbour of the same colour
-// whose cell is undrawn or natively that colour — the 1 px rim allowance).
-static int countUnanchoredForeignFill(const NativeRef &ref, const OmyacResult &out) {
-	int bad = 0;
-	for (int y = 0; y < OMYAC_HYBRID_H; y++) {
-		for (int x = 0; x < OMYAC_HYBRID_W; x++) {
-			uint idx = (uint)y * OMYAC_HYBRID_W + x;
-			if (out.cmdType[idx] != CMD_FILL)
-				continue;
-			int cell = (y / OMYAC_SCALE) * OMYAC_NATIVE_W + (x / OMYAC_SCALE);
-			if (ref.cmdType[cell] == CMD_NONE)
-				continue;
-			byte c = out.pixels[idx];
-			if (c == ref.refPixel[cell])
-				continue;
-			if (ref.cmdType[cell] == CMD_LINE) {
-				bad++; // zero rim in line cells
-				continue;
-			}
-			bool anchored = false;
-			for (int dy = -1; dy <= 1 && !anchored; dy++) {
-				for (int dx = -1; dx <= 1 && !anchored; dx++) {
-					if (!dx && !dy)
-						continue;
-					int nx = x + dx, ny = y + dy;
-					if (nx < 0 || nx >= OMYAC_HYBRID_W || ny < 0 || ny >= OMYAC_HYBRID_H)
-						continue;
-					uint nidx = (uint)ny * OMYAC_HYBRID_W + nx;
-					if (out.cmdType[nidx] == CMD_NONE || out.pixels[nidx] != c)
-						continue;
-					int ncell = (ny / OMYAC_SCALE) * OMYAC_NATIVE_W + (nx / OMYAC_SCALE);
-					if (ref.cmdType[ncell] == CMD_NONE || ref.refPixel[ncell] == c)
-						anchored = true;
-				}
-			}
-			if (!anchored)
-				bad++;
-		}
-	}
-	return bad;
-}
-
 static int countDiffs(const OmyacResult &x, const OmyacResult &y) {
 	if (x.pixels.size() != y.pixels.size())
 		return -1;
@@ -159,7 +90,6 @@ public:
 		p.diagFlankSuppress = false; TS_ASSERT(!p.isDefault()); p.diagFlankSuppress = true;
 		p.backfillOwnCell = false; TS_ASSERT(!p.isDefault()); p.backfillOwnCell = true;
 		p.backfillFloodRounds = 0; TS_ASSERT(!p.isDefault()); p.backfillFloodRounds = 3;
-		p.erodeForeignFill = true; TS_ASSERT(!p.isDefault()); p.erodeForeignFill = false;
 
 		TS_ASSERT(p.isDefault()); // restored to all-defaults
 	}
@@ -189,10 +119,11 @@ public:
 		// 0 and reading the CxxTest failure output, then baked here permanently.
 		// Pipeline: minVotesLine=1 minVotesFillAll=2 fillSuppressLineNeighbours=3
 		//           endpointMaxSame=2 isolatedPixelPass=true tieBreakBlend=true
-		//           diagFlankSuppress=true backfillOwnCell=true (kTransformVersion 5);
+		//           diagFlankSuppress=true backfillOwnCell=true (kTransformVersion 6);
 		//           passes=3f1l2f4a (defaultPasses()).
 		// NOTE: identical to the legacy hash — the bounded backfill (v6) reproduces
-		// the scan flood on this fixture, and erosion defaults OFF (v7/v8 withdrawn).
+		// the scan flood on this fixture; the change only manifests at long-range
+		// cascades.
 		static const uint32 kDefaultPipelineGolden = 0x40B38BFFu; // FNV-1a over pixels+cmdType
 		NativeRef ref = crossingLinesRef();
 		Common::Array<int> passes = defaultPasses();
@@ -210,7 +141,6 @@ public:
 		Common::Array<int> passes = defaultPasses();
 		OmyacParams p;
 		p.backfillOwnCell = false;
-		p.erodeForeignFill = false;
 		OmyacResult out = renderOmyac(ref, passes, p);
 		uint32 got = omyacResultHash(out);
 		TS_ASSERT_EQUALS(got, kLegacyPipelineGolden);
@@ -288,26 +218,6 @@ public:
 		// stamps CMD_FILL), i.e. the mask never marks an untouched pixel.
 		for (uint i = 0; i < out.backfilled.size(); i++)
 			if (out.backfilled[i]) { TS_ASSERT(out.cmdType[i] != 0 /*CMD_NONE*/); break; }
-	}
-
-	// erodeForeignFill mechanism test (the param defaults OFF — the erosion was
-	// withdrawn as a shipping default because bounding the fringes blockified
-	// scenes; it remains available for Studio experimentation): with erosion ON,
-	// a fill colour never sits deeper than 1 px inside a drawn FILL cell of a
-	// different colour and never enters a LINE cell at all. The sanity half
-	// proves the fixture actually exercises the leak (default pipeline leaves
-	// unanchored foreign pixels), so the invariant half cannot pass vacuously.
-	void test_erode_foreign_fill_bounds_fringes() {
-		NativeRef ref = dividedFillsRef();
-		Common::Array<int> passes = defaultPasses();
-
-		OmyacResult leaky = renderOmyac(ref, passes, OmyacParams());
-		TS_ASSERT(countUnanchoredForeignFill(ref, leaky) > 0);
-
-		OmyacParams erode;
-		erode.erodeForeignFill = true;
-		OmyacResult out = renderOmyac(ref, passes, erode);
-		TS_ASSERT_EQUALS(countUnanchoredForeignFill(ref, out), 0);
 	}
 
 	// endpointMaxSame reaches detectLineEndings even with zero enhance passes
