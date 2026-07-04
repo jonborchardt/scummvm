@@ -34,9 +34,14 @@ picture. This is a permanent decision, not a deferred feature.
 panel shows the enhanced view** (backgrounds, upscaled cels, dialogs, live screen updates)
 and the **right panel is a passive native mirror** of the original pics, views, and
 animations. It's a comparison / screenshot view for testing intros and old-vs-new art — a
-screenshot grabs both panels in one image. It shows a single cursor that floats under the
-pointer over either panel, but does not remap clicks — switch back to **Enhanced** with F10
-to play. The status banner and overlay follow the toggle.
+screenshot grabs both panels in one image. A single composited cursor floats under the
+pointer over either panel, and clicks through either panel are remapped to game
+coordinates, so the game stays playable while comparing. The status banner and overlay
+follow the toggle.
+
+The startup mode is `roger_display_mode` (default `enhanced`); for a single launch use
+`build_and_run.ps1 -Mode enhanced|original|sbs` (env `ROGER_DISPLAY_MODE` — never touches
+the ini). `-Mode sbs` makes every scripted capture an enhanced-vs-native comparison shot.
 
 ## What's enhanced
 
@@ -48,9 +53,10 @@ to play. The status banner and overlay follow the toggle.
 - The score / "Space Quest" status banner (always hires, on load and after F10)
 - The menu bar titles (the graphical Sierra icon is left native)
 - Parser text-input fields (top-aligned to match the native field, live caret)
-- The mouse cursor uses the native hardware cursor (arrow / wait / hand), shown
-  smoothly over the overlay; the letterbox edges are filled opaque black so the
-  native cursor cannot leak there.
+- The mouse cursor is Roger's composited arrow, drawn into the overlay (the native
+  hardware cursor is not visibly rendered over the overlay; `roger_hw_cursor=true`
+  opts back into it for experimentation). The letterbox edges are filled opaque
+  black so the native render cannot leak there.
 
 ## Native-extras capture
 
@@ -67,7 +73,7 @@ Captured generic regions are intentionally blocky (nearest-neighbour upscale) be
 
 ## Launcher
 
-The Roger launcher dialog appears at engine startup (before the game is loaded). It displays a list of detected SCI games from ScummVM's config, showing the cache status for each (e.g., "55 pics cached"). Select a game and click **Launch** to proceed; the dialog is required — there is no Skip button.
+The Roger launcher dialog appears at engine startup (before the game is loaded). It displays a list of detected SCI games from ScummVM's config, showing the cache status for each (e.g., "55 pics cached"). Select a game and click **Launch** to proceed. The dialog has no Skip button, but it can be bypassed entirely with `roger_no_launcher=true` in `scummvm.ini` or the `ROGER_NO_LAUNCHER` env var — `build_and_run.ps1 -SkipPicker` sets the env var for one launch, and passing `-Game <target>` skips the picker automatically. With the picker skipped, a synchronous startup warm-up runs instead, governed by `roger_precache` (default `off`, so normally a no-op).
 
 For each game, the launcher shows:
 - **Game name** (from the domain or script fallback)
@@ -90,11 +96,15 @@ All are optional `scummvm.ini` keys (only read when present).
 
 | Key | Default | Meaning |
 |-----|---------|---------|
+| `roger_gen_mode` | `cache` | in-engine art generation mode: `cache` = generate on a miss, load from the content cache on a hit; `memory` = generate, never write; `always` = regenerate + overwrite; `prebuilt` = the off-switch (native-only render, no Roger overlay) |
+| `roger_precache` | `off` | scope of the synchronous startup warm-up: `all`, `pics`, `views`, `off`. The Roger launcher's per-game settings are the normal opt-in path (it sets this key); the warm-up only runs when the launcher is skipped |
+| `roger_omyac_passes` | unset | enhance-pass list for the omyac pipeline. Unset = default sequence; empty string = wireframe (zero passes); otherwise tokens (`fill`/`f`, `line`/`l`, `all`/`a`). Tunable live with Ctrl+Shift+[ ] / ; ' |
+| `roger_no_launcher` | off | skip the Roger game-picker dialog at startup (also env `ROGER_NO_LAUNCHER`; `build_and_run.ps1 -SkipPicker`, auto-set by `-Game`) |
 | `roger_ui_font_scale` | `150` | nudge multiplier (percent) on the native-metric text-size baseline; 100 = no nudge |
 | `roger_ui_font` | `GoMono-Regular.ttf` | dialog/body font (from ScummVM's `fonts.dat`); can be cycled live with Ctrl+Shift+F. Per-game: set it on a game target to give each game its own font |
 | `roger_ui_header_font` | `NotoSans-Regular.ttf` | header/menu/banner font (config + restart only; not affected by Ctrl+Shift+F) |
-| `roger_hw_cursor` | `true` | use the native hardware cursor over the overlay; `false` = Roger's composited arrow |
-| `roger_cursor_size` | `44` | composited-arrow size (only when `roger_hw_cursor=false`) |
+| `roger_hw_cursor` | `false` | opt back into the native hardware cursor (not visibly rendered over the overlay — experimental); `false` = Roger's composited arrow |
+| `roger_cursor_size` | `44` | composited-arrow size (applies with `roger_hw_cursor=false`, the default) |
 | `roger_dirty_present` | on | re-draw only changed regions each frame (dirty-rectangle present); off = full-region present |
 | `roger_transitions` | on | Mirror SCI screen transitions (fade/dissolve/wipe/scroll) and shake in the overlay. Off = hard cut (old behavior). |
 | `roger_palette_live` | on | Re-apply the live SCI palette to the hires plate (cycling/fade/flash) via the preserved index map. Off = static plate colors. |
@@ -108,6 +118,16 @@ All are optional `scummvm.ini` keys (only read when present).
 | `roger_diag`          | off   | Structured `ROGER-DIAG` overlay-state trace at room-load/present/cel-draw seams (also env `ROGER_DIAG` / `build_and_run.ps1 -Diag` for a single launch — preferred over editing the ini). |
 | `roger_truth_capture` | off | Evidence mode: `.rin` captures dump the REAL overlay pixels via `grabOverlay` (the presented pixels — what the player actually sees) instead of forcing a full clean recompose. Required for fault-injection evidence — with it off, missing invalidation marks are invisible in captures (the scratch buffer self-heals every cycle). Per-launch: `build_and_run.ps1 -TruthCap` (env `ROGER_TRUTH_CAPTURE`). |
 | `roger_diff_net` | on | Cycle-diff backstop net: each cycle, diff the native visual buffer against the previous cycle and invalidate changed regions — heals any missed invalidation within one cycle. Runtime escape hatch: set to `false` (env `ROGER_DIFF_NET=0` per-launch). Cost telemetry: `ROGER-NET sum32=<ms> boxes=<n>` under `-CycleLog` (budget: sum32 ≤ 32 ≈ 1 ms/cycle). Distinct from `roger_diff_backstop` (Feeder B *compositing* of unhooked draws); the net only *invalidates*. |
+| `roger_diff_backstop` | off | Feeder B per-frame full-buffer pixel diff that *composites* unhooked native draws. Off by default: the diff is costly and can stamp blocky native pixels around moving sprites. The bitsShow-hook path and addToPic capture stay on regardless. |
+| `roger_debug_capture` | off | Write a per-pic manifest + a PNG per pixel-captured graphic sprite to the screenshot dir (missing-graphics forensics). |
+| `roger_diff_check` | off | Gated in-engine native-vs-overlay diff, once per pic (never on the steady-state path); logs `ROGER-DIAG[diff]` boxes for the missing-graphics audit. |
+
+### Aspect-ratio correction
+
+While a generating `roger_gen_mode` is active, Roger pins ScummVM's default-on
+aspect-ratio correction **off**: the art is square-pixel (the plate is an exact 6× of the
+320×190 picture), and the default 4:3 stretch would resample the enhanced scene ~20% too
+tall. An explicit `aspect_ratio` key in `scummvm.ini` or on the command line still wins.
 
 ### Text sizing
 
@@ -129,21 +149,20 @@ All fonts are sourced from ScummVM's bundled `fonts.dat`. The **header font** (`
 
 ## Asset layout
 
-`sq3-roger` is a sibling of the `sq3` game directory:
+Nothing is consumed from disk: plates, VIEW cels, and priority maps are all generated
+in-engine from the game's own SCI resources. The only on-disk artifacts are the
+content-hash generation cache, written to a directory that is a sibling of the game
+directory (`sq3-roger/` next to `sq3/`):
 
 ```
 sq3-roger/
-  pics/<id>/source/
-    pic.<id>.png              low-res original visual
-    pic.<variant>.<id>.png    hires visual (e.g. pic.omyac-upscaler.<id>.png)
-    pic.<id>_p.png            SCI native priority map (320×200 grayscale)
-    pic.<id>_c.png            SCI native control  map (320×200 grayscale)
-    <variant>.<id>_p.png      overlay-occlusion priority map (EGA-color band-per-pixel)
-  views/<id>/
-    view.<id>.loop.<n>.png    upscaled hires VIEW cels (ego / props / inventory)
+  cache/    ← content-keyed generated PNGs (see "Generated cache files")
 ```
 
-The grayscale `pic.<id>_p.png` fills SCI's native priority buffer (walkability + native occlusion). The overlay compositor's per-pixel occlusion source is now the in-engine generated hires priority map (`omyacprio` cache) — no prebuilt `_p.png` is consumed for overlay occlusion.
+Walkability and native occlusion always ride SCI's own native priority/control buffers;
+the overlay compositor's per-pixel sprite occlusion samples the in-engine generated hires
+priority map (the `omyacprio` cache entry), so occlusion edges get the same upscaling as
+the displayed plate.
 
 ## Generated cache files
 
@@ -183,9 +202,16 @@ dialogs.
 
 **Captures** reuse the autoshot writer: `capture <label>` fires at the next overlay
 present and writes `roger-<pic>-<label>-{overlay,preview}.png` in `screenshotpath`.
-Captures assume **Enhanced display mode** (the default). In Side-by-Side mode the
-capture path returns before present or dumps a non-composited scene — automation
-must run in Enhanced mode.
+Captures work in **Enhanced** (the default) and **Side-by-Side** modes — launch with
+`-Mode sbs` to make every capture an enhanced-vs-native comparison shot; an
+Original-mode capture misses the composited scene. With `roger_truth_capture` on
+(`-TruthCap`), captures dump the real presented overlay pixels via `grabOverlay`
+instead of forcing a full clean recompose — required when gathering invalidation-fault
+evidence, since a forced recompose self-heals exactly the staleness you're looking for.
+
+To capture while a **blocking dialog** is up, follow `capture` with a `move X Y` and a
+short `wait`: a blocked cycle takes no presents, so the pending capture needs the nudge
+to flush while the dialog is still visible — without it you get the post-dismiss frame.
 
 ### `.rin` grammar
 
@@ -217,6 +243,16 @@ Key tokens: `ENTER` `ESC` `SPACE` `TAB` `BACKSPACE` `UP` `DOWN` `LEFT` `RIGHT`
 Captures land in the game's `screenshotpath` (set to `screenshots\` in the project
 config). The run log is at `screenshots\roger-run.log`. The smoke script for QFG1
 is `test/sci/roger/scripts/qfg1-smoke.rin`.
+
+## Roger Studio
+
+`build_and_run.ps1 -Studio` (env `ROGER_STUDIO=1`, per-launch) boots a **debug-only,
+mouse-driven tuning environment** instead of a game: a single scene — the enhanced plate
+with a view cel composited on it game-style (SQ3 defaults: pic 2, view 12 loop 1) — with
+two live A/B setting slots (params + passes + scaler variant + plate mode each), Split
+and Diff comparison views with an automatic alignment readout, click-to-place/drag cel,
+and stamped PNG export. Everything is button-driven; Esc quits and E exports
+(automation-only keys). It never touches the generation disk cache.
 
 ## Tests
 
