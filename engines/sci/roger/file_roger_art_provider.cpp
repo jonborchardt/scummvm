@@ -1249,6 +1249,9 @@ void FileRogerArtProvider::markNativeDirty(const Common::Rect &nativeRect) {
 	// (computePictureRect reserves it for the native score to show through). Marking it
 	// dirty is a no-op visually but inflates the dirty area on every bitsShow tick,
 	// since SCI re-blits the native score row every cycle. Clip to the picture region.
+	// Invariant: Roger overlay content in the status strip is signalled only via
+	// markUiDirty (uiPushStatus banner) — a markNativeDirty rect wholly inside the
+	// strip is safe to drop; violating that would silently lose marks here.
 	Common::Rect pic = nativeRect;
 	pic.clip(Common::Rect(0, _statusBarH, 320, 200));
 	if (pic.isEmpty())
