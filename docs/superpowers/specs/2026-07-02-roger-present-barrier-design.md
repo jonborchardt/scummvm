@@ -336,7 +336,8 @@ the plan's Addendum fault-injection matrix (rows A–D) for full evidence.
 Phase 2 shipped on branch `jon-p2-diffnet` (plan:
 docs/superpowers/plans/2026-07-03-roger-phase2-diff-net.md — evidence tables in that
 plan's addendum). Measured net cost: qfg1 avg sum32 ~5.4 ms / sq3 avg sum32 ~5.0 ms
-(budget 32 ≈ 1 ms/cycle); net ships default-ON. Overlay-truth capture mode
+at Task 2 ship time; a Task 4 re-measurement under ambient load read ~7.2 / ~5.6 ms
+(budget 32 ≈ 1 ms/cycle — both readings comfortably within it); net ships default-ON. Overlay-truth capture mode
 (`roger_truth_capture`) shipped as the evidence channel: captures read the REAL
 overlay via `g_system->grabOverlay` instead of forcing a full clean recompose —
 closing the capture-masking hole Phase 1 identified.
