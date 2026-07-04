@@ -198,7 +198,9 @@ if ($NoBuild) {
     # ── Step 4: Build ScummVM ─────────────────────────────────────────────────────
     Write-Host "`n[4/4] Building ScummVM ($Config|$Platform)..." -ForegroundColor Cyan
     & $MSBuild $Solution /p:Configuration=$Config /p:Platform=$Platform /m /nologo /v:minimal
-    if ($LASTEXITCODE -ne 0) { Write-Error "ScummVM build failed." }
+    # exit, don't just Write-Error: falling through here used to LAUNCH the stale exe
+    # after a failed build (which then held the exe lock and made the next build fail too).
+    if ($LASTEXITCODE -ne 0) { Write-Error "ScummVM build failed."; exit 1 }
 }
 
 # ── Find the exe ──────────────────────────────────────────────────────────────
