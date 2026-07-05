@@ -875,6 +875,17 @@ void RogerCompositor::renderUiLayer(Graphics::ManagedSurface &dest,
 		fits[i].idealPx = tr->scaledIdealPx(targetPx);
 		fits[i].fitPx = tr->fitPx(e.text, textRect.width(), textRect.height(),
 		                          fits[i].idealPx, wCap, &e.glyphs);
+		// Per-text-element sizing trace: the decisive tool for dialog-text-size faults —
+		// shows each element's namespace token, native metric (font height + width cap),
+		// sizing group and the chosen fit. Two rows for the same rect with different tokens
+		// = a control/generic duplicate (the dialog-text-size-flip class).
+		if (_diag)
+			warning("ROGER-DIAG[textFit]: subsetN=%u i=%u tok=%08x type=%d nRect=(%d,%d,%d,%d) "
+			        "nFontH=%d nTextW=%d wCap=%d group=%08x ideal=%d fit=%d '%.24s'",
+			        elems.size(), i, e.token, (int)e.type,
+			        e.nativeRect.left, e.nativeRect.top, e.nativeRect.right, e.nativeRect.bottom,
+			        e.nativeFontH, e.nativeTextW,
+			        wCap, fits[i].group, fits[i].idealPx, fits[i].fitPx, e.text.c_str());
 	}
 	applySharedGroupScale(fits);
 

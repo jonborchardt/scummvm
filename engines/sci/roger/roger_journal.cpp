@@ -48,6 +48,22 @@ bool opIsOpaque(const UiElement &e) {
 bool opSupersedes(const UiElement &newer, const UiElement &older) {
 	if (newer.type != older.type)
 		return false;
+	// Cross-hook duplicate guard: the SAME native text draw is seen by BOTH the semantic
+	// control hook (uiPushText, 0x40000000 namespace: accurate native font height + a
+	// single-line width cap) and the generic GfxText16::Box hook (onNativeText, 0x60000000
+	// namespace: no width cap -> multi-line wrap-fit). They share the same rect, so a
+	// geometry-only supersede would let whichever arrived LAST silently replace the other —
+	// dropping the control copy and leaving the wrap-fit generic, which re-fits to a smaller
+	// size on a later present (the dialog-text-size-flip bug). These two are reconciled by
+	// dedupeGenericText (token-aware; keeps the control), NOT by append's supersede. Only
+	// block the cross-namespace case; a same-namespace redraw (stat-value refresh) still
+	// supersedes in place.
+	const uint32 ns0 = newer.token & 0xF0000000u;
+	const uint32 ns1 = older.token & 0xF0000000u;
+	const bool controlVsGeneric =
+	    (ns0 == 0x40000000u && ns1 == 0x60000000u) || (ns0 == 0x60000000u && ns1 == 0x40000000u);
+	if (controlVsGeneric)
+		return false;
 	return newer.nativeRect.contains(older.nativeRect);
 }
 
