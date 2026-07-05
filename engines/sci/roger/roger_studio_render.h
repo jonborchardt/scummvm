@@ -90,7 +90,9 @@ enum WidKind {
 	kWidChipLeft, kWidChipRight,
 	kWidChipAddF, kWidChipAddL, kWidChipAddA, kWidChipReset,
 	kWidChipClear,
-	kWidShowBackfill, kWidShowGrid   // shared scene toggles (pink / pixel grid)
+	kWidShowBackfill, kWidShowGrid,  // shared scene toggles (pink / pixel grid)
+	kWidGrid6,                       // 6-pipeline comparison grid display mode
+	kWidAnimPlay, kWidAnimSlower, kWidAnimFaster   // global cel playback
 };
 
 uint32 widId(int kind, int index = 0);   // (kind << 16) | (index & 0xffff)
@@ -116,6 +118,8 @@ struct StudioPanelState {
 	int selectedChip;       // -1 = none
 	bool showBackfill;      // recolour fillNullPixels ("unfilled") pixels hot pink
 	bool showGrid;          // draw light plate-pixel grid when zoomed in
+	bool animPlaying = false;  // global cel playback running
+	int animMs = 150;          // current playback period (ms per cel)
 	Common::Array<int> passes;      // active slot's
 	Common::Array<int> paramValues; // active slot's, omyacParamCount() entries
 };
@@ -145,6 +149,27 @@ void diffMapRGBA(const byte *a, const byte *b, int w, int h, byte *out);
 // if the image is too small (w or h <= 2*radius).
 bool estimateOffsetSAD(const byte *a, const byte *b, int w, int h, int radius,
                        int &outDx, int &outDy);
+
+// ── Grid mode + animation helpers (pure; unit-tested) ───────────────────────
+
+// The 6 comparison pipelines, in tile order (row-major 2x3). Returns the
+// roger_view_scaler registry preset index for tile 0..5, or -1 if the preset
+// id is missing (registry drift — the caller should skip the tile).
+int gridPresetSlot(int tile);
+int gridTileCount(); // 6
+
+// Tile rect for the 2x3 grid inside `area`, 2 px gutters, row-major.
+Common::Rect gridTileRect(const Common::Rect &area, int tile);
+
+// Playback speed table {300,200,150,100,66} ms per cel; idx clamped.
+int animSpeedMs(int idx);
+int animSpeedStep(int idx, int dir); // idx+dir clamped to the table range
+
+// Native-px rect of a cel anchored at (anchorX, anchorY), SCI's own placement
+// (GfxView::getCelRect): left = ax + dx - (w>>1); bottom = ay + dy + 1.
+// Keeps walk cycles foot-planted across differently-sized cels.
+Common::Rect celAnchorRect(int w, int h, int displaceX, int displaceY,
+                           int anchorX, int anchorY);
 
 } // namespace Roger
 } // namespace Sci

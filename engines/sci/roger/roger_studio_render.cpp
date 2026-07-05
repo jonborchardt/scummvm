@@ -19,6 +19,7 @@
  */
 
 #include "sci/roger/roger_studio_render.h"
+#include "sci/roger/roger_view_scaler.h"
 #include "common/util.h"
 
 namespace Sci {
@@ -245,12 +246,18 @@ void buildStudioPanel(const Common::Rect &panel, const StudioPanelState &st,
 	c.btn("Show B", widId(kWidShowB), st.displayMode == 1);
 	c.btn("Split", widId(kWidSplit), st.displayMode == 2);
 	c.btn("Diff", widId(kWidDiff), st.displayMode == 3);
+	c.btn("Grid", widId(kWidGrid6), st.displayMode == 4);
 	c.text(" ");
 	c.btn("Copy A>B", widId(kWidCopyAB));
 	c.btn("Export PNG", widId(kWidExport));
 	c.text(" ");
 	c.btn(st.showBackfill ? "pink: on" : "pink: off", widId(kWidShowBackfill), st.showBackfill);
 	c.btn(st.showGrid ? "grid: on" : "grid: off", widId(kWidShowGrid), st.showGrid);
+	c.text(" ");
+	c.btn(st.animPlaying ? "pause" : "play", widId(kWidAnimPlay), st.animPlaying);
+	c.btn("spd-", widId(kWidAnimSlower));
+	c.text(Common::String::format("%dms", st.animMs));
+	c.btn("spd+", widId(kWidAnimFaster));
 	c.newRow();
 
 	// Param rows (active slot values)
@@ -366,6 +373,51 @@ bool estimateOffsetSAD(const byte *a, const byte *b, int w, int h, int radius,
 	}
 	outDx = bestDx; outDy = bestDy;
 	return true;
+}
+
+// ── Grid mode + animation helpers ────────────────────────────────────────────
+
+// Tile order = the six pipelines under comparison (user's A-F). s3-s2 and
+// n2-n3 stay reachable via the A/B slot variant button only.
+static const char *const GRID_PRESET_IDS[6] = {
+	"s2-s3", "s3-mx", "mx-s3", "mx-mx-mx", "mx-s2-s2", "s3-s3"
+};
+
+int gridTileCount() {
+	return 6;
+}
+
+int gridPresetSlot(int tile) {
+	if (tile < 0 || tile >= 6)
+		return -1;
+	return viewScalerPresetIndexById(GRID_PRESET_IDS[tile]);
+}
+
+Common::Rect gridTileRect(const Common::Rect &area, int tile) {
+	const int kGutter = 2;
+	const int col = tile % 3, row = tile / 3;
+	const int tw = (area.width() - 2 * kGutter) / 3;
+	const int th = (area.height() - kGutter) / 2;
+	const int left = area.left + col * (tw + kGutter);
+	const int top = area.top + row * (th + kGutter);
+	return Common::Rect(left, top, left + tw, top + th);
+}
+
+static const int ANIM_SPEEDS_MS[5] = { 300, 200, 150, 100, 66 };
+
+int animSpeedMs(int idx) {
+	return ANIM_SPEEDS_MS[CLIP<int>(idx, 0, 4)];
+}
+
+int animSpeedStep(int idx, int dir) {
+	return CLIP<int>(idx + dir, 0, 4);
+}
+
+Common::Rect celAnchorRect(int w, int h, int displaceX, int displaceY,
+                           int anchorX, int anchorY) {
+	const int left = anchorX + displaceX - (w >> 1);
+	const int bottom = anchorY + displaceY + 1;
+	return Common::Rect(left, bottom - h, left + w, bottom);
 }
 
 } // namespace Roger

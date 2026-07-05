@@ -1,5 +1,6 @@
 #include <cxxtest/TestSuite.h>
 #include "sci/roger/roger_studio_render.h"
+#include "sci/roger/roger_view_scaler.h"
 using namespace Sci::Roger;
 
 class RogerStudioRenderTestSuite : public CxxTest::TestSuite {
@@ -399,5 +400,94 @@ public:
 			}
 		}
 		TS_ASSERT(found);
+	}
+
+	// ── Grid + animation helpers ─────────────────────────────────────────
+
+	// 2x3 row-major tiling: 6 tiles inside the area, no overlaps, gutters.
+	void test_grid_tile_rects() {
+		const Common::Rect area(0, 0, 900, 400);
+		Common::Rect r[6];
+		for (int i = 0; i < gridTileCount(); i++) {
+			r[i] = gridTileRect(area, i);
+			TS_ASSERT(!r[i].isEmpty());
+			TS_ASSERT(area.contains(r[i]));
+		}
+		// Row-major: tiles 0..2 on the top row, 3..5 below.
+		TS_ASSERT_EQUALS(r[0].top, r[1].top);
+		TS_ASSERT_EQUALS(r[1].top, r[2].top);
+		TS_ASSERT_EQUALS(r[3].top, r[4].top);
+		TS_ASSERT(r[3].top >= r[0].bottom);
+		TS_ASSERT(r[1].left >= r[0].right);
+		TS_ASSERT(r[2].left >= r[1].right);
+		// No pairwise overlap.
+		for (int i = 0; i < 6; i++)
+			for (int j = i + 1; j < 6; j++) {
+				Common::Rect a = r[i];
+				a.clip(r[j]);
+				TS_ASSERT(a.isEmpty());
+			}
+	}
+
+	// The six grid tiles resolve to registry presets with factors 6,6,6,8,8,9.
+	void test_grid_preset_slots() {
+		const int wantFactor[6] = { 6, 6, 6, 8, 8, 9 };
+		for (int i = 0; i < 6; i++) {
+			const int slot = gridPresetSlot(i);
+			TS_ASSERT(slot >= 0);
+			TS_ASSERT_EQUALS(viewScalerPresetFactor(slot), wantFactor[i]);
+		}
+		// Tile 0 is the shipping pipeline.
+		TS_ASSERT_EQUALS(strcmp(viewScalerPreset(gridPresetSlot(0)).id, "s2-s3"), 0);
+	}
+
+	// Speed table + clamped stepping.
+	void test_anim_speed() {
+		TS_ASSERT_EQUALS(animSpeedMs(2), 150);
+		TS_ASSERT_EQUALS(animSpeedMs(0), 300);
+		TS_ASSERT_EQUALS(animSpeedMs(4), 66);
+		TS_ASSERT_EQUALS(animSpeedMs(-3), 300);  // clamped
+		TS_ASSERT_EQUALS(animSpeedMs(99), 66);   // clamped
+		TS_ASSERT_EQUALS(animSpeedStep(2, +1), 3);
+		TS_ASSERT_EQUALS(animSpeedStep(4, +1), 4); // clamped
+		TS_ASSERT_EQUALS(animSpeedStep(0, -1), 0); // clamped
+	}
+
+	// Native SCI anchor formula (GfxView::getCelRect):
+	//   left = ax + dx - (w >> 1); bottom = ay + dy + 1; top = bottom - h.
+	void test_cel_anchor_rect() {
+		const Common::Rect r = celAnchorRect(5, 8, 1, -2, 100, 50);
+		TS_ASSERT_EQUALS(r.left, 100 + 1 - 2);   // 99
+		TS_ASSERT_EQUALS(r.right, 99 + 5);
+		TS_ASSERT_EQUALS(r.bottom, 50 - 2 + 1);  // 49
+		TS_ASSERT_EQUALS(r.top, 49 - 8);
+		TS_ASSERT_EQUALS(r.width(), 5);
+		TS_ASSERT_EQUALS(r.height(), 8);
+	}
+
+	// Panel exposes the new widgets.
+	void test_panel_has_grid_and_anim_widgets() {
+		StudioPanelState st;
+		st.picId = 1; st.viewId = 1; st.loopNo = 0; st.celNo = 0;
+		st.celX = 10; st.celY = 10;
+		st.variantName = "s2>s3 6x (ship)";
+		st.plateNearest = false; st.showView = true;
+		st.activeSlot = 0; st.displayMode = 4; st.selectedChip = -1;
+		st.showBackfill = false; st.showGrid = false;
+		st.animPlaying = true; st.animMs = 150;
+		Common::Array<StudioWidget> w;
+		buildStudioPanel(Common::Rect(0, 0, 1400, 500), st, w);
+		bool haveGrid = false, havePlay = false, haveSlower = false, haveFaster = false;
+		for (uint i = 0; i < w.size(); i++) {
+			const int k = widKind(w[i].id);
+			if (k == kWidGrid6) { haveGrid = true; TS_ASSERT(w[i].on); } // displayMode 4
+			if (k == kWidAnimPlay) { havePlay = true; TS_ASSERT(w[i].on); }
+			if (k == kWidAnimSlower) haveSlower = true;
+			if (k == kWidAnimFaster) haveFaster = true;
+		}
+		TS_ASSERT(haveGrid);
+		TS_ASSERT(havePlay);
+		TS_ASSERT(haveSlower);
+		TS_ASSERT(haveFaster);
 	}
 };
