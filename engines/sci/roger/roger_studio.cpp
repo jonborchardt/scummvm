@@ -84,6 +84,7 @@ RogerStudio::~RogerStudio() {
 		if (_slots[i].plateCache) { _slots[i].plateCache->free(); delete _slots[i].plateCache; }
 	}
 	if (_diffSurf) { _diffSurf->free(); delete _diffSurf; }
+	freeGridCels();
 }
 
 void RogerStudio::renderSlot(Slot &slot) {
@@ -178,6 +179,73 @@ void RogerStudio::renderSlot(Slot &slot) {
 	markDirty();
 }
 
+void RogerStudio::freeGridCels() {
+	for (int i = 0; i < 6; i++) {
+		if (_gcSurf[i]) { _gcSurf[i]->free(); delete _gcSurf[i]; _gcSurf[i] = nullptr; }
+	}
+	_gcView = _gcLoop = _gcCel = -1;
+}
+
+// Build the six per-preset surfaces for the current (view, loop, cel). Each
+// surface is at the preset's OWN factor (6x/8x/9x) — the grid preserves 8x/9x
+// detail; normalization to a common on-screen footprint happens at blit time.
+void RogerStudio::ensureGridCels() {
+#ifdef ENABLE_SCI
+	if (_viewIds.empty())
+		return;
+	const int viewId = _viewIds[_viewIdx];
+	if (_gcView == viewId && _gcLoop == _loopNo && _gcCel == _celNo && _gcSurf[0])
+		return;
+	freeGridCels();
+
+	// Clamp against real counts (same block as renderSlot).
+	if (g_sci && g_sci->_gfxCache) {
+		GfxView *view = g_sci->_gfxCache->getView((GuiResourceId)viewId);
+		if (view) {
+			_loopNo = CLIP<int>(_loopNo, 0, MAX(0, (int)view->getLoopCount() - 1));
+			_celNo = CLIP<int>(_celNo, 0, MAX(0, (int)view->getCelCount((int16)_loopNo) - 1));
+			const CelInfo *ci = view->getCelInfo((int16)_loopNo, (int16)_celNo);
+			if (ci) { _gcDx = ci->displaceX; _gcDy = ci->displaceY; }
+		}
+	}
+
+	IndexImage cel;
+	byte clearKey = 0;
+	if (!_gen.nativeCelIndexImage(viewId, _loopNo, _celNo, cel, clearKey)) {
+		_status = "grid: cel extraction failed";
+		return;
+	}
+	_gcW = cel.w; _gcH = cel.h;
+	for (int i = 0; i < gridTileCount(); i++) {
+		const int slot = gridPresetSlot(i);
+		if (slot < 0)
+			continue; // registry drift; tile stays empty
+		IndexImage scaled = applyViewScalerPreset(slot, cel, clearKey);
+		_gcSurf[i] = _gen.surfaceFromIndex(scaled, clearKey);
+		_gcFactor[i] = viewScalerPresetFactor(slot);
+	}
+	_gcView = viewId; _gcLoop = _loopNo; _gcCel = _celNo;
+#endif
+}
+
+// Advance the shared cel index through the current loop, wrapping. Reuses the
+// cel-only invalidation tier: plates stay cached, so a tick recomposites the
+// cel (A/B/Split) or rebuilds the small grid cache (Grid). Engine-gated: with
+// no engine or no views this is a no-op.
+void RogerStudio::stepAnimCel() {
+#ifdef ENABLE_SCI
+	if (_viewIds.empty() || !g_sci || !g_sci->_gfxCache)
+		return;
+	GfxView *view = g_sci->_gfxCache->getView((GuiResourceId)_viewIds[_viewIdx]);
+	if (!view)
+		return;
+	_loopNo = CLIP<int>(_loopNo, 0, MAX(0, (int)view->getLoopCount() - 1));
+	const int cels = MAX(1, (int)view->getCelCount((int16)_loopNo));
+	_celNo = (_celNo + 1) % cels;
+	invalidateCelOnly();
+#endif
+}
+
 Common::String RogerStudio::slotStamp(const Slot &slot) const {
 	Common::String s = omyacParamStamp(slot.params) + "-" + omyacPassStamp(slot.passes);
 	if (slot.plateMode == kPlateNearestRef)
@@ -235,6 +303,13 @@ void RogerStudio::run() {
 		Common::Event ev;
 		while (em->pollEvent(ev))
 			handleEvent(ev);
+		if (_animPlaying) {
+			const uint32 now = g_system->getMillis();
+			if (now - _lastAnimTick >= (uint32)animSpeedMs(_animSpeedIdx)) {
+				_lastAnimTick = now;
+				stepAnimCel();
+			}
+		}
 		if (_dirty) {
 			drawFrame();
 			_dirty = false;
@@ -430,13 +505,66 @@ void RogerStudio::ensureDiff() {
 	}
 	diffMapRGBA((const byte *)a.render->getPixels(), (const byte *)b.render->getPixels(),
 	            w, h, (byte *)_diffSurf->getPixels());
-	int dx = 0, dy = 0;
-	estimateOffsetSAD((const byte *)a.render->getPixels(), (const byte *)b.render->getPixels(),
-	                  w, h, 3, dx, dy);
-	_offsetReadout = Common::String::format("best align: dx=%+d dy=%+d overlay px (1/6 native)", dx, dy);
-	// Evidence line (run log): only emitted when the diff is actually rebuilt.
-	debug("ROGER-STUDIO diff offset dx=%d dy=%d", dx, dy);
+	if (!_animPlaying) {
+		int dx = 0, dy = 0;
+		estimateOffsetSAD((const byte *)a.render->getPixels(), (const byte *)b.render->getPixels(),
+		                  w, h, 3, dx, dy);
+		_offsetReadout = Common::String::format("best align: dx=%+d dy=%+d overlay px (1/6 native)", dx, dy);
+		// Evidence line (run log): only emitted when the diff is actually rebuilt.
+		debug("ROGER-STUDIO diff offset dx=%d dy=%d", dx, dy);
+	}
 	_diffStale = false;
+}
+
+// 6-pipeline comparison grid: the current cel through each grid preset, on a
+// neutral dark background. Every tile shows the same NATIVE footprint: screen
+// px per native px = 6 * _viewScale regardless of the preset's factor, so 8x
+// and 9x tiles align with the 6x ones and pan/zoom move all tiles in lockstep.
+// blitFrom's scaled blit is display-only here (same as blitRender for plates).
+void RogerStudio::drawGrid(const Common::Rect &area) {
+	ensureGridCels();
+	const Graphics::PixelFormat fmt = _display->format;
+	const uint32 tileBg = fmt.RGBToColor(32, 32, 32);
+	const uint32 border = fmt.RGBToColor(96, 96, 96);
+	const uint32 white = fmt.RGBToColor(255, 255, 255);
+	const Graphics::Font *lf = FontMan.getFontByUsage(Graphics::FontManager::kBigGUIFont);
+	const int labelH = lf ? (lf->getFontHeight() + 4) : 0;
+	const float sN = 6.0f * _viewScale; // screen px per NATIVE cel px
+
+	for (int i = 0; i < gridTileCount(); i++) {
+		const Common::Rect tile = gridTileRect(area, i);
+		_display->fillRect(tile, tileBg);
+		_display->frameRect(tile, border);
+		const int slot = gridPresetSlot(i);
+		if (lf && slot >= 0)
+			lf->drawString(_display, viewScalerPreset(slot).label,
+			               tile.left + 4, tile.top + 2, tile.width() - 8, white);
+
+		if (!_gcSurf[i])
+			continue;
+		// Cel content area below the label strip.
+		const Common::Rect content(tile.left, tile.top + labelH, tile.right, tile.bottom);
+		// Anchor point: content centre-bottom third, shifted by shared pan.
+		const int ax = content.left + content.width() / 2 + _panX;
+		const int ay = content.top + (content.height() * 3) / 4 + _panY;
+		const Common::Rect nat = celAnchorRect(_gcW, _gcH, _gcDx, _gcDy, 0, 0);
+		Common::Rect dst((int16)(ax + nat.left * sN), (int16)(ay + nat.top * sN),
+		                 (int16)(ax + nat.left * sN + _gcW * sN),
+		                 (int16)(ay + nat.top * sN + _gcH * sN));
+		Common::Rect clipped = dst;
+		clipped.clip(content);
+		if (clipped.isEmpty())
+			continue;
+		// Map the clipped screen rect back into the preset surface (own factor).
+		const Graphics::Surface *s = _gcSurf[i];
+		Common::Rect src((int)((clipped.left - dst.left) / sN * _gcFactor[i]),
+		                 (int)((clipped.top - dst.top) / sN * _gcFactor[i]),
+		                 (int)((clipped.right - dst.left) / sN * _gcFactor[i]),
+		                 (int)((clipped.bottom - dst.top) / sN * _gcFactor[i]));
+		src.clip(Common::Rect(s->w, s->h));
+		if (!src.isEmpty())
+			_display->blendBlitFrom(*s, src, clipped, Graphics::FLIP_NONE);
+	}
 }
 
 void RogerStudio::drawFrame() {
@@ -480,6 +608,8 @@ void RogerStudio::drawFrame() {
 			if (_slots[0].render)
 				blitRender(*_slots[0].render, area);
 		}
+	} else if (_displayMode == kShowGrid6) {
+		drawGrid(area);
 	} else {
 		Slot &slot = (_displayMode == kShowB) ? _slots[1] : _slots[0];
 		ensureFresh(slot);
@@ -489,7 +619,8 @@ void RogerStudio::drawFrame() {
 
 	// Feature 2: pixel-boundary grid over the scene area (both Split halves share
 	// the same transform, so a single pass over the whole area covers both).
-	if (_showGrid)
+	// Meaningless in grid mode (plate-space; the tiles are cel-space).
+	if (_showGrid && _displayMode != kShowGrid6)
 		drawPixelGrid(area);
 
 	drawPanel();
@@ -558,6 +689,8 @@ void RogerStudio::drawPanel() {
 	st.showView = _showView;
 	st.showBackfill = _showBackfill;
 	st.showGrid = _showGrid;
+	st.animPlaying = _animPlaying;
+	st.animMs = animSpeedMs(_animSpeedIdx);
 	st.activeSlot = _activeSlot;
 	st.displayMode = _displayMode;
 	st.selectedChip = _selectedChip;
@@ -656,6 +789,13 @@ void RogerStudio::dispatchWidget(uint32 id) {
 	case kWidShowB: _displayMode = kShowB; _offsetReadout.clear(); markDirty(); break;
 	case kWidSplit: _displayMode = kShowSplit; _offsetReadout.clear(); markDirty(); break;
 	case kWidDiff: _displayMode = kShowDiff; markDirty(); break;
+	case kWidGrid6: _displayMode = kShowGrid6; _offsetReadout.clear(); markDirty(); break;
+	case kWidAnimPlay:
+		_animPlaying = !_animPlaying;
+		_lastAnimTick = g_system->getMillis(); // full first period after resume
+		markDirty(); break;
+	case kWidAnimSlower: _animSpeedIdx = animSpeedStep(_animSpeedIdx, -1); markDirty(); break;
+	case kWidAnimFaster: _animSpeedIdx = animSpeedStep(_animSpeedIdx, +1); markDirty(); break;
 	case kWidCopyAB: {
 		Slot &b = _slots[1];
 		b.params = _slots[0].params; b.passes = _slots[0].passes;
@@ -695,7 +835,41 @@ void RogerStudio::exportShown() {
 	Common::String name;
 	Graphics::Surface *tmp = nullptr;        // composed export needing free
 	const Graphics::Surface *src = nullptr;
-	if (_displayMode == kShowSplit || _displayMode == kShowDiff) {
+	if (_displayMode == kShowGrid6) {
+		ensureGridCels();
+		if (!_gcSurf[0]) { _status = "nothing to export"; markDirty(); return; }
+		// Window-independent compose: every tile at 8 screen px per native px.
+		const int kS = 8, kPad = 8;
+		const Graphics::Font *lf = FontMan.getFontByUsage(Graphics::FontManager::kBigGUIFont);
+		const int labelH = lf ? (lf->getFontHeight() + 4) : 0;
+		const int tw = _gcW * kS + 2 * kPad, th = _gcH * kS + labelH + 2 * kPad;
+		Graphics::ManagedSurface gridOut(3 * tw, 2 * th, _slots[0].render
+			? _slots[0].render->format : _display->format);
+		gridOut.fillRect(Common::Rect(gridOut.w, gridOut.h), gridOut.format.RGBToColor(32, 32, 32));
+		const uint32 white = gridOut.format.RGBToColor(255, 255, 255);
+		for (int i = 0; i < gridTileCount(); i++) {
+			if (!_gcSurf[i])
+				continue;
+			const int col = i % 3, row = i / 3;
+			const int tx = col * tw, ty = row * th;
+			if (lf) {
+				const int slot = gridPresetSlot(i);
+				if (slot >= 0)
+					lf->drawString(&gridOut, viewScalerPreset(slot).label,
+					               tx + kPad, ty + 2, tw - 2 * kPad, white);
+			}
+			const Common::Rect d(tx + kPad, ty + labelH + kPad,
+			                     tx + kPad + _gcW * kS, ty + labelH + kPad + _gcH * kS);
+			gridOut.blendBlitFrom(*_gcSurf[i], Common::Rect(0, 0, _gcSurf[i]->w, _gcSurf[i]->h), d,
+			                      Graphics::FLIP_NONE);
+		}
+		tmp = new Graphics::Surface();
+		tmp->copyFrom(gridOut.rawSurface());
+		src = tmp;
+		const int viewId = _viewIds.empty() ? 0 : _viewIds[_viewIdx];
+		name = studioExportName("grid", viewId,
+			sanitize(Common::String::format("l%d-c%d", _loopNo, _celNo)));
+	} else if (_displayMode == kShowSplit || _displayMode == kShowDiff) {
 		ensureFresh(_slots[0]); ensureFresh(_slots[1]);
 		if (!_slots[0].render || !_slots[1].render) { _status = "nothing to export"; markDirty(); return; }
 		const Common::String sa = sanitize(slotStamp(_slots[0]));

@@ -48,7 +48,7 @@ public:
 
 private:
 	enum PlateMode { kPlateOmyac = 0, kPlateNearestRef };
-	enum Display { kShowA = 0, kShowB, kShowSplit, kShowDiff };
+	enum Display { kShowA = 0, kShowB, kShowSplit, kShowDiff, kShowGrid6 };
 
 	struct Slot {
 		OmyacParams        params;
@@ -71,6 +71,10 @@ private:
 	void blitRender(const Graphics::Surface &render, const Common::Rect &subArea);
 	// Light 1-screen-px grid at plate-pixel boundaries (only when _viewScale >= 3).
 	void drawPixelGrid(const Common::Rect &subArea);
+	void drawGrid(const Common::Rect &area);   // 6-pipeline cel comparison tiles
+	void ensureGridCels();                     // (re)build _gcSurf for the current cel
+	void freeGridCels();
+	void stepAnimCel();                        // advance shared cel index (wraps)
 	void drawPanel();                // Task 6
 	void dispatchWidget(uint32 id);  // Task 6
 	void markDirty() { _dirty = true; }
@@ -119,6 +123,20 @@ private:
 	bool _showView = true;
 	bool _showBackfill = false;      // recolour "unfilled" (fillNullPixels) pixels hot pink
 	bool _showGrid = false;          // light plate-pixel grid when zoomed in (>= 3x)
+
+	// Global cel playback (all display modes).
+	bool   _animPlaying = false;
+	int    _animSpeedIdx = 2;        // index into animSpeedMs table (150 ms)
+	uint32 _lastAnimTick = 0;
+
+	// Grid-mode per-cel cache: the current cel rendered through the six grid
+	// presets, each at its preset's own factor. Keyed by (view, loop, cel);
+	// any mismatch rebuilds. Surfaces owned.
+	int _gcView = -1, _gcLoop = -1, _gcCel = -1;
+	Graphics::Surface *_gcSurf[6] = {};
+	int _gcFactor[6] = {};
+	int _gcW = 0, _gcH = 0;          // native cel dims
+	int _gcDx = 0, _gcDy = 0;        // native displaceX/Y
 
 	// Mouse pointer in overlay (_display) coords. Real SDL events already arrive in
 	// overlay space when the overlay is shown (see handleEvent); we composite our own
