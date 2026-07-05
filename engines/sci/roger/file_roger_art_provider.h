@@ -68,6 +68,9 @@ public:
 	                  int fontId, int penColor, int align,
 	                  int nativeFontH, int nativeTextW, uint32 winToken) override;
 	void onNativeEraseRect(const Common::Rect &nativeRect) override;
+	void onNativeSaveRect(uint32 handleToken, const Common::Rect &rect) override;
+	void onNativeFreeSave(uint32 handleToken) override;
+	void onNativeRestoreRect(uint32 handleToken, const Common::Rect &rect) override;
 	void snapshotNativeBaseline() override;
 	void onTransition(int sciType, const Common::Rect &picRect) override;
 	void onShake(int shakeCount, int directions) override;
@@ -206,6 +209,11 @@ private:
 	// just an index (cleared whenever _uiIcons is freed).
 	struct DrawCelNativeKey { int viewId; int loopNo; int celNo; Graphics::Surface *surf; };
 	Common::Array<DrawCelNativeKey> _drawCelNativeCache;
+	// Rects rolled back this cycle: a bitsShow inside one is SCI revealing restored
+	// background, not drawing content — Feeder B must not stamp it. Cleared at the
+	// end of each animate cycle and whenever new content is drawn over the rect.
+	Common::Array<Common::Rect> _revealRects;
+	uint32 _stampSeqCounter = 0; // seq tags for Feeder B stamps (rollback scope)
 	int _nativeDrawDepth = 0;                 // >0 => inside a Roger-handled draw
 	Common::Array<Common::Rect> _genRegions;  // Feeder B native rects captured this frame
 	Common::Array<byte> _nativeBaseline;      // last "known" native visual buffer (Feeder B diff)
@@ -248,6 +256,7 @@ private:
 	void ensureCompositeCache(int w, int h);
 	Common::Rect _lastGameRect;                      // gameRect used for the cached scene
 	void ensureUi();                                 // lazily build _journal + _textRenderer
+	void journalAppend(const Roger::UiElement &e);  // clear _revealRects intersecting e.nativeRect, then _journal->append(e)
 	void presentWithUi();                            // compose _sceneCache + _journal -> overlay
 	// Side-by-side compare mode: build enhanced(left)|original(right) into the overlay and
 	// present full. Gated by _mode == kModeSideBySide; called from renderFrame/presentWithUi.

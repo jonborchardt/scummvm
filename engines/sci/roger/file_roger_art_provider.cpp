@@ -1647,7 +1647,7 @@ void FileRogerArtProvider::uiPushWindow(const Common::Rect &r, int backColor, in
 		e.windowId = token & 0x0FFFFFFFu; // the window box op belongs to itself
 		_journal->openBracket(e.windowId, r);
 	}
-	_journal->append(e);
+	journalAppend(e);
 	markUiDirty(r);
 	presentBarrier();
 }
@@ -1665,7 +1665,7 @@ void FileRogerArtProvider::uiPushText(const Common::Rect &r, const char *text, i
 	e.textRole = textRole; e.useAltFont = useAltFont;
 	e.nativeFontH = nativeFontH; e.nativeTextW = nativeTextW;
 	buildGlyphs(text, fontId, penColor, e.glyphs);
-	_journal->append(e);
+	journalAppend(e);
 	markUiDirty(r);
 	presentBarrier();
 }
@@ -1681,7 +1681,7 @@ void FileRogerArtProvider::uiPushButton(const Common::Rect &r, const char *text,
 	e.backColor = 7 /*light gray*/; e.penColor = 0; e.hasFrame = true; e.token = token;
 	e.nativeFontH = nativeFontH; e.nativeTextW = nativeTextW;
 	buildGlyphs(text, fontId, e.penColor, e.glyphs);
-	_journal->append(e);
+	journalAppend(e);
 	markUiDirty(r);
 	presentBarrier();
 }
@@ -1699,7 +1699,7 @@ void FileRogerArtProvider::uiPushTextEdit(const Common::Rect &r, const char *tex
 	e.vAlignTop = true;            // SCI draws edit text at the top of the field, not centred
 	e.nativeFontH = nativeFontH; e.nativeTextW = nativeTextW;
 	buildGlyphs(text, fontId, e.penColor, e.glyphs);
-	_journal->append(e);
+	journalAppend(e);
 	markUiDirty(r);
 	presentBarrier();
 }
@@ -1725,7 +1725,7 @@ void FileRogerArtProvider::uiPushIcon(const Common::Rect &r, int viewId, int loo
 		Graphics::Surface *cel = renderNativeCel(viewId, loopNo, celNo);
 		if (cel) { _uiIcons.push_back(cel); e.iconSurface = cel; }
 	}
-	_journal->append(e);
+	journalAppend(e);
 	markUiDirty(r);
 	presentBarrier();
 }
@@ -1792,7 +1792,7 @@ void FileRogerArtProvider::onDrawCel(const Common::Rect &r, int viewId, int loop
 		e.iconSurface = surf; // borrowed from cache; journal borrows
 	}
 
-	_journal->append(e);
+	journalAppend(e);
 	markUiDirty(r);
 	presentBarrier();
 }
@@ -1815,7 +1815,7 @@ void FileRogerArtProvider::uiPushStatus(const Common::Rect &r, const char *text,
 	Roger::UiElement bar;
 	bar.type = Roger::kUiWindow; bar.nativeRect = r; bar.backColor = backColor;
 	bar.penColor = penColor; bar.style = 2; bar.token = token;
-	_journal->append(bar);
+	journalAppend(bar);
 
 	// Hybrid banner: crisp TTF for ASCII characters, game's own SCI font glyph spliced
 	// inline for non-ASCII bytes (e.g. SQ3's stylized "III"). No whole-native path.
@@ -1828,7 +1828,7 @@ void FileRogerArtProvider::uiPushStatus(const Common::Rect &r, const char *text,
 	e.token = token;
 	e.nativeFontH = nativeFontH; e.nativeTextW = nativeTextW;
 	buildGlyphs(text, fontId, penColor, e.glyphs);
-	_journal->append(e);
+	journalAppend(e);
 	markUiDirty(r);
 	presentBarrier();
 }
@@ -1933,6 +1933,65 @@ void FileRogerArtProvider::onNativeEraseRect(const Common::Rect &nativeRect) {
 	presentBarrier();
 }
 
+void FileRogerArtProvider::journalAppend(const Roger::UiElement &e) {
+	// Drop any reveal rect that the newly appended content overlaps: new content
+	// drawn over a rolled-back region is genuine and should not be suppressed.
+	for (uint i = _revealRects.size(); i-- > 0;) {
+		if (_revealRects[i].intersects(e.nativeRect))
+			_revealRects.remove_at(i);
+	}
+	_journal->append(e);
+}
+
+void FileRogerArtProvider::onNativeSaveRect(uint32 handleToken, const Common::Rect &rect) {
+	if (!_journal) return;
+	_journal->checkpoint(handleToken, rect);
+}
+
+void FileRogerArtProvider::onNativeFreeSave(uint32 handleToken) {
+	if (!_journal) return;
+	_journal->dropCheckpoint(handleToken);
+}
+
+void FileRogerArtProvider::onNativeRestoreRect(uint32 handleToken, const Common::Rect &rect) {
+	// §3.1 invalidation first, exactly like onNativeEraseRect (the barrier defers
+	// mid-cycle; a frozen cycle flushes the mark).
+	markNativeDirty(rect);
+	if (!overlayShown() || !_plate || !_journal) { presentBarrier(); return; }
+	Common::Array<Common::Rect> removed;
+	bool did = _journal->rollback(handleToken, rect, &removed);
+	if (!did)
+		did = _journal->eraseContained(rect, &removed); // unknown handle: old semantics
+	// Stamps drawn since the checkpoint inside the rect die with the rollback
+	// (menu-bug class: a dropdown's own stamps must not outlive it).
+	for (uint i = _textSprites.size(); i-- > 0;) {
+		if (rect.contains(_textSprites[i].celRect) && _textSprites[i].seq > 0) {
+			removed.push_back(_textSprites[i].celRect);
+			if (_textSprites[i].celOverride && _textSprites[i].celOverrideOwned) {
+				_textSprites[i].celOverride->free();
+				delete _textSprites[i].celOverride;
+			}
+			_textSprites.remove_at(i);
+			did = true;
+		}
+	}
+	// …and pending not-yet-processed regions inside the rect are stale too.
+	for (uint i = _foregroundRegions.size(); i-- > 0;) {
+		if (rect.contains(_foregroundRegions[i].rect))
+			_foregroundRegions.remove_at(i);
+	}
+	for (uint i = 0; i < removed.size(); i++)
+		markVacatedDirty(removed[i]);
+	// Remember the reveal: the caller (or a later native op this cycle) will
+	// bitsShow the restored pixels; that show is NOT content.
+	_revealRects.push_back(rect);
+	if (_diag)
+		warning("ROGER-DIAG[restore]: tok=0x%08x rect=(%d,%d,%d,%d) rolledBack=%d removed=%u",
+		        handleToken, rect.left, rect.top, rect.right, rect.bottom,
+		        did ? 1 : 0, (unsigned)removed.size());
+	presentBarrier();
+}
+
 void FileRogerArtProvider::uiClearAll() {
 	if (_journal) _journal->clear();
 	for (uint i = 0; i < _uiIcons.size(); i++) { _uiIcons[i]->free(); delete _uiIcons[i]; }
@@ -1977,7 +2036,7 @@ void FileRogerArtProvider::uiPushFrameBox(const Common::Rect &r, int penColor) {
 	e.penColor = penColor;
 	e.hasFrame = true;
 	e.token = FRAME_BOX_TOKEN;
-	_journal->append(e);
+	journalAppend(e);
 	// RETAINED duty-3 exception (Phase 3, uiClearToken's twin): no SCI save-under exists
 	// for the frame box, and the net can't see overlay-only draws — old position would ghost.
 	if (!oldFrameRect.isEmpty()) markVacatedDirty(oldFrameRect);
@@ -2127,6 +2186,7 @@ void FileRogerArtProvider::processForegroundCaptures(const Common::Array<Common:
 				_textSprites[j].celOverride = snap;
 				_textSprites[j].celOverrideOwned = true;
 				_textSprites[j].owner = pending[i].owner; // latest draw's window owns the stamp
+				_textSprites[j].seq = ++_stampSeqCounter; // refresh seq: any rollback affecting this region will drop it
 				updated = true;
 				break;
 			}
@@ -2141,6 +2201,7 @@ void FileRogerArtProvider::processForegroundCaptures(const Common::Array<Common:
 		s.celOverride = snap;
 		s.celOverrideOwned = true;
 		s.owner = pending[i].owner; // window token: stamp dies with its window (uiClearToken)
+		s.seq = ++_stampSeqCounter; // seq tag: rollback can remove this stamp if it postdates a checkpoint
 		_textSprites.push_back(s);
 		if (_diag)
 			warning("ROGER-DIAG[fgCapture]: pic=%d rect=(%d,%d,%d,%d) owner=0x%08x now=%u",
@@ -2226,6 +2287,13 @@ void FileRogerArtProvider::onNativeShowRect(const Common::Rect &screenRect, uint
 	// (e.g. the menu bar's black underline row) must not become a picture stamp.
 	if (screenRect.bottom <= (int16)_statusBarH)
 		return;
+	// A show inside a rect we just rolled back is SCI revealing restored
+	// background — capture nothing (structural replacement for the hand-placed
+	// beginNativeDraw suppressions on restore paths; kills the menu-close class).
+	for (uint i = 0; i < _revealRects.size(); i++) {
+		if (_revealRects[i].contains(screenRect))
+			return;
+	}
 	if (_diag)
 		warning("ROGER-DIAG[showRect]: pic=%d rect=(%d,%d,%d,%d) owner=0x%08x", _loadedPicId,
 		        screenRect.left, screenRect.top, screenRect.right, screenRect.bottom, ownerToken);
@@ -2319,7 +2387,7 @@ void FileRogerArtProvider::flushGenericText() {
 				}
 			}
 		}
-		_journal->append(e);
+		journalAppend(e);
 	}
 	_genTextPending.clear();
 	// Drop any generic element a controls16/menu element already covers (no double render).
@@ -2582,6 +2650,7 @@ void FileRogerArtProvider::renderFromAnimateList(const AnimateList &list) {
 		delete nativeSurfaces[i];
 	}
 	_inAnimateCycle = false; // cycle draw complete — reopen the barrier
+	_revealRects.clear();   // reveal suppressions expire at cycle end (bitsShow fired already)
 	presentBarrier(); // spec §3.2: the per-cycle present (fresh-frame branch — no recompose)
 }
 
