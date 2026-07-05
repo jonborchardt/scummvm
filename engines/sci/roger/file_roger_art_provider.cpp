@@ -59,6 +59,7 @@ class GfxCompare;
 #include "sci/engine/seg_manager.h"
 #include "sci/engine/kernel.h"
 #include "sci/engine/selector.h"
+#include "sci/engine/vm.h"
 #include "graphics/managed_surface.h"
 #include "graphics/paletteman.h"
 #include "graphics/pixelformat.h"
@@ -786,11 +787,17 @@ int FileRogerArtProvider::uiWindowCount() const {
 Common::String FileRogerArtProvider::describeState() {
 	int egoX = -1, egoY = -1;
 	if (g_sci && g_sci->getEngineState() && g_sci->getEngineState()->_segMan) {
-		SegManager *segMan = g_sci->getEngineState()->_segMan;
-		const reg_t ego = segMan->findObjectByName("ego");
-		if (!ego.isNull()) {
-			egoX = readSelectorValue(segMan, ego, SELECTOR(x));
-			egoY = readSelectorValue(segMan, ego, SELECTOR(y));
+		EngineState *s = g_sci->getEngineState();
+		SegManager *segMan = s->_segMan;
+		// global var 0 holds the live ego instance (kGlobalVarEgo).
+		// findObjectByName("ego") resolves the class template (or NULL on ambiguity),
+		// not the live object — so egox/egoy always read 0,0 from it.
+		if (s->variables[VAR_GLOBAL]) {
+			const reg_t ego = s->variables[VAR_GLOBAL][kGlobalVarEgo];
+			if (!ego.isNull() && segMan->isObject(ego)) {
+				egoX = readSelectorValue(segMan, ego, SELECTOR(x));
+				egoY = readSelectorValue(segMan, ego, SELECTOR(y));
+			}
 		}
 	}
 	const char *modeStr = (_mode == Roger::kModeOriginal) ? "original"
@@ -808,11 +815,15 @@ int FileRogerArtProvider::stateValue(const Common::String &key) {
 		return (int)_mode;
 	if (key == "egox" || key == "egoy") {
 		if (g_sci && g_sci->getEngineState() && g_sci->getEngineState()->_segMan) {
-			SegManager *segMan = g_sci->getEngineState()->_segMan;
-			const reg_t ego = segMan->findObjectByName("ego");
-			if (!ego.isNull())
-				return readSelectorValue(segMan, ego,
-					(key == "egox") ? SELECTOR(x) : SELECTOR(y));
+			EngineState *s = g_sci->getEngineState();
+			SegManager *segMan = s->_segMan;
+			// global var 0 holds the live ego instance (kGlobalVarEgo).
+			if (s->variables[VAR_GLOBAL]) {
+				const reg_t ego = s->variables[VAR_GLOBAL][kGlobalVarEgo];
+				if (!ego.isNull() && segMan->isObject(ego))
+					return readSelectorValue(segMan, ego,
+						(key == "egox") ? SELECTOR(x) : SELECTOR(y));
+			}
 		}
 		return -1;
 	}
