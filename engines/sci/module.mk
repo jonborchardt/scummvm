@@ -119,7 +119,6 @@ MODULE_OBJS += \
 	roger/roger_pic_parser.o \
 	roger/roger_scale.o \
 	roger/roger_text.o \
-	roger/roger_ui_layer.o \
 	roger/roger_journal.o \
 	roger/roger_launcher.o \
 	roger/roger_launcher_dialog.o \

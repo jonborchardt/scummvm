@@ -63,7 +63,6 @@ $RogerSources = @(
     "..\..\engines\sci\roger\roger_effects.cpp",
     "..\..\engines\sci\roger\roger_cursor.cpp",
     "..\..\engines\sci\roger\roger_compositor.cpp",
-    "..\..\engines\sci\roger\roger_ui_layer.cpp",
     "..\..\engines\sci\roger\roger_text.cpp",
     "..\..\engines\sci\roger\roger_palette_remap.cpp",
     "..\..\engines\sci\roger\roger_selftest.cpp",

@@ -76,30 +76,6 @@ struct UiElement {
 		nativeFontH(0), nativeTextW(0), windowId(0) {}
 };
 
-// Forward-declare the pure helper from roger_compositor.h so RogerUiLayer can
-// expose a thin forwarder without a circular include (roger_compositor.h already
-// includes this file, so we cannot include it here in return).
-void dedupeGenericTextElements(Common::Array<UiElement>&, uint32);
-
-class RogerUiLayer {
-public:
-	// Append, or replace an existing element with the same type+token+rect.
-	void push(const UiElement &e);
-	// Remove every element carrying this clear-token. Returns true if any element was removed.
-	// If `removedNativeRects` is non-null, the nativeRect of each removed element is appended
-	// to it so the caller can dirty the vacated overlay regions (else stale pixels linger).
-	bool clearToken(uint32 token, Common::Array<Common::Rect> *removedNativeRects = nullptr);
-	void clearAll() { _elems.clear(); }
-	bool empty() const { return _elems.empty(); }
-	const Common::Array<UiElement> &elements() const { return _elems; }
-	// Drop each generic-token element whose rect is already covered by a non-generic
-	// text-rendering element (kUiText/kUiButton/kUiTextEdit). Forwards to the pure helper.
-	void dedupeGenericText(uint32 genericToken) { dedupeGenericTextElements(_elems, genericToken); }
-
-private:
-	Common::Array<UiElement> _elems;
-};
-
 } // namespace Roger
 } // namespace Sci
 

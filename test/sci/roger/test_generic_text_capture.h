@@ -90,23 +90,6 @@ public:
 		TS_ASSERT(elems[2].type == kUiIcon);
 		TS_ASSERT(elems[3].token == G && elems[3].nativeRect == Common::Rect(12, 51, 90, 61));
 	}
-	void test_dedupe_later_generic_at_same_rect_supersedes_earlier() {
-		// The same on-screen text box can be re-drawn under a DIFFERENT current port
-		// (QFG1 char sheet: initial draw in the window port, stat redraws with the
-		// picture port current), giving two generic elements with different tokens at
-		// the same rect. Native is immediate-mode: the later draw overprinted the
-		// earlier one, so only the LATER element may survive.
-		const uint32 G = 0x60000000u;
-		Common::Array<UiElement> elems;
-		UiElement oldVal = txt(170, 45, 192, 57, G | 3); oldVal.text = "25";
-		UiElement newVal = txt(170, 45, 192, 57, G | 2); newVal.text = "30";
-		elems.push_back(oldVal);
-		elems.push_back(newVal);
-		Roger::dedupeGenericTextElements(elems, G);
-		TS_ASSERT_EQUALS(elems.size(), 1u);
-		TS_ASSERT(elems[0].text == "30");
-		TS_ASSERT_EQUALS(elems[0].token, G | 2);
-	}
 	void test_dedupe_generic_same_rect_same_token_untouched() {
 		// push() already handles same-token replacement; dedupe must not eat a lone
 		// element, and two DIFFERENT-rect generics always coexist.

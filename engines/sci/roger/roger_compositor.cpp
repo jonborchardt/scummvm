@@ -323,17 +323,8 @@ void dedupeGenericTextElements(Common::Array<UiElement> &elems, uint32 genericTo
 			for (uint j = 0; j < elems.size(); j++) {
 				if (j == i)
 					continue;
-				if ((elems[j].token & ns) == genericToken) {
-					// Later generic draw at the same rect supersedes this one (push()
-					// only replaces on matching token, but the same box is re-drawn
-					// under a different current port when e.g. the QFG1 char sheet
-					// updates a stat value — native overprinted the old text).
-					if (j > i && elems[j].type == kUiText && elems[i].type == kUiText &&
-					    elems[j].nativeRect == elems[i].nativeRect) {
-						drop = true; break;
-					}
+				if ((elems[j].token & ns) == genericToken)
 					continue;
-				}
 				const UiElementType jt = elems[j].type;
 				const bool jRendersText = (jt == kUiText || jt == kUiButton || jt == kUiTextEdit);
 				// A control that renders the same text usually draws its label at a small

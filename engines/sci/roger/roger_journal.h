@@ -28,6 +28,11 @@
 namespace Sci {
 namespace Roger {
 
+// Forward-declare the pure compositor helper so RogerJournal can expose a thin
+// forwarder without a circular include (roger_compositor.h already includes this
+// file via roger_ui_layer.h, so we cannot include roger_compositor.h here).
+void dedupeGenericTextElements(Common::Array<UiElement>&, uint32);
+
 // True when a newly appended op replaces `older` outright: same type, and the new
 // rect contains the old one. Models native immediate-mode redraw-in-place (SCI
 // erases/overprints the box before or while redrawing it). Pure: unit-testable.
