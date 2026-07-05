@@ -69,9 +69,10 @@ void RogerJournal::openBracket(uint32 windowId, const Common::Rect &winRect) {
 }
 
 bool RogerJournal::closeBracket(uint32 windowId, Common::Array<Common::Rect> *removedNativeRects) {
-	for (uint i = _brackets.size(); i-- > 0;)
+	for (uint i = _brackets.size(); i-- > 0;) {
 		if (_brackets[i].id == windowId)
 			_brackets.remove_at(i);
+	}
 	bool removed = false;
 	for (uint i = 0; i < _ops.size();) {
 		if (_ops[i].windowId == windowId && windowId != 0) {
