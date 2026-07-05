@@ -724,3 +724,36 @@ public:
 		TS_ASSERT(!Sci::Roger::restoreReclaimsStamp(restore, show, 90));
 	}
 };
+
+// Round-2 residue #1: the stuck menu-title strip. On the mouse menu path SCI closes the
+// menu with bitsRestore of the full menu strip (reverting native to the score banner)
+// WITHOUT a follow-up kernelDrawStatus, so onNativeRestoreRect is the only seam that can
+// re-apply the enhanced banner. The provider gates that re-apply on the restore rect
+// covering the status strip (>= 90% of _statusRect) so a dropdown's own narrower restore
+// (which never touches the banner row 0) does not spuriously re-push the banner. These
+// pin that pure coverage discrimination on the exact geometry from the diag trace.
+class TestStatusStripRestore : public CxxTest::TestSuite {
+public:
+	// _statusRect is the top strip; the menu-bar save-under restore is the full strip.
+	void test_full_strip_restore_covers_status_rect() {
+		const Common::Rect statusRect(0, 0, 320, 9);  // _ports->_menuBarRect (banner strip)
+		const Common::Rect barRestore(0, 0, 320, 10); // bitsRestore(_barSaveHandle) rect (diag line)
+		TS_ASSERT(Sci::Roger::rectCoverageFraction(statusRect, barRestore) >= 90);
+	}
+
+	// A dropdown's own save-under restore starts at row 9 and is far narrower — it must NOT
+	// be mistaken for a strip revert (else every dropdown close would re-push the banner).
+	void test_dropdown_restore_does_not_cover_status_rect() {
+		const Common::Rect statusRect(0, 0, 320, 9);
+		const Common::Rect dropRestore(7, 9, 141, 27); // File dropdown restore (diag line 375/378)
+		TS_ASSERT(Sci::Roger::rectCoverageFraction(statusRect, dropRestore) < 90);
+	}
+
+	// A deep dropdown (Game/Action, reaching well into the scene) still never covers the
+	// banner row 0, so a scene-deep dropdown close does not re-push the banner either.
+	void test_deep_dropdown_restore_does_not_cover_status_rect() {
+		const Common::Rect statusRect(0, 0, 320, 9);
+		const Common::Rect deepDrop(7, 9, 141, 59);
+		TS_ASSERT(Sci::Roger::rectCoverageFraction(statusRect, deepDrop) < 90);
+	}
+};

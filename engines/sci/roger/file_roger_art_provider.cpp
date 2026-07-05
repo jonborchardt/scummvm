@@ -1998,6 +1998,23 @@ void FileRogerArtProvider::onNativeRestoreRect(uint32 handleToken, const Common:
 		warning("ROGER-DIAG[restore]: tok=0x%08x rect=(%d,%d,%d,%d) rolledBack=%d removed=%u",
 		        handleToken, rect.left, rect.top, rect.right, rect.bottom,
 		        did ? 1 : 0, (unsigned)removed.size());
+	// The top strip's score/title banner and the transient menu bar share the singleton
+	// token 0x10000000 (menu.cpp: rogerPushBarOverlay / uiPushStatus). On the MOUSE menu
+	// path SCI closes the menu by bitsRestore(_barSaveHandle) of the full menu strip —
+	// which reverts the NATIVE pixels to the saved banner background — WITHOUT a following
+	// kernelDrawStatus. rollback() deliberately spares the 0x10000000 op from removal
+	// (isSaveUnderExemptSingleton), so the stale menu-titles op is neither rolled back nor
+	// re-pushed as the banner: the enhanced strip stays stuck on "File Game Action ..."
+	// while native shows the score banner (SBS-confirmed Roger defect). When a restore
+	// reverts the whole status strip, re-apply the cached banner to mirror native — the
+	// same seam the keyboard path reaches via a follow-up kernelDrawStatus. Gated on the
+	// restore actually covering the strip (>= 90% of _statusRect), so a dropdown's own
+	// narrower restore (top row 9, never touching the banner row 0) does not trigger it.
+	if (_haveStatus && !_statusRect.isEmpty() &&
+	    Roger::rectCoverageFraction(_statusRect, rect) >= 90) {
+		reapplyStatus(); // clears 0x10000000 titles, re-pushes the banner, presents
+		return;
+	}
 	presentBarrier();
 }
 
