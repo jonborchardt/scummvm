@@ -421,6 +421,12 @@ reg_t GfxPaint16::bitsSave(const Common::Rect &rect, byte screenMask, bool hires
 	byte *memoryPtr = _segMan->getHunkPointer(memoryId);
 	if (memoryPtr)
 		_screen->bitsSave(workerRect, screenMask, memoryPtr);
+	// Roger: a save-under is a journal checkpoint — its restore must roll back
+	// everything drawn over the saved region since this moment.
+	if (g_sciRogerProvider && g_sciRogerProvider->enabled && !memoryId.isNull()) {
+		const uint32 tok = ((uint32)memoryId.getSegment() << 16) | memoryId.getOffset();
+		g_sciRogerProvider->onNativeSaveRect(tok, workerRect);
+	}
 	return memoryId;
 }
 
@@ -435,24 +441,18 @@ void GfxPaint16::bitsGetRect(reg_t memoryHandle, Common::Rect *destRect) {
 }
 
 void GfxPaint16::bitsRestore(reg_t memoryHandle) {
-	// Roger hires dialogs: SCI restores the region under a save-under text box when it
-	// is dismissed; clear the captured message keyed by the same handle. Captured
-	// kDrawCel icons (inventory close-ups etc.) are dropped geometrically by
-	// onNativeEraseRect below — the restored rect covers a dismissed close-up, while a
-	// small save-under restore (QFG1 char-sheet stat redraw) leaves unrelated icons alone.
-	if (g_sciRogerProvider && g_sciRogerProvider->enabled && !memoryHandle.isNull()) {
-		const uint32 tok = ((uint32)memoryHandle.getSegment() << 16) | memoryHandle.getOffset();
-		g_sciRogerProvider->uiClearToken(tok);
-	}
-
 	if (!memoryHandle.isNull()) {
 		byte *memoryPtr = _segMan->getHunkPointer(memoryHandle);
 
 		if (memoryPtr) {
+			// Roger: roll back overlay elements appended since the matching bitsSave
+			// checkpoint and invalidate the restored region (subsumes the old
+			// uiClearToken + onNativeEraseRect pair on this path).
 			if (g_sciRogerProvider && g_sciRogerProvider->enabled) {
 				Common::Rect restored;
-				_screen->bitsGetRect(memoryPtr, &restored); // global rect of the saved area
-				g_sciRogerProvider->onNativeEraseRect(restored);
+				_screen->bitsGetRect(memoryPtr, &restored);
+				const uint32 tok = ((uint32)memoryHandle.getSegment() << 16) | memoryHandle.getOffset();
+				g_sciRogerProvider->onNativeRestoreRect(tok, restored);
 			}
 			_screen->bitsRestore(memoryPtr);
 			bitsFree(memoryHandle);
@@ -465,6 +465,10 @@ void GfxPaint16::bitsRestore(reg_t memoryHandle) {
 }
 
 void GfxPaint16::bitsFree(reg_t memoryHandle) {
+	if (g_sciRogerProvider && g_sciRogerProvider->enabled && !memoryHandle.isNull()) {
+		const uint32 tok = ((uint32)memoryHandle.getSegment() << 16) | memoryHandle.getOffset();
+		g_sciRogerProvider->onNativeFreeSave(tok);
+	}
 	if (!memoryHandle.isNull())	// happens in KQ5CD
 		_segMan->freeHunkEntry(memoryHandle);
 }

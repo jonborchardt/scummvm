@@ -566,20 +566,21 @@ void GfxPorts::removeWindow(Window *pWnd, bool reanimate) {
 	}
 
 	setPort(_wmgrPort);
+	const bool hadNoSaveUnder = pWnd->hSaved1.isNull() && pWnd->hSaved2.isNull();
 	_paint16->bitsRestore(pWnd->hSaved1);
 	pWnd->hSaved1 = NULL_REG;
 	_paint16->bitsRestore(pWnd->hSaved2);
 	pWnd->hSaved2 = NULL_REG;
 	if (!reanimate) {
-		// Suppress the Roger Feeder B capture of this show: it blits the just-restored
-		// native background of a window that no longer exists — stamping it would pin
-		// un-enhanced native pixels over the hires plate with no owner left to clear them.
-		// The overlay repaint of the vacated area comes from the uiClearToken dirty rects.
-		if (g_sciRogerProvider && g_sciRogerProvider->enabled)
-			g_sciRogerProvider->beginNativeDraw();
+		// transparent/no-save-under windows have no hunk to restore; plant the
+		// reveal explicitly so the show below is never captured.
+		if (g_sciRogerProvider && g_sciRogerProvider->enabled && hadNoSaveUnder)
+			g_sciRogerProvider->onNativeRestoreRect(0, pWnd->restoreRect);
+		// The reveal gate in onNativeShowRect suppresses Feeder B capture of this
+		// show: it blits the just-restored native background via bitsRestore (via
+		// hSaved1/hSaved2 above), which already pushed a _revealRect, so the
+		// subsequent bitsShow here is covered and not re-stamped.
 		_paint16->bitsShow(pWnd->restoreRect);
-		if (g_sciRogerProvider && g_sciRogerProvider->enabled)
-			g_sciRogerProvider->endNativeDraw();
 	} else
 		_paint16->kernelGraphRedrawBox(pWnd->restoreRect);
 	_windowList.remove(pWnd);

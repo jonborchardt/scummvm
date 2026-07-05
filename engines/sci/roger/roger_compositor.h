@@ -43,6 +43,7 @@ struct Sprite {
 	Graphics::Surface *celOverride = nullptr; // optional pre-rendered native cel (RGBA); used when no hires cel. Borrowed unless celOverrideOwned.
 	bool celOverrideOwned = false;            // true => this Sprite owns celOverride and must free it; false => borrowed (freed elsewhere)
 	uint32 owner = 0;      // init-cel captures: opaque animate-object token, shown only while the owner is absent from the live cast. Feeder B pixel stamps (_textSprites): owning-window token (0x40000000 | id), dropped on that window's dispose. 0 = none.
+	uint32 seq = 0;        // stamp seq tag (rollback scope): 0 = pre-phase/non-rollback stamp; >0 = set by processForegroundCaptures, consumed by onNativeRestoreRect.
 	// Game view cels (animate cast + Feeder A addToPic/init cels) are drawn with
 	// their dest rect grown a few overlay px (kCelCoverPx in renderScene): a cel
 	// flush in a plate opening leaves the opening's omyac-smoothed boundary free
@@ -89,6 +90,17 @@ void collectUiTextRects(const Common::Array<UiElement> &elems, uint32 genericTok
 // Percentage (0..100) of `inner`'s area covered by its intersection with `outer`. inner empty -> 0.
 int rectCoverageFraction(const Common::Rect &inner, const Common::Rect &outer);
 
+// True when a bitsRestore of `restoreRect` should reclaim a pixel stamp whose cel occupies
+// `stampRect` — the stamp's content was just overwritten by the restore. Uses coverage
+// (>= minCoveragePct of the STAMP inside the restore), NOT strict containment: a menu
+// dropdown's bitsSave/bitsRestore restore rect is byte-aligned and up to a pixel narrower
+// per side than the show rect that produced the stamp (show (60,9,214,59) vs restore
+// (61,9,214,59)). Strict `restoreRect.contains(stampRect)` fails that 1px inset and the
+// stamp is retained forever — the tracked non-enhanced menu residue. This MUST mirror the
+// >= 90% reveal-suppression at capture time so creation and rollback stay symmetric.
+bool restoreReclaimsStamp(const Common::Rect &restoreRect, const Common::Rect &stampRect,
+                          int minCoveragePct);
+
 // Append each `captured[i]` to `out` UNLESS some `exclude[j]` covers >= minCoveragePct of it.
 // Coverage-threshold variant of filterForegroundCaptureRegions: a region only edge-clipped by a
 // (often wide/multi-line) text rect is kept, so adjacent graphics are not lost to mere intersection.
@@ -111,10 +123,7 @@ bool regionIsCapturedWindowBody(const Common::Array<UiElement> &elems, uint32 ow
 // element that itself renders the SAME text (kUiText / kUiButton / kUiTextEdit) — so a
 // label controls16/menu already captured semantically is not rendered twice by the generic
 // text-out hook. A kUiWindow or kUiIcon enclosing the text does NOT drop it (those are a
-// frame/image, not the text). Also drops a generic text superseded by a LATER generic
-// text at the same rect regardless of token — the same box can be re-drawn under a
-// different current port (QFG1 char sheet stat redraws), and native immediate-mode means
-// the later draw overprinted the earlier one. In-place.
+// frame/image, not the text). In-place.
 void dedupeGenericTextElements(Common::Array<UiElement> &elems, uint32 genericToken);
 
 // True when a captured SCI window should be shrink-wrapped ("hugged") to its content

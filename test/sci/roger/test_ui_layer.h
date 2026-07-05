@@ -19,7 +19,7 @@
  */
 
 #include <cxxtest/TestSuite.h>
-#include "sci/roger/roger_ui_layer.h"
+#include "sci/roger/roger_journal.h"
 
 using namespace Sci::Roger;
 
@@ -35,50 +35,29 @@ static UiElement mkText(const Common::Rect &r, const char *t, uint32 token) {
 class TestUiLayer : public CxxTest::TestSuite {
 public:
 	void test_push_appends() {
-		RogerUiLayer layer;
-		TS_ASSERT(layer.empty());
-		layer.push(mkText(Common::Rect(0, 0, 10, 10), "a", 1));
-		layer.push(mkText(Common::Rect(0, 20, 10, 30), "b", 1));
-		TS_ASSERT_EQUALS(layer.elements().size(), 2u);
-	}
-
-	void test_push_same_rect_and_token_replaces() {
-		RogerUiLayer layer;
-		layer.push(mkText(Common::Rect(0, 0, 10, 10), "hel", 1));
-		layer.push(mkText(Common::Rect(0, 0, 10, 10), "hello", 1)); // same type+rect+token
-		TS_ASSERT_EQUALS(layer.elements().size(), 1u);
-		TS_ASSERT_EQUALS(layer.elements()[0].text, Common::String("hello"));
-	}
-
-	void test_push_replacement_moves_element_to_end() {
-		// Native SCI is immediate-mode: the most recent draw is on top. A re-pushed
-		// element (same type+token+rect) must therefore move to the END of the display
-		// list, not keep its original position — the QFG1 char-sheet selection frame's
-		// bottom edge was wiped by the NEXT row's blank cel, which overlapped by 1px
-		// and stayed later in first-push order.
-		RogerUiLayer layer;
-		layer.push(mkText(Common::Rect(0, 0, 10, 10), "frame", 1));
-		layer.push(mkText(Common::Rect(0, 9, 10, 19), "blank", 1)); // overlapping neighbor
-		layer.push(mkText(Common::Rect(0, 0, 10, 10), "frame2", 1)); // re-draw of the first
-		TS_ASSERT_EQUALS(layer.elements().size(), 2u);
-		TS_ASSERT_EQUALS(layer.elements()[0].text, Common::String("blank"));
-		TS_ASSERT_EQUALS(layer.elements()[1].text, Common::String("frame2")); // last draw on top
+		RogerJournal j;
+		TS_ASSERT(j.empty());
+		j.append(mkText(Common::Rect(0, 0, 10, 10), "a", 1));
+		j.append(mkText(Common::Rect(0, 20, 10, 30), "b", 1));
+		TS_ASSERT_EQUALS(j.ops().size(), 2u);
 	}
 
 	void test_clear_token_removes_only_matching() {
-		RogerUiLayer layer;
-		layer.push(mkText(Common::Rect(0, 0, 10, 10), "a", 1));
-		layer.push(mkText(Common::Rect(0, 20, 10, 30), "b", 2));
-		layer.clearToken(1);
-		TS_ASSERT_EQUALS(layer.elements().size(), 1u);
-		TS_ASSERT_EQUALS(layer.elements()[0].token, 2u);
+		RogerJournal j;
+		UiElement a = mkText(Common::Rect(0, 0, 10, 10), "a", 1); a.token = 1;
+		UiElement b = mkText(Common::Rect(0, 20, 10, 30), "b", 2); b.token = 2;
+		j.append(a);
+		j.append(b);
+		j.clearToken(1);
+		TS_ASSERT_EQUALS(j.ops().size(), 1u);
+		TS_ASSERT_EQUALS(j.ops()[0].token, 2u);
 	}
 
 	void test_clear_all() {
-		RogerUiLayer layer;
-		layer.push(mkText(Common::Rect(0, 0, 10, 10), "a", 1));
-		layer.clearAll();
-		TS_ASSERT(layer.empty());
+		RogerJournal j;
+		j.append(mkText(Common::Rect(0, 0, 10, 10), "a", 1));
+		j.clear();
+		TS_ASSERT(j.empty());
 	}
 
 	void test_ui_element_native_metrics_default_to_zero() {

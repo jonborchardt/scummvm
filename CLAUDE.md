@@ -187,8 +187,8 @@ A/B capture notes in Stage 2.
   most expensive lesson: **any overlay state tied to an element's lifetime must be updated
   at that element's DRAW hook, never deferred to the animate cycle.** A deferred flush of
   dialog text reaches the overlay only *after* its window is already disposed, so it misses
-  its clear and ghosts until the next window reuses the id. (Fix: `onNativeText` pushes into
-  `_uiLayer` immediately; it does not wait for `flushGenericText` in the next cycle.)
+  its clear and ghosts until the next window reuses the id. (Fix: `onNativeText` appends into
+  the `_journal` immediately; it does not wait for `flushGenericText` in the next cycle.)
 
 **The two structural lifetime signals — key off these, never off geometry or per-game knowledge:**
 
@@ -210,9 +210,13 @@ A/B capture notes in Stage 2.
   currently re-wraps (a known fidelity gap; a per-line `Draw`/`Show` hook would fix it).
 
 **Save-under is a real but INCOMPLETE erase signal.** `bitsSave`/`bitsRestore` back most
-transient overlays, and `bitsRestore` fires `onNativeEraseRect`. But transparent /
-no-save-under windows and `reanimate == false` disposals **skip it** — which is exactly why
-`removeWindow` (not `bitsRestore` alone) is the dependable dispose hook.
+transient overlays, and `bitsRestore` fires `onNativeRestoreRect` (a journal rollback —
+the saved pixels are revealed, never re-captured). But transparent / no-save-under windows
+and `reanimate == false` disposals **skip it** — which is exactly why `removeWindow` (not
+`bitsRestore` alone) is the dependable dispose hook. *Structural since e5c0fa2d115:
+restores are rollbacks; the `_revealRects` set suppresses Feeder-B re-capture of restored
+pixel shows; the `beginNativeDraw` suppression that previously lived in
+`GfxPorts::removeWindow` is deleted — reveal rects replace it on the restore path.*
 
 **The same content can be captured by more than one hook** (controls16 semantic + generic
 `Box` + `bitsShow` pixel). Keep a dedup/lifetime discipline (namespace tokens + covered-rect
@@ -238,7 +242,9 @@ room-entry position or wiped the room signs — both shipped as bugs once.
 | `GfxText16::Box` | **all** text-out | `onNativeText` |
 | `GfxPorts::openWindow` / `removeWindow` | window create / **dispose** | `uiPushWindow` / `uiClearToken` |
 | `kDrawControl` (button/text/edit/icon/list) | dialog controls | `uiPushButton`/`uiPushText`/`uiPushTextEdit` |
-| `bitsShow` / `bitsRestore` | native region show / save-under restore | `onNativeShowRect` / `onNativeEraseRect` (Feeder B) |
+| `bitsSave` | save-under snapshot (checkpoint) | `onNativeSaveRect` (journal checkpoint) |
+| `bitsFree` | free a save-under without restore (drop) | `onNativeFreeSave` (journal dropCheckpoint) |
+| `bitsShow` / `bitsRestore` | native region show / save-under restore | `onNativeShowRect` (Feeder B) / `onNativeRestoreRect` (journal rollback + reveal + dirty + barrier) |
 | `kGraphFrameBox` | selection frame primitive | `uiPushFrameBox` |
 | status/menu bar | top strip | `uiPushStatus` |
 | transitions (fade/dissolve/wipe/scroll/shake) | scene change FX | `onTransition` |
@@ -254,7 +260,7 @@ room-entry position or wiped the room signs — both shipped as bugs once.
   removal invisible to every scripted capture (Phase 2 proved it four ways, including
   real-overlay grabOverlay captures landing on the dismissal present); invalidation
   changes are verified by interactive soak, not by the gate.
-- Clearing/erasing by **geometry** (rect containment) instead of by **window token** → false drops (a popup over the char sheet wipes stat text beneath it).
+- Clearing/erasing by **geometry** (rect containment) instead of by **window token** → false drops (a popup over the char sheet wipes stat text beneath it). *Structural since 50a8522486f: the journal owns this — window brackets (open/close) own lifetime and generic text is keyed by draw-time port id inside them, while erase-rect containment does geometric removal; the two are no longer at odds.*
 - A per-cycle hook that forces a full present/recompose when nothing changed → walking slowdown.
 - Gating the text hook on `show == true` → misses all SCI0 EGA text.
 - Using port-local rects without `offsetRect` → offset text that never matches global erase rects.
@@ -274,12 +280,26 @@ room-entry position or wiped the room signs — both shipped as bugs once.
 - Replacing a re-pushed UI element **in place** in the retained display list → violates
   native immediate-mode ordering (the last draw is on top). The QFG1 char-sheet selection
   frame lost its bottom edge to the next row's blank cel, which overlapped it by 1 native px
-  and stayed later in first-push order. `RogerUiLayer::push` removes the old element and
-  APPENDS the replacement — keep it that way (fixed 2026-07-04).
+  and stayed later in first-push order. *Structural since 24fe0d5cb46: the journal owns this —
+  `RogerJournal::append` is append-only and `opSupersedes` retires the old op in place of an
+  in-list swap, so append order == draw order (last on top) by construction. (`RogerUiLayer`
+  and its `push` are deleted; the journal replaces them.)*
 - A **blanket namespace clear** on a generic event (`uiClearToken(0x50000000)` on every
   `kGraphRestoreBox`) → wiped ALL kDrawCel icons (char-sheet portrait + stat graphics) when
   any small save-under restored. Scope removals by the ERASE RECT geometry in
   `onNativeEraseRect` (containment), the same rule generic text uses (fixed 2026-07-04).
+  *Structural since 50a8522486f: the journal owns geometric removal — erase-rect containment
+  in the journal's prune path retires only the ops the erase rect covers, so a blanket
+  token clear is no longer even expressible.*
+- **Capture during a FROZEN cycle predates the reveal rect** — lifetime gates must run at
+  process/composite time, not only at capture time. A blocking menu loop captures
+  `onNativeShowRect` while the cycle is frozen; the `bitsRestore` (and its `_revealRects`
+  entry) only arrives AFTER the menu closes. Without a second check at `processForegroundCaptures`,
+  restored background content gets stamped as new overlay content. Similarly, `rollback` must
+  spare persistent singletons (status `0x10000000`, frame box `0x70000000`) that repaint while
+  a save-under is open — they postdate the checkpoint but are NOT save-under content.
+  *Structural since 53da7951bd1: reveal suppression also runs at process time (≥90% coverage);
+  rollback skips the persistent singleton tokens.*
 - Classifying an init-frame (`_picNotValid`) draw by **resource identity** (view / view+loop /
   view+loop+cel) instead of by its **owning object's lifetime** → either a frozen duplicate ego
   at the room-entry position or wiped room signs/stocked shelves, depending on which rule you
@@ -316,7 +336,7 @@ Hook at top of `GfxPaint16::drawPicture()` checks `g_sciRogerProvider`. When non
 | `engines/sci/roger/file_roger_art_provider.h/cpp` | Provider: `hasBackground()` (generating-mode gate), `pushHiresBackground()` (generates+presents the plate, routes occlusion through `generatePriorityMap()` — hires omyac-aligned), `precacheAll()`, scene/UI capture (incl. `buildGlyphs()` — pre-renders each non-ASCII byte from the game font for the hybrid text path), status-banner cache, cursor policy; implements native-extras hooks: `onAddToPicCel` (Feeder A — populates `_staticSprites`), `onInitCel` (Feeder A supplement — first-visit cels drawn during `_picNotValid` that bake into the native picture, e.g. QFG1 town signs; populates `_initCels`, one capture per owner object, latest wins; a cel is promoted only while its owner object is absent from the animate list — see the `_picNotValid` invariant above; both merged with the animate cast each frame via `mergeSpritesByPriority`), `beginNativeDraw`/`endNativeDraw`/`onNativeShowRect` (Feeder B bitsShow hook), `snapshotNativeBaseline` + `drawGenericRegions` (Feeder B pixel-diff backstop) |
 | `engines/sci/roger/roger_compositor.h/cpp` | Composites plate + sprites (priority-masked), generic native regions (Feeder B), and the UI display-list (dialogs/banner/buttons/edit/icons) into the overlay; opaque-black letterbox; black dialog borders; `resetForRoomChange()` (nulls `_bgPlate`, sets `_bgRebuilt`, drops all dirty accumulators — called at end of `onTransition` so a transition-entry gets the same clean first frame as a save-restore entry, preventing stale dirty-rect history from the previous room); pure helpers: `mergeSpritesByPriority`, `mapNativeRectToOverlay`, `upscaleNativeRegionNearest`, `extractChangedBoxes` |
 | `engines/sci/roger/roger_text.h/cpp` | TTF text fit/draw; type scale driven by captured native SCI font metrics (per-element target cell height + single-line width cap — same on-screen footprint as the original), falling back to role heights when no metric was captured; `firstLineTop`/`vAlignTop`, and the hybrid `drawPx` layout: ASCII drawn with the TTF font, each non-ASCII byte blitted inline as the game's own font glyph (from the element's glyph map, scaled to ¾ line height) |
-| `engines/sci/roger/roger_ui_layer.h` | Resolution-independent `UiElement` display-list |
+| `engines/sci/roger/roger_ui_layer.h` | Resolution-independent `UiElement` struct (the retained `RogerUiLayer` display-list class was deleted in 75a2be6fecc; the append-only `RogerJournal` in `roger_journal.{h,cpp}` owns ordering/lifetime now) |
 | `engines/sci/roger/view_cache.h/cpp` | Serves upscaled hires VIEW cels for ego/props/inventory by generating them on first use via `RogerAssetGen::generateViewCel` and caching them (owned). No prebuilt spritesheets. |
 | `engines/sci/roger/png_loader.h/cpp` | `loadGrayscale8()` / `loadSurfaceRGBA()` via `Image::PNGDecoder` |
 | `engines/sci/graphics/{paint16,controls16,menu,event}.cpp` | Hook sites: picture replace, dialog/control capture, status/menu bar, F10 toggle; `paint16.cpp` also hosts the `bitsShow` hook (`onNativeShowRect`), `beginNativeDraw`/`endNativeDraw` re-entrancy guards (Feeder B), and `drawCelAndShow`→`onInitCel` (owner 0) for script kDrawCel draws during `_picNotValid` |
@@ -398,7 +418,7 @@ wholesale). Keep this inventory current when adding hooks — it pre-answers the
 
 | Files | ~Lines | Category / upstream story |
 |-------|--------|---------------------------|
-| `graphics/paint16.{cpp,h}`, `animate.cpp`, `controls16.cpp`, `menu.{cpp,h}`, `ports.cpp`, `text16.cpp`, `transitions.cpp`, `engine/kgraphics.cpp`, `graphics/scifont.{cpp,h}` | ~590 | **Observer-seam candidates** — mechanical, null-guarded provider call sites at SCI's structural chokepoints. Upstreamable if reshaped as a neutral, engine-owned observer interface, compiled out by default. The planned frame-complete present barrier should *replace* several of these — prefer that over adding more. |
+| `graphics/paint16.{cpp,h}`, `animate.cpp`, `controls16.cpp`, `menu.{cpp,h}`, `ports.cpp`, `text16.cpp`, `transitions.cpp`, `engine/kgraphics.cpp`, `graphics/scifont.{cpp,h}` | ~600 | **Observer-seam candidates** — mechanical, null-guarded provider call sites at SCI's structural chokepoints. Upstreamable if reshaped as a neutral, engine-owned observer interface, compiled out by default. The planned frame-complete present barrier should *replace* several of these — prefer that over adding more. (Phase 2 draw-journal: restore path consolidated to `onNativeRestoreRect`; `ports.cpp` `beginNativeDraw` suppression deleted; `bitsSave`/`bitsFree` hooks added — net ~+10 lines.) |
 | `sci.cpp`, `module.mk` | ~70 | **Provider wiring** — becomes plugin self-registration via `setArtProvider()`; `roger/*.o` move to the plugin's own `module.mk`; `test/module.mk` relinks tests against a roger static lib |
 | `event.cpp` + `gui/EventRecorder.h` | ~80 | **Separately pitchable upstream PR** — the `.rin` input driver is a generic headless scripted-input facility complementing EventRecorder; deliberately engine-agnostic (keep it that way) |
 | `build_and_run.ps1`, `build_tests.ps1`, `roger_run.ps1`, `CLAUDE.md`, `.claude/`, `.gitignore` | — | **Downstream-only** dev tooling; never part of an upstream PR |

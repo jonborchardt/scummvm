@@ -18,6 +18,12 @@ public:
 		TS_ASSERT_EQUALS(c.type, kCmdRClick);
 		TS_ASSERT(parseScriptLine("move 300 150", c));
 		TS_ASSERT_EQUALS(c.type, kCmdMove);
+		TS_ASSERT(parseScriptLine("mousedown 20 3", c));
+		TS_ASSERT_EQUALS(c.type, kCmdMouseDown);
+		TS_ASSERT_EQUALS(c.x, 20);
+		TS_ASSERT_EQUALS(c.y, 3);
+		TS_ASSERT(parseScriptLine("mouseup 160 120", c));
+		TS_ASSERT_EQUALS(c.type, kCmdMouseUp);
 		TS_ASSERT(parseScriptLine("wait 500", c));
 		TS_ASSERT_EQUALS(c.type, kCmdWait);
 		TS_ASSERT_EQUALS(c.ms, 500u);
@@ -194,16 +200,42 @@ public:
 		TS_ASSERT_EQUALS(ev.kbd.keycode, Common::KEYCODE_ESCAPE);
 	}
 
-	void test_snap_calls_host_immediately() {
+	void test_snap_calls_host_then_yields_on_next_poll() {
 		InputScriptDriver d;
 		MockHost h;
 		d.setScriptHost(&h);
 		d.loadScriptFromString("snap boot\nkey ENTER\n");
 		Common::Event ev;
-		TS_ASSERT(d.pollDue(2000, ev)); // snap executed inline, then keydown yields
-		TS_ASSERT_EQUALS(ev.type, Common::EVENT_KEYDOWN);
+		// snap runs its (potentially ~1s) host callback then RETURNS false so the caller
+		// re-polls with a fresh clock — this is what keeps following actions from bunching
+		// after a slow grabOverlay+PNG. The keydown yields on the next poll.
+		TS_ASSERT(!d.pollDue(2000, ev));
 		TS_ASSERT_EQUALS((int)h.snaps.size(), 1);
 		TS_ASSERT_EQUALS(h.snaps[0], Common::String("boot"));
+		TS_ASSERT(d.pollDue(2000, ev)); // same clock (test host is instant): keydown yields
+		TS_ASSERT_EQUALS(ev.type, Common::EVENT_KEYDOWN);
+	}
+
+	// A slow snap that consumes wall time must not make the following move fire early:
+	// the drift past the snap's due time is absorbed into the schedule base so the move
+	// stays spaced as authored. Models a frozen-loop drag where snap grabOverlay takes ~1s.
+	void test_snap_reanchors_schedule_after_slow_callback() {
+		InputScriptDriver d;
+		MockHost h;
+		d.setScriptHost(&h);
+		// base=1000; snap due at 1000; move due at 1000+500=1500.
+		d.loadScriptFromString("snap s\nwait 500\nmove 60 2\n");
+		Common::Event ev;
+		TS_ASSERT(!d.pollDue(1000, ev)); // snap runs, returns false, arms re-anchor at due=1000
+		TS_ASSERT_EQUALS((int)h.snaps.size(), 1);
+		// The host callback consumed ~1000ms of wall time: next real poll clock is ~2000.
+		// Without re-anchor the move (due 1500) would be overdue and fire at 2000. With
+		// re-anchor, _baseMs slides +1000, so the move is due at 2500 — still 500ms out.
+		TS_ASSERT(!d.pollDue(2000, ev)); // re-anchored: move NOT yet due
+		TS_ASSERT(!d.pollDue(2499, ev));
+		TS_ASSERT(d.pollDue(2500, ev));  // authored 500ms spacing preserved past the snap
+		TS_ASSERT_EQUALS(ev.type, Common::EVENT_MOUSEMOVE);
+		TS_ASSERT_EQUALS(ev.mouse.x, 60);
 	}
 
 	void test_restore_calls_host() {
@@ -231,7 +263,10 @@ public:
 		InputScriptDriver d; // no host registered
 		d.loadScriptFromString("state\nsnap x\nrestore 1\nquit\n");
 		Common::Event ev;
-		TS_ASSERT(d.pollDue(2000, ev)); // no crash; quit yields
+		// snap yields the poll (returns false) so the caller re-clocks; the second poll
+		// (same instant here) drains restore + quit. No crash without a host.
+		TS_ASSERT(!d.pollDue(2000, ev)); // state logged, snap ran and returned
+		TS_ASSERT(d.pollDue(2000, ev));  // restore skipped (no host), quit yields
 		TS_ASSERT_EQUALS(ev.type, Common::EVENT_QUIT);
 	}
 

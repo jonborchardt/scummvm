@@ -29,7 +29,9 @@
 // core a future MCP server (or any other front-end) would reuse unchanged.
 //
 // .rin grammar (game-space 320x200 coords; '#' comments; blank lines skipped):
-//   click X Y | rclick X Y | move X Y | key <token> | type "text"
+//   click X Y | rclick X Y | move X Y | mousedown X Y | mouseup X Y | key <token> | type "text"
+//   (mousedown/mouseup bracket a press-and-hold drag: mousedown, intervening moves, mouseup —
+//    e.g. the SCI0 mouse menu path that opens dropdowns while the button is held)
 //   wait <ms> | waituntil <key> <value> <timeoutMs>
 //   capture <label> | snap <label> | state
 //   assert <key> <value> | restore <slot> | fail <msg> | log <text> | quit
@@ -51,6 +53,8 @@ enum ScriptCmdType {
 	kCmdClick,
 	kCmdRClick,
 	kCmdMove,
+	kCmdMouseDown, // press-and-hold left button at X,Y (drag-gesture start; menu mouse path)
+	kCmdMouseUp,   // release left button at X,Y (drag-gesture end)
 	kCmdKey,
 	kCmdType,
 	kCmdWait,
@@ -174,6 +178,12 @@ private:
 	uint32 _lastTailMs;         // Task 3: tail throttle
 	Common::String _livePartial; // Task 3: trailing incomplete line
 	ScriptHost *_host = nullptr; // borrowed; registered by the art provider
+	// Slow-command schedule re-anchor: a snap (grabOverlay + PNG, ~1s) runs synchronously
+	// inside pollDue, so the next poll's clock has jumped ahead. On the next poll we slide
+	// _baseMs by the drift past this command's due time so following actions stay spaced as
+	// authored (prevents a mid-drag move burst that a frozen menu/dialog loop never sees).
+	bool _reanchorPending = false;
+	uint32 _reanchorDueMs = 0;
 };
 
 } // namespace Roger

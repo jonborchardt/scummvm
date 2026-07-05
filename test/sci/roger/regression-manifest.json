@@ -37,6 +37,21 @@
       ]
     },
     {
+      "name": "qfg1-menu-cycle",
+      "target": "qfg1", "saveSlot": 1, "script": "qfg1-menu-cycle.rin",
+      "timeoutSec": 130, "cycleLog": false,
+      "checks": [
+        { "type": "presenceDiff", "a": "m-open", "b": "m-after", "minDiffPx": 6000,
+          "region": { "x0": 0.0, "y0": 0.0, "x1": 1.0, "y1": 0.045 } },
+        { "type": "sameRunDiff", "a": "m-before", "b": "m-after",
+          "region": { "x0": 0.0, "y0": 0.0, "x1": 1.0, "y1": 0.045 } },
+        { "type": "sameRunDiff", "a": "m-before", "b": "m-afterhover",
+          "region": { "x0": 0.0, "y0": 0.05, "x1": 0.28, "y1": 0.30 } },
+        { "type": "sameRunDiff", "a": "m-before", "b": "m-afterhover",
+          "region": { "x0": 0.42, "y0": 0.10, "x1": 0.70, "y1": 0.22 } }
+      ]
+    },
+    {
       "name": "sq3-wiggle",
       "target": "sq3-1", "saveSlot": 1, "script": "sq3-wiggle.rin",
       "timeoutSec": 120, "cycleLog": false,

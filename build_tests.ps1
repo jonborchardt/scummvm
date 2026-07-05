@@ -64,13 +64,13 @@ $RogerSources = @(
     "..\..\engines\sci\roger\roger_effects.cpp",
     "..\..\engines\sci\roger\roger_cursor.cpp",
     "..\..\engines\sci\roger\roger_compositor.cpp",
-    "..\..\engines\sci\roger\roger_ui_layer.cpp",
     "..\..\engines\sci\roger\roger_text.cpp",
     "..\..\engines\sci\roger\roger_palette_remap.cpp",
     "..\..\engines\sci\roger\roger_selftest.cpp",
     "..\..\engines\sci\roger\roger_studio_render.cpp",
     "..\..\engines\sci\roger\roger_input.cpp",
-    "..\..\engines\sci\roger\roger_view_scaler.cpp"
+    "..\..\engines\sci\roger\roger_view_scaler.cpp",
+    "..\..\engines\sci\roger\roger_journal.cpp"
 )
 
 # The Roger test-suite headers to feed cxxtestgen, listed explicitly rather than via
@@ -103,7 +103,8 @@ $RogerTestHeaders = @(
     "test_shift_lock.h",
     "test_generic_text_capture.h",
     "test_input_script.h",
-    "test_view_scaler.h"
+    "test_view_scaler.h",
+    "test_roger_journal.h"
 )
 
 # ── Locate MSBuild via vswhere ────────────────────────────────────────────────
