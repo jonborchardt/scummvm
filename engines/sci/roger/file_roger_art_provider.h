@@ -26,7 +26,7 @@
 #include "sci/roger/roger_asset_gen.h"
 #include "sci/roger/roger_capabilities.h"
 #include "sci/roger/roger_compositor.h"
-#include "sci/roger/roger_ui_layer.h"
+#include "sci/roger/roger_journal.h"
 #include "sci/roger/roger_input.h"
 #include "common/array.h"
 #include "common/str.h"
@@ -35,7 +35,7 @@
 namespace Graphics { struct Surface; class ManagedSurface; }
 
 namespace Sci {
-namespace Roger { struct Sprite; class RogerCompositor; class ViewCache; class RogerUiLayer; class RogerTextRenderer; }
+namespace Roger { struct Sprite; class RogerCompositor; class ViewCache; class RogerJournal; class RogerTextRenderer; }
 
 class FileRogerArtProvider : public RogerArtProvider, public Roger::ScriptHost {
 public:
@@ -144,7 +144,7 @@ private:
 	void onSnap(const Common::String &label) override;
 	void onRestore(int slot) override;
 
-	int uiWindowCount() const;                              // kUiWindow elements in _uiLayer
+	int uiWindowCount() const;                              // kUiWindow elements in _journal
 	void dumpOverlaySnap(const Common::String &label, const Common::Rect &gameRect); // grabOverlay -> dumpAutoshot
 
 	// Input automation (scripted verification loop / live control) — roger_input.h.
@@ -160,8 +160,8 @@ private:
 	int _statusBarH = 10;        // SCI0 status/menu bar height in screen rows (of 200); reserved at the top of the game rect (may change)
 	Common::Array<byte> _priorityMap; // 1920x1140 omyac-aligned priority bands (from RogerAssetGen::generatePriorityMap), for overlay occlusion
 
-	// Roger hires UI/dialog compositing (see roger_ui_layer / roger_text).
-	Roger::RogerUiLayer *_uiLayer = nullptr;
+	// Roger hires UI/dialog compositing (see roger_journal / roger_text).
+	Roger::RogerJournal *_journal = nullptr;
 	Roger::RogerTextRenderer *_textRenderer = nullptr;     // dialog font
 	Roger::RogerTextRenderer *_altTextRenderer = nullptr;  // header/menu font
 	Graphics::ManagedSurface *_sceneCache = nullptr; // last composed room+sprites (no UI)
@@ -247,8 +247,8 @@ private:
 	Common::Point _cursorHotspot;                          // active-point offset within _cursorSurf (overlay px)
 	void ensureCompositeCache(int w, int h);
 	Common::Rect _lastGameRect;                      // gameRect used for the cached scene
-	void ensureUi();                                 // lazily build _uiLayer + _textRenderer
-	void presentWithUi();                            // compose _sceneCache + _uiLayer -> overlay
+	void ensureUi();                                 // lazily build _journal + _textRenderer
+	void presentWithUi();                            // compose _sceneCache + _journal -> overlay
 	// Side-by-side compare mode: build enhanced(left)|original(right) into the overlay and
 	// present full. Gated by _mode == kModeSideBySide; called from renderFrame/presentWithUi.
 	void presentComparison();
@@ -323,7 +323,7 @@ private:
 	Graphics::Surface *snapshotNativeRegion(const Common::Rect &nativeRect) const; // region -> RGBA surface
 	void processForegroundCaptures(const Common::Array<Common::Rect> &liveSpriteRects); // _foregroundRegions -> _textSprites
 	void clearTextSprites();                                                       // free celOverride + clear
-	void flushGenericText();                                                       // emit _genTextPending into _uiLayer, deduped
+	void flushGenericText();                                                       // emit _genTextPending into _journal, deduped
 };
 
 } // namespace Sci

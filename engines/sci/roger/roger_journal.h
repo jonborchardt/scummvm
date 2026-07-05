@@ -58,6 +58,11 @@ public:
 	void openBracket(uint32 windowId, const Common::Rect &winRect);
 	bool closeBracket(uint32 windowId, Common::Array<Common::Rect> *removedNativeRects = nullptr);
 
+	// The one non-structural pass that survives Phase 1: dropping the generic
+	// re-capture of a draw a control hook already captured (same ONE native draw
+	// seen by two hooks — not an ordering or lifetime concern).
+	void dedupeGenericText(uint32 genericNamespace) { dedupeGenericTextElements(_ops, genericNamespace); }
+
 private:
 	struct Bracket { uint32 id; Common::Rect rect; };
 	Common::Array<UiElement> _ops;
