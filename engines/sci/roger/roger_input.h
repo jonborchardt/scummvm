@@ -30,8 +30,12 @@
 //
 // .rin grammar (game-space 320x200 coords; '#' comments; blank lines skipped):
 //   click X Y | rclick X Y | move X Y | key <token> | type "text"
-//   wait <ms> | capture <label> | log <text> | quit
-// Key tokens: ENTER ESC SPACE TAB BACKSPACE UP DOWN LEFT RIGHT F1..F12 a-z 0-9
+//   wait <ms> | waituntil <key> <value> <timeoutMs>
+//   capture <label> | snap <label> | state
+//   assert <key> <value> | restore <slot> | fail <msg> | log <text> | quit
+// State keys (served by the registered ScriptHost): pic, windows, egox, egoy, mode.
+// capture pends a dump consumed by the next present; snap grabs the presented
+// overlay pixels immediately (works during blocking dialogs, no flush move needed).
 // Note: '#' starts a comment anywhere on a line, so `type "..."` and `log`
 // payloads must not contain '#' (it would truncate the line at that point).
 
@@ -52,7 +56,13 @@ enum ScriptCmdType {
 	kCmdWait,
 	kCmdCapture,
 	kCmdLog,
-	kCmdQuit
+	kCmdQuit,
+	kCmdSnap,      // synchronous overlay grab at execution time (no present needed)
+	kCmdState,     // emit ROGER-STATE line via the ScriptHost
+	kCmdWaitUntil, // gate: block schedule until host state key == value, or timeout
+	kCmdAssert,    // host state key must == value, else FAIL + quit
+	kCmdRestore,   // delayed-restore a save slot via the ScriptHost
+	kCmdFail       // unconditional FAIL marker + quit
 };
 
 struct ScriptCommand {
@@ -60,10 +70,11 @@ struct ScriptCommand {
 	int x, y;                 // click/rclick/move (game 320x200, clamped)
 	Common::KeyCode keycode;  // key
 	uint16 ascii;             // key
-	Common::String text;      // type payload / capture label / log text
-	uint32 ms;                // wait
+	Common::String text;      // type payload / capture+snap label / log+fail text / state key
+	uint32 ms;                // wait / waituntil timeout
+	int value;                // waituntil+assert wanted value / restore slot
 	ScriptCommand() : type(kCmdNone), x(0), y(0),
-		keycode(Common::KEYCODE_INVALID), ascii(0), ms(0) {}
+		keycode(Common::KEYCODE_INVALID), ascii(0), ms(0), value(0) {}
 };
 
 // Parse one script line. Returns true and fills cmd for a real command; false

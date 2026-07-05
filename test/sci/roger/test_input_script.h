@@ -175,3 +175,45 @@ public:
 		TS_ASSERT_EQUALS(ev.kbd.keycode, Common::KEYCODE_ESCAPE);
 	}
 };
+
+class RogerInputParseNewCmdsTestSuite : public CxxTest::TestSuite {
+public:
+	void test_parse_snap_state() {
+		ScriptCommand c;
+		TS_ASSERT(parseScriptLine("snap boot", c));
+		TS_ASSERT_EQUALS(c.type, kCmdSnap);
+		TS_ASSERT_EQUALS(c.text, Common::String("boot"));
+		TS_ASSERT(parseScriptLine("state", c));
+		TS_ASSERT_EQUALS(c.type, kCmdState);
+		TS_ASSERT(!parseScriptLine("snap", c)); // label required
+	}
+
+	void test_parse_waituntil() {
+		ScriptCommand c;
+		TS_ASSERT(parseScriptLine("waituntil pic 300 8000", c));
+		TS_ASSERT_EQUALS(c.type, kCmdWaitUntil);
+		TS_ASSERT_EQUALS(c.text, Common::String("pic"));
+		TS_ASSERT_EQUALS(c.value, 300);
+		TS_ASSERT_EQUALS(c.ms, 8000u);
+		TS_ASSERT(!parseScriptLine("waituntil pic 300", c));   // timeout required
+		TS_ASSERT(!parseScriptLine("waituntil pic", c));       // value required
+	}
+
+	void test_parse_assert_restore_fail() {
+		ScriptCommand c;
+		TS_ASSERT(parseScriptLine("assert pic 300", c));
+		TS_ASSERT_EQUALS(c.type, kCmdAssert);
+		TS_ASSERT_EQUALS(c.text, Common::String("pic"));
+		TS_ASSERT_EQUALS(c.value, 300);
+		TS_ASSERT(!parseScriptLine("assert pic", c));          // value required
+		TS_ASSERT(parseScriptLine("restore 1", c));
+		TS_ASSERT_EQUALS(c.type, kCmdRestore);
+		TS_ASSERT_EQUALS(c.value, 1);
+		TS_ASSERT(!parseScriptLine("restore -2", c));          // negative slot rejected
+		TS_ASSERT(!parseScriptLine("restore", c));             // slot required
+		TS_ASSERT(parseScriptLine("fail dialog never appeared", c));
+		TS_ASSERT_EQUALS(c.type, kCmdFail);
+		TS_ASSERT_EQUALS(c.text, Common::String("dialog never appeared"));
+		TS_ASSERT(!parseScriptLine("fail", c));                // message required
+	}
+};

@@ -166,6 +166,66 @@ bool parseScriptLine(const Common::String &line, ScriptCommand &cmd) {
 		cmd.type = kCmdQuit;
 		return true;
 	}
+	if (verb == "snap" || verb == "fail") {
+		Common::String rest;
+		while (!tok.empty()) {
+			if (!rest.empty())
+				rest += " ";
+			rest += tok.nextToken();
+		}
+		if (rest.empty()) {
+			warning("ROGER-SCRIPT: %s needs an argument: %s", verb.c_str(), line.c_str());
+			return false;
+		}
+		cmd.type = (verb == "snap") ? kCmdSnap : kCmdFail;
+		cmd.text = rest;
+		return true;
+	}
+	if (verb == "state") {
+		cmd.type = kCmdState;
+		return true;
+	}
+	if (verb == "waituntil") {
+		Common::String key = tok.nextToken(), vs = tok.nextToken(), ts = tok.nextToken();
+		if (key.empty() || vs.empty() || ts.empty()) {
+			warning("ROGER-SCRIPT: waituntil needs <key> <value> <timeoutMs>: %s", line.c_str());
+			return false;
+		}
+		cmd.type = kCmdWaitUntil;
+		cmd.text = key;
+		cmd.value = atoi(vs.c_str());
+		int t = atoi(ts.c_str());
+		if (t < 0)
+			t = 0;
+		cmd.ms = (uint32)t;
+		return true;
+	}
+	if (verb == "assert") {
+		Common::String key = tok.nextToken(), vs = tok.nextToken();
+		if (key.empty() || vs.empty()) {
+			warning("ROGER-SCRIPT: assert needs <key> <value>: %s", line.c_str());
+			return false;
+		}
+		cmd.type = kCmdAssert;
+		cmd.text = key;
+		cmd.value = atoi(vs.c_str());
+		return true;
+	}
+	if (verb == "restore") {
+		Common::String ss = tok.nextToken();
+		if (ss.empty()) {
+			warning("ROGER-SCRIPT: restore needs <slot>: %s", line.c_str());
+			return false;
+		}
+		const int slot = atoi(ss.c_str());
+		if (slot < 0) {
+			warning("ROGER-SCRIPT: restore slot must be >= 0: %s", line.c_str());
+			return false;
+		}
+		cmd.type = kCmdRestore;
+		cmd.value = slot;
+		return true;
+	}
 
 	warning("ROGER-SCRIPT: unknown command skipped: %s", line.c_str());
 	return false;
