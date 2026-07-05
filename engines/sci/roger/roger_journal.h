@@ -50,7 +50,7 @@ public:
 	void append(const UiElement &e);
 	const Common::Array<UiElement> &ops() const { return _ops; }
 	bool empty() const { return _ops.empty(); }
-	void clear() { _ops.clear(); _brackets.clear(); }
+	void clear() { _ops.clear(); _brackets.clear(); _checkpoints.clear(); }
 	bool clearToken(uint32 token, Common::Array<Common::Rect> *removedNativeRects = nullptr);
 	bool eraseContained(const Common::Rect &r, Common::Array<Common::Rect> *removedNativeRects = nullptr);
 	// Drop ops fully covered by a LATER opaque op. Called automatically by append()
@@ -68,10 +68,22 @@ public:
 	// seen by two hooks — not an ordering or lifetime concern).
 	void dedupeGenericText(uint32 genericNamespace) { dedupeGenericTextElements(_ops, genericNamespace); }
 
+	uint32 seqNow() const { return _seq; }
+	void checkpoint(uint32 handleToken, const Common::Rect &savedRect);
+	void dropCheckpoint(uint32 handleToken);
+	// Remove every op appended after the handle's checkpoint whose rect lies inside
+	// restoredRect (SCI just overwrote those pixels with the saved background).
+	// Returns true iff the handle had a checkpoint; the checkpoint is consumed.
+	bool rollback(uint32 handleToken, const Common::Rect &restoredRect,
+	              Common::Array<Common::Rect> *removedNativeRects = nullptr);
+
 private:
 	struct Bracket { uint32 id; Common::Rect rect; };
+	struct Checkpoint { uint32 handle; uint32 seq; Common::Rect rect; };
 	Common::Array<UiElement> _ops;
 	Common::Array<Bracket> _brackets; // stack order: last = innermost
+	Common::Array<Checkpoint> _checkpoints;
+	uint32 _seq = 0;
 };
 
 } // namespace Roger

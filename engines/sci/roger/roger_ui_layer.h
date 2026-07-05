@@ -69,11 +69,12 @@ struct UiElement {
 	int  nativeFontH;  // SCI font cell height (px, 320x200 space); 0 = unknown -> role/box fallback
 	int  nativeTextW;  // native single-line string width (px); 0 = multi-line/unknown -> no width cap
 	uint32 windowId;   // enclosing open-window bracket at capture time (journal lifetime); 0 = picture port / none
+	uint32 seq;        // append order stamp (journal checkpoints/rollback); 0 = not yet journaled
 
 	UiElement() : type(kUiText), backColor(-1), penColor(0), fontId(0), style(0),
 		align(0), cursorPos(0), hasFrame(false), iconSurface(nullptr), token(0),
 		textRole(kRoleBody), useAltFont(false), vAlignTop(false),
-		nativeFontH(0), nativeTextW(0), windowId(0) {}
+		nativeFontH(0), nativeTextW(0), windowId(0), seq(0) {}
 };
 
 } // namespace Roger

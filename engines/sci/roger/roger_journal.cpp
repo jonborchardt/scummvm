@@ -55,6 +55,7 @@ void RogerJournal::append(const UiElement &e) {
 		else
 			i++;
 	}
+	tagged.seq = ++_seq;
 	_ops.push_back(tagged);
 	if (_ops.size() > kJournalPruneThreshold)
 		prune();
@@ -128,6 +129,41 @@ bool RogerJournal::closeBracket(uint32 windowId, Common::Array<Common::Rect> *re
 		}
 	}
 	return removed;
+}
+
+void RogerJournal::checkpoint(uint32 handleToken, const Common::Rect &savedRect) {
+	dropCheckpoint(handleToken); // handles are reused; latest save wins
+	Checkpoint c; c.handle = handleToken; c.seq = _seq; c.rect = savedRect;
+	_checkpoints.push_back(c);
+}
+
+void RogerJournal::dropCheckpoint(uint32 handleToken) {
+	for (uint i = _checkpoints.size(); i-- > 0;) {
+		if (_checkpoints[i].handle == handleToken)
+			_checkpoints.remove_at(i);
+	}
+}
+
+bool RogerJournal::rollback(uint32 handleToken, const Common::Rect &restoredRect,
+                            Common::Array<Common::Rect> *removedNativeRects) {
+	int found = -1;
+	for (uint i = 0; i < _checkpoints.size(); i++) {
+		if (_checkpoints[i].handle == handleToken) { found = (int)i; break; }
+	}
+	if (found < 0)
+		return false;
+	const uint32 mark = _checkpoints[found].seq;
+	_checkpoints.remove_at(found);
+	for (uint i = 0; i < _ops.size();) {
+		if (_ops[i].seq > mark && restoredRect.contains(_ops[i].nativeRect)) {
+			if (removedNativeRects)
+				removedNativeRects->push_back(_ops[i].nativeRect);
+			_ops.remove_at(i);
+		} else {
+			i++;
+		}
+	}
+	return true;
 }
 
 } // namespace Roger

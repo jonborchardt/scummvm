@@ -161,4 +161,53 @@ public:
 		}
 		TS_ASSERT_LESS_THAN_EQUALS(j.ops().size(), 300u);
 	}
+
+	void test_rollback_removes_only_ops_after_checkpoint_inside_rect() {
+		RogerJournal j;
+		j.append(op(kUiText, 10, 10, 60, 22, "before save"));      // predates checkpoint
+		j.checkpoint(0x00170ab0u, Common::Rect(0, 0, 100, 100));
+		j.append(op(kUiText, 10, 30, 60, 42, "dialog text"));      // drawn after save, inside
+		j.append(op(kUiText, 150, 30, 200, 42, "outside rect"));   // after save, outside
+		Common::Array<Common::Rect> removed;
+		TS_ASSERT(j.rollback(0x00170ab0u, Common::Rect(0, 0, 100, 100), &removed));
+		TS_ASSERT_EQUALS(j.ops().size(), 2u);
+		TS_ASSERT_EQUALS(j.ops()[0].text, Common::String("before save"));
+		TS_ASSERT_EQUALS(j.ops()[1].text, Common::String("outside rect"));
+		TS_ASSERT_EQUALS(removed.size(), 1u);
+	}
+
+	void test_rollback_unknown_handle_reports_false() {
+		// Caller falls back to plain erase-containment semantics on false.
+		RogerJournal j;
+		j.append(op(kUiText, 10, 10, 60, 22, "x"));
+		TS_ASSERT(!j.rollback(0xdeadbeefu, Common::Rect(0, 0, 100, 100), nullptr));
+		TS_ASSERT_EQUALS(j.ops().size(), 1u);
+	}
+
+	void test_checkpoint_is_consumed_by_rollback_and_by_drop() {
+		// Contract: rollback returns true iff the handle HAD a checkpoint (even when
+		// zero ops are removed) — the caller uses the return value to decide whether
+		// to fall back to plain eraseContained semantics. Both rollback and
+		// dropCheckpoint consume the checkpoint.
+		RogerJournal j;
+		j.checkpoint(0x00170ab0u, Common::Rect(0, 0, 50, 50));
+		j.dropCheckpoint(0x00170ab0u);
+		TS_ASSERT(!j.rollback(0x00170ab0u, Common::Rect(0, 0, 50, 50), nullptr)); // dropped
+		j.checkpoint(0x00170ab0u, Common::Rect(0, 0, 50, 50));
+		TS_ASSERT(j.rollback(0x00170ab0u, Common::Rect(0, 0, 50, 50), nullptr));  // known: true, no removals
+		TS_ASSERT(!j.rollback(0x00170ab0u, Common::Rect(0, 0, 50, 50), nullptr)); // consumed
+	}
+
+	void test_popup_over_chars_sheet_rolls_back_cleanly() {
+		// THE historical trap (CLAUDE.md): a popup over the char sheet must not wipe
+		// the stat text beneath it. With checkpoints this is exact: the stats predate
+		// the popup's save, so rollback reveals them untouched.
+		RogerJournal j;
+		j.append(op(kUiText, 83, 45, 132, 57, "Strength"));
+		j.checkpoint(0x00181111u, Common::Rect(60, 30, 260, 140));  // popup saves under itself
+		j.append(op(kUiText, 70, 70, 120, 82, "popup body"));
+		j.rollback(0x00181111u, Common::Rect(60, 30, 260, 140), nullptr);
+		TS_ASSERT_EQUALS(j.ops().size(), 1u);
+		TS_ASSERT_EQUALS(j.ops()[0].text, Common::String("Strength"));
+	}
 };
