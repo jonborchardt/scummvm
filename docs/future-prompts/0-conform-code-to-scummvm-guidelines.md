@@ -68,12 +68,15 @@ Work through each target file against the docs/scumm/ rules. The high-value chec
 * `FIXME` / `TODO` / `WORKAROUND` used per their defined meanings; every WORKAROUND must explain what original-game bug it works around
 * Doxygen (JavaDoc style, `@param`, `@` not `\`) on the common-code additions outside engines/ — this is a hard requirement for the input-driver code in `gui/`/event.cpp; encouraged but not required inside `engines/sci/roger/`
 * Sweep for stray debug leftovers, commented-out prototype code, and dead TODOs in the diff
+* **Remove stale or wrong comments** in the fork diff: comments that describe removed behavior or an abandoned approach, narrate change history ("was X, now Y", "fixed in this commit"), restate the adjacent code, or make claims the code no longer backs. A comment earns its place only by stating a constraint the code can't show. (Same scope rules apply: only our hunks — never touch upstream comments.)
+* **No references to Claude, AI agents, or assistant tooling** in code comments, identifiers, strings, commit-bound docs, or anything else in the fork diff. Describe what the code does in neutral engineering terms. Such references are permitted only in downstream-only files that need them (CLAUDE.md, .claude/, docs/superpowers/ specs/plans) — all already exempt from this pass and never upstreamed.
+* If a removed/corrected comment shows that user-facing docs (docs/roger.md, READMEs, examples) repeat the same stale claim, fix the doc in the same style-only slice or flag it in the report
 
 ## Process
 
 1. Build the diff file list vs origin/master (start from the CLAUDE.md Stage 3 inventory) and bucket files into the targets above.
 2. Sweep each bucket with targeted greps + reading; fix violations.
-3. **Commit style-only fixes separately from any functional fix you happen to discover** — never mix, per the commit guidelines. Use `SCI: ROGER:` / `SCI:` prefixed, present-tense subject lines ≤50 chars (the deploy-branch Claude-attribution footer stays for now; it is stripped only from upstream submissions).
+3. **Commit style-only fixes separately from any functional fix you happen to discover** — never mix, per the commit guidelines. Use `SCI: ROGER:` / `SCI:` prefixed, present-tense subject lines ≤50 chars. The deploy-branch attribution footer stays for now on this branch; eventual upstream PR commits must not mention Claude or AI agents anywhere — no attribution footers, no co-author trailers, no references in subject or body (Prompt 2 enforces this when manufacturing the clean branch).
 4. If you find something that looks like a bug (not style), flag it and ask before fixing — bug fixes are functional changes and belong in their own commit with their own verification.
 5. Verify after the sweep: `build_and_run.ps1` builds and the smoke script runs (`-Script test/sci/roger/scripts/qfg1-smoke.rin` or the SQ3 smoke), and `build_tests.ps1` unit tests pass. This is a Windows/MSVC environment — do not assume configure/make.
 6. Update the CLAUDE.md Stage 3 diff inventory if line counts shifted materially, and note in CLAUDE.md that the conformance pass has run.
@@ -81,7 +84,7 @@ Work through each target file against the docs/scumm/ rules. The high-value chec
 ## Output expected
 
 * Conformant fork diff (targets above), committed in style-only slices on the current branch
-* A short report: what was fixed per bucket, anything intentionally left non-conformant and why, and any flagged functional issues deferred to their own commits
+* A short report: what was fixed per bucket (including stale comments removed and any Claude/AI references scrubbed), anything intentionally left non-conformant and why, and any flagged functional issues deferred to their own commits
 * Green build + unit tests + smoke run
 
 Do not rewrite commit history in this pass — these are ordinary working-tree fixes committed normally on the deploy line. History work is Prompt 2's job.

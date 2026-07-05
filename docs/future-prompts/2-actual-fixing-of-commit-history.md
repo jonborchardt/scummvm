@@ -2,7 +2,7 @@
 
 First read CLAUDE.md, especially the "Stage 3: Fork structure & upstreaming" section — it is authoritative and overrides any framing in this prompt that conflicts with it. Roger is a display-layer provider inside the existing SCI engine, not a new engine.
 
-Also read the local ScummVM guideline copies in docs/scumm/ (code-formatting-conventions.md, coding-conventions.md, commit-guidelines.md). Prompts 0 and 1 should already have run: the code conforms to those guidelines and the structure audit is done, so the slices below should need NO style fixes. If you find style drift while slicing, put it in its own separate style-only commit — never mixed into a functional slice.
+Also read the local ScummVM guideline copies in docs/scumm/ (code-formatting-conventions.md, coding-conventions.md, commit-guidelines.md). Prompts 0 and 1 should already have run: the code conforms to those guidelines, stale/wrong comments and any Claude/AI references have been scrubbed from code and upstream-facing docs, and the structure audit is done — so the slices below should need NO style fixes. If you find drift while slicing (style, a stale comment, or a stray Claude/AI reference), put the fix in its own separate style-only commit — never mixed into a functional slice.
 
 I have a working but messy branch of ScummVM changes. The code works, but the commit history is not reviewable. I do not want to cherry-pick old commits directly because they contain mixed concerns.
 
@@ -62,7 +62,7 @@ For each proposed commit:
 * run the relevant build/test command if available (build\_tests.ps1 for unit tests; build\_and\_run.ps1 \-Script \<file.rin\> for smoke — this is a Windows/MSVC environment, not configure/make)  
 * wait for my approval before committing
 
-Commit messages on the clean branch must follow docs/scumm/commit-guidelines.md: first line `SUBSYSTEM: Short summary` (≤50 chars, present tense — `SCI:` or `SCI: ROGER:` for the seam/provider work, `GUI`/`ALL` as appropriate for the input driver), blank line, body wrapped at ~72 chars, message meaningful without the diff. Every commit must compile (bisectability), no merge commits, and the Claude-attribution footer used on the deploy branch must NOT appear on upstream-facing commits.
+Commit messages on the clean branch must follow docs/scumm/commit-guidelines.md: first line `SUBSYSTEM: Short summary` (≤50 chars, present tense — `SCI:` or `SCI: ROGER:` for the seam/provider work, `GUI`/`ALL` as appropriate for the input driver), blank line, body wrapped at ~72 chars, message meaningful without the diff. Every commit must compile (bisectability), no merge commits. **Commits on the clean/upstream branches must not mention Claude or AI agents in any form** — no attribution footers, no `Co-Authored-By` trailers, no references in subject or body. The deploy-branch attribution footer is a deploy-line convention only and never crosses over; verify each message before committing.
 
   ## **Suggested commit slices**
 
@@ -72,7 +72,7 @@ Commit messages on the clean branch must follow docs/scumm/commit-guidelines.md:
 * Add the compositor, present path, and view cache.  
 * Add UI/text capture and the hires text path.  
 * Add the launcher/picker and config knobs.  
-* Add docs and data layout notes.
+* Add docs and data layout notes (README/how-to, examples, data layout, license notes — updated as needed and free of Claude/AI references; downstream-only docs like CLAUDE.md, .claude/, docs/superpowers/ never enter a slice).
 
 The .rin scripted-input driver (event.cpp, gui/EventRecorder.h, roger\_input) goes on a separate PR branch as its own generic commit — it is independently pitchable upstream.
 
@@ -85,6 +85,8 @@ If a hunk contains mixed changes, ask me before manually editing the hunk.
 Do not include game assets or proprietary data in the ScummVM source branch.
 
 Flag any change outside engines/sci/roger/ as a potential upstream risk, except the documented mechanical hook sites — verify those stay mechanical (no Roger logic inline, no FileRogerArtProvider references in SCI code).
+
+Before committing each slice, grep the staged content for Claude/AI-agent references and obviously stale comments (both should already be gone after Prompt 0) — nothing of the kind may reach the clean branch, in file content or commit message.
 
 Do not produce one giant squashed provider commit unless I explicitly ask.
 
