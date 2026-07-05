@@ -234,6 +234,67 @@ public:
 		TS_ASSERT(d.pollDue(2000, ev)); // no crash; quit yields
 		TS_ASSERT_EQUALS(ev.type, Common::EVENT_QUIT);
 	}
+
+	void test_waituntil_blocks_then_opens_and_shifts_schedule() {
+		InputScriptDriver d;
+		MockHost h;
+		d.setScriptHost(&h);
+		d.loadScriptFromString("waituntil pic 300 5000\nwait 100\nkey ENTER\n");
+		Common::Event ev;
+		TS_ASSERT(!d.pollDue(1000, ev)); // base=1000; gate closed (pic=0)
+		TS_ASSERT(!d.pollDue(2000, ev)); // still closed
+		h.pic = 300;
+		TS_ASSERT(!d.pollDue(3000, ev)); // gate opens at 3000; ENTER due at 3100
+		TS_ASSERT(!d.pollDue(3099, ev));
+		TS_ASSERT(d.pollDue(3100, ev));  // schedule shifted by the 2000ms spent gating
+		TS_ASSERT_EQUALS(ev.type, Common::EVENT_KEYDOWN);
+		TS_ASSERT_EQUALS(ev.kbd.keycode, Common::KEYCODE_RETURN);
+	}
+
+	void test_waituntil_timeout_continues() {
+		InputScriptDriver d;
+		MockHost h;
+		d.setScriptHost(&h);
+		d.loadScriptFromString("waituntil pic 300 1000\nkey ENTER\n");
+		Common::Event ev;
+		TS_ASSERT(!d.pollDue(1000, ev)); // base=1000; gate closed
+		TS_ASSERT(!d.pollDue(1999, ev)); // not yet timed out
+		TS_ASSERT(d.pollDue(2000, ev));  // timeout: gate opens, ENTER fires
+		TS_ASSERT_EQUALS(ev.type, Common::EVENT_KEYDOWN);
+	}
+
+	void test_assert_pass_and_fail() {
+		{
+			InputScriptDriver d;
+			MockHost h;
+			h.pic = 300;
+			d.setScriptHost(&h);
+			d.loadScriptFromString("assert pic 300\nkey ENTER\n");
+			Common::Event ev;
+			TS_ASSERT(d.pollDue(2000, ev)); // assert passes silently; ENTER yields
+			TS_ASSERT_EQUALS(ev.type, Common::EVENT_KEYDOWN);
+		}
+		{
+			InputScriptDriver d;
+			MockHost h;
+			h.pic = 5;
+			d.setScriptHost(&h);
+			d.loadScriptFromString("assert pic 300\nkey ENTER\n");
+			Common::Event ev;
+			TS_ASSERT(d.pollDue(2000, ev)); // assert fails -> quit
+			TS_ASSERT_EQUALS(ev.type, Common::EVENT_QUIT);
+			TS_ASSERT(!d.pollDue(9999, ev));
+		}
+	}
+
+	void test_waituntil_without_host_times_out() {
+		InputScriptDriver d; // no host: stateValue unavailable, gate can only time out
+		d.loadScriptFromString("waituntil pic 300 500\nquit\n");
+		Common::Event ev;
+		TS_ASSERT(!d.pollDue(1000, ev));
+		TS_ASSERT(d.pollDue(1500, ev));
+		TS_ASSERT_EQUALS(ev.type, Common::EVENT_QUIT);
+	}
 };
 
 class RogerInputParseNewCmdsTestSuite : public CxxTest::TestSuite {

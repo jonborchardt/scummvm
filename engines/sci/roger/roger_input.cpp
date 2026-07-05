@@ -346,6 +346,22 @@ bool InputScriptDriver::pollDue(uint32 nowMs, Common::Event &ev) {
 		const TimedAction &a = _actions[_next];
 		if (nowMs < _baseMs + a.relMs)
 			return false; // front not due; O(1) exit — the steady-state path
+		if (!a.isEvent && a.ctrl == kCmdWaitUntil) {
+			// Gate: hold the queue until the host state matches or the timeout
+			// elapses, then shift the schedule base by the time actually spent
+			// waiting so downstream `wait`-relative timings stay intact.
+			const uint32 dueMs = _baseMs + a.relMs;
+			const int got = _host ? _host->stateValue(a.label) : -1;
+			if (got != a.wantValue) {
+				if (nowMs < dueMs + a.timeoutMs)
+					return false; // closed; re-check on the next poll
+				warning("ROGER-SCRIPT: waituntil TIMEOUT %s=%d (got %d after %u ms)",
+				        a.label.c_str(), a.wantValue, got, a.timeoutMs);
+			}
+			_baseMs += nowMs - dueMs;
+			_next++;
+			continue;
+		}
 		_next++;
 		if (a.isEvent) {
 			ev = a.ev;
@@ -388,6 +404,18 @@ bool InputScriptDriver::pollDue(uint32 nowMs, Common::Event &ev) {
 			_done = true;
 			ev.type = Common::EVENT_QUIT;
 			return true;
+		case kCmdAssert: {
+			const int got = _host ? _host->stateValue(a.label) : -1;
+			if (got != a.wantValue) {
+				warning("ROGER-SCRIPT: FAIL assert %s want=%d got=%d",
+				        a.label.c_str(), a.wantValue, got);
+				_done = true;
+				ev.type = Common::EVENT_QUIT;
+				return true;
+			}
+			warning("ROGER-SCRIPT: assert %s=%d OK", a.label.c_str(), a.wantValue);
+			break;
+		}
 		default:
 			break;
 		}
