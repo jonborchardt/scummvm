@@ -35,24 +35,6 @@ public:
 		}
 	}
 
-	void test_scaler_variants_factor_and_dims() {
-		IndexImage img;
-		img.w = 4; img.h = 3;
-		img.pixels.resize(12, 7);
-		for (int v = 0; v < kScalerCount; v++) {
-			const int f = scalerVariantFactor(v);
-			IndexImage out = applyScalerVariant(v, img);
-			TS_ASSERT_EQUALS(out.w, img.w * f);
-			TS_ASSERT_EQUALS(out.h, img.h * f);
-			TS_ASSERT_EQUALS(out.pixels.size(), (uint)(out.w * out.h));
-			TS_ASSERT(scalerVariantName(v) != nullptr);
-		}
-		// A solid image stays solid through every variant.
-		IndexImage out6 = applyScalerVariant(kScaler6x, img);
-		for (uint i = 0; i < out6.pixels.size(); i++)
-			TS_ASSERT_EQUALS(out6.pixels[i], (byte)7);
-	}
-
 	void test_pass_stamp() {
 		Common::Array<int> passes;
 		TS_ASSERT_EQUALS(omyacPassStamp(passes), Common::String("none"));
@@ -137,7 +119,7 @@ public:
 		StudioPanelState st;
 		st.picId = 2; st.viewId = 12; st.loopNo = 1; st.celNo = 0;
 		st.celX = 160; st.celY = 150;
-		st.variantName = "scale6x (3x*2x)";
+		st.variantName = "s2>s3 6x (ship)";
 		st.plateNearest = false;
 		st.showView = true;
 		st.activeSlot = 0;

@@ -26,6 +26,7 @@
 #include "common/str.h"
 #include "sci/roger/roger_asset_gen.h"
 #include "sci/roger/roger_studio_render.h"
+#include "sci/roger/roger_view_scaler.h"
 
 namespace Graphics { class ManagedSurface; struct Surface; }
 namespace Common { struct Event; }
@@ -52,7 +53,7 @@ private:
 	struct Slot {
 		OmyacParams        params;
 		Common::Array<int> passes;               // starts = defaultPasses()
-		int                variant = kScaler6x;  // factor-6 only
+		int                variant = 0;          // viewScalerPreset() index; 0 = shipping s2-s3
 		PlateMode          plateMode = kPlateOmyac;
 		Graphics::Surface *render = nullptr;     // cached scene render (1920x1140 RGBA)
 		Graphics::Surface *plateCache = nullptr; // cached plate (no cel); reused while !plateStale
