@@ -458,6 +458,7 @@ void FileRogerArtProvider::pushHiresBackground(GuiResourceId pictureId) {
 	_initCels.clear();
 	clearTextSprites();
 	_genTextPending.clear(); // discard any pending generic text from the departing room
+	_revealRects.clear();   // stale reveal suppressions must not bleed into the new room
 	_debugDumpedPic = -1;   // allow a fresh debug-capture dump for this room
 	_diffCheckedPic = -1;   // allow a fresh diff-check run for this room
 	_haveNetPrev = false;   // room changed: don't diff across rooms (full present covers entry)
@@ -2897,6 +2898,7 @@ void FileRogerArtProvider::onNativePicture() {
 	_genTextPending.clear(); // discard any pending generic text from the departing room
 	_debugDumpedPic = -1;   // allow a fresh debug-capture dump for the next room
 	_diffCheckedPic = -1;   // allow a fresh diff-check run for the next room
+	_revealRects.clear();  // stale reveal suppressions must not bleed into the new room
 	_genRegions.clear(); // drop any stale Feeder B rects from the departing room (drawGenericRegions won't run if _plate is null)
 	_haveScene = false;
 	_loadedPicId = -1;
