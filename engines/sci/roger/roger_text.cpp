@@ -19,6 +19,7 @@
  */
 
 #include "sci/roger/roger_text.h"
+#include "sci/roger/roger_tokens.h"
 #include "graphics/font.h"
 #include "graphics/fontman.h"
 #include "graphics/managed_surface.h"
@@ -101,7 +102,7 @@ uint32 textScaleGroup(uint32 token, bool useAltFont, bool multiLine, uint elemIn
 	uint32 g;
 	if (multiLine)
 		g = 0x0A000000u + elemIndex;         // singleton per element
-	else if ((token & 0xF0000000u) == 0x60000000u)
+	else if ((token & kTokenNamespaceMask) == kGenericTextTokenNs)
 		g = 0x06000000u;                     // generic text: one scale per screen
 	else
 		g = token & 0x0FFFFFFFu;             // controls: one scale per window

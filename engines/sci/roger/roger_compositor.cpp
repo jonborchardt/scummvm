@@ -19,6 +19,7 @@
  */
 
 #include "sci/roger/roger_compositor.h"
+#include "sci/roger/roger_tokens.h"
 #include "sci/roger/view_cache.h"
 #include "sci/roger/roger_coords.h"
 #include "sci/roger/roger_text.h"
@@ -325,7 +326,7 @@ bool regionIsCapturedWindowBody(const Common::Array<UiElement> &elems, uint32 ow
 void dedupeGenericTextElements(Common::Array<UiElement> &elems, uint32 genericToken) {
 	// genericToken is a namespace prefix (high nibble): generic text is tokened per window
 	// (0x60000000 | port->id), so match on the namespace, not an exact value.
-	const uint32 ns = 0xF0000000u;
+	const uint32 ns = kTokenNamespaceMask;
 	for (uint i = 0; i < elems.size();) {
 		bool drop = false;
 		if ((elems[i].token & ns) == genericToken) {
@@ -911,7 +912,7 @@ void RogerCompositor::renderUiLayer(Graphics::ManagedSurface &dest,
 			// char-creation screen drew its border mid-screen and left the native render
 			// leaking below the hug box.
 			const int rows = _caps.screenRows > 0 ? _caps.screenRows : 200;
-			if (haveContent && (e.token & 0x40000000u) &&
+			if (haveContent && (e.token & kControlTokenNs) &&
 			    windowShouldHugContent(e.nativeRect, 320, rows))
 				nr = content;          // hug the controls; ignore SCI's oversized window dims
 			else if (haveContent)
