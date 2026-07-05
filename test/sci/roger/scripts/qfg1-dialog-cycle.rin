@@ -1,6 +1,8 @@
 # Regression: dialog open/dismiss cycle x2. d* must show the dialog painted
 # (same-cycle paint, spec section 7); g1/g2 must match g0 in the dialog region
-# (ghost-text class). QFG1 save slot 3 -> room 320.
+# (ghost-text class). df1/dm1 pin the dialog-text-size-flip class: the same open
+# dialog's text must NOT change size when the mouse moves (control/generic
+# duplicate supersede bug). QFG1 save slot 3 -> room 320.
 wait 4500
 capture g0
 move 160 100
@@ -9,6 +11,12 @@ type "look"
 wait 900
 key ENTER
 wait 2500
+move 150 150             # park cursor BELOW the dialog box before the first grab
+wait 400
+snap df1                 # dialog first paint (real overlay, mid-blocking-dialog)
+move 205 150             # nudge a present (cursor stays below the dialog) while it is up
+wait 500
+snap dm1                 # dialog after mouse move: text size must be UNCHANGED vs df1
 capture d1
 move 200 120
 wait 400

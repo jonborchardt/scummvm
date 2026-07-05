@@ -59,6 +59,41 @@ public:
 		TS_ASSERT_EQUALS(j.ops().size(), 3u);
 	}
 
+	void test_generic_text_does_not_supersede_control_at_same_rect() {
+		// The dialog-text-size-flip bug (this fix): a QFG1 Print/look narration is drawn
+		// by BOTH the semantic control hook (kControlText -> uiPushText, token 0x40000003,
+		// accurate native font height + single-line width cap) AND the generic GfxText16::Box
+		// hook (onNativeText, token 0x60000003, no width cap -> wrap-fit). They are the SAME
+		// native draw seen by two hooks — reconciled by dedupeGenericText (keeps the control).
+		// append()'s geometry-only supersede must NOT let the later generic copy replace the
+		// control copy: doing so left the multi-line wrap-fit generic in the journal, which
+		// rendered too small once a later present re-fitted it (large-first -> small-settled).
+		RogerJournal j;
+		UiElement ctrl = op(kUiText, 10, 26, 310, 86, "look narration");
+		ctrl.token = 0x40000003u; ctrl.nativeFontH = 8; ctrl.nativeTextW = 1356;
+		UiElement gen = op(kUiText, 10, 26, 310, 86, "look narration");
+		gen.token = 0x60000003u; gen.nativeFontH = 12; gen.nativeTextW = 0;
+		j.append(ctrl);
+		j.append(gen);
+		// Both survive append (no cross-namespace supersede); dedupe then keeps the control.
+		TS_ASSERT_EQUALS(j.ops().size(), 2u);
+		j.dedupeGenericText(0x60000000u);
+		TS_ASSERT_EQUALS(j.ops().size(), 1u);
+		TS_ASSERT_EQUALS(j.ops()[0].token, 0x40000003u);
+	}
+
+	void test_same_namespace_value_redraw_still_supersedes() {
+		// Guard: the fix must NOT break the char-sheet stat-value refresh — a generic
+		// redraw at the same box within the SAME generic namespace still supersedes.
+		RogerJournal j;
+		UiElement a = op(kUiText, 170, 45, 192, 57, "25"); a.token = 0x60000003u;
+		UiElement b = op(kUiText, 170, 45, 192, 57, "30"); b.token = 0x60000003u;
+		j.append(a);
+		j.append(b);
+		TS_ASSERT_EQUALS(j.ops().size(), 1u);
+		TS_ASSERT_EQUALS(j.ops()[0].text, Common::String("30"));
+	}
+
 	void test_clear_token_removes_only_exact_token_singletons() {
 		RogerJournal j;
 		UiElement fb = op(kUiWindow, 5, 5, 50, 20); fb.token = 0x70000000u;
