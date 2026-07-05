@@ -296,7 +296,7 @@ void FileRogerArtProvider::precacheAll() {
 	if (doPics) {
 		Common::List<ResourceId> pics = resMan->listResources(kResourceTypePic);
 		const int total = (int)pics.size();
-		int done = 0, skipped = 0;
+		int done = 0, skipped = 0, alreadyCached = 0;
 		const bool isEga = (resMan->getViewType() == kViewEga);
 		warning("ROGER precache: warming %d pic plates (mode=%d)...", total, (int)_assetGen->mode());
 		for (Common::List<ResourceId>::const_iterator it = pics.begin(); it != pics.end(); ++it) {
@@ -313,6 +313,12 @@ void FileRogerArtProvider::precacheAll() {
 				}
 			}
 
+			if (_assetGen->isPicCached(id)) {
+				++done;
+				++alreadyCached;
+				continue; // keyed files exist; nothing to warm, skip the decode
+			}
+
 			uint32 ms = 0;
 			Graphics::Surface *s = _assetGen->generatePlate(id, ms); // cache mode writes the PNG
 			if (s) { s->free(); delete s; }                          // we only wanted it on disk
@@ -322,12 +328,13 @@ void FileRogerArtProvider::precacheAll() {
 			++done;
 			warning("ROGER precache: pic %d (%d/%d) plate %u ms, prio %u ms", id, done, total, ms, pms);
 		}
-		warning("ROGER precache: %d pic plates warmed, %d non-EGA skipped", done, skipped);
+		warning("ROGER precache: %d pic plates warmed (%d already cached), %d non-EGA skipped",
+		        done, alreadyCached, skipped);
 	}
 
 	if (doViews && g_sci->_gfxCache) {
 		Common::List<ResourceId> views = resMan->listResources(kResourceTypeView);
-		int warmed = 0;
+		int warmed = 0, celsCached = 0;
 		for (Common::List<ResourceId>::const_iterator it = views.begin(); it != views.end(); ++it) {
 			const int viewId = it->getNumber();
 			GfxView *view = g_sci->_gfxCache->getView((GuiResourceId)viewId);
@@ -346,6 +353,11 @@ void FileRogerArtProvider::precacheAll() {
 			view = nullptr; // pointer may be invalidated by generateViewCel below
 			for (int lp = 0; lp < loopCount; ++lp) {
 				for (int cl = 0; cl < celCounts[lp]; ++cl) {
+					if (_assetGen->isViewCelCached(viewId, lp, cl)) {
+						++warmed;
+						++celsCached;
+						continue;
+					}
 					uint32 ms = 0;
 					Graphics::Surface *s = _assetGen->generateViewCel(viewId, lp, cl, ms);
 					if (s) { s->free(); delete s; } // cache mode wrote it; discard the surface
@@ -353,7 +365,7 @@ void FileRogerArtProvider::precacheAll() {
 				}
 			}
 		}
-		warning("ROGER precache: %d view cels warmed", warmed);
+		warning("ROGER precache: %d view cels warmed (%d already cached)", warmed, celsCached);
 	}
 
 	warning("ROGER precache: done in %u ms total", g_system->getMillis() - t0);
@@ -373,6 +385,10 @@ bool FileRogerArtProvider::precacheOnePic(GuiResourceId picId, uint32 &ms) {
 				return false; // not cached; generates on-demand
 			}
 		}
+	}
+	if (_assetGen->isPicCached(picId)) {
+		ms = 0;
+		return true; // both keyed files exist; skip the decode entirely
 	}
 	Graphics::Surface *s = _assetGen->generatePlate(picId, ms);
 	if (s) { s->free(); delete s; }
@@ -394,6 +410,8 @@ bool FileRogerArtProvider::precacheOneView(int viewId) {
 	view = nullptr;
 	for (int lp = 0; lp < loopCount; ++lp) {
 		for (int cl = 0; cl < celCounts[lp]; ++cl) {
+			if (_assetGen->isViewCelCached(viewId, lp, cl))
+				continue;
 			uint32 ms = 0;
 			Graphics::Surface *s = _assetGen->generateViewCel(viewId, lp, cl, ms);
 			if (s) { s->free(); delete s; }
