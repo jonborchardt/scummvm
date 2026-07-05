@@ -238,6 +238,58 @@ public:
 		TS_ASSERT_LESS_THAN_EQUALS(1, narrow);
 	}
 
+	void test_fit_px_width_capped_still_fits_box_height() {
+		// The control-hook copy of a dialog carries a single-line width cap (nTextW)
+		// that is huge and never binds, so the width arm leaves the size at ideal.
+		// A long paragraph re-wraps (at the box width) to more lines than fit the box
+		// height, so the height arm MUST shrink it below ideal — otherwise the text
+		// overflows and clips the box bottom (QFG1 room 320 "look" overflow bug).
+		RogerTextRenderer tr("");
+		TS_ASSERT(tr.ok());
+		const char *para =
+			"This appears to be a Market street.  In the corner is a fruit and "
+			"vegetable stand, or Farmer's Mart.  Next to it is a dry goods store, "
+			"and next to that is a house.  Across the street you see the back of "
+			"the barber's shop and the Sheriff's office.";
+		// Short box (30 px) with a huge single-line width cap: the width arm never
+		// binds, but the wrapped block must be shrunk to fit 30 px of height.
+		const int fit = tr.fitPx(para, 300, 30, 40, 100000);
+		TS_ASSERT_LESS_THAN(fit, 40);   // shrank below ideal (would overflow otherwise)
+		TS_ASSERT_LESS_THAN_EQUALS(1, fit);
+		// A taller box needs less (or no) shrink: the height arm is monotone in boxH.
+		const int fitTall = tr.fitPx(para, 300, 200, 40, 100000);
+		TS_ASSERT_LESS_THAN_EQUALS(fit, fitTall);
+		// Prove the fitted size does not overflow the box: drawing at the box height
+		// leaves no text pixels below the rect (the same clip check drawPx guarantees).
+		const Graphics::PixelFormat rgba(4, 8, 8, 8, 8, 24, 16, 8, 0);
+		Graphics::ManagedSurface dst(300, 60, rgba);
+		const uint32 black = rgba.ARGBToColor(255, 0, 0, 0);
+		const uint32 white = rgba.ARGBToColor(255, 255, 255, 255);
+		dst.fillRect(Common::Rect(0, 0, 300, 60), black);
+		// targetPx 40 + a huge width cap -> exercises the same fit path as in-game.
+		tr.drawPx(dst, para, Common::Rect(0, 0, 300, 30), white, 0, 40,
+		          false, nullptr, 100000);
+		for (int y = 30; y < 60; y++) {
+			for (int x = 0; x < 300; x++) {
+				uint8 a, r, g, b;
+				dst.surfacePtr()->format.colorToARGB(dst.surfacePtr()->getPixel(x, y), a, r, g, b);
+				if (r != 0 || g != 0 || b != 0) {
+					TS_FAIL("width-capped long text overflowed the box bottom");
+					return;
+				}
+			}
+		}
+	}
+
+	void test_fit_px_width_capped_short_text_stays_at_ideal() {
+		// A short single-line control that already fits both its width cap and the
+		// box height must NOT be shrunk — the height arm is a no-op here (one wrapped
+		// line). Pins "no needless shrink" for the short dialogs that render correctly.
+		RogerTextRenderer tr("");
+		TS_ASSERT(tr.ok());
+		TS_ASSERT_EQUALS(tr.fitPx("Look here", 500, 300, 40, 100000), 40);
+	}
+
 	void test_draw_px_clips_to_rect_bottom() {
 		// Build a renderer using the bitmap fallback (no game files needed).
 		RogerTextRenderer tr("");

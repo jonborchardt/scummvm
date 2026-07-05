@@ -113,12 +113,14 @@ public:
 	int scaledIdealPx(int targetPx) const {
 		return targetPx > 0 ? targetPx * _globalScalePct / 100 : 0;
 	}
-	// Largest cell height <= idealPx that keeps `text` inside its caps: the box
-	// height always; for single-line fields (maxTextW > 0) the rendered string width
-	// must not exceed maxTextW; for multi-line text (maxTextW == 0) the word-wrapped
-	// block (wrapped to boxW) must fit boxH. Re-measures at each candidate size (TTF
-	// metrics are not linear in size). Feed the result to applySharedGroupScale, then
-	// drawAtPx. idealPx <= 0 => fill the box height.
+	// Largest cell height <= idealPx that keeps `text` inside its caps. TWO constraints,
+	// both enforced (smaller wins): (1) when maxTextW > 0, the single-line rendered string
+	// width must not exceed maxTextW (the control-hook native footprint width); (2) ALWAYS,
+	// the word-wrapped block (wrapped to boxW) must fit boxH — a metric-carrying control copy
+	// whose huge width cap never binds still shrinks so its TTF re-wrap does not overflow the
+	// box (a single-line field wraps to one line, so (2) is a no-op for it). Re-measures at
+	// each candidate size (TTF metrics are not linear in size). Feed the result to
+	// applySharedGroupScale, then drawAtPx. idealPx <= 0 => fill the box height.
 	int fitPx(const Common::String &text, int boxW, int boxH, int idealPx,
 	          int maxTextW, const Common::Array<UiGlyph> *glyphs = nullptr) const;
 	// Draw word-wrapped, vertically-centred text at EXACTLY finalPx (as chosen by

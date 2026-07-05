@@ -262,8 +262,21 @@ int RogerTextRenderer::fitPx(const Common::String &text, int boxW, int boxH, int
 	// because glyph metrics do not scale perfectly linearly. Bounded iterations:
 	// with the bitmap fallback the measured width may not shrink with h at all,
 	// so every path must terminate without convergence.
+	//
+	// TWO independent constraints, both enforced (smaller wins):
+	//  (1) width cap — only when maxTextW > 0: the single-line native footprint
+	//      width a control-hooked element carries (nTextW). Keeps the crisp text
+	//      inside the same on-screen width the original occupied.
+	//  (2) box height — ALWAYS: the word-wrapped block (at the box width) must fit
+	//      the rect height. The metric-carrying control copy sets a huge single-line
+	//      width cap that never binds, but Roger re-wraps at the TTF font, which
+	//      yields MORE lines than native SCI packed into the same box (the documented
+	//      multi-line re-wrap drift). Without this arm a long dialog renders at its
+	//      ideal size and overflows/clips the box bottom (QFG1 room 320 "look").
+	//      A genuine single-line field wraps to one line here, so this is a no-op for
+	//      it — it never over-shrinks the short dialogs that already fit at ideal.
 	if (maxTextW > 0) {
-		// Single-line field: the rendered string must fit the native footprint width.
+		// Constraint (1): the rendered string must fit the native footprint width.
 		for (int i = 0; i < 5; i++) {
 			const Graphics::Font *f = fontForPx(h);
 			if (!f)
@@ -276,25 +289,24 @@ int RogerTextRenderer::fitPx(const Common::String &text, int boxW, int boxH, int
 				nh = h - 1;
 			h = nh < 1 ? 1 : nh;
 		}
-	} else {
-		// Multi-line text: the word-wrapped block (at the box width) must fit the
-		// box height. Comparing the FULL unwrapped string width against the box
-		// would reject every usable size — wrap first, then compare heights.
-		Common::Array<Common::String> lines;
-		for (int i = 0; i < 5; i++) {
-			const Graphics::Font *f = fontForPx(h);
-			if (!f)
-				return h;
-			lines.clear();
-			f->wordWrapText(text, boxW, lines);
-			const int totalH = (int)lines.size() * f->getFontHeight();
-			if (totalH <= boxH || h <= 1)
-				break;
-			int nh = (int)((int64)h * boxH / totalH);
-			if (nh >= h)
-				nh = h - 1;
-			h = nh < 1 ? 1 : nh;
-		}
+	}
+	// Constraint (2): the word-wrapped block must fit the box height. Comparing the
+	// FULL unwrapped string width against the box would reject every usable size —
+	// wrap first, then compare heights.
+	Common::Array<Common::String> lines;
+	for (int i = 0; i < 5; i++) {
+		const Graphics::Font *f = fontForPx(h);
+		if (!f)
+			return h;
+		lines.clear();
+		f->wordWrapText(text, boxW, lines);
+		const int totalH = (int)lines.size() * f->getFontHeight();
+		if (totalH <= boxH || h <= 1)
+			break;
+		int nh = (int)((int64)h * boxH / totalH);
+		if (nh >= h)
+			nh = h - 1;
+		h = nh < 1 ? 1 : nh;
 	}
 	return h;
 }
