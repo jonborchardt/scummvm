@@ -149,7 +149,12 @@ void RogerStudio::renderSlot(Slot &slot) {
 		IndexImage cel;
 		byte clearKey = 0;
 		if (_gen.nativeCelIndexImage(_viewIds[_viewIdx], _loopNo, _celNo, cel, clearKey)) {
-			IndexImage scaled = applyScalerVariant(slot.variant, cel);
+			IndexImage scaled = applyViewScalerPreset(slot.variant, cel, clearKey);
+			// Non-6x pipelines (8x/9x) are resampled onto the 6x plate grid so
+			// the 1:1 blit below and the Diff view stay pixel-exact. Exact
+			// rational only — never ManagedSurface's truncated 8.8 blit scaler.
+			if (viewScalerPresetFactor(slot.variant) != 6)
+				scaled = resampleNearestExact(scaled, cel.w * 6, cel.h * 6);
 			Graphics::Surface *celSurf = _gen.surfaceFromIndex(scaled, clearKey);
 			if (celSurf) {
 				// Bottom-centre anchor at (_celX, _celY) native.
@@ -177,6 +182,8 @@ Common::String RogerStudio::slotStamp(const Slot &slot) const {
 	Common::String s = omyacParamStamp(slot.params) + "-" + omyacPassStamp(slot.passes);
 	if (slot.plateMode == kPlateNearestRef)
 		s += "-nref";
+	if (_showView)
+		s += Common::String("-") + viewScalerPreset(slot.variant).id;
 	return s;
 }
 
@@ -546,7 +553,7 @@ void RogerStudio::drawPanel() {
 	st.viewId = _viewIds.empty() ? -1 : _viewIds[_viewIdx];
 	st.loopNo = _loopNo; st.celNo = _celNo;
 	st.celX = _celX; st.celY = _celY;
-	st.variantName = scalerVariantName(s.variant);
+	st.variantName = viewScalerPreset(s.variant).label;
 	st.plateNearest = s.plateMode == kPlateNearestRef;
 	st.showView = _showView;
 	st.showBackfill = _showBackfill;
@@ -630,8 +637,9 @@ void RogerStudio::dispatchWidget(uint32 id) {
 	case kWidCelPrev: _celNo = MAX(0, _celNo - 1); invalidateCelOnly(); break;
 	case kWidCelNext: _celNo++; invalidateCelOnly(); break;              // clamped in renderSlot
 	case kWidVariantCycle:
-		do { s.variant = (s.variant + 1) % kScalerCount; }
-		while (scalerVariantFactor(s.variant) != 6);
+		// All presets are cycle-eligible: non-6x results are resampled onto
+		// the 6x plate grid at compose time (renderSlot).
+		s.variant = (s.variant + 1) % viewScalerPresetCount();
 		invalidateActive(); break;
 	case kWidPlateMode:
 		s.plateMode = (s.plateMode == kPlateOmyac) ? kPlateNearestRef : kPlateOmyac;

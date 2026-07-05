@@ -85,36 +85,6 @@ void omyacParamSet(OmyacParams &p, int i, int value) {
 	}
 }
 
-static const char *VARIANT_NAMES[kScalerCount] = {
-	"scale6x (3x*2x)", "scale2x*3x", "nearest6", "scale2x+near3", "scale3x+near2",
-	"scale4x", "scale8x"
-};
-
-const char *scalerVariantName(int v) {
-	return (v >= 0 && v < kScalerCount) ? VARIANT_NAMES[v] : "?";
-}
-
-int scalerVariantFactor(int v) {
-	switch (v) {
-	case kScaler4x: return 4;
-	case kScaler8x: return 8;
-	default: return 6;
-	}
-}
-
-IndexImage applyScalerVariant(int v, const IndexImage &in) {
-	switch (v) {
-	case kScaler6x:      return scale6x(in);
-	case kScaler2x3x:    return scale2x(scale3x(in));
-	case kScalerNearest6: return scaleNearest(in, 6);
-	case kScaler2xN3:    return scaleNearest(scale2x(in), 3);
-	case kScaler3xN2:    return scaleNearest(scale3x(in), 2);
-	case kScaler4x:      return scale2x(scale2x(in));
-	case kScaler8x:      return scale2x(scale2x(scale2x(in)));
-	default:             return scale6x(in);
-	}
-}
-
 Common::String omyacPassStamp(const Common::Array<int> &passes) {
 	if (passes.empty())
 		return "none";

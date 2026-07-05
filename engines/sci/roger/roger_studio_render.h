@@ -49,24 +49,6 @@ OmyacParamDesc omyacParamDesc(int i);
 int omyacParamGet(const OmyacParams &p, int i);
 void omyacParamSet(OmyacParams &p, int i, int value); // clamps to [minV, maxV]
 
-// ── Scaler variants for view-cel comparison ──────────────────────────────────
-// Factor-6 variants are eligible for Combined mode (must match the 6x plate);
-// kScaler4x / kScaler8x are View-mode-only exploration.
-enum ScalerVariant {
-	kScaler6x = 0,   // scale3x(scale2x(in)) — the shipping path
-	kScaler2x3x,     // scale2x(scale3x(in)) — order swapped
-	kScalerNearest6, // blocky reference
-	kScaler2xN3,     // scale2x then nearest x3
-	kScaler3xN2,     // scale3x then nearest x2
-	kScaler4x,       // scale2x(scale2x(in))
-	kScaler8x,       // scale2x(scale2x(scale2x(in)))
-	kScalerCount
-};
-
-const char *scalerVariantName(int v);
-int scalerVariantFactor(int v);
-IndexImage applyScalerVariant(int v, const IndexImage &in);
-
 // ── Export filename stamps ───────────────────────────────────────────────────
 Common::String omyacPassStamp(const Common::Array<int> &passes); // "ffla" / "none"
 Common::String omyacParamStamp(const OmyacParams &p);            // "default" / "mvl3-iso0"
