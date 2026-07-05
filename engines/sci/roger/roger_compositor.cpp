@@ -286,6 +286,15 @@ int rectCoverageFraction(const Common::Rect &inner, const Common::Rect &outer) {
 	return (int)((cov * 100) / area);
 }
 
+bool restoreReclaimsStamp(const Common::Rect &restoreRect, const Common::Rect &stampRect,
+                          int minCoveragePct) {
+	// Symmetric with the capture-time reveal suppression: the stamp is reclaimed when the
+	// restore covers >= minCoveragePct of it. Empty stamp -> not reclaimed (nothing to drop).
+	if (stampRect.isEmpty())
+		return false;
+	return rectCoverageFraction(stampRect, restoreRect) >= minCoveragePct;
+}
+
 void filterForegroundCaptureRegionsCovered(const Common::Array<Common::Rect> &captured,
                                            const Common::Array<Common::Rect> &exclude,
                                            int minCoveragePct, Common::Array<Common::Rect> &out) {

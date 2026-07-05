@@ -90,6 +90,17 @@ void collectUiTextRects(const Common::Array<UiElement> &elems, uint32 genericTok
 // Percentage (0..100) of `inner`'s area covered by its intersection with `outer`. inner empty -> 0.
 int rectCoverageFraction(const Common::Rect &inner, const Common::Rect &outer);
 
+// True when a bitsRestore of `restoreRect` should reclaim a pixel stamp whose cel occupies
+// `stampRect` — the stamp's content was just overwritten by the restore. Uses coverage
+// (>= minCoveragePct of the STAMP inside the restore), NOT strict containment: a menu
+// dropdown's bitsSave/bitsRestore restore rect is byte-aligned and up to a pixel narrower
+// per side than the show rect that produced the stamp (show (60,9,214,59) vs restore
+// (61,9,214,59)). Strict `restoreRect.contains(stampRect)` fails that 1px inset and the
+// stamp is retained forever — the tracked non-enhanced menu residue. This MUST mirror the
+// >= 90% reveal-suppression at capture time so creation and rollback stay symmetric.
+bool restoreReclaimsStamp(const Common::Rect &restoreRect, const Common::Rect &stampRect,
+                          int minCoveragePct);
+
 // Append each `captured[i]` to `out` UNLESS some `exclude[j]` covers >= minCoveragePct of it.
 // Coverage-threshold variant of filterForegroundCaptureRegions: a region only edge-clipped by a
 // (often wide/multi-line) text rect is kept, so adjacent graphics are not lost to mere intersection.

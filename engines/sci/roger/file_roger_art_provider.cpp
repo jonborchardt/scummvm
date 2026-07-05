@@ -1964,9 +1964,15 @@ void FileRogerArtProvider::onNativeRestoreRect(uint32 handleToken, const Common:
 	if (!did)
 		did = _journal->eraseContained(rect, &removed); // unknown handle: old semantics
 	// Stamps drawn since the checkpoint inside the rect die with the rollback
-	// (menu-bug class: a dropdown's own stamps must not outlive it).
+	// (menu-bug class: a dropdown's own stamps must not outlive it). Coverage-based
+	// (>= 90%), NOT strict containment: the restore rect is byte-aligned and up to a
+	// pixel narrower per side than the show rect that created the stamp (show
+	// (60,9,214,59) vs restore (61,9,214,59)); strict rect.contains(celRect) misses
+	// that 1px inset and the stamp is retained forever — the tracked non-enhanced menu
+	// residue. This mirrors the >= 90% reveal-suppression at capture time so stamp
+	// creation and rollback stay symmetric.
 	for (uint i = _textSprites.size(); i-- > 0;) {
-		if (rect.contains(_textSprites[i].celRect) && _textSprites[i].seq > 0) {
+		if (Roger::restoreReclaimsStamp(rect, _textSprites[i].celRect, 90) && _textSprites[i].seq > 0) {
 			removed.push_back(_textSprites[i].celRect);
 			if (_textSprites[i].celOverride && _textSprites[i].celOverrideOwned) {
 				_textSprites[i].celOverride->free();
@@ -1976,9 +1982,11 @@ void FileRogerArtProvider::onNativeRestoreRect(uint32 handleToken, const Common:
 			did = true;
 		}
 	}
-	// …and pending not-yet-processed regions inside the rect are stale too.
+	// …and pending not-yet-processed regions the rect substantially covers are stale too
+	// (same coverage rule as the stamps above — a byte-aligned restore must still reclaim
+	// a 1px-wider pending show region).
 	for (uint i = _foregroundRegions.size(); i-- > 0;) {
-		if (rect.contains(_foregroundRegions[i].rect))
+		if (Roger::restoreReclaimsStamp(rect, _foregroundRegions[i].rect, 90))
 			_foregroundRegions.remove_at(i);
 	}
 	for (uint i = 0; i < removed.size(); i++)

@@ -666,3 +666,61 @@ public:
 		TS_ASSERT_EQUALS(c.nativeRowsToOverlay(10, 2000), 100);
 	}
 };
+
+// Rollback containment for pixel stamps (menu-close residue class). A menu dropdown's
+// bitsShow rect and its bitsSave/bitsRestore rect differ by the 1px byte-aligned frame:
+// the stamp is created from the SHOW rect, the rollback fires on the (narrower) RESTORE
+// rect. Strict rect.contains() misses that inset and the stamp is retained forever
+// (tracked non-enhanced residue, ego renders behind it). restoreReclaimsStamp must reclaim
+// it via the same >= 90% coverage rule the capture-time reveal suppression uses.
+class TestStampRollback : public CxxTest::TestSuite {
+public:
+	// The exact QFG1 case observed in the diag trace: show (60,9,214,59), restore (61,9,214,59).
+	void test_restore_reclaims_stamp_one_px_inset() {
+		const Common::Rect show(60, 9, 214, 59);   // stamp celRect (from bitsShow)
+		const Common::Rect restore(61, 9, 214, 59); // restore rect (byte-aligned, 1px narrower left)
+		// The regression before the fix: strict containment fails (60 < 61).
+		TS_ASSERT(!restore.contains(show));
+		// The fix: coverage-based reclaim succeeds (99% of the stamp is inside the restore).
+		TS_ASSERT(Sci::Roger::restoreReclaimsStamp(restore, show, 90));
+	}
+
+	void test_restore_reclaims_stamp_inset_all_sides() {
+		// A restore 1px narrower on every side still reclaims (frame-pixel byte alignment).
+		const Common::Rect show(40, 20, 200, 120);
+		const Common::Rect restore(41, 21, 199, 119);
+		TS_ASSERT(!restore.contains(show));
+		TS_ASSERT(Sci::Roger::restoreReclaimsStamp(restore, show, 90));
+	}
+
+	void test_exact_containment_still_reclaims() {
+		// The common case (restore fully covers the stamp) is unaffected.
+		const Common::Rect show(60, 9, 214, 59);
+		const Common::Rect restore(50, 5, 220, 65);
+		TS_ASSERT(restore.contains(show));
+		TS_ASSERT(Sci::Roger::restoreReclaimsStamp(restore, show, 90));
+	}
+
+	void test_disjoint_restore_does_not_reclaim() {
+		// A restore of a different region must NOT drop an unrelated stamp.
+		const Common::Rect show(60, 9, 214, 59);
+		const Common::Rect restore(0, 0, 20, 10);
+		TS_ASSERT(!Sci::Roger::restoreReclaimsStamp(restore, show, 90));
+	}
+
+	void test_partial_overlap_below_threshold_does_not_reclaim() {
+		// A restore covering < 90% of the stamp leaves it (adjacent dropdown restore must
+		// not reclaim a neighbouring menu's stamp). show 154 wide; restore overlaps 112px
+		// (102..214) => ~72% coverage < 90.
+		const Common::Rect show(60, 9, 214, 59);
+		const Common::Rect restore(102, 9, 222, 59);
+		TS_ASSERT(Sci::Roger::rectCoverageFraction(show, restore) < 90);
+		TS_ASSERT(!Sci::Roger::restoreReclaimsStamp(restore, show, 90));
+	}
+
+	void test_empty_stamp_not_reclaimed() {
+		const Common::Rect show(60, 9, 60, 9); // empty
+		const Common::Rect restore(0, 0, 320, 200);
+		TS_ASSERT(!Sci::Roger::restoreReclaimsStamp(restore, show, 90));
+	}
+};
