@@ -1,19 +1,56 @@
 # Regression: menu open/close leaves no native-pixel stamp where the dropdown was.
 # Motivating bug (Phase 2 checkpoints): closing the game menu used to leave blocky
-# native pixels in the menu-bar band. m-before vs m-after must be pixel-identical in
-# the top band; m-open must actually show the open dropdown. QFG1 target, save slot 1.
+# native pixels where a dropdown had been. Two activation paths are exercised because
+# they are DISTINCT SCI code paths and the original gate (ESC-only, top-band-only)
+# missed the mouse-drag residue that reached deep into the scene:
+#   1. ESC keyboard menu (interactiveWithKeyboard), and
+#   2. mouse press-drag across the title bar (interactiveWithMouse) — the user's gesture.
+# m-before vs m-after (ESC path) and d-before vs d-after (drag path) must be
+# pixel-identical across the whole upper scene band the dropdowns overlap, not just the
+# menu bar. QFG1 target, save slot 1 (room 300: dropdowns extend well into the scene).
 wait 4000
 capture m-before
-move 160 100
-wait 600
+# --- ESC keyboard path: open, walk across menus, close ---
 key ESC
-wait 1200
+wait 1000
+key RIGHT
+wait 700
+key RIGHT
+wait 700
 capture m-open
-move 200 12
-wait 600
 key ESC
 wait 1200
-capture m-after
 move 160 100
 wait 600
+capture m-after
+# --- mouse press-drag path: hold + drag across all titles + release in scene ---
+move 160 100
+wait 600
+capture d-before
+mousedown 20 3
+wait 400
+move 60 3
+wait 400
+move 110 3
+wait 400
+move 160 3
+wait 400
+move 210 3
+wait 400
+move 160 45
+wait 400
+move 160 120
+wait 300
+mouseup 160 120
+wait 1400
+move 160 100
+wait 600
+capture d-after
+# move the mouse over the residue band: a real stamp is NOT healed by mouse-over
+move 130 34
+wait 500
+move 160 100
+wait 600
+capture d-afterhover
+wait 400
 quit

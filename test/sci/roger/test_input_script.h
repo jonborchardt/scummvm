@@ -18,6 +18,12 @@ public:
 		TS_ASSERT_EQUALS(c.type, kCmdRClick);
 		TS_ASSERT(parseScriptLine("move 300 150", c));
 		TS_ASSERT_EQUALS(c.type, kCmdMove);
+		TS_ASSERT(parseScriptLine("mousedown 20 3", c));
+		TS_ASSERT_EQUALS(c.type, kCmdMouseDown);
+		TS_ASSERT_EQUALS(c.x, 20);
+		TS_ASSERT_EQUALS(c.y, 3);
+		TS_ASSERT(parseScriptLine("mouseup 160 120", c));
+		TS_ASSERT_EQUALS(c.type, kCmdMouseUp);
 		TS_ASSERT(parseScriptLine("wait 500", c));
 		TS_ASSERT_EQUALS(c.type, kCmdWait);
 		TS_ASSERT_EQUALS(c.ms, 500u);

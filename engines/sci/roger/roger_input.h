@@ -29,7 +29,9 @@
 // core a future MCP server (or any other front-end) would reuse unchanged.
 //
 // .rin grammar (game-space 320x200 coords; '#' comments; blank lines skipped):
-//   click X Y | rclick X Y | move X Y | key <token> | type "text"
+//   click X Y | rclick X Y | move X Y | mousedown X Y | mouseup X Y | key <token> | type "text"
+//   (mousedown/mouseup bracket a press-and-hold drag: mousedown, intervening moves, mouseup —
+//    e.g. the SCI0 mouse menu path that opens dropdowns while the button is held)
 //   wait <ms> | waituntil <key> <value> <timeoutMs>
 //   capture <label> | snap <label> | state
 //   assert <key> <value> | restore <slot> | fail <msg> | log <text> | quit
@@ -51,6 +53,8 @@ enum ScriptCmdType {
 	kCmdClick,
 	kCmdRClick,
 	kCmdMove,
+	kCmdMouseDown, // press-and-hold left button at X,Y (drag-gesture start; menu mouse path)
+	kCmdMouseUp,   // release left button at X,Y (drag-gesture end)
 	kCmdKey,
 	kCmdType,
 	kCmdWait,

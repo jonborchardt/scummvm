@@ -99,13 +99,17 @@ bool parseScriptLine(const Common::String &line, ScriptCommand &cmd) {
 	Common::StringTokenizer tok(s, " \t");
 	Common::String verb = tok.nextToken();
 
-	if (verb == "click" || verb == "rclick" || verb == "move") {
+	if (verb == "click" || verb == "rclick" || verb == "move" ||
+	    verb == "mousedown" || verb == "mouseup") {
 		Common::String xs = tok.nextToken(), ys = tok.nextToken();
 		if (xs.empty() || ys.empty()) {
 			warning("ROGER-SCRIPT: malformed '%s' (need X Y): %s", verb.c_str(), line.c_str());
 			return false;
 		}
-		cmd.type = (verb == "click") ? kCmdClick : (verb == "rclick") ? kCmdRClick : kCmdMove;
+		cmd.type = (verb == "click") ? kCmdClick :
+		           (verb == "rclick") ? kCmdRClick :
+		           (verb == "mousedown") ? kCmdMouseDown :
+		           (verb == "mouseup") ? kCmdMouseUp : kCmdMove;
 		cmd.x = clampCoord(atoi(xs.c_str()), 320);
 		cmd.y = clampCoord(atoi(ys.c_str()), 200);
 		return true;
@@ -261,6 +265,19 @@ void InputScriptDriver::expandCommand(const ScriptCommand &c) {
 		break;
 	case kCmdMove:
 		pushMouse(Common::EVENT_MOUSEMOVE, c.x, c.y, _cursorRelMs);
+		break;
+	case kCmdMouseDown:
+		// Press-and-hold: move to X,Y then LBUTTONDOWN, WITHOUT a paired up.
+		// Enables drag gestures (the SCI0 menu mouse path holds the button while
+		// dragging across titles/dropdowns). Pair with intervening move + mouseup.
+		pushMouse(Common::EVENT_MOUSEMOVE, c.x, c.y, _cursorRelMs);
+		pushMouse(Common::EVENT_LBUTTONDOWN, c.x, c.y, _cursorRelMs);
+		_cursorRelMs += 60;
+		break;
+	case kCmdMouseUp:
+		pushMouse(Common::EVENT_MOUSEMOVE, c.x, c.y, _cursorRelMs);
+		pushMouse(Common::EVENT_LBUTTONUP, c.x, c.y, _cursorRelMs);
+		_cursorRelMs += 60;
 		break;
 	case kCmdClick:
 	case kCmdRClick: {
