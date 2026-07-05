@@ -33,6 +33,7 @@
 #include "sci/roger/roger_coords.h"
 #include "sci/roger/roger_omyac.h"
 #include "sci/roger/roger_journal.h"
+#include "sci/roger/roger_tokens.h"
 #include "sci/roger/roger_text.h"
 #include "sci/roger/view_cache.h"
 #include "sci/roger/slice_set.h"
@@ -1644,7 +1645,7 @@ void FileRogerArtProvider::uiPushWindow(const Common::Rect &r, int backColor, in
 		warning("ROGER-DIAG[uiWindow]: rect=(%d,%d,%d,%d) wndStyle=0x%02x backColor=%d -> e.backColor=%d hasFrame=%d pictureBackedOrTransparent=%d token=0x%08x",
 		        r.left, r.top, r.right, r.bottom, wndStyle, backColor, e.backColor,
 		        (int)e.hasFrame, (int)pictureBackedOrTransparent, token);
-	if ((token & 0xF0000000u) == 0x40000000u) {
+	if ((token & Roger::kTokenNamespaceMask) == Roger::kControlTokenNs) {
 		e.windowId = token & 0x0FFFFFFFu; // the window box op belongs to itself
 		_journal->openBracket(e.windowId, r);
 	}
@@ -1705,11 +1706,6 @@ void FileRogerArtProvider::uiPushTextEdit(const Common::Rect &r, const char *tex
 	presentBarrier();
 }
 
-// kDrawCel icon captures (onDrawCel) share this namespace token. Their lifetime is
-// geometric: an icon is dropped when a native erase rect (save-under restore / redraw
-// box) covers it — see onNativeEraseRect — or on room change via uiClearAll.
-static const uint32 DRAWCEL_ICON_TOKEN = 0x50000000u;
-
 void FileRogerArtProvider::uiPushIcon(const Common::Rect &r, int viewId, int loopNo, int celNo,
                                       uint32 token) {
 	if (!overlayShown() || !_plate) return;
@@ -1741,7 +1737,7 @@ void FileRogerArtProvider::onDrawCel(const Common::Rect &r, int viewId, int loop
 	// every call would erase the previous cel, leaving only the last one visible.
 	// Lifetime: an icon dies when a native erase rect covers it (onNativeEraseRect) or on
 	// room change (uiClearAll) — never via a blanket namespace clear.
-	const uint32 tok = DRAWCEL_ICON_TOKEN;
+	const uint32 tok = Roger::kDrawCelIconTokenNs;
 
 	Roger::UiElement e;
 	e.type = Roger::kUiIcon; e.nativeRect = r; e.token = tok;
@@ -1845,11 +1841,9 @@ void FileRogerArtProvider::reapplyStatus() {
 // (GfxPorts::removeWindow -> uiClearToken(0x60000000 | id)) drops exactly that window's
 // text — the same lifetime controls16/menu text already has. Text drawn on the picture
 // port (no dialog / char screen while open) uses that port's id, which is never disposed
-// mid-room, so it persists until room change. GENERIC_TEXT_TOKEN is the namespace base
+// mid-room, so it persists until room change. kGenericTextTokenNs is the namespace base
 // (matches picture-port id 0 fallback and is the value passed to the namespace helpers).
-static const uint32 GENERIC_TEXT_TOKEN = 0x60000000u;
-static const uint32 GENERIC_TEXT_MASK = 0xF0000000u;
-static inline bool isGenericTextToken(uint32 t) { return (t & GENERIC_TEXT_MASK) == GENERIC_TEXT_TOKEN; }
+static inline bool isGenericTextToken(uint32 t) { return (t & Roger::kTokenNamespaceMask) == Roger::kGenericTextTokenNs; }
 
 void FileRogerArtProvider::uiClearToken(uint32 token) {
 	// bitsRestore calls this ~2× per moving sprite EVERY cycle, almost always with a
@@ -1859,13 +1853,13 @@ void FileRogerArtProvider::uiClearToken(uint32 token) {
 	Common::Array<Common::Rect> removedRects;
 	bool removedUi = false;
 	if (_journal) {
-		const uint32 ns = token & 0xF0000000u;
-		if (ns == 0x40000000u) {
+		const uint32 ns = token & Roger::kTokenNamespaceMask;
+		if (ns == Roger::kControlTokenNs) {
 			// removeWindow bracket: drops the window box op AND every op captured
-			// inside it, whatever port drew it (the 0x60000000|portId clear that
+			// inside it, whatever port drew it (the kGenericTextTokenNs|portId clear that
 			// ports.cpp also sends becomes a no-op — brackets subsume it).
 			removedUi = _journal->closeBracket(token & 0x0FFFFFFFu, &removedRects);
-		} else if (ns == 0x60000000u) {
+		} else if (ns == Roger::kGenericTextTokenNs) {
 			removedUi = false; // lifetime is bracket/erase-based now
 		} else {
 			removedUi = _journal->clearToken(token, &removedRects); // singletons + save-under handles
@@ -1880,7 +1874,7 @@ void FileRogerArtProvider::uiClearToken(uint32 token) {
 	// tagged: bitsRestore's per-cycle handle tokens have small segments (top nibble 0), so
 	// they don't enter this branch. Removed stamp rects join removedRects for the dirty pass.
 	bool removedStamps = false;
-	if ((token & 0xF0000000u) == 0x40000000u) {
+	if ((token & Roger::kTokenNamespaceMask) == Roger::kControlTokenNs) {
 		for (uint i = _foregroundRegions.size(); i-- > 0;)
 			if (_foregroundRegions[i].owner == token)
 				_foregroundRegions.remove_at(i);
@@ -1898,11 +1892,11 @@ void FileRogerArtProvider::uiClearToken(uint32 token) {
 	}
 
 	if (!removedUi && !removedStamps) {
-		if (_diag && (token & GENERIC_TEXT_MASK) == GENERIC_TEXT_TOKEN)
+		if (_diag && isGenericTextToken(token))
 			warning("ROGER-DIAG[clearToken]: tok=0x%08x removed=0 (no match)", token);
 		return;
 	}
-	if (_diag && (token & GENERIC_TEXT_MASK) == GENERIC_TEXT_TOKEN)
+	if (_diag && isGenericTextToken(token))
 		warning("ROGER-DIAG[clearToken]: tok=0x%08x removed=1", token);
 	// RETAINED duty-3 exception (Phase 3): no-save-under / reanimate==false disposals
 	// never fire bitsRestore, and Feeder B stamp rects can exceed the save-under rect —
@@ -1962,7 +1956,8 @@ void FileRogerArtProvider::onNativeRestoreRect(uint32 handleToken, const Common:
 	Common::Array<Common::Rect> removed;
 	bool did = _journal->rollback(handleToken, rect, &removed);
 	if (!did)
-		did = _journal->eraseContained(rect, &removed); // unknown handle: old semantics
+		// unknown handle: old semantics, but spare the persistent singletons — nothing repaints them after a bare restore
+		did = _journal->eraseContained(rect, &removed, true);
 	// Stamps drawn since the checkpoint inside the rect die with the rollback
 	// (menu-bug class: a dropdown's own stamps must not outlive it). Coverage-based
 	// (>= 90%), NOT strict containment: the restore rect is byte-aligned and up to a
@@ -2031,12 +2026,10 @@ void FileRogerArtProvider::uiClearAll() {
 // uiClearAll (called on every room change and onNativePicture). A single constant
 // token means each new push calls clearToken() first, so the highlight tracks
 // movement without accumulating stale elements even when the rect changes.
-static const uint32 FRAME_BOX_TOKEN = 0x70000000u;
-
 void FileRogerArtProvider::uiPushFrameBox(const Common::Rect &r, int penColor) {
 	if (!overlayShown() || !_plate) return; // no hires scene — leave native highlight visible
 	ensureUi();
-	// Gate: if the frame element under FRAME_BOX_TOKEN is already identical (same rect
+	// Gate: if the frame element under Roger::kFrameBoxToken is already identical (same rect
 	// + same color), skip the clear/push/invalidate/present cycle entirely. This prevents
 	// a per-cycle present storm when kernelDrawText fires on every control redraw (TAB,
 	// hover, any redraw) while the selection has not actually moved or changed color.
@@ -2044,7 +2037,7 @@ void FileRogerArtProvider::uiPushFrameBox(const Common::Rect &r, int penColor) {
 	const Common::Array<Roger::UiElement> &elems = _journal->ops();
 	Common::Rect oldFrameRect; // empty when no existing frame element
 	for (uint i = 0; i < elems.size(); i++) {
-		if (elems[i].token == FRAME_BOX_TOKEN) {
+		if (elems[i].token == Roger::kFrameBoxToken) {
 			if (elems[i].nativeRect == r && elems[i].penColor == penColor)
 				return; // identical — nothing to do
 			oldFrameRect = elems[i].nativeRect;
@@ -2055,13 +2048,13 @@ void FileRogerArtProvider::uiPushFrameBox(const Common::Rect &r, int penColor) {
 	// clearToken() removes the stale element so the rect/color change takes effect
 	// (push() only deduplicates on type+token+rect, so changing rect without clearing
 	// would accumulate stale elements as the user moves the selection).
-	_journal->clearToken(FRAME_BOX_TOKEN);
+	_journal->clearToken(Roger::kFrameBoxToken);
 	Roger::UiElement e;
 	e.type = Roger::kUiWindow; e.nativeRect = r;
 	e.backColor = -1; // no fill — never paints over scene content
 	e.penColor = penColor;
 	e.hasFrame = true;
-	e.token = FRAME_BOX_TOKEN;
+	e.token = Roger::kFrameBoxToken;
 	journalAppend(e);
 	// RETAINED duty-3 exception (Phase 3, uiClearToken's twin): no SCI save-under exists
 	// for the frame box, and the net can't see overlay-only draws — old position would ghost.
@@ -2172,7 +2165,7 @@ void FileRogerArtProvider::processForegroundCaptures(const Common::Array<Common:
 	// graphic merely edge-clipped by a wide/multi-line text rect survives (fixes lost portrait/bars).
 	Common::Array<Common::Rect> textRects;
 	if (_journal)
-		Roger::collectUiTextRects(_journal->ops(), GENERIC_TEXT_TOKEN, textRects);
+		Roger::collectUiTextRects(_journal->ops(), Roger::kGenericTextTokenNs, textRects);
 
 	// Filter per region (the filters judge each rect independently) so each surviving
 	// rect keeps its owning-window token through to the stamped sprite.
@@ -2368,7 +2361,7 @@ void FileRogerArtProvider::onNativeText(const Common::Rect &nativeRect, const ch
 	e.align = align;
 	// Scope to the drawing window (generic namespace | port id). Falls back to the
 	// namespace base if the caller had no port, matching the picture-port persist case.
-	e.token = isGenericTextToken(winToken) ? winToken : GENERIC_TEXT_TOKEN;
+	e.token = isGenericTextToken(winToken) ? winToken : Roger::kGenericTextTokenNs;
 	e.textRole = Roger::kRoleBody;   // same body size as dialog/control text
 	e.nativeFontH = nativeFontH;     // native cell height -> renderer target size
 	e.nativeTextW = nativeTextW;     // single-line width cap (0 = multi-line: no cap)
@@ -2437,7 +2430,7 @@ void FileRogerArtProvider::flushGenericText() {
 	}
 	_genTextPending.clear();
 	// Drop any generic element a controls16/menu element already covers (no double render).
-	_journal->dedupeGenericText(GENERIC_TEXT_TOKEN);
+	_journal->dedupeGenericText(Roger::kGenericTextTokenNs);
 	if (_debugCapture)
 		dumpCaptureDebug();
 }

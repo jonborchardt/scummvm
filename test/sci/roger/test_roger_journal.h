@@ -272,4 +272,22 @@ public:
 		TS_ASSERT_EQUALS(j.ops().size(), 1u);
 		TS_ASSERT_EQUALS(j.ops()[0].text, Common::String("Strength"));
 	}
+
+	void test_erase_contained_can_spare_saveunder_singletons() {
+		// The unknown-handle restore fallback must not drop the status banner /
+		// frame box (nothing redraws them afterwards); the default erase (the
+		// kernelGraphRedrawBox path) still removes them (SCI actively repaints
+		// that region and re-pushes the banner).
+		RogerJournal j;
+		UiElement banner = op(kUiText, 0, 0, 320, 10, "banner"); banner.token = 0x10000000u;
+		j.append(banner);
+		j.append(op(kUiText, 5, 2, 100, 9, "menu title"));
+		Common::Array<Common::Rect> removed;
+		TS_ASSERT(j.eraseContained(Common::Rect(0, 0, 320, 10), &removed, true)); // spare
+		TS_ASSERT_EQUALS(j.ops().size(), 1u);
+		TS_ASSERT_EQUALS(j.ops()[0].token, 0x10000000u);
+		TS_ASSERT_EQUALS(removed.size(), 1u);
+		TS_ASSERT(j.eraseContained(Common::Rect(0, 0, 320, 10), nullptr)); // default: removes it
+		TS_ASSERT_EQUALS(j.ops().size(), 0u);
+	}
 };

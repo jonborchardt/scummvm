@@ -24,6 +24,7 @@
 #include "common/array.h"
 #include "common/rect.h"
 #include "sci/roger/roger_ui_layer.h"
+#include "sci/roger/roger_tokens.h"
 
 namespace Sci {
 namespace Roger {
@@ -52,7 +53,8 @@ public:
 	bool empty() const { return _ops.empty(); }
 	void clear() { _ops.clear(); _brackets.clear(); _checkpoints.clear(); }
 	bool clearToken(uint32 token, Common::Array<Common::Rect> *removedNativeRects = nullptr);
-	bool eraseContained(const Common::Rect &r, Common::Array<Common::Rect> *removedNativeRects = nullptr);
+	bool eraseContained(const Common::Rect &r, Common::Array<Common::Rect> *removedNativeRects = nullptr,
+	                    bool spareSaveUnderExempt = false);
 	// Drop ops fully covered by a LATER opaque op. Called automatically by append()
 	// past kJournalPruneThreshold; safe to call any time (render output unchanged).
 	void prune();

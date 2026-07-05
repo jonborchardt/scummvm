@@ -25,18 +25,6 @@ namespace Roger {
 
 static const uint kJournalPruneThreshold = 256;
 
-// Persistent overlay singletons whose lifetime is owned by their token (explicit
-// clearToken / reapply), NOT by any SCI save-under. A bitsRestore over their strip
-// must not roll them back: the status banner (0x10000000) is re-drawn into the top
-// strip whenever SCI redraws the menu bar, so it postdates a bar save-under's
-// checkpoint and would otherwise be dropped on menu close (the enhanced banner
-// reverting to the native bitmap font); the frame box (0x70000000) is overlay-only,
-// re-pushed each move, and no save-under owns it. The menu dropdown (0x20000000) is
-// deliberately NOT spared — its OWN save-under restore is exactly what must remove it.
-static bool isSaveUnderExemptSingleton(uint32 token) {
-	return token == 0x10000000u || token == 0x70000000u;
-}
-
 bool opIsOpaque(const UiElement &e) {
 	// Filled windows/buttons/edits hide what they cover. Text, frame boxes
 	// (backColor -1), and icons (alpha cels) do not.
@@ -58,10 +46,10 @@ bool opSupersedes(const UiElement &newer, const UiElement &older) {
 	// dedupeGenericText (token-aware; keeps the control), NOT by append's supersede. Only
 	// block the cross-namespace case; a same-namespace redraw (stat-value refresh) still
 	// supersedes in place.
-	const uint32 ns0 = newer.token & 0xF0000000u;
-	const uint32 ns1 = older.token & 0xF0000000u;
+	const uint32 ns0 = newer.token & kTokenNamespaceMask;
+	const uint32 ns1 = older.token & kTokenNamespaceMask;
 	const bool controlVsGeneric =
-	    (ns0 == 0x40000000u && ns1 == 0x60000000u) || (ns0 == 0x60000000u && ns1 == 0x40000000u);
+	    (ns0 == kControlTokenNs && ns1 == kGenericTextTokenNs) || (ns0 == kGenericTextTokenNs && ns1 == kControlTokenNs);
 	if (controlVsGeneric)
 		return false;
 	return newer.nativeRect.contains(older.nativeRect);
@@ -89,10 +77,12 @@ void RogerJournal::append(const UiElement &e) {
 		prune();
 }
 
-bool RogerJournal::eraseContained(const Common::Rect &r, Common::Array<Common::Rect> *removedNativeRects) {
+bool RogerJournal::eraseContained(const Common::Rect &r, Common::Array<Common::Rect> *removedNativeRects,
+                                  bool spareSaveUnderExempt) {
 	bool removed = false;
 	for (uint i = 0; i < _ops.size();) {
-		if (r.contains(_ops[i].nativeRect)) {
+		if (r.contains(_ops[i].nativeRect) &&
+		    !(spareSaveUnderExempt && isSaveUnderExemptSingleton(_ops[i].token))) {
 			if (removedNativeRects)
 				removedNativeRects->push_back(_ops[i].nativeRect);
 			_ops.remove_at(i);
