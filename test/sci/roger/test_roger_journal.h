@@ -331,4 +331,43 @@ public:
 		TS_ASSERT_EQUALS(j.ops().size(), 2u);
 		TS_ASSERT_EQUALS(j.ops()[0].text, Common::String("pic port label")); // still first (painted under)
 	}
+
+	void test_append_preserves_preset_window_id() {
+		// uiPushWindow pre-tags the window's own box op with its id; a surrounding
+		// open bracket must not re-tag it (stated Phase 1 interface contract).
+		RogerJournal j;
+		j.openBracket(3, Common::Rect(0, 0, 320, 200));
+		UiElement e = op(kUiWindow, 60, 60, 260, 140); e.windowId = 5;
+		j.append(e);
+		TS_ASSERT_EQUALS(j.ops()[0].windowId, 5u);
+	}
+
+	void test_clear_resets_open_brackets() {
+		// Room change calls clear(); a stale bracket must not tag the new room's ops.
+		RogerJournal j;
+		j.openBracket(3, Common::Rect(0, 0, 320, 200));
+		j.clear();
+		j.append(op(kUiText, 10, 10, 60, 22, "fresh room"));
+		TS_ASSERT_EQUALS(j.ops()[0].windowId, 0u);
+	}
+
+	void test_op_is_opaque_button_and_edit_arms() {
+		UiElement b = op(kUiButton, 0, 0, 10, 10); b.backColor = 15;
+		UiElement e = op(kUiTextEdit, 0, 0, 10, 10); e.backColor = -1;
+		UiElement t = op(kUiText, 0, 0, 10, 10); t.backColor = 15;
+		TS_ASSERT(opIsOpaque(b));   // filled button hides what it covers
+		TS_ASSERT(!opIsOpaque(e));  // unfilled edit does not
+		TS_ASSERT(!opIsOpaque(t));  // text never does, regardless of backColor
+	}
+
+	void test_prune_drops_multiple_buried_ops() {
+		RogerJournal j;
+		j.append(op(kUiText, 10, 10, 40, 22, "one"));
+		j.append(op(kUiText, 10, 30, 40, 42, "two"));
+		UiElement win = op(kUiWindow, 0, 0, 100, 100); win.backColor = 15;
+		j.append(win);
+		j.prune();
+		TS_ASSERT_EQUALS(j.ops().size(), 1u);
+		TS_ASSERT_EQUALS(j.ops()[0].type, kUiWindow);
+	}
 };
