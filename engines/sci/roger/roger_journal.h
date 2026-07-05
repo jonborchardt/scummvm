@@ -35,8 +35,9 @@ namespace Roger {
 void dedupeGenericTextElements(Common::Array<UiElement>&, uint32);
 
 // True when a newly appended op replaces `older` outright: same type, and the new
-// rect contains the old one. Models native immediate-mode redraw-in-place (SCI
-// erases/overprints the box before or while redrawing it). Pure: unit-testable.
+// rect contains the old one, within the SAME window bracket (windowId). Models
+// native immediate-mode redraw-in-place (SCI erases/overprints the box before or
+// while redrawing it). Pure: unit-testable.
 bool opSupersedes(const UiElement &newer, const UiElement &older);
 
 // An op whose fill hides everything beneath its rect (prune cover test). Pure.

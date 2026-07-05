@@ -36,6 +36,14 @@ bool opIsOpaque(const UiElement &e) {
 bool opSupersedes(const UiElement &newer, const UiElement &older) {
 	if (newer.type != older.type)
 		return false;
+	// Window-scoped: ops belonging to DIFFERENT windows never supersede each other.
+	// The covering window's pixels overprint, but the underlying window's content
+	// is restored by its save-under on close (checkpoint rollback), and its ops die
+	// with their own bracket — an in-place replace here would delete them forever
+	// (Phase 2 final review, Important #1). Same window — including both on the
+	// picture port, id 0 — keeps native redraw-in-place semantics.
+	if (newer.windowId != older.windowId)
+		return false;
 	// Cross-hook duplicate guard: the SAME native text draw is seen by BOTH the semantic
 	// control hook (uiPushText, 0x40000000 namespace: accurate native font height + a
 	// single-line width cap) and the generic GfxText16::Box hook (onNativeText, 0x60000000

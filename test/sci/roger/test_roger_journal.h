@@ -290,4 +290,45 @@ public:
 		TS_ASSERT(j.eraseContained(Common::Rect(0, 0, 320, 10), nullptr)); // default: removes it
 		TS_ASSERT_EQUALS(j.ops().size(), 0u);
 	}
+
+	void test_supersede_blocked_across_different_windows() {
+		// Deliberate contract change (Phase 2 final review, top item): a larger
+		// window-B op must not swallow window-A's still-open op of the same type.
+		// A's pixels return via A's save-under when B closes; A's ops die with A's
+		// bracket, not with B's overprint.
+		RogerJournal j;
+		j.openBracket(3, Common::Rect(40, 40, 200, 120));
+		UiElement a = op(kUiText, 50, 50, 120, 62, "window A text"); a.token = 0x40000003u;
+		j.append(a);
+		j.openBracket(5, Common::Rect(20, 20, 300, 180)); // larger window over it
+		UiElement b = op(kUiText, 45, 45, 260, 70, "window B text"); b.token = 0x40000005u;
+		j.append(b); // same type, contains A's rect — must NOT supersede
+		TS_ASSERT_EQUALS(j.ops().size(), 2u); // A text + B text, nothing removed
+		Common::Array<Common::Rect> removed;
+		TS_ASSERT(j.closeBracket(5, &removed));
+		TS_ASSERT_EQUALS(j.ops().size(), 1u);
+		TS_ASSERT_EQUALS(j.ops()[0].text, Common::String("window A text"));
+	}
+
+	void test_supersede_still_works_within_same_window() {
+		RogerJournal j;
+		j.openBracket(3, Common::Rect(0, 9, 321, 200));
+		j.append(op(kUiText, 170, 45, 192, 57, "25"));
+		j.append(op(kUiText, 170, 45, 192, 57, "30")); // same window, same box: refresh
+		TS_ASSERT_EQUALS(j.ops().size(), 1u);
+		TS_ASSERT_EQUALS(j.ops()[0].text, Common::String("30"));
+	}
+
+	void test_window_op_does_not_erase_picture_port_ops() {
+		// Pre-window picture-port content (windowId 0) must survive a covering
+		// window op (windowId N): it is under the window in paint order and is
+		// revealed again when the window's save-under restores.
+		RogerJournal j;
+		j.append(op(kUiText, 100, 100, 200, 112, "pic port label"));
+		j.openBracket(7, Common::Rect(80, 80, 240, 160));
+		UiElement w = op(kUiWindow, 80, 80, 240, 160); w.windowId = 7; w.backColor = 15;
+		j.append(w);
+		TS_ASSERT_EQUALS(j.ops().size(), 2u);
+		TS_ASSERT_EQUALS(j.ops()[0].text, Common::String("pic port label")); // still first (painted under)
+	}
 };
