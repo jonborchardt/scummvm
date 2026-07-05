@@ -1,6 +1,7 @@
-# Regression: opening and closing the game menu must leave the top strip AND the scene
-# pristine. QFG1 target, save slot 1 (room 300: the Game/Action dropdown extends deep into
-# the scene over the green half-timbered Hero's Tale Inn at rows ~30..110).
+# Regression: opening, DRAGGING ACROSS, and closing the game menu must leave the top strip
+# AND the scene pristine. QFG1 target, save slot 1 (room 300: the Game/Action/Information
+# dropdowns extend deep into the scene over the green half-timbered Hero's Tale Inn at rows
+# ~30..110 and over the Sheriff building roof at rows ~20..95).
 #
 # Two round-2 Roger defects this pins (both on the mouse-menu path):
 #   #1 stuck menu-title strip — SCI closes the mouse menu via bitsRestore of the full menu
@@ -11,41 +12,59 @@
 #      m-after over the strip band (presenceDiff), AND m-after must equal the pre-menu
 #      banner m-before over the strip band (sameRunDiff). The banner text does not animate.
 #   #2 scene-deep dropdown stamp — a closed dropdown must not leave a tracked non-enhanced
-#      pixel stamp (priority-255, NOT healed by mouse-over) in the scene. The Game menu
-#      dropdown covers the left Inn wall; after close + mouse-over that band must match the
-#      pre-menu scene (m-before ~ m-afterhover over x[0..0.28] y[0.05..0.30] — the Inn wall,
-#      left of the animating ego/NPC). A real stamp there is thousands of full-width px.
+#      pixel stamp (priority-255, NOT healed by mouse-over) in the scene. The dropdowns
+#      dragged over the left Inn wall AND the Sheriff roof; after close + mouse-over both
+#      bands must match the pre-menu scene (m-before ~ m-afterhover), left of the animating
+#      ego/NPC. A real stamp there is thousands of full-width px.
 #
-# NOTE: the SCI0 frozen mouse-menu loop does NOT observe injected MOUSEMOVE events, so a
-# press-hold + `move` across titles does NOT switch dropdowns (it stays on the pressed
-# title). Menus are opened one at a time with a real mousedown on the title x (verified:
-# mousedown drops that menu open). Do NOT re-add vacuous drag `move` lines expecting a
-# dropdown switch — they are dead coverage.
+# The SCI0 frozen mouse-menu loop DOES observe injected MOUSEMOVE events, so a press-hold +
+# `move` across titles switches dropdowns and dragging down into a dropdown highlights its
+# items — verified (drag-proof: File->Game dropdown switch + item highlight; the Information
+# dropdown drag opens deep over the roof). The one caveat: a slow `snap` (grabOverlay ~1s)
+# runs inside the driver's poll and re-anchors the schedule so following moves stay spaced —
+# do NOT interleave `snap` between drag `move`s expecting real-time steering (park + settle,
+# then snap AFTER the drag has registered).
 #
-# `snap` (grabOverlay at execution time), NOT `capture` (pended, present-consumed): the
-# composited cursor is parked off both checked bands (bottom-right) before each grab, and
-# snap grabs AFTER the park move has been presented, so the boot-position arrow cannot land
-# over the strip and inject cursor diff (the ~400 px flake that a pended capture caught).
+# `snap` (grabOverlay at execution time), NOT `capture`: the composited cursor is parked off
+# both checked bands (bottom-right) before each grab, and snap grabs AFTER the park move has
+# been presented, so the boot-position arrow cannot inject cursor diff over a checked band.
 wait 4000
 move 300 185
 wait 1000
 snap m-before
-# --- open the deep Game/Action dropdown over the left Inn wall, then close it ---
-mousedown 100 2
-wait 900
+# --- press File, DRAG right across the whole bar so each deep dropdown opens over the
+#     Inn wall (Game/Action) and the roof (Information), then drag DOWN into the deepest
+#     one and back up, and release outside to cancel-close (no menu item executed) ---
+mousedown 15 2
+wait 500
+move 55 2
+wait 500
+move 130 2
+wait 500
+move 215 2
+wait 500
 snap m-open
-# release outside the dropdown to cancel-close (no menu item executed)
-mouseup 260 150
+# drag down into the Information dropdown (deep over the roof) then back onto the bar
+move 215 45
+wait 500
+move 215 2
+wait 500
+# release right of Information on the bar (harmless cancel-close)
+mouseup 310 2
 wait 1400
 move 300 185
 wait 1000
 snap m-after
-# move the mouse THROUGH the dropdown's former scene footprint, then park off-band:
-# a real stamp is priority-255 and is NOT healed by mouse-over, so it would still show.
+# move the mouse THROUGH the dropdowns' former scene footprint (Inn wall AND roof), then
+# park off-band: a real stamp is priority-255 and is NOT healed by mouse-over, so it shows.
 move 40 34
-wait 400
+wait 300
 move 120 60
-wait 400
+wait 300
+move 210 40
+wait 300
+move 260 35
+wait 300
 move 300 185
 wait 1000
 snap m-afterhover
