@@ -95,6 +95,21 @@ int opticalBlockTop(int top, int boxH, int lineCount, int lineH, int inkTop, int
 	return y;
 }
 
+uint32 textScaleGroup(uint32 token, bool useAltFont, bool multiLine, uint elemIndex) {
+	// Group labels only need uniqueness, not meaning. Window/port ids live in the low
+	// bits of tokens and are small; the 0x0A/0x06 prefixes cannot collide with them.
+	uint32 g;
+	if (multiLine)
+		g = 0x0A000000u + elemIndex;         // singleton per element
+	else if ((token & 0xF0000000u) == 0x60000000u)
+		g = 0x06000000u;                     // generic text: one scale per screen
+	else
+		g = token & 0x0FFFFFFFu;             // controls: one scale per window
+	if (useAltFont)
+		g |= 0x80000000u;
+	return g;
+}
+
 void applySharedGroupScale(Common::Array<TextSizeFit> &items) {
 	// Track each group's worst fit/ideal ratio as an exact fraction (num/den) so
 	// the element that set the minimum lands back on exactly its own fitPx.

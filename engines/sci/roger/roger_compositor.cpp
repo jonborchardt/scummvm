@@ -321,8 +321,19 @@ void dedupeGenericTextElements(Common::Array<UiElement> &elems, uint32 genericTo
 		bool drop = false;
 		if ((elems[i].token & ns) == genericToken) {
 			for (uint j = 0; j < elems.size(); j++) {
-				if (j == i || (elems[j].token & ns) == genericToken)
+				if (j == i)
 					continue;
+				if ((elems[j].token & ns) == genericToken) {
+					// Later generic draw at the same rect supersedes this one (push()
+					// only replaces on matching token, but the same box is re-drawn
+					// under a different current port when e.g. the QFG1 char sheet
+					// updates a stat value — native overprinted the old text).
+					if (j > i && elems[j].type == kUiText && elems[i].type == kUiText &&
+					    elems[j].nativeRect == elems[i].nativeRect) {
+						drop = true; break;
+					}
+					continue;
+				}
 				const UiElementType jt = elems[j].type;
 				const bool jRendersText = (jt == kUiText || jt == kUiButton || jt == kUiTextEdit);
 				// A control that renders the same text usually draws its label at a small
@@ -338,6 +349,14 @@ void dedupeGenericTextElements(Common::Array<UiElement> &elems, uint32 genericTo
 		else
 			i++;
 	}
+}
+
+bool windowShouldHugContent(const Common::Rect &winRect, int screenW, int screenH) {
+	if (screenW <= 0 || screenH <= 0)
+		return true;
+	// >= 60% of the screen area: this is a full-screen "screen" window, keep SCI's dims.
+	const int64 winArea = (int64)winRect.width() * winRect.height();
+	return winArea * 10 < (int64)screenW * screenH * 6;
 }
 
 RogerCompositor::~RogerCompositor() {
@@ -826,10 +845,9 @@ void RogerCompositor::renderUiLayer(Graphics::ManagedSurface &dest,
 	// Shared type-scale pass: size every text element by its own caps first, then
 	// let applySharedGroupScale shrink each sizing group together so siblings on
 	// one screen/window render at one consistent scale (preserving native size
-	// ratios) instead of each string fitting its own rect independently. A group
-	// is the window id (token low bits — the 0x40000000 control and 0x60000000
-	// generic-text namespaces of the same window must share) plus the font
-	// namespace (body vs alt/header font sizes are judged per renderer).
+	// ratios) instead of each string fitting its own rect independently. Grouping
+	// (textScaleGroup): generic text per screen, controls per window, multi-line
+	// wrap-fit elements as singletons, alt-font always separate.
 	Common::Array<TextSizeFit> fits;
 	fits.resize(elems.size());
 	for (uint i = 0; i < elems.size(); i++) {
@@ -853,7 +871,7 @@ void RogerCompositor::renderUiLayer(Graphics::ManagedSurface &dest,
 		if (targetPx <= 0)
 			targetPx = (e.textRole == kRoleHeading) ? fallbackHeadingPx : fallbackBodyPx;
 		const int wCap = e.nativeTextW > 0 ? nativeRowsToOverlay(e.nativeTextW, overlayH) : 0;
-		fits[i].group = (e.token & 0x0FFFFFFFu) | (e.useAltFont ? 0x80000000u : 0);
+		fits[i].group = textScaleGroup(e.token, e.useAltFont, wCap <= 0, i);
 		fits[i].idealPx = tr->scaledIdealPx(targetPx);
 		fits[i].fitPx = tr->fitPx(e.text, textRect.width(), textRect.height(),
 		                          fits[i].idealPx, wCap, &e.glyphs);
@@ -877,8 +895,13 @@ void RogerCompositor::renderUiLayer(Graphics::ManagedSurface &dest,
 			// more vertical space than their text needs — SCI's window dims sit well above
 			// the text, leaving a large empty band. Shrink-wrap the box to its actual
 			// content so it hugs the text like a native SCI message window. The status/menu
-			// bar (token 0x10000000) keeps its full SCI dims (it must span the screen).
-			if (haveContent && (e.token & 0x40000000u))
+			// bar (token 0x10000000) keeps its full SCI dims (it must span the screen), and
+			// so does a near-full-screen window (windowShouldHugContent): hugging the QFG1
+			// char-creation screen drew its border mid-screen and left the native render
+			// leaking below the hug box.
+			const int rows = _caps.screenRows > 0 ? _caps.screenRows : 200;
+			if (haveContent && (e.token & 0x40000000u) &&
+			    windowShouldHugContent(e.nativeRect, 320, rows))
 				nr = content;          // hug the controls; ignore SCI's oversized window dims
 			else if (haveContent)
 				nr.extend(content);    // status/menu bar etc.: window dims ∪ controls

@@ -90,6 +90,44 @@ public:
 		TS_ASSERT(elems[2].type == kUiIcon);
 		TS_ASSERT(elems[3].token == G && elems[3].nativeRect == Common::Rect(12, 51, 90, 61));
 	}
+	void test_dedupe_later_generic_at_same_rect_supersedes_earlier() {
+		// The same on-screen text box can be re-drawn under a DIFFERENT current port
+		// (QFG1 char sheet: initial draw in the window port, stat redraws with the
+		// picture port current), giving two generic elements with different tokens at
+		// the same rect. Native is immediate-mode: the later draw overprinted the
+		// earlier one, so only the LATER element may survive.
+		const uint32 G = 0x60000000u;
+		Common::Array<UiElement> elems;
+		UiElement oldVal = txt(170, 45, 192, 57, G | 3); oldVal.text = "25";
+		UiElement newVal = txt(170, 45, 192, 57, G | 2); newVal.text = "30";
+		elems.push_back(oldVal);
+		elems.push_back(newVal);
+		Roger::dedupeGenericTextElements(elems, G);
+		TS_ASSERT_EQUALS(elems.size(), 1u);
+		TS_ASSERT(elems[0].text == "30");
+		TS_ASSERT_EQUALS(elems[0].token, G | 2);
+	}
+	void test_dedupe_generic_same_rect_same_token_untouched() {
+		// push() already handles same-token replacement; dedupe must not eat a lone
+		// element, and two DIFFERENT-rect generics always coexist.
+		const uint32 G = 0x60000000u;
+		Common::Array<UiElement> elems;
+		UiElement a = txt(10, 10, 50, 22, G | 2); a.text = "a";
+		UiElement b = txt(10, 30, 50, 42, G | 3); b.text = "b";
+		elems.push_back(a);
+		elems.push_back(b);
+		Roger::dedupeGenericTextElements(elems, G);
+		TS_ASSERT_EQUALS(elems.size(), 2u);
+	}
+	void test_window_should_hug_content_only_for_small_dialogs() {
+		// SQ3-style oversized message windows hug their controls; a near-full-screen
+		// window is a SCREEN (QFG1 char creation, (0,9,321,200)) — hugging it drew the
+		// dialog border mid-screen and left native content leaking outside the hug.
+		TS_ASSERT(Roger::windowShouldHugContent(Common::Rect(60, 60, 260, 140), 320, 200));
+		TS_ASSERT(Roger::windowShouldHugContent(Common::Rect(0, 10, 320, 110), 320, 200));
+		TS_ASSERT(!Roger::windowShouldHugContent(Common::Rect(0, 9, 321, 200), 320, 200));
+		TS_ASSERT(!Roger::windowShouldHugContent(Common::Rect(0, 0, 320, 200), 320, 200));
+	}
 	void test_collect_ui_text_rects_gathers_all_text() {
 		const uint32 G = 0x60000000u, C = 0x40000000u;
 		Common::Array<UiElement> elems;

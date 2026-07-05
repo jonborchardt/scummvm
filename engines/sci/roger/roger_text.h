@@ -78,6 +78,16 @@ struct TextSizeFit {
 	TextSizeFit() : group(0), idealPx(0), fitPx(0) {}
 };
 
+// Sizing-group key for one text element. Groups share a scale in applySharedGroupScale:
+// - multi-line (wrap-fit) elements are singletons keyed by element index: their squeeze
+//   is local (TTF wrap metrics) and must never drag sibling single-line text down;
+// - generic text (0x6 namespace) groups per SCREEN, ignoring the port id in the token —
+//   the same screen draws under different current ports (QFG1 char sheet: labels in the
+//   window port, stat redraws in the picture port) and must not change size across that;
+// - everything else (controls) groups per window id (token low bits);
+// - the alt/header font is always a separate group from the body font. Pure.
+uint32 textScaleGroup(uint32 token, bool useAltFont, bool multiLine, uint elemIndex);
+
 // Shared proportional type scale: every element in a group shrinks TOGETHER by the
 // group's worst (smallest) fit/ideal ratio, so siblings keep the size relationship
 // the game gave them (a 2x heading and 1x label become 1.8x/0.9x, never one unified

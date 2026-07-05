@@ -179,6 +179,36 @@ public:
 		TS_ASSERT_EQUALS(opticalBlockTop(10, 100, 1, 24, 10, 20), 45);
 	}
 
+	void test_text_scale_group_unifies_generic_text_across_ports() {
+		// Generic text (0x6 namespace) is tokened by the CURRENT port at draw time —
+		// the QFG1 char sheet draws labels under the window port (id 3) and stat
+		// redraws under the picture port (id 2). Same screen, same font -> same group,
+		// or redrawn values change size relative to their labels.
+		TS_ASSERT_EQUALS(textScaleGroup(0x60000003u, false, false, 0),
+		                 textScaleGroup(0x60000002u, false, false, 5));
+		// Controls keep their per-window grouping.
+		TS_ASSERT_EQUALS(textScaleGroup(0x40000003u, false, false, 1),
+		                 textScaleGroup(0x40000003u, false, false, 2));
+		TS_ASSERT_DIFFERS(textScaleGroup(0x40000003u, false, false, 1),
+		                  textScaleGroup(0x40000004u, false, false, 1));
+	}
+
+	void test_text_scale_group_multiline_is_singleton() {
+		// A multi-line (wrap-fit) element shrinks to fit its own box; that squeeze is
+		// local and must never drag sibling single-line text down. Each multi-line
+		// element gets a group of its own (keyed by element index).
+		TS_ASSERT_DIFFERS(textScaleGroup(0x60000002u, false, true, 3),
+		                  textScaleGroup(0x60000002u, false, false, 4));
+		TS_ASSERT_DIFFERS(textScaleGroup(0x60000002u, false, true, 3),
+		                  textScaleGroup(0x60000002u, false, true, 4));
+	}
+
+	void test_text_scale_group_separates_fonts() {
+		// Body and alt/header fonts are sized by different renderers -> never one group.
+		TS_ASSERT_DIFFERS(textScaleGroup(0x60000002u, false, false, 0),
+		                  textScaleGroup(0x60000002u, true, false, 0));
+	}
+
 	void test_scaled_ideal_px_applies_global_multiplier() {
 		RogerTextRenderer tr("");
 		TS_ASSERT(tr.ok());

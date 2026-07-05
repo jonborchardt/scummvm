@@ -111,8 +111,18 @@ bool regionIsCapturedWindowBody(const Common::Array<UiElement> &elems, uint32 ow
 // element that itself renders the SAME text (kUiText / kUiButton / kUiTextEdit) — so a
 // label controls16/menu already captured semantically is not rendered twice by the generic
 // text-out hook. A kUiWindow or kUiIcon enclosing the text does NOT drop it (those are a
-// frame/image, not the text). In-place.
+// frame/image, not the text). Also drops a generic text superseded by a LATER generic
+// text at the same rect regardless of token — the same box can be re-drawn under a
+// different current port (QFG1 char sheet stat redraws), and native immediate-mode means
+// the later draw overprinted the earlier one. In-place.
 void dedupeGenericTextElements(Common::Array<UiElement> &elems, uint32 genericToken);
+
+// True when a captured SCI window should be shrink-wrapped ("hugged") to its content
+// union: SCI dialog windows reserve more vertical space than their text needs, so small
+// message boxes hug. A near-full-screen window (>= 60% of the screen area) is a SCREEN
+// (QFG1 char creation), not an oversized message box — hugging it drew the dialog border
+// mid-screen and left native content leaking outside the hug. Pure: unit-testable.
+bool windowShouldHugContent(const Common::Rect &winRect, int screenW, int screenH);
 
 // Merge addToPic (static) and animate sprites into one back-to-front draw list:
 // static first, then animate, then a STABLE sort by ascending priority. Stable ⇒ at

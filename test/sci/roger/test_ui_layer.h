@@ -50,6 +50,21 @@ public:
 		TS_ASSERT_EQUALS(layer.elements()[0].text, Common::String("hello"));
 	}
 
+	void test_push_replacement_moves_element_to_end() {
+		// Native SCI is immediate-mode: the most recent draw is on top. A re-pushed
+		// element (same type+token+rect) must therefore move to the END of the display
+		// list, not keep its original position — the QFG1 char-sheet selection frame's
+		// bottom edge was wiped by the NEXT row's blank cel, which overlapped by 1px
+		// and stayed later in first-push order.
+		RogerUiLayer layer;
+		layer.push(mkText(Common::Rect(0, 0, 10, 10), "frame", 1));
+		layer.push(mkText(Common::Rect(0, 9, 10, 19), "blank", 1)); // overlapping neighbor
+		layer.push(mkText(Common::Rect(0, 0, 10, 10), "frame2", 1)); // re-draw of the first
+		TS_ASSERT_EQUALS(layer.elements().size(), 2u);
+		TS_ASSERT_EQUALS(layer.elements()[0].text, Common::String("blank"));
+		TS_ASSERT_EQUALS(layer.elements()[1].text, Common::String("frame2")); // last draw on top
+	}
+
 	void test_clear_token_removes_only_matching() {
 		RogerUiLayer layer;
 		layer.push(mkText(Common::Rect(0, 0, 10, 10), "a", 1));

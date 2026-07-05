@@ -24,11 +24,16 @@ namespace Sci {
 namespace Roger {
 
 void RogerUiLayer::push(const UiElement &e) {
+	// Replace an existing element with the same identity, but APPEND the replacement:
+	// native SCI is immediate-mode, so the most recent draw is on top. Keeping the
+	// original list position let an overlapping neighbor that was pushed later keep
+	// painting over a re-drawn element (the QFG1 char-sheet selection frame lost its
+	// bottom edge to the next row's blank cel, which overlaps it by one native px).
 	for (uint i = 0; i < _elems.size(); i++) {
 		if (_elems[i].type == e.type && _elems[i].token == e.token &&
 		    _elems[i].nativeRect == e.nativeRect) {
-			_elems[i] = e;
-			return;
+			_elems.remove_at(i);
+			break;
 		}
 	}
 	_elems.push_back(e);

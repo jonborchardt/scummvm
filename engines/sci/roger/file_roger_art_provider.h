@@ -127,6 +127,7 @@ private:
 	bool _debugLog = false;      // per-frame diagnostic logging
 	uint32 _lastUiDiagSig = 0;   // ROGER-UI diag dump dedup: signature of the last dumped UI display-list
 	bool _diag = false;          // roger_diag: one-line overlay-state trace at room-load/present/transition seams (revertible instrumentation)
+	Common::Array<Common::String> _diagDumpedCels; // diag: (view,loop,cel) PNGs already dumped this run
 	void diagDumpState(const char *where);
 public:
 	bool diagEnabled() const override { return _diag; }

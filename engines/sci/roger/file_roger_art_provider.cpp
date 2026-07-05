@@ -1236,9 +1236,10 @@ void FileRogerArtProvider::presentWithUi() {
 	// changes, resize, sbs mode, hw-cursor-invalidated caches, capture/autoshot.
 	scene.copyFrom(*_sceneCache); // fully overwrites the scratch buffer
 	if (_uiLayer && !_uiLayer->empty() && _textRenderer) {
-		// Diagnostic dump of the UI element rects (roger_debug), throttled to one dump per
-		// distinct dialog (signature over token/rect/type) so it does not spam per frame.
-		if (_debugLog) {
+		// Diagnostic dump of the UI element rects (roger_debug or -Diag), throttled to one
+		// dump per distinct dialog (signature over token/rect/type) so it does not spam
+		// per frame. Under -Diag this is the decisive "which element is on screen" tool.
+		if (_debugLog || _diag) {
 			const Common::Array<Roger::UiElement> &els = _uiLayer->elements();
 			uint32 dsig = 2166136261u;
 			for (uint i = 0; i < els.size(); i++) {
@@ -1596,6 +1597,11 @@ void FileRogerArtProvider::uiPushTextEdit(const Common::Rect &r, const char *tex
 	presentBarrier();
 }
 
+// kDrawCel icon captures (onDrawCel) share this namespace token. Their lifetime is
+// geometric: an icon is dropped when a native erase rect (save-under restore / redraw
+// box) covers it — see onNativeEraseRect — or on room change via uiClearAll.
+static const uint32 DRAWCEL_ICON_TOKEN = 0x50000000u;
+
 void FileRogerArtProvider::uiPushIcon(const Common::Rect &r, int viewId, int loopNo, int celNo,
                                       uint32 token) {
 	if (!overlayShown() || !_plate) return;
@@ -1625,10 +1631,32 @@ void FileRogerArtProvider::onDrawCel(const Common::Rect &r, int viewId, int loop
 	// cels (e.g. the 13 stat graphics on the QFG1 char sheet) coexist in the layer, and a
 	// redraw at the SAME rect replaces in place. Clearing the shared token at the start of
 	// every call would erase the previous cel, leaving only the last one visible.
-	const uint32 tok = 0x50000000u;
+	// Lifetime: an icon dies when a native erase rect covers it (onNativeEraseRect) or on
+	// room change (uiClearAll) — never via a blanket namespace clear.
+	const uint32 tok = DRAWCEL_ICON_TOKEN;
 
 	Roger::UiElement e;
 	e.type = Roger::kUiIcon; e.nativeRect = r; e.token = tok;
+
+	if (_diag) {
+		warning("ROGER-DIAG[drawCelIcon]: view=%d loop=%d cel=%d rect=(%d,%d,%d,%d) hi=%s%dx%d",
+		        viewId, loopNo, celNo, r.left, r.top, r.right, r.bottom,
+		        hi ? "" : "none ", hi ? hi->w : 0, hi ? hi->h : 0);
+		// One-shot cel-content dump: the decisive evidence when an icon renders cut or
+		// wrong (QFG1 char-sheet selection frame). Written once per (view,loop,cel) per run.
+		if (hi) {
+			Common::String png = Common::String::format("%s/dbg-cel-%d-%d-%d.png",
+				ConfMan.hasKey("screenshotpath") ? ConfMan.get("screenshotpath").c_str() : ".",
+				viewId, loopNo, celNo);
+			bool dumped = false;
+			for (uint i = 0; i < _diagDumpedCels.size(); i++)
+				if (_diagDumpedCels[i] == png) { dumped = true; break; }
+			if (!dumped) {
+				_diagDumpedCels.push_back(png);
+				Roger::dumpSurfacePng(*hi, png);
+			}
+		}
+	}
 
 	if (hi) {
 		e.iconSurface = hi; // borrowed from the ViewCache (hires path)
@@ -1772,7 +1800,12 @@ void FileRogerArtProvider::onNativeEraseRect(const Common::Rect &nativeRect) {
 		presentBarrier(); // mid-cycle: defers; frozen-cycle: flushes the mark
 		return;
 	}
-	// Remove persisted generic text whose box lies within the erased region.
+	// Remove persisted generic text — and kDrawCel icon captures — whose box lies
+	// within the erased region: the restore just overwrote those native pixels, so the
+	// element no longer exists on screen. (The icon rule replaced paint16's blanket
+	// uiClearToken(DRAWCEL_ICON_TOKEN) on every kGraphRestoreBox, which wiped ALL
+	// kDrawCel icons — the QFG1 char-sheet portrait vanished on the first stat change
+	// because the value box's save-under restore cleared the whole namespace.)
 	// No early-out on !removed — the barrier must always fire to flush the
 	// markNativeDirty above (bitsRestore walking storm: barrier defers mid-cycle,
 	// so no per-hook present; the deferral, not a token match, guards the cycle).
@@ -1780,7 +1813,9 @@ void FileRogerArtProvider::onNativeEraseRect(const Common::Rect &nativeRect) {
 	const Common::Array<Roger::UiElement> &els = _uiLayer->elements();
 	Common::Array<Roger::UiElement> kept;
 	for (uint i = 0; i < els.size(); i++) {
-		if (isGenericTextToken(els[i].token) && nativeRect.contains(els[i].nativeRect))
+		const bool erasable = isGenericTextToken(els[i].token) ||
+		                      (els[i].type == Roger::kUiIcon && els[i].token == DRAWCEL_ICON_TOKEN);
+		if (erasable && nativeRect.contains(els[i].nativeRect))
 			{ removed = true; continue; }
 		kept.push_back(els[i]);
 	}

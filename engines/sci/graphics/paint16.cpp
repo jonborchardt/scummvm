@@ -436,13 +436,13 @@ void GfxPaint16::bitsGetRect(reg_t memoryHandle, Common::Rect *destRect) {
 
 void GfxPaint16::bitsRestore(reg_t memoryHandle) {
 	// Roger hires dialogs: SCI restores the region under a save-under text box when it
-	// is dismissed; clear the captured message keyed by the same handle.
+	// is dismissed; clear the captured message keyed by the same handle. Captured
+	// kDrawCel icons (inventory close-ups etc.) are dropped geometrically by
+	// onNativeEraseRect below — the restored rect covers a dismissed close-up, while a
+	// small save-under restore (QFG1 char-sheet stat redraw) leaves unrelated icons alone.
 	if (g_sciRogerProvider && g_sciRogerProvider->enabled && !memoryHandle.isNull()) {
 		const uint32 tok = ((uint32)memoryHandle.getSegment() << 16) | memoryHandle.getOffset();
 		g_sciRogerProvider->uiClearToken(tok);
-		// Also drop any standalone hires cel (inventory close-up) when a window/region
-		// is restored — that is how the look-at screen is dismissed.
-		g_sciRogerProvider->uiClearToken(0x50000000u);
 	}
 
 	if (!memoryHandle.isNull()) {
