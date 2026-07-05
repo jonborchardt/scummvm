@@ -106,5 +106,11 @@ bool dumpSurfacePng(const Graphics::Surface &surf, const Common::String &path) {
 	return ok;
 }
 
+bool fileExists(const Common::String &path) {
+	Common::Path fsPath(path);
+	Common::FSNode node(fsPath);
+	return node.exists() && node.isReadable();
+}
+
 } // namespace Roger
 } // namespace Sci

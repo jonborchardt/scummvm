@@ -189,6 +189,28 @@ public:
 	bool generatePriorityMap(int picId, Common::Array<byte> &outBands,
 	                         int &outW, int &outH, uint32 &outMs);
 
+	// Cache-existence probes (precache fast path). The cache key fully
+	// determines a file's pixels, so "the keyed file exists" is exactly as
+	// strong a validity test as decoding it — see cacheKey(). kGenCache only:
+	// every other mode returns false so callers fall through to today's
+	// generate path (kGenAlways must regenerate; kGenMemory never reads disk).
+	// TODO(next kTransformVersion bump): widen fnv1a32 -> fnv1a64 for hash
+	// headroom; folding it into a version bump makes the full-cache
+	// regeneration free (the bump invalidates everything anyway).
+
+	// True when BOTH the omyac plate PNG and the omyacprio priority PNG exist
+	// for picId's current content hash. Needs the live engine (hashes the raw
+	// pic resource bytes); returns false without one.
+	bool isPicCached(int picId) const;
+
+	// True when the scale6x cel PNG exists. Engine-free: the key is the
+	// stable (viewId, loopNo, celNo) identity triple.
+	bool isViewCelCached(int viewId, int loopNo, int celNo) const;
+
+	// Stable content key for a view cel (views are immutable at runtime).
+	// Shared by generateViewCel and isViewCelCached; exposed for tests.
+	static uint32 viewCelHash(int viewId, int loopNo, int celNo);
+
 	// White-box test shim: exposes the private cacheKey() for unit tests.
 	Common::String testKey(const char *transform, uint32 resourceHash) const {
 		return cacheKey(transform, resourceHash);

@@ -152,6 +152,56 @@ Common::String RogerAssetGen::cacheKey(const char *transform, uint32 resourceHas
 }
 
 // -------------------------------------------------------------------------
+// viewCelHash — stable identity key for (viewId, loopNo, celNo).
+// Engine-free: view resources are immutable at runtime; the gameId prefix
+// in the cache key prevents cross-game collision on equal triples.
+// -------------------------------------------------------------------------
+
+uint32 RogerAssetGen::viewCelHash(int viewId, int loopNo, int celNo) {
+	uint32 hash = fnv1a32u((uint32)viewId);
+	hash = fnv1a32u(hash ^ ((uint32)loopNo << 16));
+	hash = fnv1a32u(hash ^ (uint32)celNo);
+	return hash;
+}
+
+// -------------------------------------------------------------------------
+// isViewCelCached — kGenCache only; checks the scale6x PNG without decoding.
+// -------------------------------------------------------------------------
+
+bool RogerAssetGen::isViewCelCached(int viewId, int loopNo, int celNo) const {
+	if (_mode != kGenCache)
+		return false;
+	return fileExists(_cacheDir + "/" + cacheKey("scale6x", viewCelHash(viewId, loopNo, celNo)) + ".png");
+}
+
+// -------------------------------------------------------------------------
+// isPicCached — kGenCache only; checks both omyac and omyacprio PNGs.
+// -------------------------------------------------------------------------
+
+bool RogerAssetGen::isPicCached(int picId) const {
+	if (_mode != kGenCache)
+		return false;
+#ifdef ENABLE_SCI
+	if (!g_sci)
+		return false;
+	ResourceManager *resMan = g_sci->getResMan();
+	if (!resMan)
+		return false;
+	Resource *res = resMan->findResource(ResourceId(kResourceTypePic, (uint16)picId), false);
+	if (!res || res->size() == 0)
+		return false;
+	const uint32 hash = fnv1a32(res->data(), (uint32)res->size());
+	// Both artifacts must exist: an interrupted earlier run can have written
+	// the plate but not the priority map; reporting "cached" then would leave
+	// sprites without occlusion until the room regenerates it.
+	return fileExists(_cacheDir + "/" + cacheKey("omyac", hash) + ".png")
+	    && fileExists(_cacheDir + "/" + cacheKey("omyacprio", hash) + ".png");
+#else
+	return false;
+#endif // ENABLE_SCI
+}
+
+// -------------------------------------------------------------------------
 // generatePlate — thin wrapper; delegates to generatePlateWithIndex
 // -------------------------------------------------------------------------
 
@@ -459,9 +509,7 @@ Graphics::Surface *RogerAssetGen::generateViewCel(int viewId, int loopNo, int ce
 
 	// Hash the view identity for the cache key (not the raw bytes — we use
 	// the stable (viewId, loopNo, celNo) triple).
-	uint32 hash = fnv1a32u((uint32)viewId);
-	hash = fnv1a32u(hash ^ ((uint32)loopNo << 16));
-	hash = fnv1a32u(hash ^ (uint32)celNo);
+	uint32 hash = viewCelHash(viewId, loopNo, celNo);
 	Common::String key = cacheKey("scale6x", hash);
 	Common::String cachePath = _cacheDir + "/" + key + ".png";
 
