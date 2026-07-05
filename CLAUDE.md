@@ -261,6 +261,15 @@ room-entry position or wiped the room signs — both shipped as bugs once.
   **paint** instead: `blendScaleBlitNearest`'s optional clip rect samples source coords
   against the full dest rect, cropping off-screen content like native SCI port clipping
   (fixed 2026-07-04, `a79dace6cd8`).
+- Replacing a re-pushed UI element **in place** in the retained display list → violates
+  native immediate-mode ordering (the last draw is on top). The QFG1 char-sheet selection
+  frame lost its bottom edge to the next row's blank cel, which overlapped it by 1 native px
+  and stayed later in first-push order. `RogerUiLayer::push` removes the old element and
+  APPENDS the replacement — keep it that way (fixed 2026-07-04).
+- A **blanket namespace clear** on a generic event (`uiClearToken(0x50000000)` on every
+  `kGraphRestoreBox`) → wiped ALL kDrawCel icons (char-sheet portrait + stat graphics) when
+  any small save-under restored. Scope removals by the ERASE RECT geometry in
+  `onNativeEraseRect` (containment), the same rule generic text uses (fixed 2026-07-04).
 - Classifying an init-frame (`_picNotValid`) draw by **resource identity** (view / view+loop /
   view+loop+cel) instead of by its **owning object's lifetime** → either a frozen duplicate ego
   at the room-entry position or wiped room signs/stocked shelves, depending on which rule you
