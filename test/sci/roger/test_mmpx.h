@@ -60,13 +60,28 @@ public:
 		TS_ASSERT(sameImage(out, scaleNearest(in, 2)));
 	}
 
-	// Checkerboard: no MMPX rule fires (hand-proven: 1:1 rules need D != H,
-	// intersection/luma rules need allEq4 across mixed diagonals, 2:1 rules
-	// need H != B or F != D — all false on a checkerboard) -> replication.
-	void test_checkerboard_replicates() {
-		const byte px[16] = { 1, 2, 1, 2,  2, 1, 2, 1,  1, 2, 1, 2,  2, 1, 2, 1 };
-		IndexImage in = makeImg(4, 4, px);
-		TS_ASSERT(sameImage(mmpx2x(in, 0xFF), scaleNearest(in, 2)));
+	// Checkerboard: INTERIOR pixels replicate (no MMPX rule fires when the
+	// full read neighbourhood — reads reach +/-3 — is unclamped: 1:1 rules
+	// need D != H, intersection/luma rules need allEq4 across mixed
+	// diagonals, 2:1 rules need H != B or F != D; all false on a
+	// checkerboard). Border pixels are NOT asserted: edge clamping
+	// duplicates neighbours and can legitimately fire rules there (e.g.
+	// rule 4 sets M=F at the (0,0) corner) — the reference behaves the
+	// same way.
+	void test_checkerboard_interior_replicates() {
+		const int W = 10, H = 10;
+		byte px[W * H];
+		for (int y = 0; y < H; y++)
+			for (int x = 0; x < W; x++)
+				px[y * W + x] = ((x ^ y) & 1) ? 2 : 1;
+		IndexImage in = makeImg(W, H, px);
+		IndexImage out = mmpx2x(in, 0xFF);
+		for (int y = 3; y < H - 3; y++)
+			for (int x = 3; x < W - 3; x++)
+				for (int dy = 0; dy < 2; dy++)
+					for (int dx = 0; dx < 2; dx++)
+						TS_ASSERT_EQUALS(out.pixels[(size_t)(y * 2 + dy) * (W * 2) + (x * 2 + dx)],
+						                 in.pixels[(size_t)y * W + x]);
 	}
 
 	// Axis-aligned vertical edge: replication (no diagonal to smooth).
