@@ -55,6 +55,10 @@ class GfxCompare;
 #include "sci/graphics/cache.h"
 #include "sci/graphics/view.h"
 #include "sci/graphics/palette16.h"
+#include "sci/engine/state.h"
+#include "sci/engine/seg_manager.h"
+#include "sci/engine/kernel.h"
+#include "sci/engine/selector.h"
 #include "graphics/managed_surface.h"
 #include "graphics/paletteman.h"
 #include "graphics/pixelformat.h"
@@ -147,6 +151,7 @@ FileRogerArtProvider::FileRogerArtProvider(const Common::String &gameId,
 	            (ConfMan.hasKey("roger_cycle_log") && ConfMan.getBool("roger_cycle_log"));
 	if (!inputScript.empty() || !inputLive.empty()) {
 		_inputDriver = new Roger::InputScriptDriver();
+		_inputDriver->setScriptHost(this);
 		if (!inputScript.empty() && !_inputDriver->loadScriptFile(inputScript))
 			warning("ROGER-SCRIPT: script not loaded, running without: %s", inputScript.c_str());
 		if (!inputLive.empty())
@@ -717,6 +722,33 @@ void FileRogerArtProvider::renderFrame(const Common::Array<Roger::Sprite> &sprit
 	_frameJustComposed = true; // presentBarrier() (the renderFromAnimateList tail) presents this frame
 }
 
+void FileRogerArtProvider::dumpOverlaySnap(const Common::String &label,
+                                           const Common::Rect &gameRect) {
+	// Presented-frame evidence: dump the REAL overlay pixels via grabOverlay —
+	// what the player sees right now, including any stale never-pushed regions.
+	// Shared by truth-mode `capture` (present-consumed) and `snap` (immediate).
+	const int OW = g_system->getOverlayWidth();
+	const int OH = g_system->getOverlayHeight();
+	if (OW <= 0 || OH <= 0 || gameRect.isEmpty()) {
+		warning("ROGER-SCRIPT: snap '%s' before first present - skipped", label.c_str());
+		return;
+	}
+	const Graphics::PixelFormat rgba(4, 8, 8, 8, 8, 24, 16, 8, 0);
+	const Graphics::PixelFormat overlayFmt = g_system->getOverlayFormat();
+	Graphics::Surface raw;
+	raw.create(OW, OH, overlayFmt);
+	g_system->grabOverlay(raw);
+	Graphics::ManagedSurface overlayRGBA(OW, OH, rgba);
+	Graphics::Surface *converted = raw.convertTo(rgba);
+	if (converted) {
+		overlayRGBA.copyRectToSurface(*converted, 0, 0, Common::Rect(0, 0, OW, OH));
+		converted->free();
+		delete converted;
+	}
+	raw.free();
+	dumpAutoshot(overlayRGBA, gameRect, ("-" + label).c_str());
+}
+
 void FileRogerArtProvider::maybeScriptCapture(Graphics::ManagedSurface &scene,
                                               const Common::Rect &gameRect) {
 	// Scripted `capture <label>`: one-shot dump at the next present after the
@@ -728,35 +760,77 @@ void FileRogerArtProvider::maybeScriptCapture(Graphics::ManagedSurface &scene,
 	if (!_inputDriver->takeCaptureRequest(label))
 		return;
 	if (_truthCapture) {
-		// Truth-capture mode: dump the REAL overlay pixels — the frame the player
-		// actually sees — via grabOverlay. The scratch buffer self-heals every cycle
-		// (renderFrame fully recomposes it), so a scratch-sourced capture can never
-		// witness a missing invalidation mark; the overlay holds stale pixels until
-		// the ~300-present periodic heal. grabOverlay is called AFTER presentToOverlay
-		// has pushed this present's regions, so the grab reflects those pushes plus
-		// any regions that were never pushed (stale from a missing mark).
-		// The overlay format is often NOT RGBA32 (e.g. RGB565) — convert to RGBA32
-		// so dumpAutoshot's blendBlitFrom can composite the native screen over it.
-		const int OW = g_system->getOverlayWidth();
-		const int OH = g_system->getOverlayHeight();
-		if (OW > 0 && OH > 0) {
-			const Graphics::PixelFormat rgba(4, 8, 8, 8, 8, 24, 16, 8, 0);
-			const Graphics::PixelFormat overlayFmt = g_system->getOverlayFormat();
-			Graphics::Surface raw;
-			raw.create(OW, OH, overlayFmt);
-			g_system->grabOverlay(raw);
-			Graphics::ManagedSurface overlayRGBA(OW, OH, rgba);
-			Graphics::Surface *converted = raw.convertTo(rgba);
-			if (converted) {
-				overlayRGBA.copyRectToSurface(*converted, 0, 0, Common::Rect(0, 0, OW, OH));
-				converted->free();
-				delete converted;
-			}
-			raw.free();
-			dumpAutoshot(overlayRGBA, gameRect, ("-" + label).c_str());
-		}
+		// Truth-capture mode: dump the REAL overlay pixels via grabOverlay — called
+		// AFTER presentToOverlay has pushed this present's regions, so the grab
+		// reflects those pushes plus any regions that were never pushed (stale).
+		dumpOverlaySnap(label, gameRect);
 	} else {
 		dumpAutoshot(scene, gameRect, ("-" + label).c_str());
+	}
+}
+
+// Roger::ScriptHost implementation — game-side services for .rin loop commands.
+
+int FileRogerArtProvider::uiWindowCount() const {
+	if (!_uiLayer)
+		return 0;
+	int n = 0;
+	const Common::Array<Roger::UiElement> &es = _uiLayer->elements();
+	for (uint i = 0; i < es.size(); i++) {
+		if (es[i].type == Roger::kUiWindow)
+			n++;
+	}
+	return n;
+}
+
+Common::String FileRogerArtProvider::describeState() {
+	int egoX = -1, egoY = -1;
+	if (g_sci && g_sci->getEngineState() && g_sci->getEngineState()->_segMan) {
+		SegManager *segMan = g_sci->getEngineState()->_segMan;
+		const reg_t ego = segMan->findObjectByName("ego");
+		if (!ego.isNull()) {
+			egoX = readSelectorValue(segMan, ego, SELECTOR(x));
+			egoY = readSelectorValue(segMan, ego, SELECTOR(y));
+		}
+	}
+	const char *modeStr = (_mode == Roger::kModeOriginal) ? "original"
+	                    : (_mode == Roger::kModeSideBySide) ? "sbs" : "enhanced";
+	return Common::String::format("pic=%d ego=%d,%d windows=%d mode=%s",
+	                              _loadedPicId, egoX, egoY, uiWindowCount(), modeStr);
+}
+
+int FileRogerArtProvider::stateValue(const Common::String &key) {
+	if (key == "pic")
+		return _loadedPicId;
+	if (key == "windows")
+		return uiWindowCount();
+	if (key == "mode")
+		return (int)_mode;
+	if (key == "egox" || key == "egoy") {
+		if (g_sci && g_sci->getEngineState() && g_sci->getEngineState()->_segMan) {
+			SegManager *segMan = g_sci->getEngineState()->_segMan;
+			const reg_t ego = segMan->findObjectByName("ego");
+			if (!ego.isNull())
+				return readSelectorValue(segMan, ego,
+					(key == "egox") ? SELECTOR(x) : SELECTOR(y));
+		}
+		return -1;
+	}
+	warning("ROGER-SCRIPT: unknown state key '%s' (want pic|windows|egox|egoy|mode)", key.c_str());
+	return -1;
+}
+
+void FileRogerArtProvider::onSnap(const Common::String &label) {
+	dumpOverlaySnap(label, _lastGameRect);
+}
+
+void FileRogerArtProvider::onRestore(int slot) {
+	// Delayed restore: SciEngine::loadGameState just sets _delayedRestoreGameId;
+	// the game loop performs the restore at its own safe point. During a frozen
+	// blocking dialog it is deferred until the dialog closes.
+	if (g_sci) {
+		warning("ROGER-SCRIPT: restore slot %d (delayed)", slot);
+		g_sci->loadGameState(slot);
 	}
 }
 

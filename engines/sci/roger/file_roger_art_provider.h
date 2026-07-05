@@ -37,7 +37,7 @@ namespace Graphics { struct Surface; class ManagedSurface; }
 namespace Sci {
 namespace Roger { struct Sprite; class RogerCompositor; class ViewCache; class RogerUiLayer; class RogerTextRenderer; }
 
-class FileRogerArtProvider : public RogerArtProvider {
+class FileRogerArtProvider : public RogerArtProvider, public Roger::ScriptHost {
 public:
 	// gameId: ScummVM game ID string (e.g. "sq3", "qfg1")
 	// gamePath: path to the game directory, as a Common::Path so native
@@ -138,6 +138,15 @@ private:
 	bool _diffBackstop = false;  // roger_diff_backstop: Feeder B pixel-diff backstop (default off; per-frame full-buffer diff is costly and can stamp blocky native pixels over the plate around moving sprites)
 	bool _diffCheck = false;     // roger_diff_check: gated in-engine native-vs-overlay diff (off by default; once per pic; never on steady-state path)
 	bool _truthCapture = false; // .rin captures grab the REAL overlay pixels (grabOverlay) instead of forcing a full recompose — evidence mode, default off; stale never-pushed regions are visible
+	// Roger::ScriptHost — game-side services for the .rin loop commands
+	Common::String describeState() override;
+	int stateValue(const Common::String &key) override;
+	void onSnap(const Common::String &label) override;
+	void onRestore(int slot) override;
+
+	int uiWindowCount() const;                              // kUiWindow elements in _uiLayer
+	void dumpOverlaySnap(const Common::String &label, const Common::Rect &gameRect); // grabOverlay -> dumpAutoshot
+
 	// Input automation (scripted verification loop / live control) — roger_input.h.
 	Roger::InputScriptDriver *_inputDriver = nullptr;
 	bool _cycleLog = false;
