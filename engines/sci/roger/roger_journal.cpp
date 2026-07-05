@@ -30,19 +30,51 @@ bool opSupersedes(const UiElement &newer, const UiElement &older) {
 }
 
 void RogerJournal::append(const UiElement &e) {
+	UiElement tagged = e;
+	if (tagged.windowId == 0) {
+		for (uint i = _brackets.size(); i-- > 0;) {
+			if (_brackets[i].rect.contains(tagged.nativeRect)) {
+				tagged.windowId = _brackets[i].id;
+				break;
+			}
+		}
+	}
 	for (uint i = 0; i < _ops.size();) {
-		if (opSupersedes(e, _ops[i]))
+		if (opSupersedes(tagged, _ops[i]))
 			_ops.remove_at(i);
 		else
 			i++;
 	}
-	_ops.push_back(e);
+	_ops.push_back(tagged);
 }
 
 bool RogerJournal::clearToken(uint32 token, Common::Array<Common::Rect> *removedNativeRects) {
 	bool removed = false;
 	for (uint i = 0; i < _ops.size();) {
 		if (_ops[i].token == token) {
+			if (removedNativeRects)
+				removedNativeRects->push_back(_ops[i].nativeRect);
+			_ops.remove_at(i);
+			removed = true;
+		} else {
+			i++;
+		}
+	}
+	return removed;
+}
+
+void RogerJournal::openBracket(uint32 windowId, const Common::Rect &winRect) {
+	Bracket b; b.id = windowId; b.rect = winRect;
+	_brackets.push_back(b);
+}
+
+bool RogerJournal::closeBracket(uint32 windowId, Common::Array<Common::Rect> *removedNativeRects) {
+	for (uint i = _brackets.size(); i-- > 0;)
+		if (_brackets[i].id == windowId)
+			_brackets.remove_at(i);
+	bool removed = false;
+	for (uint i = 0; i < _ops.size();) {
+		if (_ops[i].windowId == windowId && windowId != 0) {
 			if (removedNativeRects)
 				removedNativeRects->push_back(_ops[i].nativeRect);
 			_ops.remove_at(i);

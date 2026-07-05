@@ -70,4 +70,42 @@ public:
 		TS_ASSERT_EQUALS(removed.size(), 1u);
 		TS_ASSERT(!j.clearToken(0x70000000u, &removed)); // idempotent, reports no removal
 	}
+
+	void test_ops_inside_open_bracket_die_with_it() {
+		RogerJournal j;
+		j.append(op(kUiText, 5, 100, 60, 112, "on picture port")); // before bracket
+		j.openBracket(3, Common::Rect(0, 9, 321, 200));
+		j.append(op(kUiText, 83, 45, 132, 57, "Strength"));        // inside window 3
+		Common::Array<Common::Rect> removed;
+		TS_ASSERT(j.closeBracket(3, &removed));
+		TS_ASSERT_EQUALS(j.ops().size(), 1u);
+		TS_ASSERT_EQUALS(j.ops()[0].text, Common::String("on picture port"));
+		TS_ASSERT_EQUALS(removed.size(), 1u);
+	}
+
+	void test_bracket_assignment_ignores_draw_time_identity() {
+		// The QFG1 char sheet draws under port 3 AND port 2 while window 3 is the
+		// only open bracket over the rect: both draws must belong to window 3.
+		// (Geometry + bracket stack, never the current-port id — the 0x60000002
+		// vs 0x60000003 doubling class from d8be4749b4e.)
+		RogerJournal j;
+		j.openBracket(3, Common::Rect(0, 9, 321, 200));
+		UiElement a = op(kUiText, 170, 45, 192, 57, "25"); a.token = 0x60000003u;
+		UiElement b = op(kUiText, 103, 158, 163, 170, "20 / 20"); b.token = 0x60000002u;
+		j.append(a);
+		j.append(b);
+		TS_ASSERT_EQUALS(j.ops()[0].windowId, 3u);
+		TS_ASSERT_EQUALS(j.ops()[1].windowId, 3u);
+	}
+
+	void test_innermost_bracket_wins() {
+		RogerJournal j;
+		j.openBracket(3, Common::Rect(0, 9, 321, 200));   // full-screen window
+		j.openBracket(5, Common::Rect(60, 60, 260, 140)); // popup over it
+		j.append(op(kUiText, 70, 70, 120, 82, "popup text"));
+		Common::Array<Common::Rect> removed;
+		j.closeBracket(5, &removed);
+		TS_ASSERT_EQUALS(j.ops().size(), 0u); // popup text died with the popup,
+		TS_ASSERT(j.closeBracket(3, nullptr) == false); // nothing left for window 3
+	}
 };

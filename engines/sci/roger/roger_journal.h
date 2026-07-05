@@ -42,11 +42,19 @@ public:
 	void append(const UiElement &e);
 	const Common::Array<UiElement> &ops() const { return _ops; }
 	bool empty() const { return _ops.empty(); }
-	void clear() { _ops.clear(); }
+	void clear() { _ops.clear(); _brackets.clear(); }
 	bool clearToken(uint32 token, Common::Array<Common::Rect> *removedNativeRects = nullptr);
 
+	// Window brackets: openWindow/removeWindow are THE UI lifetime model (CLAUDE.md).
+	// append() tags each op with the innermost open bracket containing its rect;
+	// closeBracket drops the bracket and every op tagged with it.
+	void openBracket(uint32 windowId, const Common::Rect &winRect);
+	bool closeBracket(uint32 windowId, Common::Array<Common::Rect> *removedNativeRects = nullptr);
+
 private:
+	struct Bracket { uint32 id; Common::Rect rect; };
 	Common::Array<UiElement> _ops;
+	Common::Array<Bracket> _brackets; // stack order: last = innermost
 };
 
 } // namespace Roger
