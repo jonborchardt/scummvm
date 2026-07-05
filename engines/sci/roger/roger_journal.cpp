@@ -23,6 +23,16 @@
 namespace Sci {
 namespace Roger {
 
+static const uint kJournalPruneThreshold = 256;
+
+bool opIsOpaque(const UiElement &e) {
+	// Filled windows/buttons/edits hide what they cover. Text, frame boxes
+	// (backColor -1), and icons (alpha cels) do not.
+	if (e.type == kUiWindow || e.type == kUiButton || e.type == kUiTextEdit)
+		return e.backColor >= 0;
+	return false;
+}
+
 bool opSupersedes(const UiElement &newer, const UiElement &older) {
 	if (newer.type != older.type)
 		return false;
@@ -46,6 +56,39 @@ void RogerJournal::append(const UiElement &e) {
 			i++;
 	}
 	_ops.push_back(tagged);
+	if (_ops.size() > kJournalPruneThreshold)
+		prune();
+}
+
+bool RogerJournal::eraseContained(const Common::Rect &r, Common::Array<Common::Rect> *removedNativeRects) {
+	bool removed = false;
+	for (uint i = 0; i < _ops.size();) {
+		if (r.contains(_ops[i].nativeRect)) {
+			if (removedNativeRects)
+				removedNativeRects->push_back(_ops[i].nativeRect);
+			_ops.remove_at(i);
+			removed = true;
+		} else {
+			i++;
+		}
+	}
+	return removed;
+}
+
+void RogerJournal::prune() {
+	for (uint i = 0; i < _ops.size();) {
+		bool covered = false;
+		for (uint k = i + 1; k < _ops.size(); k++) {
+			if (opIsOpaque(_ops[k]) && _ops[k].nativeRect.contains(_ops[i].nativeRect)) {
+				covered = true;
+				break;
+			}
+		}
+		if (covered)
+			_ops.remove_at(i);
+		else
+			i++;
+	}
 }
 
 bool RogerJournal::clearToken(uint32 token, Common::Array<Common::Rect> *removedNativeRects) {

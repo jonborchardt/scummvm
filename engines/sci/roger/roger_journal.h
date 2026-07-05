@@ -33,6 +33,9 @@ namespace Roger {
 // erases/overprints the box before or while redrawing it). Pure: unit-testable.
 bool opSupersedes(const UiElement &newer, const UiElement &older);
 
+// An op whose fill hides everything beneath its rect (prune cover test). Pure.
+bool opIsOpaque(const UiElement &e);
+
 // Append-only draw journal: ops render in append order (native "last draw wins").
 // Lifetime is structural — erase-rect containment and window brackets (Tasks 2-3);
 // clearToken survives ONLY for the explicit singletons (status bar 0x10000000,
@@ -44,6 +47,10 @@ public:
 	bool empty() const { return _ops.empty(); }
 	void clear() { _ops.clear(); _brackets.clear(); }
 	bool clearToken(uint32 token, Common::Array<Common::Rect> *removedNativeRects = nullptr);
+	bool eraseContained(const Common::Rect &r, Common::Array<Common::Rect> *removedNativeRects = nullptr);
+	// Drop ops fully covered by a LATER opaque op. Called automatically by append()
+	// past kJournalPruneThreshold; safe to call any time (render output unchanged).
+	void prune();
 
 	// Window brackets: openWindow/removeWindow are THE UI lifetime model (CLAUDE.md).
 	// append() tags each op with the innermost open bracket containing its rect;

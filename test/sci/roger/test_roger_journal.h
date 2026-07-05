@@ -108,4 +108,57 @@ public:
 		TS_ASSERT_EQUALS(j.ops().size(), 0u); // popup text died with the popup,
 		TS_ASSERT(j.closeBracket(3, nullptr) == false); // nothing left for window 3
 	}
+
+	void test_erase_contained_removes_any_op_kind() {
+		RogerJournal j;
+		j.append(op(kUiText, 10, 10, 40, 22, "text"));
+		UiElement ic = op(kUiIcon, 10, 30, 40, 42); j.append(ic);
+		j.append(op(kUiButton, 10, 50, 40, 62, "btn"));
+		Common::Array<Common::Rect> removed;
+		TS_ASSERT(j.eraseContained(Common::Rect(0, 0, 50, 45), &removed)); // covers text+icon
+		TS_ASSERT_EQUALS(j.ops().size(), 1u);
+		TS_ASSERT_EQUALS(j.ops()[0].type, kUiButton);
+		TS_ASSERT_EQUALS(removed.size(), 2u);
+	}
+
+	void test_partial_overlap_never_erases() {
+		// The char-sheet-popup trap (CLAUDE.md): geometry may only remove on strict
+		// containment. Partial coverage keeps the op.
+		RogerJournal j;
+		j.append(op(kUiText, 10, 10, 40, 22, "stats"));
+		TS_ASSERT(!j.eraseContained(Common::Rect(0, 0, 25, 45), nullptr));
+		TS_ASSERT_EQUALS(j.ops().size(), 1u);
+	}
+
+	void test_prune_drops_ops_covered_by_later_opaque_op() {
+		RogerJournal j;
+		j.append(op(kUiText, 10, 10, 40, 22, "buried"));
+		UiElement win = op(kUiWindow, 0, 0, 100, 100); win.backColor = 15; // opaque fill
+		j.append(win);
+		j.prune();
+		TS_ASSERT_EQUALS(j.ops().size(), 1u);
+		TS_ASSERT_EQUALS(j.ops()[0].type, kUiWindow);
+	}
+
+	void test_prune_keeps_ops_over_transparent_cover() {
+		RogerJournal j;
+		j.append(op(kUiText, 10, 10, 40, 22, "visible"));
+		UiElement fb = op(kUiWindow, 0, 0, 100, 100); fb.backColor = -1; // frame box: no fill
+		j.append(fb);
+		j.prune();
+		TS_ASSERT_EQUALS(j.ops().size(), 2u);
+	}
+
+	void test_append_stays_bounded_under_redraw_storm() {
+		// One hour on the char sheet must not grow the journal unboundedly: an
+		// opaque window redraw covering everything triggers threshold pruning.
+		RogerJournal j;
+		UiElement win = op(kUiWindow, 0, 0, 320, 200); win.backColor = 15;
+		for (int i = 0; i < 4000; i++) {
+			j.append(win);
+			UiElement t = op(kUiText, 10 + (i % 7), 10, 60 + (i % 7), 22, "churn");
+			j.append(t); // rect varies: containment supersede alone cannot cap it
+		}
+		TS_ASSERT_LESS_THAN_EQUALS(j.ops().size(), 300u);
+	}
 };
