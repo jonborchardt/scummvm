@@ -25,6 +25,18 @@ namespace Roger {
 
 static const uint kJournalPruneThreshold = 256;
 
+// Persistent overlay singletons whose lifetime is owned by their token (explicit
+// clearToken / reapply), NOT by any SCI save-under. A bitsRestore over their strip
+// must not roll them back: the status banner (0x10000000) is re-drawn into the top
+// strip whenever SCI redraws the menu bar, so it postdates a bar save-under's
+// checkpoint and would otherwise be dropped on menu close (the enhanced banner
+// reverting to the native bitmap font); the frame box (0x70000000) is overlay-only,
+// re-pushed each move, and no save-under owns it. The menu dropdown (0x20000000) is
+// deliberately NOT spared — its OWN save-under restore is exactly what must remove it.
+static bool isSaveUnderExemptSingleton(uint32 token) {
+	return token == 0x10000000u || token == 0x70000000u;
+}
+
 bool opIsOpaque(const UiElement &e) {
 	// Filled windows/buttons/edits hide what they cover. Text, frame boxes
 	// (backColor -1), and icons (alpha cels) do not.
@@ -155,7 +167,8 @@ bool RogerJournal::rollback(uint32 handleToken, const Common::Rect &restoredRect
 	const uint32 mark = _checkpoints[found].seq;
 	_checkpoints.remove_at(found);
 	for (uint i = 0; i < _ops.size();) {
-		if (_ops[i].seq > mark && restoredRect.contains(_ops[i].nativeRect)) {
+		if (_ops[i].seq > mark && restoredRect.contains(_ops[i].nativeRect) &&
+		    !isSaveUnderExemptSingleton(_ops[i].token)) {
 			if (removedNativeRects)
 				removedNativeRects->push_back(_ops[i].nativeRect);
 			_ops.remove_at(i);

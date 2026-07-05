@@ -2162,6 +2162,21 @@ void FileRogerArtProvider::processForegroundCaptures(const Common::Array<Common:
 		// the window (dialog icons) still stamps.
 		if (_journal && Roger::regionIsCapturedWindowBody(_journal->ops(), pending[i].owner, nr, 90))
 			continue;
+		// A region a bitsRestore this cycle just revealed is restored background, not
+		// content — do NOT pixel-stamp it (structural replacement for the deleted
+		// beginNativeDraw suppressions). The check must be HERE, at process time, not
+		// only at capture time: a menu's dropdown show is captured during the FROZEN
+		// menu-open cycle (kernelAnimate does not tick, so no reveal exists yet), then
+		// this pending region survives to the resumed close cycle where the restore has
+		// planted its reveal. Coverage-based (>=90%), not strict containment: SCI re-shows
+		// the restored region through kGraphRedrawBox / bitsShow grown by the element's 1px
+		// frame (dropdown restore rect (7,9,141,27) vs its show (6,9,142,27), 98.5% inside).
+		bool revealed = false;
+		for (uint r = 0; r < _revealRects.size(); r++) {
+			if (Roger::rectCoverageFraction(nr, _revealRects[r]) >= 90) { revealed = true; break; }
+		}
+		if (revealed)
+			continue;
 		Common::Array<Common::Rect> one, keep;
 		one.push_back(nr);
 		// Live cast: exclude on any intersection (moving actors must never be pixel-stamped).
@@ -2290,8 +2305,13 @@ void FileRogerArtProvider::onNativeShowRect(const Common::Rect &screenRect, uint
 	// A show inside a rect we just rolled back is SCI revealing restored
 	// background — capture nothing (structural replacement for the hand-placed
 	// beginNativeDraw suppressions on restore paths; kills the menu-close class).
+	// Coverage-based (>=90%), not strict containment: after a bitsRestore SCI
+	// re-shows the region through kGraphRedrawBox / bitsShow grown by the element's
+	// 1px frame (the menu dropdown's restore rect is (7,9,141,27) but its follow-up
+	// show is (6,9,142,27) — one border pixel wider per side). Strict contains()
+	// missed that overhang and pixel-stamped the native dropdown residue.
 	for (uint i = 0; i < _revealRects.size(); i++) {
-		if (_revealRects[i].contains(screenRect))
+		if (Roger::rectCoverageFraction(screenRect, _revealRects[i]) >= 90)
 			return;
 	}
 	if (_diag)

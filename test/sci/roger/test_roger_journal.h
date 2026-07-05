@@ -198,6 +198,33 @@ public:
 		TS_ASSERT(!j.rollback(0x00170ab0u, Common::Rect(0, 0, 50, 50), nullptr)); // consumed
 	}
 
+	void test_rollback_spares_persistent_status_and_frame_box_singletons() {
+		// Menu-close regression (this fix): closing the game menu restores the
+		// menu-bar save-under. The status banner (token 0x10000000) is redrawn into
+		// the top strip while the menu is open, so it postdates the bar's checkpoint
+		// and lies inside the restored strip — a plain rollback dropped it, reverting
+		// the enhanced TTF banner to the native bitmap font. Its lifetime is owned by
+		// its token (reapply / clearToken), never by a save-under, so rollback must
+		// spare it. Same for the overlay-only frame box (0x70000000). The menu dropdown
+		// (0x20000000) is NOT spared — its own restore is what must remove it.
+		RogerJournal j;
+		j.checkpoint(0x00170ab0u, Common::Rect(0, 0, 320, 10)); // bar save-under
+		UiElement banner = op(kUiWindow, 0, 0, 320, 10); banner.token = 0x10000000u;
+		j.append(banner);                                       // status/menu-bar strip
+		UiElement fb = op(kUiWindow, 5, 20, 60, 40); fb.token = 0x70000000u;
+		fb.nativeRect = Common::Rect(2, 2, 40, 8);              // inside the restored rect
+		j.append(fb);
+		UiElement drop = op(kUiWindow, 6, 2, 140, 9); drop.token = 0x20000000u;
+		j.append(drop);                                         // dropdown: must be rolled back
+		Common::Array<Common::Rect> removed;
+		TS_ASSERT(j.rollback(0x00170ab0u, Common::Rect(0, 0, 320, 10), &removed));
+		// Banner + frame box survive; only the dropdown was removed.
+		TS_ASSERT_EQUALS(j.ops().size(), 2u);
+		TS_ASSERT_EQUALS(j.ops()[0].token, 0x10000000u);
+		TS_ASSERT_EQUALS(j.ops()[1].token, 0x70000000u);
+		TS_ASSERT_EQUALS(removed.size(), 1u);
+	}
+
 	void test_popup_over_chars_sheet_rolls_back_cleanly() {
 		// THE historical trap (CLAUDE.md): a popup over the char sheet must not wipe
 		// the stat text beneath it. With checkpoints this is exact: the stats predate
