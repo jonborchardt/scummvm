@@ -218,6 +218,7 @@ to flush while the dialog is still visible — without it you get the post-dismi
 ```
 # game-space 320x200 coords; '#' comments; blank lines skipped
 click X Y   | rclick X Y    # mouse down+up at (X,Y)
+mousedown X Y | mouseup X Y  # press / release separately (drag gestures — drives SCI0 mouse menus; move steers while held)
 move X Y                    # mouse move (nudge a present)
 key <token>                 # single key down+up
 type "text"                 # inject characters one by one

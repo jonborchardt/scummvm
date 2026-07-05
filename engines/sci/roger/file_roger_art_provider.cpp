@@ -1846,10 +1846,12 @@ void FileRogerArtProvider::reapplyStatus() {
 static inline bool isGenericTextToken(uint32 t) { return (t & Roger::kTokenNamespaceMask) == Roger::kGenericTextTokenNs; }
 
 void FileRogerArtProvider::uiClearToken(uint32 token) {
-	// bitsRestore calls this ~2× per moving sprite EVERY cycle, almost always with a
-	// token matching no element — so all work below is gated on an actual removal
-	// (the bb65c56b75a walking-storm class; the barrier gates presents, but staying
-	// no-op on the walking path keeps the per-cycle cost trivial).
+	// The save-under restore path (bitsRestore) now goes through onNativeRestoreRect
+	// (checkpoint rollback) and no longer arrives here. Actual callers:
+	//   - GfxPorts::removeWindow — bracket close (0x40000000|id + 0x60000000|id)
+	//   - menu.cpp — status strip (0x10000000) and dropdown (0x20000000) singletons
+	// All work below is gated on an actual removal — a no-op call must stay cheap
+	// (no present, no dirty marks) to keep per-cycle cost trivial.
 	Common::Array<Common::Rect> removedRects;
 	bool removedUi = false;
 	if (_journal) {
@@ -1862,7 +1864,7 @@ void FileRogerArtProvider::uiClearToken(uint32 token) {
 		} else if (ns == Roger::kGenericTextTokenNs) {
 			removedUi = false; // lifetime is bracket/erase-based now
 		} else {
-			removedUi = _journal->clearToken(token, &removedRects); // singletons + save-under handles
+			removedUi = _journal->clearToken(token, &removedRects); // explicit singletons (status strip, dropdown, frame box)
 		}
 	}
 

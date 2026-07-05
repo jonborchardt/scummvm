@@ -71,7 +71,7 @@ Grammar
 (full reference in `engines/sci/roger/roger_input.h` and `docs/roger.md`):
 
 ```
-click X Y | rclick X Y | move X Y | key <token> | type "text"
+click X Y | rclick X Y | mousedown X Y | mouseup X Y | move X Y | key <token> | type "text"
 wait <ms> | waituntil <key> <val> <timeoutMs> | capture <label> | snap <label>
 state | assert <key> <val> | restore <slot> | fail <msg> | log <text> | quit   # '#' = comment
 ```
