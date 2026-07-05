@@ -91,6 +91,25 @@ class RogerInputDriverTestSuite : public CxxTest::TestSuite {
 		return n;
 	}
 
+	struct MockHost : public ScriptHost {
+		int pic = 0;
+		int windows = 0;
+		Common::Array<Common::String> snaps;
+		Common::Array<int> restores;
+		Common::String describeState() override {
+			return Common::String::format("pic=%d windows=%d", pic, windows);
+		}
+		int stateValue(const Common::String &key) override {
+			if (key == "pic")
+				return pic;
+			if (key == "windows")
+				return windows;
+			return -1;
+		}
+		void onSnap(const Common::String &label) override { snaps.push_back(label); }
+		void onRestore(int slot) override { restores.push_back(slot); }
+	};
+
 public:
 	void test_click_expansion_and_timing() {
 		InputScriptDriver d;
@@ -173,6 +192,47 @@ public:
 		d.appendLiveText("C\n", 6000);
 		TS_ASSERT(d.pollDue(6000, ev));
 		TS_ASSERT_EQUALS(ev.kbd.keycode, Common::KEYCODE_ESCAPE);
+	}
+
+	void test_snap_calls_host_immediately() {
+		InputScriptDriver d;
+		MockHost h;
+		d.setScriptHost(&h);
+		d.loadScriptFromString("snap boot\nkey ENTER\n");
+		Common::Event ev;
+		TS_ASSERT(d.pollDue(2000, ev)); // snap executed inline, then keydown yields
+		TS_ASSERT_EQUALS(ev.type, Common::EVENT_KEYDOWN);
+		TS_ASSERT_EQUALS((int)h.snaps.size(), 1);
+		TS_ASSERT_EQUALS(h.snaps[0], Common::String("boot"));
+	}
+
+	void test_restore_calls_host() {
+		InputScriptDriver d;
+		MockHost h;
+		d.setScriptHost(&h);
+		d.loadScriptFromString("restore 1\nquit\n");
+		Common::Event ev;
+		TS_ASSERT(d.pollDue(2000, ev)); // restore executed, quit yields
+		TS_ASSERT_EQUALS(ev.type, Common::EVENT_QUIT);
+		TS_ASSERT_EQUALS((int)h.restores.size(), 1);
+		TS_ASSERT_EQUALS(h.restores[0], 1);
+	}
+
+	void test_fail_quits() {
+		InputScriptDriver d;
+		d.loadScriptFromString("fail broken\nkey ENTER\n");
+		Common::Event ev;
+		TS_ASSERT(d.pollDue(2000, ev));
+		TS_ASSERT_EQUALS(ev.type, Common::EVENT_QUIT);
+		TS_ASSERT(!d.pollDue(9999, ev)); // done: the ENTER after fail never fires
+	}
+
+	void test_state_and_snap_without_host_are_safe() {
+		InputScriptDriver d; // no host registered
+		d.loadScriptFromString("state\nsnap x\nrestore 1\nquit\n");
+		Common::Event ev;
+		TS_ASSERT(d.pollDue(2000, ev)); // no crash; quit yields
+		TS_ASSERT_EQUALS(ev.type, Common::EVENT_QUIT);
 	}
 };
 

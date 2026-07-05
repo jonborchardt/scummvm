@@ -86,14 +86,32 @@ bool parseScriptLine(const Common::String &line, ScriptCommand &cmd);
 // case-insensitive named tokens. Returns false for unknown tokens.
 bool keyTokenToKey(const Common::String &tok, Common::KeyCode &keycode, uint16 &ascii);
 
+// Game-side services for the new script commands. Implemented by the art
+// provider; this interface uses ONLY Common types (MCP-readiness boundary).
+class ScriptHost {
+public:
+	virtual ~ScriptHost() {}
+	// One-line state summary, e.g. "pic=300 ego=160,120 windows=0 mode=enhanced".
+	virtual Common::String describeState() = 0;
+	// Numeric state for waituntil/assert. Known keys: pic, windows, egox, egoy,
+	// mode (0=enhanced 1=original 2=sbs). Returns -1 for unknown keys.
+	virtual int stateValue(const Common::String &key) = 0;
+	// Immediate presented-frame dump (grabOverlay), autoshot naming with -<label>.
+	virtual void onSnap(const Common::String &label) = 0;
+	// Schedule a delayed save restore (processed by the normal game loop).
+	virtual void onRestore(int slot) = 0;
+};
+
 // One scheduled action: either a synthetic input event or a control command.
 struct TimedAction {
 	uint32 relMs;          // due time relative to the driver's base time
 	bool isEvent;
 	Common::Event ev;      // valid when isEvent
-	ScriptCmdType ctrl;    // kCmdCapture/kCmdLog/kCmdQuit when !isEvent
-	Common::String label;  // capture label / log text
-	TimedAction() : relMs(0), isEvent(false), ctrl(kCmdNone) {}
+	ScriptCmdType ctrl;    // control command when !isEvent
+	Common::String label;  // capture/snap label / log+fail text / state key
+	int wantValue;         // waituntil+assert wanted value / restore slot
+	uint32 timeoutMs;      // waituntil timeout
+	TimedAction() : relMs(0), isEvent(false), ctrl(kCmdNone), wantValue(0), timeoutMs(0) {}
 };
 
 // Timed synthetic-event source. Registered with the backend EventDispatcher
@@ -133,11 +151,14 @@ public:
 	// fire from `nowMs` onward.
 	void appendLiveText(const Common::String &text, uint32 nowMs);
 
+	// Register the game-side host for snap/state/waituntil/assert/restore.
+	// Not owned. Null host: those commands log-and-skip (never crash).
+	void setScriptHost(ScriptHost *host) { _host = host; }
+
 private:
 	void expandCommand(const ScriptCommand &cmd);
 	void pushMouse(Common::EventType type, int x, int y, uint32 relMs);
 	void pushKey(Common::EventType type, Common::KeyCode kc, uint16 ascii, uint32 relMs);
-	void pushCtrl(ScriptCmdType ctrl, const Common::String &label, uint32 relMs);
 	void tailLive(uint32 nowMs); // Task 3
 
 	Common::Array<TimedAction> _actions;
@@ -152,6 +173,7 @@ private:
 	uint32 _liveOffset;         // Task 3: bytes consumed
 	uint32 _lastTailMs;         // Task 3: tail throttle
 	Common::String _livePartial; // Task 3: trailing incomplete line
+	ScriptHost *_host = nullptr; // borrowed; registered by the art provider
 };
 
 } // namespace Roger

@@ -254,15 +254,6 @@ void InputScriptDriver::pushKey(Common::EventType type, Common::KeyCode kc, uint
 	_actions.push_back(a);
 }
 
-void InputScriptDriver::pushCtrl(ScriptCmdType ctrl, const Common::String &label, uint32 relMs) {
-	TimedAction a;
-	a.relMs = relMs;
-	a.isEvent = false;
-	a.ctrl = ctrl;
-	a.label = label;
-	_actions.push_back(a);
-}
-
 void InputScriptDriver::expandCommand(const ScriptCommand &c) {
 	switch (c.type) {
 	case kCmdWait:
@@ -299,8 +290,22 @@ void InputScriptDriver::expandCommand(const ScriptCommand &c) {
 	case kCmdCapture:
 	case kCmdLog:
 	case kCmdQuit:
-		pushCtrl(c.type, c.text, _cursorRelMs);
+	case kCmdSnap:
+	case kCmdState:
+	case kCmdWaitUntil:
+	case kCmdAssert:
+	case kCmdRestore:
+	case kCmdFail: {
+		TimedAction a;
+		a.relMs = _cursorRelMs;
+		a.isEvent = false;
+		a.ctrl = c.type;
+		a.label = c.text;
+		a.wantValue = c.value;
+		a.timeoutMs = c.ms;
+		_actions.push_back(a);
 		break;
+	}
 	default:
 		break;
 	}
@@ -357,6 +362,29 @@ bool InputScriptDriver::pollDue(uint32 nowMs, Common::Event &ev) {
 			warning("ROGER-SCRIPT: %s", a.label.c_str());
 			break;
 		case kCmdQuit:
+			_done = true;
+			ev.type = Common::EVENT_QUIT;
+			return true;
+		case kCmdSnap:
+			if (_host)
+				_host->onSnap(a.label);
+			else
+				warning("ROGER-SCRIPT: snap '%s' skipped (no host)", a.label.c_str());
+			break;
+		case kCmdState:
+			if (_host)
+				warning("ROGER-STATE %s", _host->describeState().c_str());
+			else
+				warning("ROGER-STATE (no host)");
+			break;
+		case kCmdRestore:
+			if (_host)
+				_host->onRestore(a.wantValue);
+			else
+				warning("ROGER-SCRIPT: restore %d skipped (no host)", a.wantValue);
+			break;
+		case kCmdFail:
+			warning("ROGER-SCRIPT: FAIL %s", a.label.c_str());
 			_done = true;
 			ev.type = Common::EVENT_QUIT;
 			return true;
