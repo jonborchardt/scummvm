@@ -178,6 +178,12 @@ private:
 	uint32 _lastTailMs;         // Task 3: tail throttle
 	Common::String _livePartial; // Task 3: trailing incomplete line
 	ScriptHost *_host = nullptr; // borrowed; registered by the art provider
+	// Slow-command schedule re-anchor: a snap (grabOverlay + PNG, ~1s) runs synchronously
+	// inside pollDue, so the next poll's clock has jumped ahead. On the next poll we slide
+	// _baseMs by the drift past this command's due time so following actions stay spaced as
+	// authored (prevents a mid-drag move burst that a frozen menu/dialog loop never sees).
+	bool _reanchorPending = false;
+	uint32 _reanchorDueMs = 0;
 };
 
 } // namespace Roger

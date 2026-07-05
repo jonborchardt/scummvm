@@ -359,6 +359,20 @@ bool InputScriptDriver::pollDue(uint32 nowMs, Common::Event &ev) {
 		if (_next >= _actions.size())
 			return false;
 	}
+	// Re-anchor after a slow host-side command (snap — grabOverlay + PNG encode is
+	// ~1s at overlay resolution). Such a command runs synchronously INSIDE the previous
+	// pollDue, so by the time the caller re-polls with a fresh g_system->getMillis() the
+	// wall clock has jumped past every following action's due time — they would all fire
+	// in one bunch. During a FROZEN blocking loop (menu/dialog) that bunching means an
+	// injected drag's intermediate `move`s never coincide with the loop's position read,
+	// so a snapped mid-drag dropdown-switch is impossible. Slide the schedule base forward
+	// by the drift so downstream `wait`-relative spacings resume from the command's own due
+	// time — the same correction waituntil applies for time it consumed while gating.
+	if (_reanchorPending) {
+		_reanchorPending = false;
+		if (nowMs > _reanchorDueMs)
+			_baseMs += nowMs - _reanchorDueMs;
+	}
 	while (_next < _actions.size()) {
 		const TimedAction &a = _actions[_next];
 		if (nowMs < _baseMs + a.relMs)
@@ -379,6 +393,7 @@ bool InputScriptDriver::pollDue(uint32 nowMs, Common::Event &ev) {
 			_next++;
 			continue;
 		}
+		const uint32 dueMs = _baseMs + a.relMs;
 		_next++;
 		if (a.isEvent) {
 			ev = a.ev;
@@ -403,7 +418,13 @@ bool InputScriptDriver::pollDue(uint32 nowMs, Common::Event &ev) {
 				_host->onSnap(a.label);
 			else
 				warning("ROGER-SCRIPT: snap '%s' skipped (no host)", a.label.c_str());
-			break;
+			// onSnap grabs the overlay + encodes a PNG synchronously (~1s at overlay
+			// resolution): re-anchor the schedule to this command's due time and return
+			// so the caller re-polls with a fresh clock, keeping following moves spaced
+			// as authored instead of bunched (frozen-loop drag steering).
+			_reanchorPending = true;
+			_reanchorDueMs = dueMs;
+			return false;
 		case kCmdState:
 			if (_host)
 				warning("ROGER-STATE %s", _host->describeState().c_str());
