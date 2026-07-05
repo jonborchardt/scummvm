@@ -1925,8 +1925,7 @@ void FileRogerArtProvider::onNativeEraseRect(const Common::Rect &nativeRect) {
 	// No early-out on !removed — the barrier must always fire to flush the
 	// markNativeDirty above (bitsRestore walking storm: barrier defers mid-cycle,
 	// so no per-hook present; the deferral, not a token match, guards the cycle).
-	Common::Array<Common::Rect> erased;
-	const bool removed = _journal->eraseContained(nativeRect, &erased);
+	const bool removed = _journal->eraseContained(nativeRect);
 	if (removed && _diag)
 		warning("ROGER-DIAG[eraseText]: rect=(%d,%d,%d,%d) remaining=%u",
 		        nativeRect.left, nativeRect.top, nativeRect.right, nativeRect.bottom,
