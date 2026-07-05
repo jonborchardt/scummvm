@@ -78,6 +78,26 @@ enum GenMode {
 //       pipeline is bit-identical to v6, so the version stays 6 and v6 cache
 //       files remain valid. The seam is fixed in the compositor instead
 //       (game cels drawn slightly larger — Sprite::coverGrow).
+//
+// THE PIPELINE, for bump purposes, is anything that can change generated
+// pixels: roger_omyac.{h,cpp} (incl. OmyacParams defaults + BLEND_TABLE),
+// roger_scale.{h,cpp}, roger_pic_parser.{h,cpp}, roger_pic_native.{h,cpp},
+// roger_ega_blend.{h,cpp}, and the generate*() bodies in this class.
+//
+// PR-flow rule (see CLAUDE.md "Cache invalidation discipline"):
+//  - Output-changing edit to any file above -> bump this constant IN THE
+//    SAME COMMIT and append a history line below.
+//  - Bit-identical refactor -> NO bump, and the commit message must say so
+//    ("output bit-identical; kTransformVersion unchanged" — precedent: the
+//    v7/v8 note below). To prove bit-identical: launch with
+//    roger_gen_mode=always for one room and byte-compare the rewritten
+//    cache PNG against the previous one.
+//  - Never renumber or reuse a version. Stale files are invalidated by
+//    orphaning (never looked up again), not deletion — old-version files
+//    accumulate in the cache dir harmlessly.
+//  - Next bump must also widen the cache hash fnv1a32 -> fnv1a64 (see the
+//    TODO at the cache-existence probes): folding it into a bump makes the
+//    forced full regeneration free.
 static const int kTransformVersion = 6;
 
 /**
