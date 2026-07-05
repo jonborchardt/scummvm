@@ -1,56 +1,53 @@
-# Regression: menu open/close leaves no native-pixel stamp where the dropdown was.
-# Motivating bug (Phase 2 checkpoints): closing the game menu used to leave blocky
-# native pixels where a dropdown had been. Two activation paths are exercised because
-# they are DISTINCT SCI code paths and the original gate (ESC-only, top-band-only)
-# missed the mouse-drag residue that reached deep into the scene:
-#   1. ESC keyboard menu (interactiveWithKeyboard), and
-#   2. mouse press-drag across the title bar (interactiveWithMouse) — the user's gesture.
-# m-before vs m-after (ESC path) and d-before vs d-after (drag path) must be
-# pixel-identical across the whole upper scene band the dropdowns overlap, not just the
-# menu bar. QFG1 target, save slot 1 (room 300: dropdowns extend well into the scene).
+# Regression: opening and closing the game menu must leave the top strip AND the scene
+# pristine. QFG1 target, save slot 1 (room 300: the Game/Action dropdown extends deep into
+# the scene over the green half-timbered Hero's Tale Inn at rows ~30..110).
+#
+# Two round-2 Roger defects this pins (both on the mouse-menu path):
+#   #1 stuck menu-title strip — SCI closes the mouse menu via bitsRestore of the full menu
+#      strip (reverting the NATIVE pixels to the score banner) with NO follow-up
+#      kernelDrawStatus, so the enhanced strip stayed stuck on "File Game Action
+#      Information" while native showed the banner (SBS-confirmed). After close the strip
+#      must revert to "Quest for Glory I [score ...]": m-open (titles) must differ from
+#      m-after over the strip band (presenceDiff), AND m-after must equal the pre-menu
+#      banner m-before over the strip band (sameRunDiff). The banner text does not animate.
+#   #2 scene-deep dropdown stamp — a closed dropdown must not leave a tracked non-enhanced
+#      pixel stamp (priority-255, NOT healed by mouse-over) in the scene. The Game menu
+#      dropdown covers the left Inn wall; after close + mouse-over that band must match the
+#      pre-menu scene (m-before ~ m-afterhover over x[0..0.28] y[0.05..0.30] — the Inn wall,
+#      left of the animating ego/NPC). A real stamp there is thousands of full-width px.
+#
+# NOTE: the SCI0 frozen mouse-menu loop does NOT observe injected MOUSEMOVE events, so a
+# press-hold + `move` across titles does NOT switch dropdowns (it stays on the pressed
+# title). Menus are opened one at a time with a real mousedown on the title x (verified:
+# mousedown drops that menu open). Do NOT re-add vacuous drag `move` lines expecting a
+# dropdown switch — they are dead coverage.
+#
+# `snap` (grabOverlay at execution time), NOT `capture` (pended, present-consumed): the
+# composited cursor is parked off both checked bands (bottom-right) before each grab, and
+# snap grabs AFTER the park move has been presented, so the boot-position arrow cannot land
+# over the strip and inject cursor diff (the ~400 px flake that a pended capture caught).
 wait 4000
-capture m-before
-# --- ESC keyboard path: open, walk across menus, close ---
-key ESC
+move 300 185
 wait 1000
-key RIGHT
-wait 700
-key RIGHT
-wait 700
-capture m-open
-key ESC
-wait 1200
-move 160 100
-wait 600
-capture m-after
-# --- mouse press-drag path: hold + drag across all titles + release in scene ---
-move 160 100
-wait 600
-capture d-before
-mousedown 20 3
-wait 400
-move 60 3
-wait 400
-move 110 3
-wait 400
-move 160 3
-wait 400
-move 210 3
-wait 400
-move 160 45
-wait 400
-move 160 120
-wait 300
-mouseup 160 120
+snap m-before
+# --- open the deep Game/Action dropdown over the left Inn wall, then close it ---
+mousedown 100 2
+wait 900
+snap m-open
+# release outside the dropdown to cancel-close (no menu item executed)
+mouseup 260 150
 wait 1400
-move 160 100
-wait 600
-capture d-after
-# move the mouse over the residue band: a real stamp is NOT healed by mouse-over
-move 130 34
-wait 500
-move 160 100
-wait 600
-capture d-afterhover
+move 300 185
+wait 1000
+snap m-after
+# move the mouse THROUGH the dropdown's former scene footprint, then park off-band:
+# a real stamp is priority-255 and is NOT healed by mouse-over, so it would still show.
+move 40 34
 wait 400
+move 120 60
+wait 400
+move 300 185
+wait 1000
+snap m-afterhover
+wait 300
 quit
