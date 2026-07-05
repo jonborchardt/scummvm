@@ -37,6 +37,15 @@
       ]
     },
     {
+      "name": "qfg1-menu-cycle",
+      "target": "qfg1", "saveSlot": 1, "script": "qfg1-menu-cycle.rin",
+      "timeoutSec": 120, "cycleLog": false,
+      "checks": [
+        { "type": "sameRunDiff", "a": "m-before", "b": "m-after",
+          "region": { "x0": 0.0, "y0": 0.06, "x1": 1.0, "y1": 0.30 } }
+      ]
+    },
+    {
       "name": "sq3-wiggle",
       "target": "sq3-1", "saveSlot": 1, "script": "sq3-wiggle.rin",
       "timeoutSec": 120, "cycleLog": false,

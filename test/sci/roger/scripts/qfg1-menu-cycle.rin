@@ -1,0 +1,19 @@
+# Regression: menu open/close leaves no native-pixel stamp where the dropdown was.
+# Motivating bug (Phase 2 checkpoints): closing the game menu used to leave blocky
+# native pixels in the menu-bar band. m-before vs m-after must be pixel-identical in
+# the top band; m-open must actually show the open dropdown. QFG1 target, save slot 1.
+wait 4000
+capture m-before
+move 160 100
+wait 600
+key ESC
+wait 1200
+capture m-open
+move 200 12
+wait 600
+key ESC
+wait 1200
+capture m-after
+move 160 100
+wait 600
+quit
