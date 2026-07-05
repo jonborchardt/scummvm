@@ -121,6 +121,8 @@ public:
 	// box (a single-line field wraps to one line, so (2) is a no-op for it). Re-measures at
 	// each candidate size (TTF metrics are not linear in size). Feed the result to
 	// applySharedGroupScale, then drawAtPx. idealPx <= 0 => fill the box height.
+	// Result is memoized (see _fitCache): deterministic in these inputs, so repeat calls
+	// with identical inputs (walking re-renders the banner every cycle) skip the loops.
 	int fitPx(const Common::String &text, int boxW, int boxH, int idealPx,
 	          int maxTextW, const Common::Array<UiGlyph> *glyphs = nullptr) const;
 	// Draw word-wrapped, vertically-centred text at EXACTLY finalPx (as chosen by
@@ -150,6 +152,26 @@ private:
 	Common::Array<const Graphics::Font *> _fonts;  // bitmap fallback fonts, ascending (borrowed)
 	bool _ttfLoaded = false;                       // requested TTF loaded (not bitmap fallback)?
 	int _globalScalePct = 100;                     // user size multiplier (roger_ui_font_scale)
+
+	// Memoization of fitPx: it is deterministic in (text, boxW, boxH, idealPx,
+	// maxTextW, glyphs), so a repeat call with identical inputs returns the cached
+	// result instead of re-running the wrap+shrink loops. Walking cycles re-render
+	// the UI (status banner + journal text) every cycle with unchanged inputs, so
+	// this collapses the per-cycle wrap cost to a hash lookup. Purely transparent:
+	// a key change (any input differs) recomputes and overwrites the entry.
+	struct FitCacheEntry { uint64 key; int result; };
+	mutable Common::Array<FitCacheEntry> _fitCache; // fitPx memo (lazy, bounded)
+	// Store a computed fit under its key and return it. Bounded: a room's worth of
+	// distinct UI strings is small, but a paranoia cap keeps a pathological string
+	// churn (many one-off dialogs) from growing the array without limit — oldest
+	// entries are dropped wholesale, never a correctness issue (they just recompute).
+	int storeFit(uint64 key, int result) const {
+		if (_fitCache.size() >= 256)
+			_fitCache.clear();
+		FitCacheEntry e; e.key = key; e.result = result;
+		_fitCache.push_back(e);
+		return result;
+	}
 };
 
 } // namespace Roger

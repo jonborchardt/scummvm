@@ -247,8 +247,45 @@ static int mixedLineWidth(const Graphics::Font *f, const Common::String &line,
 	return w;
 }
 
+// FNV-1a-ish hash of the fitPx inputs. Deterministic key: identical inputs => same
+// key => cached result served (fitPx is a pure function of these). The glyph set is
+// folded in by count + each (ch, surf-pointer) — the surfaces for one element are
+// stable for its lifetime, and a different element/glyph set yields a different key.
+static uint64 fitCacheKey(const Common::String &text, int boxW, int boxH, int idealPx,
+                          int maxTextW, const Common::Array<UiGlyph> *glyphs) {
+	uint64 h = 1469598103934665603ULL;
+	const uint64 prime = 1099511628211ULL;
+	for (uint i = 0; i < text.size(); i++) {
+		h ^= (byte)text[i];
+		h *= prime;
+	}
+	const int dims[5] = { boxW, boxH, idealPx, maxTextW, glyphs ? (int)glyphs->size() : 0 };
+	for (int i = 0; i < 5; i++) {
+		h ^= (uint32)dims[i];
+		h *= prime;
+	}
+	if (glyphs) {
+		for (uint i = 0; i < glyphs->size(); i++) {
+			h ^= (uint64)(uintptr)(*glyphs)[i].surf;
+			h *= prime;
+			h ^= (*glyphs)[i].ch;
+			h *= prime;
+		}
+	}
+	return h;
+}
+
 int RogerTextRenderer::fitPx(const Common::String &text, int boxW, int boxH, int idealPx,
                              int maxTextW, const Common::Array<UiGlyph> *glyphs) const {
+	// Memoized: identical inputs return the previously computed fit (walking re-renders
+	// the UI every cycle with unchanged text/box/scale — the wrap+shrink loops below
+	// are the hot cost). The cache is transparent; a differing input recomputes.
+	const uint64 ck = fitCacheKey(text, boxW, boxH, idealPx, maxTextW, glyphs);
+	for (uint i = 0; i < _fitCache.size(); i++) {
+		if (_fitCache[i].key == ck)
+			return _fitCache[i].result;
+	}
+
 	// Start from the ideal, capped to the box height (a tight strip can never host
 	// text taller than itself).
 	int h = idealPx > 0 ? idealPx : boxH;
@@ -257,7 +294,7 @@ int RogerTextRenderer::fitPx(const Common::String &text, int boxW, int boxH, int
 	if (h < 1)
 		h = 1;
 	if (text.empty())
-		return h;
+		return storeFit(ck, h);
 	// Shrink proportionally until the constraint is met, re-measuring each step
 	// because glyph metrics do not scale perfectly linearly. Bounded iterations:
 	// with the bitmap fallback the measured width may not shrink with h at all,
@@ -280,7 +317,7 @@ int RogerTextRenderer::fitPx(const Common::String &text, int boxW, int boxH, int
 		for (int i = 0; i < 5; i++) {
 			const Graphics::Font *f = fontForPx(h);
 			if (!f)
-				return h;
+				return storeFit(ck, h);
 			const int w = mixedLineWidth(f, text, glyphs, f->getFontHeight());
 			if (w <= maxTextW || h <= 1)
 				break;
@@ -297,7 +334,7 @@ int RogerTextRenderer::fitPx(const Common::String &text, int boxW, int boxH, int
 	for (int i = 0; i < 5; i++) {
 		const Graphics::Font *f = fontForPx(h);
 		if (!f)
-			return h;
+			return storeFit(ck, h);
 		lines.clear();
 		f->wordWrapText(text, boxW, lines);
 		const int totalH = (int)lines.size() * f->getFontHeight();
@@ -308,7 +345,7 @@ int RogerTextRenderer::fitPx(const Common::String &text, int boxW, int boxH, int
 			nh = h - 1;
 		h = nh < 1 ? 1 : nh;
 	}
-	return h;
+	return storeFit(ck, h);
 }
 
 void RogerTextRenderer::drawPx(Graphics::ManagedSurface &dst, const Common::String &text,
