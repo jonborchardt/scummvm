@@ -222,13 +222,49 @@ move X Y                    # mouse move (nudge a present)
 key <token>                 # single key down+up
 type "text"                 # inject characters one by one
 wait <ms>                   # delay before next command
-capture <label>             # dump overlay PNG at next present
+waituntil <key> <val> <timeoutMs>  # poll until state key matches (timeout continues; pair with assert)
+capture <label>             # dump overlay PNG at next present (needs flush move+wait)
+snap <label>                # grab overlay pixels NOW via grabOverlay (works mid-blocking-dialog)
+state                       # emit ROGER-STATE pic=<n> ego=<x>,<y> windows=<n> mode=<name>
+assert <key> <val>          # fail the run (exit 125) if state key != val
+restore <slot>              # load save slot (SciEngine::loadGameState delayed restore)
+fail <msg>                  # unconditional fail (exit 125)
 log <text>                  # emit ROGER-SCRIPT: <text> to the log
 quit                        # send EVENT_QUIT (clean exit)
 ```
 
 Key tokens: `ENTER` `ESC` `SPACE` `TAB` `BACKSPACE` `UP` `DOWN` `LEFT` `RIGHT`
 `F1`..`F12` `a`-`z` `0`-`9`
+
+**State keys** (`assert` / `waituntil` / `state`): `pic` (current room pic number),
+`windows` (count of kUiWindow elements — note: some saves have a persistent game window,
+so the baseline is not always 0; QFG1 save 1 shows `windows=1` on load — assert against
+observed baseline, not assumed 0), `egox` / `egoy` (live ego position from global var 0),
+`mode` (display mode as raw int: 0=enhanced, 1=original, 2=sbs). `state` emits
+`ROGER-STATE pic=<n> ego=<x>,<y> windows=<n> mode=<name>` to the log.
+
+**`waituntil` and `assert`:** `waituntil pic <n> <timeoutMs>` replaces fixed 8–12 s
+room-crossing waits — it polls until the pic matches or times out. Timeout logs
+`ROGER-SCRIPT: waituntil TIMEOUT ...` and **continues** (not a hard fail); pair with
+`assert pic <n>` immediately after for a hard fail. On satisfy or timeout the schedule
+rebases, so later waits stay relative.
+
+**`snap` vs `capture`:** `snap <label>` grabs the presented overlay pixels immediately
+(via `grabOverlay`) — works mid-blocking-dialog with no `move` choreography. Use it for
+plain evidence shots. `capture <label>` pends a dump consumed at the next present — use
+it when the claim under test is the present pipeline itself, and always follow it with
+`move X Y` + `wait 400` to flush.
+
+**`restore <slot>`:** loads a save from cold boot. `SciEngine::loadGameState` sets a
+delayed restore that the game loop processes promptly. Verified: `restore 1` then
+`waituntil pic 300 15000` succeeds in QFG1 with no character-screen interference.
+
+**Exit codes from `build_and_run.ps1`:**
+- `0` — clean game exit (all assertions passed, `quit` reached)
+- `124` — watchdog timeout (`-TimeoutSec` exceeded; hung script)
+- `125` — scripted assertion failure (`assert` mismatch or `fail`); the harness greps
+  `ROGER-SCRIPT: FAIL` in `screenshots\roger-run.log` after the run exits and prints
+  `SCRIPT FAIL: assert/fail marker in screenshots\roger-run.log`.
 
 ### Harness invocations
 

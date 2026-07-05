@@ -14,20 +14,20 @@ Drive the game yourself, read the pixels, iterate. The mechanics (.rin grammar, 
 
    ```
    wait 4000            # boot + save-restore settle
-   capture before
-   move 160 100         # EVERY capture needs a flushing move+wait after it — see below
-   wait 600
+   snap before          # grab overlay pixels NOW — no flush move needed
    # actions...          walk needs ~2500ms, dialog appear ~2500ms
-   capture after
-   move 150 100
-   wait 600
+   snap after
+   state                # emits ROGER-STATE pic=<n> ego=<x>,<y> windows=<n> mode=<name>
+   assert pic 300       # hard fail (exit 125) if not in the expected room
    quit
    ```
 
-   **`capture` only pends; a present consumes it.** An idle scene (ego standing still, no
-   dialog) presents nothing, so a bare `capture` before `quit` silently produces NO file.
-   This is not dialog-specific — treat `capture <label>` → `move X Y` → `wait 600` as one
-   atomic unit, always.
+   **`snap` vs `capture`:** prefer `snap` for plain evidence shots — it grabs the overlay
+   immediately (grabOverlay) and works mid-blocking-dialog with no choreography. Use
+   `capture <label>` only when testing the present pipeline itself; it pends a dump consumed
+   at the next present, so always follow it with `move X Y` → `wait 600` as one atomic unit:
+   an idle scene (ego standing still, no dialog) presents nothing, and a bare `capture`
+   before `quit` silently produces NO file.
 
 3. **Run** — `.\build_and_run.ps1 -Game qfg1 -SaveSlot 1 -Script <path> -TimeoutSec 120 [-NoBuild] [-CycleLog]`
    - **Always pass `-TimeoutSec`.** Exit 124 = hung script, killed for you — never a run you have to hunt down and kill.
@@ -57,8 +57,11 @@ Coordinates are game-space 320×200 and the `-preview.png` is exactly the game r
 
 | Goal | How |
 |---|---|
-| Capture an open dialog | `key ENTER` → `wait 2500` → `capture dlg` → `move 200 120` → `wait 400` → `key ENTER` |
-| Ghost-text check | after dismissing: `wait 1200` → `move 160 100` → `capture gone` |
+| Capture an open dialog | `key ENTER` → `wait 2500` → `snap dlg` (or `capture dlg` → `move 200 120` → `wait 400`) → `key ENTER` |
+| Ghost-text check | after dismissing: `wait 1200` → `move 160 100` → `snap gone` |
+| Text-only verdict (room / arrival / dialog count) | `state` → grep `ROGER-STATE` in `screenshots\roger-run.log`; `assert pic <n>` / `assert windows <n>` for a self-verifying script (note: `windows` counts kUiWindow elements — QFG1 save 1 shows 1 on load; assert against observed baseline) |
+| Room transition wait | `waituntil pic <n> 15000` → `assert pic <n>` — replaces budgeting 8–12 s with a `wait`; timeout logs a warning and continues, so pair with `assert` for a hard fail |
+| Multi-scenario in one boot | `restore <slot>` → `waituntil pic <n> 15000` → `assert pic <n>` → ... — load different saves without rebooting the game |
 | **Roger bug or game behavior?** | launch with `-Mode sbs` — boots straight into Side-by-Side, every capture is an enhanced-vs-native comparison, no F10 choreography or mode restore. Left pane = enhanced, right = native mirror. Anything missing/extra on the left only is a Roger bug; identical on both = original game behavior. One such capture settled both "missing signs" (Roger-side) and "invisible ego" (native-legit occlusion). Mid-run mode switches are still `key F10` (cycles Enhanced → Original → Side-by-Side); `-Mode original` gives a native-only run. **Scripted `click`s do NOT land in SBS mode** (2026-07-04: a script that advanced QFG1 menu→class-pick→stat-sheet in enhanced mode stayed on the menu pic for the whole SBS run — injected game-space clicks appear to get caught by the comparison-mouse remap). Navigate by click in an enhanced run; reserve SBS runs for screens reachable with `key`/waits alone or for whatever screen the run lands on. `-Mode original` runs produce NO `.rin` captures at all (no roger presents to consume them) — for native ground truth, drive a `-Live` original-mode run in the background and grab the desktop with `System.Drawing`/`CopyFromScreen` (worked 2026-07-04 for the selection-frame verdict). Also under `-Diag`: every kDrawCel icon's hires cel content is dumped once per run to `screenshots\dbg-cel-<view>-<loop>-<cel>.png`, and the full `ROGER-UI` element inventory (type/token/rect/text per element) logs on each distinct dialog — the decisive "which element is on screen, in what order" evidence. |
 | Structured trace instead of pixels | add `-Diag` to the launch (sets the `ROGER_DIAG` env var for that process only). Never flip `roger_diag` in `scummvm.ini` for this — ini edits race a running instance's config rewrite-on-exit and need manual cleanup. Grep `ROGER-DIAG\[` in `screenshots\roger-run.log`. For capture/lifetime bugs the trace names exact view/loop/cel/rect/owner — often more decisive than screenshots. |
 | Walking-speed / perf | add `-CycleLog`; grep `ROGER-CYCLE`; period ≈83 ms healthy, ≥150 suspicious, ≈225 = the historic bitsRestore regression |
@@ -77,4 +80,6 @@ Coordinates are game-space 320×200 and the `-preview.png` is exactly the game r
 
 - PASS requires naming the captures and what you saw in each — a claim per image.
 - "Couldn't verify" is a valid verdict and is not FAIL: say which evidence is missing and why.
-- Captures missing entirely? Check in order: exit code 124 (hang)? `ROGER-SCRIPT` parse warnings in the log? A `capture` with no flushing `move` after it (the #1 cause)? Did the script reach that label (bisect with `log <marker>` lines)? Still dark → the `-Diag` recipe above.
+- **Exit 125 = scripted assert/fail** — the harness found `ROGER-SCRIPT: FAIL` in `screenshots\roger-run.log`. Read the FAIL line for the specific assertion: `assert <key> expected=<val> actual=<actual>` or `fail <msg>`.
+- Exit 124 = watchdog timeout (`-TimeoutSec` exceeded); the hung script was killed.
+- Captures missing entirely? Check in order: exit code 124 (hang)? `ROGER-SCRIPT` parse warnings in the log? A `capture` with no flushing `move` after it (prefer `snap` instead)? Did the script reach that label (bisect with `log <marker>` lines)? Still dark → the `-Diag` recipe above.

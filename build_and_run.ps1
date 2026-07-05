@@ -282,8 +282,8 @@ if ($Script) {
     # Fresh evidence: remove the previous run log and this script's labelled
     # captures, so a stale artifact can never be read as this run's result.
     Remove-Item "$shots\roger-run.log" -ErrorAction SilentlyContinue
-    Select-String -Path $Script -Pattern '^\s*capture\s+(\S+)' | ForEach-Object {
-        Remove-Item "$shots\roger-*-$($_.Matches[0].Groups[1].Value)-*.png" -ErrorAction SilentlyContinue
+    Select-String -Path $Script -Pattern '^\s*(capture|snap)\s+(\S+)' | ForEach-Object {
+        Remove-Item "$shots\roger-*-$($_.Matches[0].Groups[2].Value)-*.png" -ErrorAction SilentlyContinue
     }
 }
 if ($Live) {
@@ -311,6 +311,15 @@ if ($Studio) {
 if ($Mode) {
     $env:ROGER_DISPLAY_MODE = $Mode
     Write-Host "Display mode: $Mode (this launch only)" -ForegroundColor Cyan
+}
+
+# Scripted runs: assert/fail inside the .rin logs a "ROGER-SCRIPT: FAIL" marker.
+# Surface it as exit 125 so a looping caller can branch on the exit code alone
+# (124 = watchdog timeout, 125 = scripted assertion failure, else = game exit).
+function Test-ScriptFail {
+    if (-not $Script) { return $false }
+    $log = "$Root\screenshots\roger-run.log"
+    return (Test-Path $log) -and (Select-String -Path $log -Pattern 'ROGER-SCRIPT: FAIL' -Quiet)
 }
 
 # Boot straight into the game, bypassing the Roger picker dialog, when either
@@ -357,9 +366,18 @@ if ($Live) {
         Write-Host "TIMEOUT: run exceeded ${TimeoutSec}s; killed scummvm (PID $($p.Id)). Hung script? See screenshots\roger-run.log" -ForegroundColor Red
         exit 124
     }
+    if (Test-ScriptFail) {
+        Write-Host "SCRIPT FAIL: assert/fail marker in screenshots\roger-run.log" -ForegroundColor Red
+        exit 125
+    }
     Write-Host "Game exited (code $($p.ExitCode))." -ForegroundColor DarkGray
     exit $p.ExitCode
 } else {
     & $Exe @gameArgs
-    exit $LASTEXITCODE
+    $code = $LASTEXITCODE
+    if (Test-ScriptFail) {
+        Write-Host "SCRIPT FAIL: assert/fail marker in screenshots\roger-run.log" -ForegroundColor Red
+        exit 125
+    }
+    exit $code
 }

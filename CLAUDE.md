@@ -72,7 +72,8 @@ Grammar
 
 ```
 click X Y | rclick X Y | move X Y | key <token> | type "text"
-wait <ms> | capture <label> | log <text> | quit        # '#' = comment
+wait <ms> | waituntil <key> <val> <timeoutMs> | capture <label> | snap <label>
+state | assert <key> <val> | restore <slot> | fail <msg> | log <text> | quit   # '#' = comment
 ```
 
 Coordinates are game space (320×200). Smoke script:
@@ -101,6 +102,15 @@ Automation rules (each violated once at real cost — don't re-learn them):
 - If setting `roger_input_script` via scummvm.ini instead of the harness, pair it with
   `roger_no_launcher` — the driver arms before the picker, so early events land in the
   picker dialog. An in-process engine restart replays the script from the top.
+- **Prefer `snap` over `capture` + flush-move.** `snap` grabs the presented overlay
+  pixels at execution time (grabOverlay) — works mid-blocking-dialog with no `move`
+  choreography. `capture` (pended, present-consumed) remains the tool when the claim
+  under test is the present pipeline itself. `state` emits
+  `ROGER-STATE pic=<n> ego=<x>,<y> windows=<n> mode=<m>` — grep it instead of reading
+  pixels for room/arrival/dialog-count verdicts. `waituntil pic <n> <timeout>` replaces
+  fixed 8–12 s room-crossing waits (timeout logs a warning and continues; pair with
+  `assert` for a hard fail). `assert`/`fail` end the run with a `ROGER-SCRIPT: FAIL`
+  marker, which build_and_run.ps1 surfaces as exit 125 (124 = watchdog hang).
 
 **Screenshots:** never write screenshots (or `roger_autoshot` output) to the repo
 root. Point `screenshotpath` at the gitignored `screenshots/` folder (already in
