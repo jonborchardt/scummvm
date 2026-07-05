@@ -1929,10 +1929,13 @@ void FileRogerArtProvider::onNativeEraseRect(const Common::Rect &nativeRect) {
 }
 
 void FileRogerArtProvider::journalAppend(const Roger::UiElement &e) {
-	// Drop any reveal rect that the newly appended content overlaps: new content
-	// drawn over a rolled-back region is genuine and should not be suppressed.
+	// Drop a reveal rect only when the new content EFFECTIVELY COVERS it — genuine
+	// content drawn over a rolled-back region should not be suppressed, but a mere
+	// overlap must not kill the reveal: a status-bar re-push overlapping a dropdown
+	// reveal by one row would otherwise cancel it and let the residue stamp return
+	// (Phase 2 final review, Minor #4 — timing-fragile any-intersection rule).
 	for (uint i = _revealRects.size(); i-- > 0;) {
-		if (_revealRects[i].intersects(e.nativeRect))
+		if (Roger::rectCoverageFraction(_revealRects[i], e.nativeRect) >= Roger::kCoverageThresholdPct)
 			_revealRects.remove_at(i);
 	}
 	_journal->append(e);
@@ -1967,7 +1970,7 @@ void FileRogerArtProvider::onNativeRestoreRect(uint32 handleToken, const Common:
 	// residue. This mirrors the >= 90% reveal-suppression at capture time so stamp
 	// creation and rollback stay symmetric.
 	for (uint i = _textSprites.size(); i-- > 0;) {
-		if (Roger::restoreReclaimsStamp(rect, _textSprites[i].celRect, 90) && _textSprites[i].seq > 0) {
+		if (Roger::restoreReclaimsStamp(rect, _textSprites[i].celRect, Roger::kCoverageThresholdPct) && _textSprites[i].seq > 0) {
 			removed.push_back(_textSprites[i].celRect);
 			if (_textSprites[i].celOverride && _textSprites[i].celOverrideOwned) {
 				_textSprites[i].celOverride->free();
@@ -1981,7 +1984,7 @@ void FileRogerArtProvider::onNativeRestoreRect(uint32 handleToken, const Common:
 	// (same coverage rule as the stamps above — a byte-aligned restore must still reclaim
 	// a 1px-wider pending show region).
 	for (uint i = _foregroundRegions.size(); i-- > 0;) {
-		if (Roger::restoreReclaimsStamp(rect, _foregroundRegions[i].rect, 90))
+		if (Roger::restoreReclaimsStamp(rect, _foregroundRegions[i].rect, Roger::kCoverageThresholdPct))
 			_foregroundRegions.remove_at(i);
 	}
 	for (uint i = 0; i < removed.size(); i++)
@@ -2006,7 +2009,7 @@ void FileRogerArtProvider::onNativeRestoreRect(uint32 handleToken, const Common:
 	// restore actually covering the strip (>= 90% of _statusRect), so a dropdown's own
 	// narrower restore (top row 9, never touching the banner row 0) does not trigger it.
 	if (_haveStatus && !_statusRect.isEmpty() &&
-	    Roger::rectCoverageFraction(_statusRect, rect) >= 90) {
+	    Roger::rectCoverageFraction(_statusRect, rect) >= Roger::kCoverageThresholdPct) {
 		reapplyStatus(); // clears 0x10000000 titles, re-pushes the banner, presents
 		return;
 	}
@@ -2179,7 +2182,7 @@ void FileRogerArtProvider::processForegroundCaptures(const Common::Array<Common:
 		// death-message bug; visible whenever the game cycle keeps running under a
 		// non-modal window). Match by token + near-equal rect so a graphic drawn INSIDE
 		// the window (dialog icons) still stamps.
-		if (_journal && Roger::regionIsCapturedWindowBody(_journal->ops(), pending[i].owner, nr, 90))
+		if (_journal && Roger::regionIsCapturedWindowBody(_journal->ops(), pending[i].owner, nr, Roger::kCoverageThresholdPct))
 			continue;
 		// A region a bitsRestore this cycle just revealed is restored background, not
 		// content — do NOT pixel-stamp it (structural replacement for the deleted
@@ -2192,7 +2195,7 @@ void FileRogerArtProvider::processForegroundCaptures(const Common::Array<Common:
 		// frame (dropdown restore rect (7,9,141,27) vs its show (6,9,142,27), 98.5% inside).
 		bool revealed = false;
 		for (uint r = 0; r < _revealRects.size(); r++) {
-			if (Roger::rectCoverageFraction(nr, _revealRects[r]) >= 90) { revealed = true; break; }
+			if (Roger::rectCoverageFraction(nr, _revealRects[r]) >= Roger::kCoverageThresholdPct) { revealed = true; break; }
 		}
 		if (revealed)
 			continue;
@@ -2330,7 +2333,7 @@ void FileRogerArtProvider::onNativeShowRect(const Common::Rect &screenRect, uint
 	// show is (6,9,142,27) — one border pixel wider per side). Strict contains()
 	// missed that overhang and pixel-stamped the native dropdown residue.
 	for (uint i = 0; i < _revealRects.size(); i++) {
-		if (Roger::rectCoverageFraction(screenRect, _revealRects[i]) >= 90)
+		if (Roger::rectCoverageFraction(screenRect, _revealRects[i]) >= Roger::kCoverageThresholdPct)
 			return;
 	}
 	if (_diag)

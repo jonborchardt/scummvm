@@ -87,6 +87,13 @@ void filterForegroundCaptureRegions(const Common::Array<Common::Rect> &captured,
 void collectUiTextRects(const Common::Array<UiElement> &elems, uint32 genericToken,
                         Common::Array<Common::Rect> &out);
 
+// The single "effectively covers" threshold (percent). SCI's byte-aligned rects can
+// be a pixel or two smaller than the show/restore/reveal rects they correspond to,
+// so exact containment misfires; >= 90% coverage is the shared rule for reveal
+// suppression (capture + process time), stamp reclaim, strip re-apply, and reveal
+// cancellation.
+static const int kCoverageThresholdPct = 90;
+
 // Percentage (0..100) of `inner`'s area covered by its intersection with `outer`. inner empty -> 0.
 int rectCoverageFraction(const Common::Rect &inner, const Common::Rect &outer);
 

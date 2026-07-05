@@ -24,6 +24,7 @@ namespace Sci {
 namespace Roger {
 
 static const uint kJournalPruneThreshold = 256;
+static const uint kPruneRetryStep = 32;
 
 bool opIsOpaque(const UiElement &e) {
 	// Filled windows/buttons/edits hide what they cover. Text, frame boxes
@@ -81,8 +82,13 @@ void RogerJournal::append(const UiElement &e) {
 	}
 	tagged.seq = ++_seq;
 	_ops.push_back(tagged);
-	if (_ops.size() > kJournalPruneThreshold)
+	// Amortized: when the journal is saturated with UNPRUNABLE ops, prune() finds
+	// nothing and would otherwise run its O(n^2) scan on every append. Re-try only
+	// every kPruneRetryStep appends past the threshold.
+	if (_ops.size() > kJournalPruneThreshold && _ops.size() >= _nextPruneAt) {
 		prune();
+		_nextPruneAt = _ops.size() + kPruneRetryStep;
+	}
 }
 
 bool RogerJournal::eraseContained(const Common::Rect &r, Common::Array<Common::Rect> *removedNativeRects,

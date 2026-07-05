@@ -52,7 +52,7 @@ public:
 	void append(const UiElement &e);
 	const Common::Array<UiElement> &ops() const { return _ops; }
 	bool empty() const { return _ops.empty(); }
-	void clear() { _ops.clear(); _brackets.clear(); _checkpoints.clear(); }
+	void clear() { _ops.clear(); _brackets.clear(); _checkpoints.clear(); _nextPruneAt = 0; }
 	bool clearToken(uint32 token, Common::Array<Common::Rect> *removedNativeRects = nullptr);
 	bool eraseContained(const Common::Rect &r, Common::Array<Common::Rect> *removedNativeRects = nullptr,
 	                    bool spareSaveUnderExempt = false);
@@ -87,6 +87,7 @@ private:
 	Common::Array<Bracket> _brackets; // stack order: last = innermost
 	Common::Array<Checkpoint> _checkpoints;
 	uint32 _seq = 0;
+	uint _nextPruneAt = 0; // amortized re-prune floor (see append)
 };
 
 } // namespace Roger
