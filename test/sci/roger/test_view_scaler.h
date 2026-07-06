@@ -111,4 +111,23 @@ public:
 		TS_ASSERT_EQUALS(strcmp(lo.id, viewScalerPreset(0).id), 0);
 		TS_ASSERT_EQUALS(strcmp(hi.id, viewScalerPreset(viewScalerPresetCount() - 1).id), 0);
 	}
+
+	// Tune-panel variant path: every preset lands on the 6x plate grid.
+	void test_apply_preset_to_6x_grid_dims() {
+		IndexImage in = synthImgVS(9, 5);
+		for (int i = 0; i < viewScalerPresetCount(); i++) {
+			IndexImage out = applyViewScalerPresetTo6x(i, in, 0xFF);
+			TS_ASSERT_EQUALS(out.w, in.w * 6);
+			TS_ASSERT_EQUALS(out.h, in.h * 6);
+		}
+	}
+
+	// Preset 0 through the 6x-grid helper stays byte-identical to scale6x
+	// (the shipping-path lock extends to the tune-panel entry point).
+	void test_apply_preset0_to_6x_is_scale6x() {
+		IndexImage in = synthImgVS(8, 7);
+		IndexImage a = applyViewScalerPresetTo6x(0, in, 0xFF);
+		IndexImage b = scale6x(in);
+		TS_ASSERT(sameImageVS(a, b));
+	}
 };

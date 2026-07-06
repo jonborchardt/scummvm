@@ -67,6 +67,12 @@ int viewScalerPresetIndexById(const char *id);   // -1 when unknown
 // content through blitFrom/blendBlitFrom).
 IndexImage resampleNearestExact(const IndexImage &in, int outW, int outH);
 
+// TEMPORARY DEBUG TOOL (tune panel, spec 2026-07-05) — delete with the panel.
+// Apply preset i, then resample onto the 6x plate grid when the preset's
+// factor is not 6 (the Studio's normalization; keeps cel geometry
+// plate-aligned). Preset 0 is byte-identical to scale6x().
+IndexImage applyViewScalerPresetTo6x(int i, const IndexImage &in, byte clearKey);
+
 } // namespace Roger
 } // namespace Sci
 

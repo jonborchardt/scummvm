@@ -123,5 +123,12 @@ IndexImage resampleNearestExact(const IndexImage &in, int outW, int outH) {
 	return out;
 }
 
+IndexImage applyViewScalerPresetTo6x(int i, const IndexImage &in, byte clearKey) {
+	IndexImage out = applyViewScalerPreset(i, in, clearKey);
+	if (viewScalerPresetFactor(i) != 6)
+		out = resampleNearestExact(out, in.w * 6, in.h * 6);
+	return out;
+}
+
 } // End of namespace Roger
 } // End of namespace Sci
