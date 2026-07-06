@@ -38,7 +38,7 @@ Drive the game yourself, read the pixels, iterate. The mechanics (.rin grammar, 
 
 ## Aiming clicks at unknown targets
 
-Coordinates are game-space 320×200 and the `-preview.png` is exactly the game rect (no letterbox). Run a capture-only script first, Read the PNG, locate the target as a fraction of image width/height, then `x = fx * 320`, `y = fy * 200`. Don't guess coordinates for anything smaller than a building.
+Coordinates are game-space 320×200 and a `capture`'s `-preview.png` is exactly the game rect (no letterbox) — but a `snap`'s preview is the FULL window (grabOverlay), letterbox included (verified 2026-07-05: a fit-mode snap preview stayed window-sized, not game-rect-sized), so aim from a `capture` preview or subtract the letterbox first. Run a capture-only script first, Read the PNG, locate the target as a fraction of image width/height, then `x = fx * 320`, `y = fy * 200`. Don't guess coordinates for anything smaller than a building.
 
 ## Moving between rooms
 
