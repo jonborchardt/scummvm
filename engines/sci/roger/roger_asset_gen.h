@@ -174,6 +174,17 @@ public:
 	// the index is unavailable (caller must check !outIndex.empty()).
 	Graphics::Surface *generatePlateWithIndex(int id, Common::Array<byte> &outIndex, uint32 &outMs);
 
+	// Pic-STACK plate: the scene an SCI0 overlay pic sequence produces — ids[0]
+	// drawn full, each subsequent id drawn addTo (no screen clear) on top, exactly
+	// mirroring kDrawPic's addToFlag accumulation (the SQ3 intro title/scanner
+	// screens). The command lists are concatenated in draw order and rendered
+	// through the SAME omyac pipeline, so a combined scene gets the same
+	// enhancement as a single pic. Content-keyed by ALL contributing pics'
+	// bytes (a one-element stack produces today's single-pic key, so existing
+	// cache files stay valid). Empty stack fails (nullptr).
+	Graphics::Surface *generatePlateStackWithIndex(const Common::Array<int> &ids,
+	                                               Common::Array<byte> &outIndex, uint32 &outMs);
+
 	// As generatePlate, but also returns the omyac backfill mask
 	// (OMYAC_HYBRID_W*OMYAC_HYBRID_H bytes: 1 where fillNullPixels painted the
 	// pixel, else 0) in outBackfill — the studio "unfilled pixels" diagnostic
@@ -218,6 +229,11 @@ public:
 	bool generatePriorityMap(int picId, Common::Array<byte> &outBands,
 	                         int &outW, int &outH, uint32 &outMs);
 
+	// Pic-stack priority map (see generatePlateStackWithIndex): the priority
+	// screen an addTo pic sequence accumulates, rendered through omyac.
+	bool generatePriorityMapStack(const Common::Array<int> &ids, Common::Array<byte> &outBands,
+	                              int &outW, int &outH, uint32 &outMs);
+
 	// Cache-existence probes (precache fast path). The cache key fully
 	// determines a file's pixels, so "the keyed file exists" is exactly as
 	// strong a validity test as decoding it — see cacheKey(). kGenCache only:
@@ -253,9 +269,10 @@ private:
 	Common::String cacheKey(const char *transform, uint32 resourceHash) const;
 
 	// Shared plate-generation core behind generatePlateWithIndex /
-	// generatePlateWithBackfill. Fills outIndex (pre-blend index buffer) and
-	// outBackfill (fillNullPixels mask); both cleared on failure/cache-only.
-	Graphics::Surface *generatePlateCore(int id, Common::Array<byte> &outIndex,
+	// generatePlateWithBackfill / generatePlateStackWithIndex. Fills outIndex
+	// (pre-blend index buffer) and outBackfill (fillNullPixels mask); both
+	// cleared on failure/cache-only.
+	Graphics::Surface *generatePlateCore(const Common::Array<int> &ids, Common::Array<byte> &outIndex,
 	                                     Common::Array<byte> &outBackfill, uint32 &outMs);
 
 	GenMode        _mode;

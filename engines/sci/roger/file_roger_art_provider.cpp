@@ -429,6 +429,45 @@ bool FileRogerArtProvider::precacheOneView(int viewId) {
 }
 
 void FileRogerArtProvider::pushHiresBackground(GuiResourceId pictureId) {
+	// A full (screen-clearing) kDrawPic starts a new scene: reset the pic stack.
+	_picStack.clear();
+	_picStack.push_back((int)pictureId);
+	pushHiresBackgroundInternal(pictureId);
+}
+
+void FileRogerArtProvider::pushHiresBackgroundAddTo(GuiResourceId pictureId) {
+	// An addTo kDrawPic paints over the current scene WITHOUT clearing it (the
+	// SQ3 intro title logo over the starfield, the scanner overlays): append to
+	// the pic stack so the regenerated plate/priority map contain the whole
+	// sequence. Replacing the plate with the overlay pic's standalone render
+	// (the old behavior: this path simply called pushHiresBackground) lost the
+	// base pic — a mostly-white "926" plate where the SQ3 logo should be.
+	//
+	// The internal body treats every call as a room ENTRY and clears the
+	// per-room captures; like regenInPlace, an addTo draw is mid-room, so carry
+	// them across (they are captured once at the room's entry draws and cannot
+	// be re-captured). A redraw of the pic already on top appends nothing
+	// (replaying the same commands yields the same pixels).
+	if (_picStack.empty() || _picStack.back() != (int)pictureId)
+		_picStack.push_back((int)pictureId);
+	Common::Array<Roger::Sprite> keepStatics = _staticSprites;
+	Common::Array<Roger::Sprite> keepInitCels = _initCels;
+	Common::Array<Roger::Sprite> keepText = _textSprites;
+	// The copies above are shallow — _textSprites entries OWN their celOverride
+	// surfaces and clearTextSprites() (inside the internal body) frees them.
+	// Empty the source first so the clear frees nothing (regenInPlace rule).
+	_textSprites.clear();
+	pushHiresBackgroundInternal(pictureId);
+	_staticSprites = keepStatics;
+	_initCels = keepInitCels;
+	_textSprites = keepText;
+	// Mid-room scene change: make the next present a full one (the transition
+	// kernelDrawPicture schedules right after this covers the normal case; the
+	// full mark is the uncertainty fallback — never a stale frame).
+	markFullDirty();
+}
+
+void FileRogerArtProvider::pushHiresBackgroundInternal(GuiResourceId pictureId) {
 	// EGA SCI0 only — by design, permanently. VGA/SCI1 is out of scope (not deferred);
 	// the omyac pipeline is EGA-specific. Reject cleanly and fall back to native render.
 	// The launcher blocks VGA games at add-time, but a target configured another way
@@ -450,8 +489,10 @@ void FileRogerArtProvider::pushHiresBackground(GuiResourceId pictureId) {
 	// overlay may hold foreign pixels (the ScummVM GUI after the restore chooser), so
 	// the room-entry reset + full re-present below must still run. Early-returning
 	// here instead left the restore dialog on screen for seconds (heal-frame latency)
-	// with only incrementally-dirtied regions repainting.
-	const bool samePlate = (_loadedPicId == pictureId && _plate);
+	// with only incrementally-dirtied regions repainting. The plate must also have
+	// been generated from the SAME pic stack (an addTo overlay changes the stack
+	// without changing _loadedPicId's room identity).
+	const bool samePlate = (_loadedPicId == pictureId && _plate && _plateStack == _picStack);
 
 	diagDumpState(samePlate ? "pushBG-enter-samepic" : "pushBG-enter");
 
@@ -485,11 +526,14 @@ void FileRogerArtProvider::pushHiresBackground(GuiResourceId pictureId) {
 	if (!samePlate) {
 		// Evict previous room.
 		if (_plate) { _plate->free(); delete _plate; _plate = nullptr; }
+		_plateStack.clear();
 		if (_assetGen && _assetGen->mode() != Roger::kGenPrebuilt) {
 			_plateIndex.clear();
-			_plate = _assetGen->generatePlateWithIndex(pictureId, _plateIndex, genMs);
-			if (_plate)
+			_plate = _assetGen->generatePlateStackWithIndex(_picStack, _plateIndex, genMs);
+			if (_plate) {
 				plateSrc = genMs ? "generated(miss)" : "cache-hit";
+				_plateStack = _picStack;
+			}
 		}
 	}
 	// NOTE: no prebuilt-visual fallback. If generation yields nothing, the native
@@ -545,7 +589,7 @@ void FileRogerArtProvider::pushHiresBackground(GuiResourceId pictureId) {
 		uint32 occGenMs = 0;
 		uint32 tOcc0 = g_system->getMillis();
 		bool haveOcc = (_assetGen && _assetGen->mode() != Roger::kGenPrebuilt &&
-		                _assetGen->generatePriorityMap(pictureId, _priorityMap, prW, prH, occGenMs));
+		                _assetGen->generatePriorityMapStack(_picStack, _priorityMap, prW, prH, occGenMs));
 		occMs = g_system->getMillis() - tOcc0;
 		if (haveOcc)
 			_compositor->setPriorityMask(_priorityMap.begin(), prW, prH); // hires bands (1920x1140)
@@ -2858,8 +2902,11 @@ void FileRogerArtProvider::regenInPlace() {
 	// surfaces and clearTextSprites() (inside pushHiresBackground) frees them.
 	// Empty the source first so the clear frees nothing.
 	_textSprites.clear();
-	_loadedPicId = -1; // invalidate early-return guard in pushHiresBackground
-	pushHiresBackground(saved);
+	_loadedPicId = -1; // invalidate early-return guard in pushHiresBackgroundInternal
+	// Internal variant: a regen must keep the current pic STACK (the public
+	// pushHiresBackground would reset it to {saved}, collapsing any addTo
+	// overlays out of the regenerated plate).
+	pushHiresBackgroundInternal(saved);
 	_staticSprites = keepStatics;
 	_initCels = keepInitCels;
 	_textSprites = keepText;

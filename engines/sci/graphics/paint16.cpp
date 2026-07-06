@@ -138,8 +138,12 @@ void GfxPaint16::drawPicture(GuiResourceId pictureId, bool mirroredFlag, bool ad
 	// game's ORIGINAL maps, which are correct for walkability and native occlusion.
 	// (The overlay's per-pixel occlusion uses its own priority map, loaded inside
 	// pushHiresBackground.)
-	if (rogerReplace)
-		g_sciRogerProvider->pushHiresBackground(pictureId);
+	if (rogerReplace) {
+		if (addToFlag)
+			g_sciRogerProvider->pushHiresBackgroundAddTo(pictureId);
+		else
+			g_sciRogerProvider->pushHiresBackground(pictureId);
+	}
 
 	if (g_sciRogerProvider && g_sciRogerProvider->enabled)
 		g_sciRogerProvider->endNativeDraw();

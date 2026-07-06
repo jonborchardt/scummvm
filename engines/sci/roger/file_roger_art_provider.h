@@ -54,6 +54,7 @@ public:
 	bool precacheOnePic(GuiResourceId picId, uint32 &ms) override;
 	bool precacheOneView(int viewId) override;
 	void pushHiresBackground(GuiResourceId pictureId) override;
+	void pushHiresBackgroundAddTo(GuiResourceId pictureId) override;
 	void renderFromAnimateList(const AnimateList &list) override;
 	void onNativePicture() override;
 	void onMouseMoved() override;
@@ -125,6 +126,15 @@ private:
 	Roger::ViewCache *_viewCache = nullptr;
 	Graphics::Surface *_plate = nullptr;
 	int _loadedPicId = -1;
+	// The kDrawPic sequence the current scene is built from: [0] = the last
+	// full (screen-clearing) pic, followed by each addTo overlay pic drawn
+	// since. The plate/priority map are generated from the WHOLE stack, so an
+	// overlay pic adds to the scene instead of replacing it (SQ3 intro).
+	Common::Array<int> _picStack;
+	Common::Array<int> _plateStack; // stack the current _plate was generated from
+	// Shared room-(re)entry body behind pushHiresBackground / ...AddTo /
+	// regenInPlace: generates from _picStack; does NOT touch the stack itself.
+	void pushHiresBackgroundInternal(GuiResourceId pictureId);
 	int _bodyFontIdx = -1; // index into the body-font shortlist (-1 = config/default font)
 	Roger::RogerCapabilities _caps;   // probed once on first room load; read-only after
 	bool _capsProbed = false;

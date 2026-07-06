@@ -203,6 +203,52 @@ bool RogerAssetGen::isPicCached(int picId) const {
 }
 
 // -------------------------------------------------------------------------
+// Pic-stack helpers — a "stack" is ids[0] drawn full plus each subsequent id
+// drawn addTo (kDrawPic without screen clear) on top. hashPicStack chains the
+// per-pic byte hashes into one cache hash (a one-element stack yields exactly
+// the single-pic hash, so existing cache files stay valid); parsePicStack
+// concatenates the parsed command lists in draw order, which replays the
+// overlay pics over the base render exactly like SCI0's addToFlag path.
+// -------------------------------------------------------------------------
+
+#ifdef ENABLE_SCI
+static bool hashPicStack(const Common::Array<int> &ids, uint32 &outHash) {
+	outHash = 0;
+	if (ids.empty() || !g_sci)
+		return false;
+	ResourceManager *resMan = g_sci->getResMan();
+	if (!resMan)
+		return false;
+	for (uint i = 0; i < ids.size(); i++) {
+		Resource *res = resMan->findResource(ResourceId(kResourceTypePic, (uint16)ids[i]), false);
+		if (!res || res->size() == 0)
+			return false;
+		const uint32 h = fnv1a32(res->data(), (uint32)res->size());
+		outHash = (i == 0) ? h : fnv1a32u(outHash ^ h);
+	}
+	return true;
+}
+
+static bool parsePicStack(const Common::Array<int> &ids, Common::Array<DrawCommand> &outCmds) {
+	outCmds.clear();
+	if (ids.empty() || !g_sci)
+		return false;
+	ResourceManager *resMan = g_sci->getResMan();
+	if (!resMan)
+		return false;
+	for (uint i = 0; i < ids.size(); i++) {
+		Resource *res = resMan->findResource(ResourceId(kResourceTypePic, (uint16)ids[i]), false);
+		if (!res || res->size() == 0)
+			return false;
+		Common::Array<DrawCommand> cmds = parsePic(res->data(), (uint32)res->size());
+		for (uint k = 0; k < cmds.size(); k++)
+			outCmds.push_back(cmds[k]);
+	}
+	return true;
+}
+#endif // ENABLE_SCI
+
+// -------------------------------------------------------------------------
 // generatePlate — thin wrapper; delegates to generatePlateWithIndex
 // -------------------------------------------------------------------------
 
@@ -216,7 +262,9 @@ Graphics::Surface *RogerAssetGen::generatePlate(int id, uint32 &outMs) {
 // failure / cache-only path (studio checks !outBackfill.empty() before use).
 Graphics::Surface *RogerAssetGen::generatePlateWithBackfill(int id, Common::Array<byte> &outBackfill, uint32 &outMs) {
 	Common::Array<byte> throwaway;
-	return generatePlateCore(id, throwaway, outBackfill, outMs);
+	Common::Array<int> ids;
+	ids.push_back(id);
+	return generatePlateCore(ids, throwaway, outBackfill, outMs);
 }
 
 // -------------------------------------------------------------------------
@@ -228,7 +276,15 @@ Graphics::Surface *RogerAssetGen::generatePlateWithBackfill(int id, Common::Arra
 
 Graphics::Surface *RogerAssetGen::generatePlateWithIndex(int id, Common::Array<byte> &outIndex, uint32 &outMs) {
 	Common::Array<byte> throwaway;
-	return generatePlateCore(id, outIndex, throwaway, outMs);
+	Common::Array<int> ids;
+	ids.push_back(id);
+	return generatePlateCore(ids, outIndex, throwaway, outMs);
+}
+
+Graphics::Surface *RogerAssetGen::generatePlateStackWithIndex(const Common::Array<int> &ids,
+                                                              Common::Array<byte> &outIndex, uint32 &outMs) {
+	Common::Array<byte> throwaway;
+	return generatePlateCore(ids, outIndex, throwaway, outMs);
 }
 
 // generatePlateCore — shared implementation for generatePlateWithIndex /
@@ -236,7 +292,7 @@ Graphics::Surface *RogerAssetGen::generatePlateWithIndex(int id, Common::Array<b
 // (live-palette source); outBackfill = per-pixel fillNullPixels mask (studio
 // diagnostic). Both are cleared on any failure or cache-only path where the
 // data is unavailable; callers must check !empty() before use.
-Graphics::Surface *RogerAssetGen::generatePlateCore(int id, Common::Array<byte> &outIndex,
+Graphics::Surface *RogerAssetGen::generatePlateCore(const Common::Array<int> &ids, Common::Array<byte> &outIndex,
                                                     Common::Array<byte> &outBackfill, uint32 &outMs) {
 	outMs = 0;
 	outIndex.clear();
@@ -247,20 +303,10 @@ Graphics::Surface *RogerAssetGen::generatePlateCore(int id, Common::Array<byte> 
 		return nullptr;
 
 #ifdef ENABLE_SCI
-	// Guard: engine must be running.
-	if (!g_sci)
+	// Hash all contributing pics' raw bytes for the cache key.
+	uint32 hash = 0;
+	if (!hashPicStack(ids, hash))
 		return nullptr;
-	ResourceManager *resMan = g_sci->getResMan();
-	if (!resMan)
-		return nullptr;
-
-	// Fetch the raw pic resource bytes.
-	Resource *res = resMan->findResource(ResourceId(kResourceTypePic, (uint16)id), false);
-	if (!res || res->size() == 0)
-		return nullptr;
-
-	// Hash the raw bytes for the cache key.
-	uint32 hash = fnv1a32(res->data(), (uint32)res->size());
 	Common::String key = cacheKey("omyac", hash);
 	Common::String cachePath = _cacheDir + "/" + key + ".png";
 
@@ -277,7 +323,9 @@ Graphics::Surface *RogerAssetGen::generatePlateCore(int id, Common::Array<byte> 
 	// Generate: parsePic -> nativePreRender -> renderOmyac -> blendToSurface.
 	uint32 t0 = g_system->getMillis();
 
-	Common::Array<DrawCommand> cmds = parsePic(res->data(), (uint32)res->size());
+	Common::Array<DrawCommand> cmds;
+	if (!parsePicStack(ids, cmds))
+		return nullptr;
 	NativeRef ref = nativePreRender(cmds);
 
 	// _passes is always concrete: provider sets defaultPasses() when config is unset,
@@ -589,22 +637,22 @@ static void deriveBandsFromSurface(const Graphics::Surface &surf, Common::Array<
 
 bool RogerAssetGen::generatePriorityMap(int picId, Common::Array<byte> &outBands,
                                         int &outW, int &outH, uint32 &outMs) {
+	Common::Array<int> ids;
+	ids.push_back(picId);
+	return generatePriorityMapStack(ids, outBands, outW, outH, outMs);
+}
+
+bool RogerAssetGen::generatePriorityMapStack(const Common::Array<int> &ids, Common::Array<byte> &outBands,
+                                             int &outW, int &outH, uint32 &outMs) {
 	outBands.clear(); outW = 0; outH = 0; outMs = 0;
 
 	if (_mode == kGenPrebuilt)
 		return false;
 
 #ifdef ENABLE_SCI
-	if (!g_sci)
+	uint32 hash = 0;
+	if (!hashPicStack(ids, hash))
 		return false;
-	ResourceManager *resMan = g_sci->getResMan();
-	if (!resMan)
-		return false;
-	Resource *res = resMan->findResource(ResourceId(kResourceTypePic, (uint16)picId), false);
-	if (!res || res->size() == 0)
-		return false;
-
-	uint32 hash = fnv1a32(res->data(), (uint32)res->size());
 	Common::String key = cacheKey("omyacprio", hash);
 	Common::String cachePath = _cacheDir + "/" + key + ".png";
 
@@ -631,7 +679,9 @@ bool RogerAssetGen::generatePriorityMap(int picId, Common::Array<byte> &outBands
 	// Render the PRIORITY screen through the SAME omyac pipeline as the visual: the
 	// priority codes are encoded as EGA colours (nativePreRender kDrawPriority), so the
 	// output is a colour hires priority picture, upscaled and edge-enhanced identically.
-	Common::Array<DrawCommand> cmds = parsePic(res->data(), (uint32)res->size());
+	Common::Array<DrawCommand> cmds;
+	if (!parsePicStack(ids, cmds))
+		return false;
 	NativeRef ref = nativePreRender(cmds, kDrawPriority);
 
 	// Same passes as the plate (the provider sets _passes once), so edges agree.
@@ -658,7 +708,7 @@ bool RogerAssetGen::generatePriorityMap(int picId, Common::Array<byte> &outBands
 	delete plate;
 	return true;
 #else
-	(void)picId;
+	(void)ids;
 	return false;
 #endif // ENABLE_SCI
 }

@@ -80,6 +80,13 @@ public:
 	// Base implementation is a no-op.
 	virtual void pushHiresBackground(GuiResourceId pictureId) {}
 
+	// Called when kDrawPic draws a picture WITHOUT clearing the screen first
+	// (addToFlag): the pic's commands paint over the scene the previous
+	// kDrawPic(s) produced (e.g. the SQ3 intro title/scanner overlays). The
+	// provider must ADD the pic to the displayed scene, not replace it.
+	// Base implementation is a no-op.
+	virtual void pushHiresBackgroundAddTo(GuiResourceId pictureId) {}
+
 	// Called each frame by the GfxAnimate hook: translates the sorted animate
 	// list to Sprites and composites the hires scene into the OSystem overlay.
 	// Default no-op; FileRogerArtProvider overrides with the real compositor.
