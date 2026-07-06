@@ -1,0 +1,35 @@
+# TEMPORARY DEBUG TOOL smoke: tune panel (F12) - variant flip + staged passes.
+# Geometry locked by test_tune_panel.h::test_script_geometry_lock (panel rect,
+# variant rows, clear/apply). Ops-row clicks derive from the same layout:
+# +f center (278,165), +a center (306,165).
+# Passes are STAGED via +f/+a rather than relying on Reset-to-config: a config
+# whose roger_omyac_passes tokens don't parse (e.g. numeric "2 1") yields an
+# empty live pass list, which would make Clear/Reset/Apply all no-ops.
+wait 4500
+snap tune-baseline
+key f12
+wait 500
+snap tune-open
+click 273 75
+wait 1500
+snap tune-variant-mmpx3
+click 273 31
+wait 1500
+snap tune-variant-ship
+click 278 165
+wait 300
+click 306 165
+wait 300
+snap tune-staged
+click 303 177
+wait 5000
+snap tune-applied
+click 244 177
+wait 300
+click 303 177
+wait 5000
+snap tune-wireframe
+key f12
+wait 500
+snap tune-closed
+quit

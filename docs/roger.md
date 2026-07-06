@@ -39,6 +39,10 @@ pointer over either panel, and clicks through either panel are remapped to game
 coordinates, so the game stays playable while comparing. The status banner and overlay
 follow the toggle.
 
+**F12** (or Ctrl+Shift+T) toggles the quick-tune panel (TEMPORARY debug tool:
+session-only view-scaler variant + staged omyac pass edits behind Apply;
+will be removed when the MMPX judging is done).
+
 The startup mode is `roger_display_mode` (default `enhanced`); for a single launch use
 `build_and_run.ps1 -Mode enhanced|original|sbs` (env `ROGER_DISPLAY_MODE` — never touches
 the ini). `-Mode sbs` makes every scripted capture an enhanced-vs-native comparison shot.
