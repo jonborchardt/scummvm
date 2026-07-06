@@ -48,6 +48,7 @@
 #include "sci/roger/roger_omyac.h"
 #include "sci/roger/roger_ega_blend.h"
 #include "sci/roger/roger_scale.h"
+#include "sci/roger/roger_view_scaler.h"
 #endif // ENABLE_SCI
 
 namespace Sci {
@@ -513,7 +514,7 @@ Graphics::Surface *RogerAssetGen::generateViewCel(int viewId, int loopNo, int ce
 	Common::String key = cacheKey("scale6x", hash);
 	Common::String cachePath = _cacheDir + "/" + key + ".png";
 
-	if (_mode == kGenCache) {
+	if (_mode == kGenCache && _viewVariant == 0) {
 		Graphics::Surface *cached = loadSurfaceRGBA(cachePath);
 		if (cached)
 			return cached;
@@ -526,7 +527,9 @@ Graphics::Surface *RogerAssetGen::generateViewCel(int viewId, int loopNo, int ce
 		return nullptr;
 
 	uint32 t0 = g_system->getMillis();
-	IndexImage scaled = scale6x(idx);
+	IndexImage scaled = (_viewVariant == 0)
+		? scale6x(idx)
+		: applyViewScalerPresetTo6x(_viewVariant, idx, clearKey);
 	uint32 t1 = g_system->getMillis();
 	outMs = t1 - t0;
 
@@ -535,7 +538,7 @@ Graphics::Surface *RogerAssetGen::generateViewCel(int viewId, int loopNo, int ce
 	if (!surf)
 		return nullptr;
 
-	if (_mode == kGenCache || _mode == kGenAlways) {
+	if ((_mode == kGenCache || _mode == kGenAlways) && _viewVariant == 0) {
 		ensureCacheDir(_cacheDir);
 		dumpSurfacePng(*surf, cachePath);
 	}

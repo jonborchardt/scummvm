@@ -140,6 +140,15 @@ public:
 	}
 	const OmyacParams &omyacParams() const { return _omyacParams; }
 
+	// TEMPORARY DEBUG TOOL (tune panel, spec 2026-07-05) — delete with the panel.
+	// Session view-scaler variant (viewScalerPreset index; 0 = shipping s2-s3).
+	// A non-zero variant makes generateViewCel bypass the disk cache entirely
+	// (read AND write — variant pixels must never poison the content cache) and
+	// scale via applyViewScalerPresetTo6x. Never flips _mode: plates are
+	// unaffected, and variant-0 view cels go back to the normal cache path.
+	void setViewVariant(int presetIdx) { _viewVariant = presetIdx; }
+	int viewVariant() const { return _viewVariant; }
+
 	// De-undithered native cel pixels as an IndexImage (pre-upscale). False on
 	// any failure. Extracted from generateViewCel so the studio can feed the
 	// SAME source pixels through alternative scaler variants.
@@ -254,6 +263,7 @@ private:
 	Common::String _cacheDir;
 	Common::Array<int> _passes; // empty => use defaultPasses() at generation time
 	OmyacParams _omyacParams; // default-constructed == today's constants
+	int _viewVariant = 0; // TEMPORARY (tune panel): 0 = shipping scale6x path
 	// Shared tail for native-font glyph rendering: nearest-upscale 6x + palette->RGBA.
 	// `ck` is the transparent clear-key index. Caller owns.
 	Graphics::Surface *finishGlyphSurface(const IndexImage &idx, int penColor, byte ck);
