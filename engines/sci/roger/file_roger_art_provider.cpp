@@ -592,6 +592,19 @@ void FileRogerArtProvider::pushHiresBackground(GuiResourceId pictureId) {
 	diagDumpState("pushBG-exit");
 }
 
+// The backend places the native game screen from three live inputs — aspect-ratio
+// correction, stretch mode (Ctrl+Alt+S cycles it at runtime), and the software-scaler
+// factor. Mirror all three so the overlay geometry tracks the native placement exactly
+// in every mode, keeping Enhanced/Original toggles shift-free and the backend's
+// game-space mouse mapping aligned with what Roger paints.
+static Common::Rect currentGameRect(int overlayW, int overlayH) {
+	const bool aspect = g_system->getFeatureState(OSystem::kFeatureAspectRatioCorrection);
+	const int stretch = g_system->hasFeature(OSystem::kFeatureStretchMode)
+	                  ? g_system->getStretchMode() : (int)Roger::kStretchFit;
+	return Roger::computeGameRect(overlayW, overlayH, aspect, stretch,
+	                              (int)g_system->getScaleFactor());
+}
+
 void FileRogerArtProvider::observeLivePalette() {
 	if (!_paletteLive || _plateIndex.empty() || !_haveSnapshot || !_plate)
 		return;
@@ -614,9 +627,8 @@ void FileRogerArtProvider::observeLivePalette() {
 		_compositor->invalidateBackgroundCache(); // plate pixels mutated; force bgCache rebuild
 		if (!plateDirty.isEmpty()) {
 			// Map plate-space bbox -> dest/overlay space (same scale renderScene uses).
-			const bool aspect = g_system->getFeatureState(OSystem::kFeatureAspectRatioCorrection);
 			const int OW = g_system->getOverlayWidth(), OH = g_system->getOverlayHeight();
-			const Common::Rect gameRect = Roger::computeGameRect(OW, OH, aspect);
+			const Common::Rect gameRect = currentGameRect(OW, OH);
 			const Common::Rect picRect = Roger::computePictureRect(gameRect, _statusBarH);
 			const int pw = Roger::OMYAC_HYBRID_W, ph = Roger::OMYAC_HYBRID_H;
 			Common::Rect d(
@@ -658,11 +670,11 @@ void FileRogerArtProvider::renderFrame(const Common::Array<Roger::Sprite> &sprit
 	// H4 geometry: place the picture (plate + sprites) where the native game is
 	// actually drawn on screen. The overlay fills the whole window but is alpha-
 	// blended over the still-rendered native game, which the backend draws into a
-	// centered, aspect-preserving sub-rect. Replicate that placement so the overlay
-	// lines up 1:1 (no shift when toggled), reserving the top status-bar strip so the
-	// native "Score:" bar shows through the (transparent) overlay there.
-	const bool aspectCorrected = g_system->getFeatureState(OSystem::kFeatureAspectRatioCorrection);
-	const Common::Rect gameRect = Roger::computeGameRect(OW, OH, aspectCorrected);
+	// sub-rect governed by its stretch mode + aspect flag. Replicate that placement
+	// so the overlay lines up 1:1 (no shift when toggled), reserving the top
+	// status-bar strip so the native "Score:" bar shows through the (transparent)
+	// overlay there.
+	const Common::Rect gameRect = currentGameRect(OW, OH);
 	const Common::Rect picRect = Roger::computePictureRect(gameRect, _statusBarH);
 	_compositor->setPictureDest(picRect);
 
@@ -1270,8 +1282,7 @@ void FileRogerArtProvider::presentWithUi() {
 		                  Common::Rect(0, 0, (int16)OW, (int16)OH));
 		delete _sceneCache;
 		_sceneCache = resized;
-		const bool aspect = g_system->getFeatureState(OSystem::kFeatureAspectRatioCorrection);
-		_lastGameRect = Roger::computeGameRect(OW, OH, aspect);
+		_lastGameRect = currentGameRect(OW, OH);
 		_compositeCacheValid = false;
 		_lastCursorDstRect = Common::Rect(); // position was in old overlay space; invalid
 	}
@@ -2951,9 +2962,8 @@ void FileRogerArtProvider::composeRoomScene(Graphics::ManagedSurface &out) {
 void FileRogerArtProvider::composeRoomScene(Graphics::ManagedSurface &out,
                                             const Common::Array<Roger::Sprite> &sprites) {
 	// Reuse the same geometry renderFrame uses.
-	const bool aspect = g_system->getFeatureState(OSystem::kFeatureAspectRatioCorrection);
 	const int OW = g_system->getOverlayWidth(), OH = g_system->getOverlayHeight();
-	const Common::Rect gameRect = Roger::computeGameRect(OW, OH, aspect);
+	const Common::Rect gameRect = currentGameRect(OW, OH);
 	const Common::Rect picRect = Roger::computePictureRect(gameRect, _statusBarH);
 	_compositor->setPictureDest(picRect);
 	_compositor->renderScene(out, sprites, gameRect);

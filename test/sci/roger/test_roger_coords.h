@@ -70,4 +70,61 @@ public:
 		TS_ASSERT_EQUALS(pic.top, game.top);
 		TS_ASSERT_EQUALS(pic.bottom, game.bottom);
 	}
+
+	// --- Stretch-mode-aware game rect (mirrors backend populateDisplayAreaDrawRect) ---
+
+	void test_game_rect_stretch_mode_fills_window() {
+		// "Stretch to window" ignores aspect: the game rect IS the window.
+		Common::Rect r = Sci::Roger::computeGameRect(1000, 300, false, Sci::Roger::kStretchStretch);
+		TS_ASSERT_EQUALS(r.left, 0);
+		TS_ASSERT_EQUALS(r.top, 0);
+		TS_ASSERT_EQUALS(r.width(), 1000);
+		TS_ASSERT_EQUALS(r.height(), 300);
+	}
+
+	void test_game_rect_fit_force_aspect_ignores_correction_flag() {
+		// "Fit to window (4:3)" forces 4:3 even with aspect correction off.
+		// Backend frac math: width = fracToInt(1200 * (intToFrac(4)/3)) = 1599.
+		Common::Rect r = Sci::Roger::computeGameRect(2000, 1200, false, Sci::Roger::kStretchFitForceAspect);
+		TS_ASSERT_EQUALS(r.height(), 1200);
+		TS_ASSERT_EQUALS(r.width(), 1599);
+		TS_ASSERT_EQUALS(r.left, 200); // (2000-1599)/2
+	}
+
+	void test_game_rect_center_mode_is_unscaled() {
+		// "Center" shows the game surface at scaler size (320x200 at 1x), centered.
+		Common::Rect r = Sci::Roger::computeGameRect(1000, 1000, false, Sci::Roger::kStretchCenter, 1);
+		TS_ASSERT_EQUALS(r.width(), 320);
+		TS_ASSERT_EQUALS(r.height(), 200);
+		TS_ASSERT_EQUALS(r.left, 340);
+		TS_ASSERT_EQUALS(r.top, 400);
+	}
+
+	void test_game_rect_center_mode_uses_render_scale() {
+		// A 3x software scaler triples the centered surface.
+		Common::Rect r = Sci::Roger::computeGameRect(1000, 1000, false, Sci::Roger::kStretchCenter, 3);
+		TS_ASSERT_EQUALS(r.width(), 960);
+		TS_ASSERT_EQUALS(r.height(), 600);
+		TS_ASSERT_EQUALS(r.left, 20);
+		TS_ASSERT_EQUALS(r.top, 200);
+	}
+
+	void test_game_rect_integral_mode_snaps_to_whole_multiples() {
+		// "Pixel-perfect": largest integer multiple fitting the window (3x here).
+		Common::Rect r = Sci::Roger::computeGameRect(1000, 1000, false, Sci::Roger::kStretchIntegral, 1);
+		TS_ASSERT_EQUALS(r.width(), 960);
+		TS_ASSERT_EQUALS(r.height(), 600);
+	}
+
+	void test_game_rect_default_args_are_fit() {
+		// The 3-arg form must stay the aspect-true letterboxed fit.
+		Common::Rect def = Sci::Roger::computeGameRect(1600, 1600, false);
+		Common::Rect fit = Sci::Roger::computeGameRect(1600, 1600, false, Sci::Roger::kStretchFit, 1);
+		TS_ASSERT_EQUALS(def.left, fit.left);
+		TS_ASSERT_EQUALS(def.top, fit.top);
+		TS_ASSERT_EQUALS(def.right, fit.right);
+		TS_ASSERT_EQUALS(def.bottom, fit.bottom);
+		TS_ASSERT_EQUALS(def.width(), 1600);
+		TS_ASSERT_EQUALS(def.height(), 1000);
+	}
 };

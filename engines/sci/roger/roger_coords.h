@@ -22,10 +22,27 @@
 #ifndef SCI_ROGER_ROGER_COORDS_H
 #define SCI_ROGER_ROGER_COORDS_H
 
+#include "common/frac.h"
 #include "common/rect.h"
+#include "common/util.h"
 
 namespace Sci {
 namespace Roger {
+
+/**
+ * Stretch-mode ids, mirroring the STRETCH_* enum in backends/graphics/windowed.h.
+ * The values travel through OSystem::getStretchMode() as plain ints; the enum
+ * itself lives in a backend header engine code must not include. Every desktop
+ * SDL backend (surfacesdl, openglsdl) shares these ids.
+ */
+enum {
+	kStretchCenter = 0,
+	kStretchIntegral = 1,
+	kStretchIntegralAR = 2,
+	kStretchFit = 3,
+	kStretchStretch = 4,
+	kStretchFitForceAspect = 5
+};
 
 /**
  * Fit a srcW x srcH box into a W x H area, preserving aspect, centered
@@ -47,16 +64,79 @@ inline Common::Rect fitCentered(int srcW, int srcH, int W, int H) {
 
 /**
  * The on-screen rect (in overlay pixels) where the native 320x200 SCI game is
- * displayed: a centered, aspect-preserving box. This MUST match the backend's own
- * game placement so the overlay (drawn full-window, alpha-blended over the game)
- * lines up 1:1 — toggling the overlay then produces no positional shift.
+ * displayed. This MUST match the backend's own game placement so the overlay
+ * (drawn full-window, alpha-blended over the game) lines up 1:1 — toggling the
+ * overlay then produces no positional shift, and the backend's game-space mouse
+ * mapping (which follows its own draw rect) agrees with what Roger paints.
  *
- * With aspect-ratio correction the 200 game lines are shown at 4:3 (as if
- * 320x240); otherwise at the native 320x200. Assumes the backend's default
- * centered/fit stretch mode (not integer-scaling).
+ * A faithful port of WindowedGraphicsManager::populateDisplayAreaDrawRect for
+ * the desktop case (no rotation, no insets, center alignment, safe area = whole
+ * window), including the frac_t rounding, so results are pixel-identical:
+ *  - stretchMode selects Center / Pixel-perfect / Even-pixels / Fit / Stretch /
+ *    Fit-4:3 semantics (kStretch* above, from g_system->getStretchMode());
+ *  - renderScale is the software-scaler factor (g_system->getScaleFactor(),
+ *    == the backend's getGameRenderScale() on both SDL backends), which sizes
+ *    the Center/Integral modes;
+ *  - with aspect-ratio correction the 200 game lines are shown at 4:3 (as if
+ *    320x240); otherwise at the native 320x200 (16:10).
  */
-inline Common::Rect computeGameRect(int overlayW, int overlayH, bool aspectCorrected) {
-	return fitCentered(320, aspectCorrected ? 240 : 200, overlayW, overlayH);
+inline Common::Rect computeGameRect(int overlayW, int overlayH, bool aspectCorrected,
+                                    int stretchMode = kStretchFit, int renderScale = 1) {
+	if (overlayW <= 0 || overlayH <= 0)
+		return Common::Rect(0, 0, (int16)MAX(overlayW, 0), (int16)MAX(overlayH, 0));
+	if (renderScale < 1)
+		renderScale = 1;
+	const frac_t displayAspect = aspectCorrected ? (intToFrac(4) / 3)
+	                                             : (intToFrac(320) / 200);
+	const int originalWidth = 320 * renderScale;
+	const int originalHeight = 200 * renderScale;
+
+	int width = 0, height = 0;
+	if (stretchMode == kStretchCenter || stretchMode == kStretchIntegral || stretchMode == kStretchIntegralAR) {
+		width = originalWidth;
+		height = intToFrac(width) / displayAspect;
+		if (width > overlayW || height > overlayH) {
+			int fac = 1 + MAX((width - 1) / overlayW, (height - 1) / overlayH);
+			width /= fac;
+			height /= fac;
+		} else if (stretchMode == kStretchIntegral) {
+			int fac = MIN(overlayW / width, overlayH / height);
+			width *= fac;
+			height *= fac;
+		} else if (stretchMode == kStretchIntegralAR) {
+			int targetHeight = height;
+			int horizontalFac = overlayW / width;
+			do {
+				width = originalWidth * horizontalFac;
+				int verticalFac = (targetHeight * horizontalFac + originalHeight / 2) / originalHeight;
+				height = originalHeight * verticalFac;
+				--horizontalFac;
+			} while (horizontalFac > 0 && height > overlayH);
+			if (height > overlayH)
+				height = targetHeight;
+		}
+	} else {
+		const frac_t windowAspect = intToFrac(overlayW) / overlayH;
+		width = overlayW;
+		height = overlayH;
+		if (stretchMode == kStretchFitForceAspect) {
+			const frac_t ratio = intToFrac(4) / 3;
+			if (windowAspect < ratio)
+				height = intToFrac(width) / ratio;
+			else if (windowAspect > ratio)
+				width = fracToInt(height * ratio);
+		} else if (stretchMode != kStretchStretch) {
+			// kStretchFit (and any unknown future id, matching the backend's else-chain)
+			if (windowAspect < displayAspect)
+				height = intToFrac(width) / displayAspect;
+			else if (windowAspect > displayAspect)
+				width = fracToInt(height * displayAspect);
+		}
+	}
+
+	const int x = (overlayW - width) / 2;
+	const int y = (overlayH - height) / 2;
+	return Common::Rect((int16)x, (int16)y, (int16)(x + width), (int16)(y + height));
 }
 
 /**
