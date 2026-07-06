@@ -2820,13 +2820,18 @@ Common::Array<int> FileRogerArtProvider::parseOmyacPasses(bool hasKey, const Com
 		const char c = (i < passStr.size()) ? passStr[i] : '\0';
 		if (c == ',' || c == ' ' || c == '\t' || c == '\0') {
 			if (!tok.empty()) {
-				if (tok == "fill" || tok == "f")
+				// Numeric tokens are the raw renderOmyac mode values (2=fill,
+				// 1=line, 0=all) — the same ints the cache key stamps as pNpN.
+				// Accepting them keeps hand-written configs like "2 1" working.
+				if (tok == "fill" || tok == "f" || tok == "2")
 					passes.push_back(2);
-				else if (tok == "line" || tok == "l")
+				else if (tok == "line" || tok == "l" || tok == "1")
 					passes.push_back(1);
-				else if (tok == "all" || tok == "a")
+				else if (tok == "all" || tok == "a" || tok == "0")
 					passes.push_back(0);
-				// unrecognized tokens silently skipped
+				else
+					warning("ROGER: roger_omyac_passes token '%s' not recognized "
+					        "(use fill/f/2, line/l/1, all/a/0) — skipped", tok.c_str());
 				tok.clear();
 			}
 		} else {
