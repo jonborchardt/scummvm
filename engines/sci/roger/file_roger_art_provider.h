@@ -172,7 +172,8 @@ private:
 	// Return a persistent scratch surface of (w,h) in RGBA32, reallocated only when
 	// the overlay size changes — avoids a fresh ManagedSurface alloc/free every frame.
 	Graphics::ManagedSurface *scratchScene(int w, int h);
-	// Compose the current room background (plate, no sprites) into `out` at full overlay size.
+	// Compose the current room scene (plate, plus the given sprites for the two-arg form;
+	// the no-arg form composes the plate only) into `out` at full overlay size.
 	void composeRoomScene(Graphics::ManagedSurface &out);
 	void composeRoomScene(Graphics::ManagedSurface &out, const Common::Array<Roger::Sprite> &sprites);
 	Common::Array<Graphics::Surface *> _uiIcons;     // owned native-cel surfaces for kUiIcon

@@ -39,7 +39,7 @@ struct Sprite {
 	int viewId, loopNo, celNo;
 	Common::Rect celRect;  // 320x200 space
 	int priority;          // SCI band 0..15
-	bool mirror;
+	bool mirror = false;
 	Graphics::Surface *celOverride = nullptr; // optional pre-rendered native cel (RGBA); used when no hires cel. Borrowed unless celOverrideOwned.
 	bool celOverrideOwned = false;            // true => this Sprite owns celOverride and must free it; false => borrowed (freed elsewhere)
 	uint32 owner = 0;      // init-cel captures: opaque animate-object token, shown only while the owner is absent from the live cast. Feeder B pixel stamps (_textSprites): owning-window token (0x40000000 | id), dropped on that window's dispose. 0 = none.
