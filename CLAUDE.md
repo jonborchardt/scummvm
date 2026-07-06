@@ -316,6 +316,12 @@ room-entry position or wiped the room signs — both shipped as bugs once.
   owner object is still in the animate list (present = drawn live, never promote; gone = baked,
   promote). Same lesson as the window-token trap above: key off object lifetime, not geometry
   or resource ids.
+- Calling `pushHiresBackground` for anything that is NOT a real room entry → it clears the
+  per-room captured sprites (`_staticSprites`/`_initCels`/`_textSprites`), which are captured
+  ONCE at the room's actual entry draws and can never be re-captured mid-room — the QFG1 signs
+  and seated NPCs vanished after every live pass-tuning regen until 00ca23faf36. A regen-in-place
+  must carry those arrays across the call (and must empty `_textSprites` before it — its entries
+  own their `celOverride` surfaces and `clearTextSprites()` frees them under shallow copies).
 
 **Underused SCI signals worth exploiting later** (highest value first): per-line text rects
 via a `Draw`/`Show` hook (kills the multi-line re-wrap drift);
