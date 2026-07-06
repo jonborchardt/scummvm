@@ -20,6 +20,10 @@
 
 #include "sci/roger/roger_tune_panel.h"
 #include "sci/roger/roger_view_scaler.h"
+#include "graphics/fontman.h"
+#include "graphics/font.h"
+#include "graphics/managed_surface.h"
+#include "sci/roger/roger_coords.h"
 
 namespace Sci {
 namespace Roger {
@@ -110,8 +114,44 @@ Common::String tuneStatusLine(const TunePanelState &st) {
 
 void drawTunePanel(Graphics::ManagedSurface &scene, const Common::Rect &gameRect,
                    const TunePanelState &st, const Common::Array<StudioWidget> &widgets) {
-	// Implemented in the next commit (panel drawing).
-	(void)scene; (void)gameRect; (void)st; (void)widgets;
+	if (gameRect.isEmpty())
+		return;
+	const Common::Rect panel = sciRectToDest(tunePanelRect(), gameRect);
+	const uint32 bg   = scene.format.ARGBToColor(255, 22, 22, 30);
+	const uint32 fg   = scene.format.ARGBToColor(255, 190, 190, 200);
+	const uint32 hi   = scene.format.ARGBToColor(255, 255, 220, 120);
+	const uint32 hov  = scene.format.ARGBToColor(255, 60, 60, 84);
+	const uint32 dim  = scene.format.ARGBToColor(255, 96, 96, 104);
+	scene.fillRect(panel, bg);
+	scene.frameRect(panel, fg);
+
+	const Graphics::Font *f = FontMan.getFontByUsage(Graphics::FontManager::kBigGUIFont);
+
+	// Title (top-left, inside the panel, left of the close box).
+	if (f) {
+		const Common::Rect t = sciRectToDest(Common::Rect(230, 14, 300, 24), gameRect);
+		f->drawString(&scene, "TUNE (F12)", t.left, t.top, t.width(), hi);
+	}
+
+	for (uint i = 0; i < widgets.size(); i++) {
+		const StudioWidget &w = widgets[i];
+		const Common::Rect r = sciRectToDest(w.rect, gameRect);
+		if (w.id == st.hoverId && w.enabled)
+			scene.fillRect(r, hov);
+		scene.frameRect(r, w.on ? hi : (w.enabled ? fg : dim));
+		if (f) {
+			const int ty = r.top + (r.height() - f->getFontHeight()) / 2;
+			f->drawString(&scene, w.label, r.left + 2, ty, r.width() - 4,
+			              w.enabled ? (w.on ? hi : fg) : dim,
+			              Graphics::kTextAlignCenter);
+		}
+	}
+
+	// Status line at the bottom-anchored text row.
+	if (f) {
+		const Common::Rect s = sciRectToDest(Common::Rect(230, 184, 316, 194), gameRect);
+		f->drawString(&scene, tuneStatusLine(st), s.left, s.top, s.width(), fg);
+	}
 }
 
 } // namespace Roger
