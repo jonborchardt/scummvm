@@ -757,3 +757,42 @@ public:
 		TS_ASSERT(Sci::Roger::rectCoverageFraction(statusRect, deepDrop) < 90);
 	}
 };
+
+class TestInitFrameSpriteSet : public CxxTest::TestSuite {
+	static Sci::Roger::Sprite mk(int v, int l, int c, int prio, int x, int y) {
+		Sci::Roger::Sprite s;
+		s.viewId = v; s.loopNo = l; s.celNo = c; s.priority = prio;
+		s.celRect = Common::Rect((int16)x, (int16)y, (int16)(x + 10), (int16)(y + 10));
+		return s;
+	}
+public:
+	// The transition frame mirrors the native buffer at animateShowPic time:
+	// addToPic statics + EVERY init-frame cast draw (live actors included),
+	// deduped by cel identity + rect, ascending-priority draw order.
+	void test_dedups_and_sorts_by_priority() {
+		Common::Array<Sci::Roger::Sprite> statics, initCels, out;
+		statics.push_back(mk(300, 2, 0, 5, 10, 20));   // baked sign (addToPic)
+		initCels.push_back(mk(300, 2, 0, 5, 10, 20));  // same sign captured again on frame 1
+		initCels.push_back(mk(0, 0, 0, 12, 50, 60));   // ego (live actor, still included)
+		initCels.push_back(mk(301, 1, 0, 3, 70, 80));  // low-priority prop
+		Sci::Roger::buildInitFrameSpriteSet(statics, initCels, out);
+		TS_ASSERT_EQUALS(out.size(), 3u);
+		TS_ASSERT_EQUALS(out[0].priority, 3);
+		TS_ASSERT_EQUALS(out[1].priority, 5);
+		TS_ASSERT_EQUALS(out[2].priority, 12);
+	}
+	// Same cel stamped at a second position (e.g. a repeated decoration) is
+	// two draws, not a duplicate — dedup key includes celRect.
+	void test_same_cel_different_rect_is_not_a_dup() {
+		Common::Array<Sci::Roger::Sprite> statics, initCels, out;
+		statics.push_back(mk(300, 2, 0, 5, 10, 20));
+		initCels.push_back(mk(300, 2, 0, 5, 90, 20));
+		Sci::Roger::buildInitFrameSpriteSet(statics, initCels, out);
+		TS_ASSERT_EQUALS(out.size(), 2u);
+	}
+	void test_empty_inputs_yield_empty_output() {
+		Common::Array<Sci::Roger::Sprite> statics, initCels, out;
+		Sci::Roger::buildInitFrameSpriteSet(statics, initCels, out);
+		TS_ASSERT_EQUALS(out.size(), 0u);
+	}
+};

@@ -78,6 +78,26 @@ void mergeSpritesByPriority(const Common::Array<Sprite> &animate,
 	}
 }
 
+void buildInitFrameSpriteSet(const Common::Array<Sprite> &statics,
+                             const Common::Array<Sprite> &initCels,
+                             Common::Array<Sprite> &out) {
+	Common::Array<Sprite> all = statics;
+	for (uint i = 0; i < initCels.size(); i++) {
+		const Sprite &c = initCels[i];
+		bool dup = false;
+		for (uint j = 0; j < all.size(); j++)
+			if (all[j].viewId == c.viewId && all[j].loopNo == c.loopNo &&
+			    all[j].celNo == c.celNo && all[j].celRect == c.celRect) {
+				dup = true;
+				break;
+			}
+		if (!dup)
+			all.push_back(c);
+	}
+	Common::Array<Sprite> none;
+	mergeSpritesByPriority(none, all, out);
+}
+
 Common::Rect mapNativeRectToOverlay(const Common::Rect &nativeRect,
                                     const Common::Rect &picRect,
                                     int picW, int picH, int picScreenTop) {
