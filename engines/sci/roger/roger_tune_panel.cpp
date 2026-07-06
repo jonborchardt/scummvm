@@ -51,11 +51,14 @@ static void addTuneWidget(Common::Array<StudioWidget> &out, int kind, int index,
 
 void buildTunePanel(const TunePanelState &st, Common::Array<StudioWidget> &out) {
 	out.clear();
-	const Common::Rect p = tunePanelRect();
+	const Common::Rect p = tunePanelRect(st.leftSide);
 	const int x0 = p.left + 2, x1 = p.right - 2;
 
-	// Title row: close box top-right.
+	// Title row: side-toggle then close box, top-right. The side button's label
+	// points at the side the panel will move TO.
 	int y = p.top + 2;
+	addTuneWidget(out, kTuneSide, 0, Common::Rect(x1 - 22, y, x1 - 12, y + 10),
+	              st.leftSide ? ">" : "<", false);
 	addTuneWidget(out, kTuneClose, 0, Common::Rect(x1 - 10, y, x1, y + 10), "x", false);
 	y += 12;
 
@@ -116,7 +119,8 @@ void drawTunePanel(Graphics::ManagedSurface &scene, const Common::Rect &gameRect
                    const TunePanelState &st, const Common::Array<StudioWidget> &widgets) {
 	if (gameRect.isEmpty())
 		return;
-	const Common::Rect panel = sciRectToDest(tunePanelRect(), gameRect);
+	const Common::Rect panelGame = tunePanelRect(st.leftSide);
+	const Common::Rect panel = sciRectToDest(panelGame, gameRect);
 	const uint32 bg   = scene.format.ARGBToColor(255, 22, 22, 30);
 	const uint32 fg   = scene.format.ARGBToColor(255, 190, 190, 200);
 	const uint32 hi   = scene.format.ARGBToColor(255, 255, 220, 120);
@@ -127,9 +131,11 @@ void drawTunePanel(Graphics::ManagedSurface &scene, const Common::Rect &gameRect
 
 	const Graphics::Font *f = FontMan.getFontByUsage(Graphics::FontManager::kBigGUIFont);
 
-	// Title (top-left, inside the panel, left of the close box).
+	// Title (top-left, inside the panel, left of the side/close boxes).
 	if (f) {
-		const Common::Rect t = sciRectToDest(Common::Rect(230, 14, 300, 24), gameRect);
+		const Common::Rect t = sciRectToDest(
+			Common::Rect(panelGame.left + 2, panelGame.top + 2,
+			             panelGame.right - 26, panelGame.top + 12), gameRect);
 		f->drawString(&scene, "TUNE (F12)", t.left, t.top, t.width(), hi);
 	}
 
@@ -149,7 +155,9 @@ void drawTunePanel(Graphics::ManagedSurface &scene, const Common::Rect &gameRect
 
 	// Status line at the bottom-anchored text row.
 	if (f) {
-		const Common::Rect s = sciRectToDest(Common::Rect(230, 184, 316, 194), gameRect);
+		const Common::Rect s = sciRectToDest(
+			Common::Rect(panelGame.left + 2, panelGame.bottom - 12,
+			             panelGame.right - 2, panelGame.bottom - 2), gameRect);
 		f->drawString(&scene, tuneStatusLine(st), s.left, s.top, s.width(), fg);
 	}
 }

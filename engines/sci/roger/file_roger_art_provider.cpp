@@ -2920,7 +2920,7 @@ void FileRogerArtProvider::markTunePanelDirty() {
 		_compositor->forceFullPresent();
 		return;
 	}
-	Common::Rect d = Roger::sciRectToDest(Roger::tunePanelRect(), _lastGameRect);
+	Common::Rect d = Roger::sciRectToDest(Roger::tunePanelRect(_tunePanel.leftSide), _lastGameRect);
 	d.grow(2); // absorb mapping rounding vs the drawn border
 	_compositor->addDirtyRect(d);
 }
@@ -2989,13 +2989,17 @@ void FileRogerArtProvider::tuneApplyStagedPasses() {
 bool FileRogerArtProvider::tunePanelMouse(bool buttonDown, const Common::Point &gamePos) {
 	if (!_tunePanel.open || _mode != Roger::kModeEnhanced)
 		return false;
-	if (!Roger::tunePanelRect().contains(gamePos))
+	if (!Roger::tunePanelRect(_tunePanel.leftSide).contains(gamePos))
 		return false; // outside: game plays on
 	if (!buttonDown)
 		return true; // swallow ups / right-clicks over the panel, no action
 	const uint32 id = Roger::hitTestWidgets(_tuneWidgets, gamePos.x, gamePos.y);
 	switch (Roger::widKind(id)) {
 	case Roger::kTuneClose:     _tunePanel.open = false; break;
+	case Roger::kTuneSide:
+		markTunePanelDirty(); // vacate the CURRENT side before flipping
+		_tunePanel.leftSide = !_tunePanel.leftSide;
+		break; // post-switch markTunePanelDirty covers the new side
 	case Roger::kTuneVariantRow: tuneApplyVariant(Roger::widIndex(id)); break;
 	case Roger::kTuneChip:      _tunePanel.selectedChip = Roger::widIndex(id); break;
 	case Roger::kTuneChipX:     Roger::passRemoveAt(_tunePanel.stagedPasses, _tunePanel.selectedChip); break;

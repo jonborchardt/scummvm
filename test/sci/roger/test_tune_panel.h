@@ -116,4 +116,40 @@ public:
 		st.stagedPasses.push_back(1);
 		TS_ASSERT(tuneStatusLine(st).contains("*"));
 	}
+
+	// Side toggle: the side button exists on both sides with a label pointing
+	// at the side the panel will move TO, the left-side layout mirrors every
+	// widget into tunePanelRect(true), and hit-testing follows the mirror.
+	// The RIGHT-side default stays locked by test_script_geometry_lock.
+	void test_side_toggle_layout() {
+		TunePanelState st;
+		Common::Array<StudioWidget> w;
+		buildTunePanel(st, w);
+		bool sideFound = false;
+		for (uint i = 0; i < w.size(); i++) {
+			if (widKind(w[i].id) != kTuneSide)
+				continue;
+			sideFound = true;
+			TS_ASSERT_EQUALS(w[i].label, Common::String("<")); // docked right: moves left
+		}
+		TS_ASSERT(sideFound);
+
+		st.leftSide = true;
+		buildTunePanel(st, w);
+		const Common::Rect p = tunePanelRect(true);
+		TS_ASSERT_EQUALS(p.left, 2);
+		TS_ASSERT_EQUALS(p.right, 92);
+		sideFound = false;
+		for (uint i = 0; i < w.size(); i++) {
+			TS_ASSERT(w[i].rect.left >= p.left && w[i].rect.right <= p.right);
+			TS_ASSERT(w[i].rect.top >= p.top && w[i].rect.bottom <= p.bottom);
+			if (widKind(w[i].id) == kTuneSide) {
+				sideFound = true;
+				TS_ASSERT_EQUALS(w[i].label, Common::String(">")); // docked left: moves right
+			}
+		}
+		TS_ASSERT(sideFound);
+		// Mirrored hit-test spot check: apply row lands at (64..90, 172..182).
+		TS_ASSERT_EQUALS(widKind(hitTestWidgets(w, 77, 177)), (int)kTuneApply);
+	}
 };

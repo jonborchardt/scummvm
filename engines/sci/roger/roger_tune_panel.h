@@ -48,11 +48,13 @@ enum TuneWidKind {
 	kTuneChip,       // index = chip position in stagedPasses
 	kTuneChipX, kTuneChipLeft, kTuneChipRight,
 	kTuneChipAddF, kTuneChipAddL, kTuneChipAddA,
-	kTuneClear, kTuneReset, kTuneApply
+	kTuneClear, kTuneReset, kTuneApply,
+	kTuneSide        // send the panel to the other screen side
 };
 
 struct TunePanelState {
 	bool open = false;
+	bool leftSide = false;            // panel docks right by default; kTuneSide flips
 	int variant = 0;                  // applied view-scaler preset index
 	Common::Array<int> stagedPasses;  // chip edits accumulate here (NOT applied)
 	Common::Array<int> appliedPasses; // last applied — pending marker compares
@@ -66,9 +68,12 @@ inline bool tunePending(const TunePanelState &st) {
 	return !tunePassesEqual(st.stagedPasses, st.appliedPasses);
 }
 
-// Fixed GAME-space panel rect (right side, below the status strip).
-// LOCKED by test_script_geometry_lock + the tune-panel-smoke.rin script.
-inline Common::Rect tunePanelRect() { return Common::Rect(228, 12, 318, 196); }
+// Fixed GAME-space panel rect (below the status strip). Docks on the right by
+// default; `leftSide` mirrors it to the left edge (same size). The RIGHT-side
+// coordinates are LOCKED by test_script_geometry_lock + tune-panel-smoke.rin.
+inline Common::Rect tunePanelRect(bool leftSide = false) {
+	return leftSide ? Common::Rect(2, 12, 92, 196) : Common::Rect(228, 12, 318, 196);
+}
 
 // Pure layout: fills `out` (cleared first) with globally-positioned
 // game-space widgets. Variant rows flow from the top; the chip-op /
