@@ -129,6 +129,17 @@ aspect-ratio correction **off**: the art is square-pixel (the plate is an exact 
 320×190 picture), and the default 4:3 stretch would resample the enhanced scene ~20% too
 tall. An explicit `aspect_ratio` key in `scummvm.ini` or on the command line still wins.
 
+### Stretch modes
+
+The enhanced overlay follows ScummVM's stretch mode (`stretch_mode` in the ini, the
+in-game options dialog, or the Ctrl+Alt+S runtime cycle): Roger mirrors the backend's
+own placement math for all six modes (Center, Pixel-perfect, Even-pixels, Fit, Stretch,
+Fit-4:3), so Enhanced and Original render the game at the identical on-screen rect and
+F10 toggles produce no positional shift. Note that "Stretch to window" fills the window
+without preserving aspect and "Fit to window (4:3)" forces the CRT-tall look — for a
+square-pixel comparison against the source art, keep the default "Fit to window". A
+stretch-mode change is picked up on the next composited frame.
+
 ### Text sizing
 
 Hires UI text size derives from each element's **native SCI font metrics** — the SCI font's cell height scaled to the overlay resolution, capped to the native string width — so hires text occupies the same on-screen footprint as the original SCI text. `roger_ui_font_scale` is a nudge multiplier on top of that baseline (100 = no nudge). Elements with no captured metric fall back to the legacy role heights.
