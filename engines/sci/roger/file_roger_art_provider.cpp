@@ -2845,8 +2845,24 @@ void FileRogerArtProvider::regenInPlace() {
 	if (!_assetGen || _loadedPicId < 0)
 		return;
 	const int saved = _loadedPicId;
+	// pushHiresBackground treats every call as a room ENTRY and clears the
+	// per-room captured sprites (_staticSprites / _initCels / _textSprites).
+	// Those are captured once, at the room's actual entry draws — nothing can
+	// re-capture them mid-room, so a live-tuning regen must carry them across
+	// the call or every addToPic/init-baked prop (QFG1 signs, seated NPCs)
+	// vanishes until the next real room change.
+	Common::Array<Roger::Sprite> keepStatics = _staticSprites;
+	Common::Array<Roger::Sprite> keepInitCels = _initCels;
+	Common::Array<Roger::Sprite> keepText = _textSprites;
+	// The copies above are shallow — _textSprites entries OWN their celOverride
+	// surfaces and clearTextSprites() (inside pushHiresBackground) frees them.
+	// Empty the source first so the clear frees nothing.
+	_textSprites.clear();
 	_loadedPicId = -1; // invalidate early-return guard in pushHiresBackground
 	pushHiresBackground(saved);
+	_staticSprites = keepStatics;
+	_initCels = keepInitCels;
+	_textSprites = keepText;
 	markFullDirty();
 	presentBarrier();
 }
