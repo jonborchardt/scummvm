@@ -1,0 +1,119 @@
+#include <cxxtest/TestSuite.h>
+#include "common/util.h"
+#include "engines/sci/roger/roger_tune_panel.h"
+#include "engines/sci/roger/roger_view_scaler.h"
+
+using namespace Sci::Roger;
+
+class TunePanelTestSuite : public CxxTest::TestSuite {
+public:
+	void test_passes_equal_and_pending() {
+		Common::Array<int> a, b;
+		TS_ASSERT(tunePassesEqual(a, b));
+		a.push_back(2);
+		TS_ASSERT(!tunePassesEqual(a, b));
+		b.push_back(2);
+		TS_ASSERT(tunePassesEqual(a, b));
+		b[0] = 1;
+		TS_ASSERT(!tunePassesEqual(a, b));
+
+		TunePanelState st;
+		TS_ASSERT(!tunePending(st));
+		st.stagedPasses.push_back(0);
+		TS_ASSERT(tunePending(st));
+		st.appliedPasses.push_back(0);
+		TS_ASSERT(!tunePending(st));
+	}
+
+	// Layout invariants: every widget inside the panel rect, one row per
+	// variant preset, one chip per staged pass, ops/apply rows present,
+	// chip-op enablement follows selection.
+	void test_layout_invariants() {
+		TunePanelState st;
+		st.stagedPasses.push_back(2);
+		st.stagedPasses.push_back(1);
+		st.selectedChip = 1;
+		Common::Array<StudioWidget> w;
+		buildTunePanel(st, w);
+		const Common::Rect p = tunePanelRect();
+		int variantRows = 0, chips = 0;
+		bool haveApply = false, haveClose = false, xEnabled = false;
+		for (uint i = 0; i < w.size(); i++) {
+			TS_ASSERT(p.contains(w[i].rect.left, w[i].rect.top));
+			TS_ASSERT(w[i].rect.right <= p.right && w[i].rect.bottom <= p.bottom);
+			switch (widKind(w[i].id)) {
+			case kTuneVariantRow: variantRows++; break;
+			case kTuneChip: chips++; break;
+			case kTuneApply: haveApply = true; TS_ASSERT(w[i].on); break; // pending
+			case kTuneClose: haveClose = true; break;
+			case kTuneChipX: xEnabled = w[i].enabled; break;
+			default: break;
+			}
+		}
+		TS_ASSERT_EQUALS(variantRows, viewScalerPresetCount());
+		TS_ASSERT_EQUALS(chips, 2);
+		TS_ASSERT(haveApply && haveClose && xEnabled);
+
+		// No selection -> chip ops disabled; no pending -> apply not highlighted.
+		st.selectedChip = -1;
+		st.appliedPasses = st.stagedPasses;
+		buildTunePanel(st, w);
+		for (uint i = 0; i < w.size(); i++) {
+			if (widKind(w[i].id) == kTuneChipX || widKind(w[i].id) == kTuneChipLeft ||
+			    widKind(w[i].id) == kTuneChipRight)
+				TS_ASSERT(!w[i].enabled);
+			if (widKind(w[i].id) == kTuneApply)
+				TS_ASSERT(!w[i].on);
+		}
+	}
+
+	// The variant row for the current variant is marked on; hit-testing a
+	// row center returns that row (game-space coords, reused hitTestWidgets).
+	void test_variant_rows_and_hittest() {
+		TunePanelState st;
+		st.variant = 3;
+		Common::Array<StudioWidget> w;
+		buildTunePanel(st, w);
+		for (uint i = 0; i < w.size(); i++) {
+			if (widKind(w[i].id) != kTuneVariantRow)
+				continue;
+			TS_ASSERT_EQUALS(w[i].on, widIndex(w[i].id) == 3);
+			const int cx = (w[i].rect.left + w[i].rect.right) / 2;
+			const int cy = (w[i].rect.top + w[i].rect.bottom) / 2;
+			TS_ASSERT_EQUALS(hitTestWidgets(w, cx, cy), w[i].id);
+		}
+	}
+
+	// Geometry lock for the .rin verification script: the panel rect and the
+	// bottom-anchored rows must not drift or scripted clicks miss.
+	void test_script_geometry_lock() {
+		TS_ASSERT_EQUALS(tunePanelRect().left, 228);
+		TS_ASSERT_EQUALS(tunePanelRect().top, 12);
+		TS_ASSERT_EQUALS(tunePanelRect().right, 318);
+		TS_ASSERT_EQUALS(tunePanelRect().bottom, 196);
+		TunePanelState st;
+		Common::Array<StudioWidget> w;
+		buildTunePanel(st, w);
+		// Clicks used by test/sci/roger/scripts/tune-panel-smoke.rin:
+		TS_ASSERT_EQUALS(widKind(hitTestWidgets(w, 273, 31)), (int)kTuneVariantRow);
+		TS_ASSERT_EQUALS(widIndex(hitTestWidgets(w, 273, 31)), 0);
+		TS_ASSERT_EQUALS(widKind(hitTestWidgets(w, 273, 75)), (int)kTuneVariantRow);
+		TS_ASSERT_EQUALS(widIndex(hitTestWidgets(w, 273, 75)), 4);
+		TS_ASSERT_EQUALS(widKind(hitTestWidgets(w, 244, 177)), (int)kTuneClear);
+		TS_ASSERT_EQUALS(widKind(hitTestWidgets(w, 274, 177)), (int)kTuneReset);
+		TS_ASSERT_EQUALS(widKind(hitTestWidgets(w, 303, 177)), (int)kTuneApply);
+	}
+
+	void test_status_line() {
+		TunePanelState st;
+		st.stagedPasses.push_back(2);
+		st.stagedPasses.push_back(0);
+		st.appliedPasses = st.stagedPasses;
+		st.lastGenMs = 812;
+		TS_ASSERT(tuneStatusLine(st).contains("fa"));
+		TS_ASSERT(tuneStatusLine(st).contains("812"));
+		TS_ASSERT(!tuneStatusLine(st).contains("*"));
+		st.stagedPasses.push_back(1);
+		TS_ASSERT(tuneStatusLine(st).contains("*"));
+	}
+};
