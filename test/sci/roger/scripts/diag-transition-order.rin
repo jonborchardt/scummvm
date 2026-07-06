@@ -1,0 +1,7 @@
+# Room-entry sprite-flash evidence run. The SQ3 boot sequence performs several
+# pic changes, each firing drawPicture -> transition -> first composed frame.
+# No input needed; the -Diag trace ordering carries the verdict.
+wait 20000
+state
+snap transition-order-end
+quit

@@ -2944,14 +2944,19 @@ void FileRogerArtProvider::onMouseMoved() {
 }
 
 void FileRogerArtProvider::composeRoomScene(Graphics::ManagedSurface &out) {
-	// Reuse the same geometry renderFrame uses, with an empty sprite list.
+	Common::Array<Roger::Sprite> none;
+	composeRoomScene(out, none);
+}
+
+void FileRogerArtProvider::composeRoomScene(Graphics::ManagedSurface &out,
+                                            const Common::Array<Roger::Sprite> &sprites) {
+	// Reuse the same geometry renderFrame uses.
 	const bool aspect = g_system->getFeatureState(OSystem::kFeatureAspectRatioCorrection);
 	const int OW = g_system->getOverlayWidth(), OH = g_system->getOverlayHeight();
 	const Common::Rect gameRect = Roger::computeGameRect(OW, OH, aspect);
 	const Common::Rect picRect = Roger::computePictureRect(gameRect, _statusBarH);
 	_compositor->setPictureDest(picRect);
-	Common::Array<Roger::Sprite> none;
-	_compositor->renderScene(out, none, gameRect);
+	_compositor->renderScene(out, sprites, gameRect);
 }
 
 void FileRogerArtProvider::onTransition(int sciType, const Common::Rect & /*picRect*/) {
@@ -2972,9 +2977,39 @@ void FileRogerArtProvider::onTransition(int sciType, const Common::Rect & /*picR
 		from.copyFrom(*_sceneCache);
 	else
 		from.fillRect(Common::Rect(0, 0, (int16)OW, (int16)OH), rgba.ARGBToColor(255, 0, 0, 0));
-	// `to` = the new room background (no sprites yet).
+	// `to` = the new room background + the frame-1 cast. Native kernelAnimate
+	// draws the cast (drawCels) BEFORE animateShowPic runs the transition, so the
+	// native reveal already contains every frame-1 draw — revealing a sprite-less
+	// plate here is the enhanced-only room-entry flash. At this point in the same
+	// cycle the Feeder-A hooks have captured exactly that set: _staticSprites
+	// (addToPic) + _initCels (every cast draw during _picNotValid, live actors
+	// included — the steady-state live-owner promotion filter deliberately does
+	// NOT apply to this one transient frame). renderFromAnimateList recomposes
+	// from the real animate list on the very next frame.
+	Common::Array<Roger::Sprite> frame1;
+	Roger::buildInitFrameSpriteSet(_staticSprites, _initCels, frame1);
+	Common::Array<Graphics::Surface *> nativeSurfaces;
+	for (uint i = 0; i < frame1.size(); i++) {
+		if (frame1[i].celOverride)
+			continue;
+		// Skip the native fallback when a hires cel exists (renderScene would ignore it).
+		if (_viewCache && _viewCache->getCel(frame1[i].viewId, frame1[i].loopNo, frame1[i].celNo))
+			continue;
+		Graphics::Surface *nativeSurf = renderNativeCel(frame1[i].viewId, frame1[i].loopNo, frame1[i].celNo);
+		if (nativeSurf) {
+			frame1[i].celOverride = nativeSurf;
+			nativeSurfaces.push_back(nativeSurf);
+		}
+	}
 	Graphics::ManagedSurface to(OW, OH, rgba);
-	composeRoomScene(to);
+	composeRoomScene(to, frame1);
+	for (uint i = 0; i < nativeSurfaces.size(); i++) {
+		nativeSurfaces[i]->free();
+		delete nativeSurfaces[i];
+	}
+	if (_diag)
+		warning("ROGER-DIAG[transition]: type=%d fam=%d frame1Sprites=%u",
+		        sciType, (int)fam, (unsigned)frame1.size());
 	// composeRoomScene pre-validates _bgCache; ensure the first post-transition renderFrame
 	// does a full _compositeCache copy so the software-cursor fast path has clean pixels.
 	_compositeCacheValid = false;

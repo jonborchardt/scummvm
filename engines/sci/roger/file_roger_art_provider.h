@@ -174,6 +174,7 @@ private:
 	Graphics::ManagedSurface *scratchScene(int w, int h);
 	// Compose the current room background (plate, no sprites) into `out` at full overlay size.
 	void composeRoomScene(Graphics::ManagedSurface &out);
+	void composeRoomScene(Graphics::ManagedSurface &out, const Common::Array<Roger::Sprite> &sprites);
 	Common::Array<Graphics::Surface *> _uiIcons;     // owned native-cel surfaces for kUiIcon
 	// addToPic cels captured for the current room (Feeder A). Cleared on room change;
 	// merged with the animate list each frame and drawn via the hires Sprite path.
