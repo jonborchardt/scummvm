@@ -182,6 +182,11 @@ private:
 	Roger::RogerTextRenderer *_altTextRenderer = nullptr;  // header/menu font
 	Graphics::ManagedSurface *_sceneCache = nullptr; // last composed room+sprites (no UI)
 	Graphics::ManagedSurface *_scratchScene = nullptr; // reused per-frame compose buffer (realloc only on size change)
+	// Side-by-side present buffer. MUST be separate from _scratchScene: renderScene
+	// redraws only its seed union into the scratch and relies on the remaining
+	// pixels persisting across frames — composing the split layout there corrupted
+	// the next bounded frame (recursive nested split in the left panel).
+	Graphics::ManagedSurface *_sbsScratch = nullptr;
 	// Return a persistent scratch surface of (w,h) in RGBA32, reallocated only when
 	// the overlay size changes — avoids a fresh ManagedSurface alloc/free every frame.
 	Graphics::ManagedSurface *scratchScene(int w, int h);

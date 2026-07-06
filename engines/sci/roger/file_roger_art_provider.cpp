@@ -1589,7 +1589,18 @@ void FileRogerArtProvider::presentComparison() {
 		return;
 
 	const Graphics::PixelFormat rgba(4, 8, 8, 8, 8, 24, 16, 8, 0);
-	Graphics::ManagedSurface &out = *scratchScene(OW, OH);
+	// Dedicated buffer — NEVER the renderScene scratch. renderScene redraws only
+	// its seed union each frame and relies on the scratch's other pixels
+	// persisting from prior frames; composing the split layout into that same
+	// buffer left SBS pixels outside the next frame's union, which a later full
+	// _compositeCache copy then baked in — presentComparison scaled its OWN
+	// previous output into the left panel (recursive nested split, seen in the
+	// SQ3 pod room where idle frames use small bounded seeds).
+	if (!_sbsScratch || _sbsScratch->w != OW || _sbsScratch->h != OH) {
+		delete _sbsScratch;
+		_sbsScratch = new Graphics::ManagedSurface(OW, OH, rgba);
+	}
+	Graphics::ManagedSurface &out = *_sbsScratch;
 	out.clear(out.format.ARGBToColor(255, 0, 0, 0)); // opaque black letterbox
 
 	Common::Rect leftF, rightF;
@@ -1631,6 +1642,22 @@ void FileRogerArtProvider::presentComparison() {
 			Roger::scaleBlitNearest(*out.surfacePtr(), rightF, *live);
 			live->free();
 			delete live;
+		}
+	}
+
+	// The side-by-side window is fully SYNTHETIC: no native pixel may show
+	// through. The enhanced composite copied into the left panel carries the
+	// transparent status-bar strip (designed for enhanced mode, where it aligns
+	// with the native score row) — but the backend still renders the native game
+	// at the ENHANCED-mode rect, misaligned with both panels, so its pixels bled
+	// through that strip as a stretched garbage band across the panel top.
+	// Force the whole frame opaque before presenting.
+	{
+		const uint32 amask = out.format.ARGBToColor(255, 0, 0, 0);
+		for (int y = 0; y < out.h; y++) {
+			uint32 *px = (uint32 *)out.getBasePtr(0, y);
+			for (int x = 0; x < out.w; x++)
+				px[x] |= amask;
 		}
 	}
 
@@ -3273,6 +3300,7 @@ FileRogerArtProvider::~FileRogerArtProvider() {
 	delete _altTextRenderer; _altTextRenderer = nullptr;
 	if (_sceneCache) { delete _sceneCache; _sceneCache = nullptr; }
 	if (_scratchScene) { delete _scratchScene; _scratchScene = nullptr; }
+	if (_sbsScratch) { delete _sbsScratch; _sbsScratch = nullptr; }
 	if (_compositeCache) { delete _compositeCache; _compositeCache = nullptr; }
 	if (_cursorSurf) { _cursorSurf->free(); delete _cursorSurf; _cursorSurf = nullptr; }
 	for (uint i = 0; i < _uiIcons.size(); i++) { _uiIcons[i]->free(); delete _uiIcons[i]; }
