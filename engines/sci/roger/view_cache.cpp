@@ -32,6 +32,10 @@ ViewCache::ViewCache(const Common::String &viewsBasePath) {
 }
 
 ViewCache::~ViewCache() {
+	clear();
+}
+
+void ViewCache::clear() {
 	for (Common::HashMap<Common::String, Graphics::Surface *>::iterator it = _genCels.begin(); it != _genCels.end(); ++it) {
 		if (it->_value) {
 			it->_value->free();
@@ -39,6 +43,10 @@ ViewCache::~ViewCache() {
 		}
 	}
 	_genCels.clear();
+}
+
+void ViewCache::insertForTest(int viewId, int loopNo, int celNo, Graphics::Surface *s) {
+	_genCels[Common::String::format("%d/%d/%d", viewId, loopNo, celNo)] = s;
 }
 
 const Graphics::Surface *ViewCache::getCel(int viewId, int loopNo, int celNo) {

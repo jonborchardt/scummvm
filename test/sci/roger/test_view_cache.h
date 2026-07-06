@@ -33,4 +33,19 @@ public:
 		TS_ASSERT(cache.getCel(900, 0, 0) == nullptr);
 		TS_ASSERT(cache.getCel(900, 0, 0) == nullptr); // cached known-missing
 	}
+
+	// Tune panel: clear() frees every cached cel (incl. cached-nullptr
+	// misses) so the next getCel regenerates with the new variant.
+	void test_clear_empties_generated_cels() {
+		Sci::Roger::ViewCache vc("unused");
+		Graphics::Surface *s = new Graphics::Surface();
+		s->create(4, 4, Graphics::PixelFormat(4, 8, 8, 8, 8, 24, 16, 8, 0));
+		vc.insertForTest(7, 0, 1, s);           // owned by the cache now
+		vc.insertForTest(7, 0, 2, nullptr);     // cached miss
+		TS_ASSERT_EQUALS(vc.genCelCount(), 2u);
+		vc.clear();
+		TS_ASSERT_EQUALS(vc.genCelCount(), 0u);
+		// No generator set: getCel after clear is a clean nullptr, no stale entry.
+		TS_ASSERT(vc.getCel(7, 0, 1) == nullptr);
+	}
 };

@@ -46,6 +46,15 @@ public:
 	// cel on first use and caches it. This is the only cel source.
 	void setGenerator(RogerAssetGen *g) { _gen = g; }
 
+	// TEMPORARY DEBUG TOOL (tune panel, spec 2026-07-05) — delete with the
+	// panel unless another caller has adopted it by then. Frees every cached
+	// cel (including cached-nullptr misses); next getCel regenerates.
+	void clear();
+
+	// White-box test shims (test_view_cache.h only).
+	uint genCelCount() const { return _genCels.size(); }
+	void insertForTest(int viewId, int loopNo, int celNo, Graphics::Surface *s);
+
 private:
 	RogerAssetGen *_gen = nullptr;
 	// Generated cels (owned). Key "viewId/loopNo/celNo". nullptr entries are
