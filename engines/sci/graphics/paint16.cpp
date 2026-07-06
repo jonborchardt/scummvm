@@ -702,16 +702,18 @@ reg_t GfxPaint16::kernelDisplay(const char *text, uint16 languageSplitter, int a
 	if (doSaveUnder)
 		result = bitsSave(rect, GFX_SCREEN_MASK_VISUAL);
 
-	// Roger hires dialogs: capture the blocking message box (gated on doSaveUnder so
-	// only blocking text is composited; transient non-blocking text does not flicker
-	// the overlay). rect here is already global/offset for the display path.
-	if (doSaveUnder && g_sciRogerProvider && g_sciRogerProvider->enabled) {
+	// Roger: the kDisplay TEXT itself is captured PER LINE inside GfxText16::Box
+	// (exact placed rects — the whole-string element this hook used to push
+	// re-wrapped multi-line text at TTF metrics, drifting/overlapping the SQ3
+	// intro credits, and its 70%-coverage dedupe then dropped the accurate
+	// per-line captures). Only the opaque background fill still needs a hires
+	// mirror; token = the save-under handle, so the box dies with the restore
+	// exactly like the old element did.
+	if (doSaveUnder && g_sciRogerProvider && g_sciRogerProvider->enabled && colorBack != -1) {
 		const uint32 tok = ((uint32)result.getSegment() << 16) | result.getOffset();
-		int16 nfw = 0, nfh = 0;
-		_text16->StringWidth(text, _text16->GetFontId(), nfw, nfh);
-		g_sciRogerProvider->uiPushText(rect, text, colorPen >= 0 ? colorPen : 0,
+		g_sciRogerProvider->uiPushText(rect, "", colorPen >= 0 ? colorPen : 0,
 		                               colorBack, -1, alignment, tok,
-		                               0 /*body*/, false, nfh, 0 /*multi-line: no width cap*/);
+		                               0 /*body*/, false, 0, 0);
 	}
 
 	if (colorBack != -1)
@@ -736,14 +738,30 @@ reg_t GfxPaint16::kernelDisplay(const char *text, uint16 languageSplitter, int a
 	// display area before printing the text. The other (non-PQ2) PC-98 versions use a lowres font here, so this fix is only for
 	// PQ2 PC-98 and for the Korean fan translations.
 	bool needCJKFix = (g_sci->getLanguage() == Common::KO_KOR || (g_sci->getPlatform() == Common::kPlatformPC98 && g_sci->getGameId() == GID_PQ2));
-	if (needCJKFix && !_screen->_picNotValid && bRedraw)
+	// Roger: bracket the kDisplay flush shows so Feeder B does not pixel-stamp
+	// text that is already composited semantically (per-line capture inside
+	// GfxText16::Box) — the stamp duplicated every kDisplay line at its native
+	// draw position next to the TTF render (the SQ3 intro's doubled credits).
+	// Only the two bitsShow calls are bracketed: Box must stay OUTSIDE the
+	// bracket or its onNativeText capture is depth-suppressed.
+	if (needCJKFix && !_screen->_picNotValid && bRedraw) {
+		if (g_sciRogerProvider && g_sciRogerProvider->enabled)
+			g_sciRogerProvider->beginNativeDraw();
 		bitsShow(rect);
+		if (g_sciRogerProvider && g_sciRogerProvider->enabled)
+			g_sciRogerProvider->endNativeDraw();
+	}
 
 	_text16->Box(text, languageSplitter, needCJKFix, rect, alignment, -1);
 
 	// See comment above.
-	if (!needCJKFix && _screen->_picNotValid == 0 && bRedraw)
+	if (!needCJKFix && _screen->_picNotValid == 0 && bRedraw) {
+		if (g_sciRogerProvider && g_sciRogerProvider->enabled)
+			g_sciRogerProvider->beginNativeDraw();
 		bitsShow(rect);
+		if (g_sciRogerProvider && g_sciRogerProvider->enabled)
+			g_sciRogerProvider->endNativeDraw();
+	}
 
 	// restoring port and cursor pos
 	Port *currport = _ports->getPort();

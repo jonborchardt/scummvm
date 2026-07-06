@@ -677,6 +677,41 @@ void GfxText16::Box(const char *text, uint16 languageSplitter, bool show, const 
 		} else {
 			Draw(curTextLine, 0, charCount, fontId, previousPenColor);
 		}
+
+		// Roger: capture each drawn LINE with its exact placed rect (offset already
+		// encodes the alignment; textWidth/textHeight are the measured extent). A
+		// single whole-box capture (the old post-loop hook) carried the caller's
+		// REQUESTED rect — much wider/taller than the pixels actually drawn — which
+		// (a) re-wrapped multi-line text at TTF metrics, drifting every line from its
+		// native row (the SQ3 intro credits interleave two Display blocks by row, so
+		// drifted lines overlapped), and (b) never satisfied the save-under rollback's
+		// containment test (the restore rect covers only the DRAWN pixels), so
+		// dismissed text ghosted until room change.
+		if (g_sciRogerProvider && g_sciRogerProvider->enabled && textWidth > 0) {
+			Common::String lineText(curTextLine, (uint32)charCount);
+			while (lineText.size() &&
+			       (lineText.lastChar() == '\n' || lineText.lastChar() == '\r' || lineText.lastChar() == ' '))
+				lineText.deleteLastChar();
+			if (!lineText.empty()) {
+				// Port-local -> GLOBAL 320x200 screen space (matches every controls16
+				// hook and the global erase/restore rects; see the deleted post-loop
+				// hook's comment in git history for the ghosting this prevented).
+				Common::Rect lineRect(rect.left + offset, rect.top + hline,
+				                      rect.left + offset + textWidth, rect.top + hline + textHeight);
+				_ports->offsetRect(lineRect);
+				// Scope the capture to the window/port the text was drawn in, in the
+				// generic text namespace (0x60000000 | port->id) — GfxPorts::removeWindow
+				// clears this token on dispose; picture-port text survives to room change.
+				const Port *curPort = _ports->getPort();
+				const uint32 winToken = 0x60000000u | (uint32)(curPort ? curPort->id : 0);
+				// NOTE: capture regardless of `show` — SCI0 EGA draws almost all text
+				// with show=false (flushed later via kGraphUpdateBox/bitsShow); gating
+				// on show missed all of it.
+				g_sciRogerProvider->onNativeText(lineRect, lineText.c_str(), fontId,
+				                                 previousPenColor, SCI_TEXT16_ALIGNMENT_LEFT,
+				                                 textHeight, textWidth, winToken);
+			}
+		}
 		lineCount++;
 
 		hline += textHeight;
@@ -685,36 +720,9 @@ void GfxText16::Box(const char *text, uint16 languageSplitter, bool show, const 
 	SetFont(previousFontId);
 	_ports->penColor(previousPenColor);
 
-	if (g_sciRogerProvider && g_sciRogerProvider->enabled) {
-		// Game-agnostic: hand the whole drawn string + its box to Roger so it can re-render
-		// it crisply. NOTE: we capture regardless of `show`. In SCI0 EGA almost all text is
-		// drawn with show=false (drawn into the buffer here, then flushed by a separate
-		// kGraphUpdateBox/bitsShow) — e.g. QFG1 character-screen stat labels/values via the
-		// kDisplay path (GfxPaint16 paint16.cpp ~706, show=needCJKFix=false on EGA). Gating
-		// on show==true (the SCI1+ driver-text case) missed all of it. previousPenColor is
-		// the pen the draw used; rect is the text box. (The SCI11+ `stroke` shadow passes
-		// call Box show=false too, but stroke is unused on the SCI0 EGA targets Roger supports.)
-		const int nativeFontH = textHeight;                              // uniform per-line cell height
-		const int nativeTextW = (lineCount <= 1) ? maxTextWidth : 0;    // width cap only for single-line
-		// `rect` is port-LOCAL (the draw loop moves the pen via _ports->moveTo(rect.left,...)).
-		// Convert to GLOBAL 320x200 screen space before handing it to Roger, exactly as every
-		// controls16 hook does (offsetRect). Without this, text drawn in a window with a
-		// non-zero port origin (narration/Print windows, dialog/message windows) was stored in
-		// local coords: it rendered offset by the port origin AND, fatally, never matched the
-		// GLOBAL erase rects from bitsRestore/kGraphRedrawBox (onNativeEraseRect's contains()
-		// test failed), so the text ghosted until room change. Globalizing fixes both.
-		Common::Rect gRect = rect;
-		_ports->offsetRect(gRect);
-		// Scope the capture to the window/port the text was drawn in, in the generic text
-		// namespace (0x60000000 | port->id) — mirrors controls16's 0x40000000 | id scheme.
-		// GfxPorts::removeWindow clears this token on window dispose, so dialog/message text
-		// vanishes with its window; text on the persistent picture port survives until room
-		// change (char-screen labels etc.).
-		const Port *curPort = _ports->getPort();
-		const uint32 winToken = 0x60000000u | (uint32)(curPort ? curPort->id : 0);
-		g_sciRogerProvider->onNativeText(gRect, text, fontId, previousPenColor, (int)alignment,
-		                                 nativeFontH, nativeTextW, winToken);
-	}
+	// Roger text capture happens PER LINE inside the draw loop above (exact placed
+	// rect per line); the old whole-box capture that lived here was deleted — see
+	// the in-loop comment for why (re-wrap drift + rollback containment misses).
 }
 
 void GfxText16::DrawString(const Common::String &textOrig) {
