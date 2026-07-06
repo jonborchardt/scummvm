@@ -281,6 +281,7 @@ SciEvent EventManager::getScummVMEvent() {
 	//   Ctrl+Shift+, - remove a line pass
 	//   Ctrl+Shift+R - reload roger_omyac_passes from ConfMan and regenerate
 	//   Ctrl+Shift+F - cycle the dialog/body font through the in-engine shortlist
+	//   F12 / Ctrl+Shift+T - toggle the quick-tune panel (TEMPORARY debug tool)
 	if (ev.type == Common::EVENT_KEYDOWN && g_sciRogerProvider) {
 		const Common::KeyCode kc = ev.kbd.keycode;
 		const bool ctrlShift = (ev.kbd.flags & Common::KBD_CTRL) && (ev.kbd.flags & Common::KBD_SHIFT);
@@ -324,6 +325,21 @@ SciEvent EventManager::getScummVMEvent() {
 			g_sciRogerProvider->cycleBodyFont();
 			return noEvent;
 		}
+		if (kc == Common::KEYCODE_F12 || (ctrlShift && kc == Common::KEYCODE_t)) {
+			g_sciRogerProvider->toggleTunePanel();
+			return noEvent;
+		}
+	}
+
+	// TEMPORARY DEBUG TOOL: while the Roger tune panel is open, button events
+	// over the panel are consumed by it (mousePos is game-space 320x200; the
+	// provider hit-tests in the same space). Everything else passes through
+	// so the game stays playable. Delete with the tune panel.
+	if (g_sciRogerProvider &&
+	    (ev.type == Common::EVENT_LBUTTONDOWN || ev.type == Common::EVENT_LBUTTONUP ||
+	     ev.type == Common::EVENT_RBUTTONDOWN || ev.type == Common::EVENT_RBUTTONUP)) {
+		if (g_sciRogerProvider->tunePanelMouse(ev.type == Common::EVENT_LBUTTONDOWN, mousePos))
+			return noEvent;
 	}
 
 	int scummVMKeyFlags;
