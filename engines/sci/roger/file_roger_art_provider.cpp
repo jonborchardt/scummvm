@@ -38,6 +38,7 @@
 #include "sci/roger/view_cache.h"
 #include "sci/roger/slice_set.h"
 #include "sci/roger/roger_pic_parser.h"
+#include "sci/roger/roger_view_scaler.h"
 // animate.h references these SCI engine types in GfxAnimate's interface but does
 // not declare them itself. This translation unit includes animate.h (to iterate
 // the AnimateList in renderFromAnimateList) without first pulling in the full
@@ -1194,6 +1195,11 @@ void FileRogerArtProvider::buildCursorFromView(int viewId, int loopNo, int celNo
 
 void FileRogerArtProvider::compositeCursor(Graphics::ManagedSurface &scene,
                                            const Common::Rect &gameRect) {
+	// TEMPORARY DEBUG TOOL: quick-tune panel rides the cursor layer — drawn at
+	// every present site, above scene+UI, below the cursor. Never cached.
+	if (_tunePanel.open && _mode == Roger::kModeEnhanced)
+		Roger::drawTunePanel(scene, gameRect, _tunePanel, _tuneWidgets);
+
 	// The native OS cursor is invisible over the OSystem overlay, so draw our own
 	// arrow into the overlay scene at the mouse position.
 	const Common::Rect dst = cursorDstRect(gameRect);
@@ -2904,6 +2910,116 @@ void FileRogerArtProvider::reloadGenConfig() {
 	regenInPlace();
 }
 
+// ── TEMPORARY DEBUG TOOL: in-game quick-tune panel (spec 2026-07-05) ─────────
+
+void FileRogerArtProvider::markTunePanelDirty() {
+	if (!_compositor)
+		return;
+	_barrierDirty = true;
+	if (_lastGameRect.isEmpty()) {
+		_compositor->forceFullPresent();
+		return;
+	}
+	Common::Rect d = Roger::sciRectToDest(Roger::tunePanelRect(), _lastGameRect);
+	d.grow(2); // absorb mapping rounding vs the drawn border
+	_compositor->addDirtyRect(d);
+}
+
+void FileRogerArtProvider::toggleTunePanel() {
+	// Enhanced mode only: original/side-by-side have no place to draw it.
+	if (!enabled || _mode != Roger::kModeEnhanced || !_assetGen)
+		return;
+	_tunePanel.open = !_tunePanel.open;
+	if (_tunePanel.open) {
+		_tunePanel.variant = _assetGen->viewVariant();
+		// enhancePasses() is always concrete here (the ctor seeds it from config).
+		_tunePanel.stagedPasses = _assetGen->enhancePasses();
+		_tunePanel.appliedPasses = _tunePanel.stagedPasses;
+		_tunePanel.selectedChip = -1;
+		_tunePanel.hoverId = 0;
+		Roger::buildTunePanel(_tunePanel, _tuneWidgets);
+	}
+	debug("ROGER tunePanel: %s", _tunePanel.open ? "open" : "closed");
+	markTunePanelDirty();
+	presentBarrier();
+}
+
+void FileRogerArtProvider::tuneApplyVariant(int preset) {
+	_tunePanel.variant = preset;
+	if (!_assetGen || preset == _assetGen->viewVariant())
+		return;
+	_assetGen->setViewVariant(preset);
+	if (_viewCache)
+		_viewCache->clear();
+	debug("ROGER tunePanel: view variant -> %d (%s)", preset,
+	      Roger::viewScalerPreset(preset).id);
+	// Sprites re-pull cels through the ViewCache next animate cycle; a full
+	// present then restyles everything on screen (event-driven, not per-cycle).
+	markFullDirty();
+}
+
+void FileRogerArtProvider::tuneApplyStagedPasses() {
+	if (!_assetGen || Roger::tunePassesEqual(_tunePanel.stagedPasses, _tunePanel.appliedPasses))
+		return; // Apply with nothing pending is a no-op
+	_assetGen->setEnhancePasses(_tunePanel.stagedPasses);
+	const Common::Array<int> configPasses =
+		parseOmyacPasses(ConfMan.hasKey("roger_omyac_passes"),
+		                 ConfMan.hasKey("roger_omyac_passes") ? ConfMan.get("roger_omyac_passes") : "");
+	if (Roger::tunePassesEqual(_tunePanel.stagedPasses, configPasses)) {
+		// Back at the launch config: restore the pre-tuning mode so room loads
+		// return to cache speed. (The variant never flips the mode — spec §3.)
+		if (_tuneModeRemembered) {
+			_assetGen->setMode(_tunePreTuneMode);
+			_tuneModeRemembered = false;
+		}
+	} else if (_assetGen->mode() != Roger::kGenMemory) {
+		// Tuned passes must generate in memory — never churn the disk cache.
+		_tunePreTuneMode = _assetGen->mode();
+		_tuneModeRemembered = true;
+		_assetGen->setMode(Roger::kGenMemory);
+	}
+	const uint32 t0 = g_system->getMillis();
+	regenInPlace();
+	_tunePanel.lastGenMs = g_system->getMillis() - t0;
+	_tunePanel.appliedPasses = _tunePanel.stagedPasses;
+	debug("ROGER tunePanel: applied %u passes in %ums",
+	      (unsigned)_tunePanel.appliedPasses.size(), _tunePanel.lastGenMs);
+}
+
+bool FileRogerArtProvider::tunePanelMouse(bool buttonDown, const Common::Point &gamePos) {
+	if (!_tunePanel.open || _mode != Roger::kModeEnhanced)
+		return false;
+	if (!Roger::tunePanelRect().contains(gamePos))
+		return false; // outside: game plays on
+	if (!buttonDown)
+		return true; // swallow ups / right-clicks over the panel, no action
+	const uint32 id = Roger::hitTestWidgets(_tuneWidgets, gamePos.x, gamePos.y);
+	switch (Roger::widKind(id)) {
+	case Roger::kTuneClose:     _tunePanel.open = false; break;
+	case Roger::kTuneVariantRow: tuneApplyVariant(Roger::widIndex(id)); break;
+	case Roger::kTuneChip:      _tunePanel.selectedChip = Roger::widIndex(id); break;
+	case Roger::kTuneChipX:     Roger::passRemoveAt(_tunePanel.stagedPasses, _tunePanel.selectedChip); break;
+	case Roger::kTuneChipLeft:  Roger::passMove(_tunePanel.stagedPasses, _tunePanel.selectedChip, -1); break;
+	case Roger::kTuneChipRight: Roger::passMove(_tunePanel.stagedPasses, _tunePanel.selectedChip, +1); break;
+	case Roger::kTuneChipAddF:  Roger::passInsertAfter(_tunePanel.stagedPasses, _tunePanel.selectedChip, 2); break;
+	case Roger::kTuneChipAddL:  Roger::passInsertAfter(_tunePanel.stagedPasses, _tunePanel.selectedChip, 1); break;
+	case Roger::kTuneChipAddA:  Roger::passInsertAfter(_tunePanel.stagedPasses, _tunePanel.selectedChip, 0); break;
+	case Roger::kTuneClear:     _tunePanel.stagedPasses.clear(); _tunePanel.selectedChip = -1; break;
+	case Roger::kTuneReset:
+		_tunePanel.stagedPasses =
+			parseOmyacPasses(ConfMan.hasKey("roger_omyac_passes"),
+			                 ConfMan.hasKey("roger_omyac_passes") ? ConfMan.get("roger_omyac_passes") : "");
+		_tunePanel.selectedChip = -1;
+		break;
+	case Roger::kTuneApply:     tuneApplyStagedPasses(); break;
+	default: break; // click on panel background: consumed, no action
+	}
+	Roger::buildTunePanel(_tunePanel, _tuneWidgets);
+	markTunePanelDirty();
+	presentBarrier();
+	return true;
+}
+
 void FileRogerArtProvider::diagDumpState(const char *where) {
 	if (!_diag)
 		return;
@@ -2940,6 +3056,16 @@ void FileRogerArtProvider::onNativePicture() {
 }
 
 void FileRogerArtProvider::onMouseMoved() {
+	// TEMPORARY DEBUG TOOL: tune-panel hover tracking (game-space hit test).
+	if (_tunePanel.open && _mode == Roger::kModeEnhanced) {
+		const Common::Point mp = g_system->getEventManager()->getMousePos();
+		const uint32 h = Roger::hitTestWidgets(_tuneWidgets, mp.x, mp.y);
+		if (h != _tunePanel.hoverId) {
+			_tunePanel.hoverId = h;
+			markTunePanelDirty();
+		}
+	}
+
 	if (_mode == Roger::kModeSideBySide) {
 		// Re-present the split layout so the single composited cursor tracks the pointer.
 		if (_haveScene)

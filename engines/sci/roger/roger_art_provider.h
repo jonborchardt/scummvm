@@ -246,6 +246,14 @@ public:
 	// rebuild the body text renderer live (for judging fonts in-game). No-op in base.
 	virtual void cycleBodyFont() {}
 
+	// TEMPORARY DEBUG TOOL (tune panel, spec 2026-07-05) — delete with the
+	// panel. F12 / Ctrl+Shift+T toggles the in-game quick-tune panel;
+	// tunePanelMouse routes a button event at gamePos (320x200 game space) and
+	// returns true when the panel consumed it (event.cpp then swallows it so
+	// the game never sees clicks on the panel). No-ops in the base.
+	virtual void toggleTunePanel() {}
+	virtual bool tunePanelMouse(bool buttonDown, const Common::Point &gamePos) { return false; }
+
 	// Returns true when the hires overlay is currently visible (i.e. F10 has not
 	// hidden it). Used to gate overlay-specific effects (transitions, shake): when
 	// the overlay is hidden the user is viewing the native 320x200 render, so native

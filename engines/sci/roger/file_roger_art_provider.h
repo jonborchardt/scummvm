@@ -28,6 +28,7 @@
 #include "sci/roger/roger_compositor.h"
 #include "sci/roger/roger_journal.h"
 #include "sci/roger/roger_input.h"
+#include "sci/roger/roger_tune_panel.h"
 #include "common/array.h"
 #include "common/str.h"
 #include "common/path.h"
@@ -83,6 +84,8 @@ public:
 	void tuneEnhancePasses(int delta, int which) override; // Ctrl+Shift+]/[ add/remove fill; '/; add/remove all
 	void reloadGenConfig() override; // Ctrl+Shift+R: re-read roger_omyac_passes from ConfMan
 	void cycleBodyFont() override; // Ctrl+Shift+F: rotate dialog font through the shortlist
+	void toggleTunePanel() override;  // F12 / Ctrl+Shift+T (TEMPORARY debug tool)
+	bool tunePanelMouse(bool buttonDown, const Common::Point &gamePos) override;
 
 	// UI display-list capture (Roger hires dialogs) — see roger_art_provider.h.
 	void uiPushWindow(const Common::Rect &globalRect, int backColor, int penColor,
@@ -313,6 +316,17 @@ private:
 	// Regenerate the current room's plate in place and re-push the overlay.
 	// No-op if no room is loaded (_loadedPicId < 0) or _assetGen is null.
 	void regenInPlace();
+
+	// ── TEMPORARY DEBUG TOOL: in-game quick-tune panel (spec 2026-07-05) ──────
+	// Delete this whole block (and the compositeCursor/onMouseMoved/event.cpp
+	// seams) when the MMPX judging is done.
+	Roger::TunePanelState _tunePanel;
+	Common::Array<Roger::StudioWidget> _tuneWidgets;
+	Roger::GenMode _tunePreTuneMode = Roger::kGenCache; // mode before Apply first forced kGenMemory
+	bool _tuneModeRemembered = false;
+	void markTunePanelDirty();           // dirty ONLY the panel rect + presentBarrier arm
+	void tuneApplyVariant(int preset);   // immediate: set variant, flush ViewCache, full dirty
+	void tuneApplyStagedPasses();        // Apply: setEnhancePasses + mode juggling + regenInPlace
 
 	// Render each unique non-ASCII byte of `text` as a glyph surface from the game's
 	// SCI font (fontId, penColor), own it in _uiIcons, and append {byte,surface} to
