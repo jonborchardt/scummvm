@@ -84,7 +84,7 @@ For each game, the launcher shows:
 - **Cache status** (number of cached pics/views)
 - **Per-game settings** that update when a different game is selected:
   - **Pre-cache** (Off/Pictures/All) — controls what is generated on demand before launch
-  - **Enhancement** (number of omyac passes)
+  - **Passes** (the raw `roger_omyac_passes` string, round-tripped verbatim to the ini; shows `ffflffaaaa` when the key is unset)
   - **Font** (cycles through the same shortlist as Ctrl+Shift+F in-game)
   - **Fallback** (hardware cursor / cursor size)
 
@@ -102,7 +102,7 @@ All are optional `scummvm.ini` keys (only read when present).
 |-----|---------|---------|
 | `roger_gen_mode` | `cache` | in-engine art generation mode: `cache` = generate on a miss, load from the content cache on a hit; `memory` = generate, never write; `always` = regenerate + overwrite; `prebuilt` = the off-switch (native-only render, no Roger overlay) |
 | `roger_precache` | `off` | scope of the synchronous startup warm-up: `all`, `pics`, `views`, `off`. The Roger launcher's per-game settings are the normal opt-in path (it sets this key); the warm-up only runs when the launcher is skipped |
-| `roger_omyac_passes` | unset | enhance-pass list for the omyac pipeline. Unset = default sequence; empty string = wireframe (zero passes); otherwise tokens (`fill`/`f`, `line`/`l`, `all`/`a`). Tunable live with Ctrl+Shift+[ ] / ; ' |
+| `roger_omyac_passes` | unset (= `ffflffaaaa`) | enhance-pass list for the omyac pipeline. Canonical form is a compact character string, one char per pass: `f`=fill, `l`=line, `a`=all (digits `2`/`1`/`0` also accepted) — the default is `ffflffaaaa`. Legacy space/comma-separated tokens (`fill`/`f`/`2`, `line`/`l`/`1`, `all`/`a`/`0`) still parse. Unset = the default sequence; empty string = wireframe (zero passes); unknown tokens warn and are skipped. The launcher's Passes field shows and saves this string verbatim. Tunable live with Ctrl+Shift+[ ] / ; ' |
 | `roger_no_launcher` | off | skip the Roger game-picker dialog at startup (also env `ROGER_NO_LAUNCHER`; `build_and_run.ps1 -SkipPicker`, auto-set by `-Game`) |
 | `roger_ui_font_scale` | `150` | nudge multiplier (percent) on the native-metric text-size baseline; 100 = no nudge |
 | `roger_ui_font` | `GoMono-Regular.ttf` | dialog/body font (from ScummVM's `fonts.dat`); can be cycled live with Ctrl+Shift+F. Per-game: set it on a game target to give each game its own font |
