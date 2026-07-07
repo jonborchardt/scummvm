@@ -301,7 +301,7 @@ is `test/sci/roger/scripts/qfg1-smoke.rin`.
 `build_and_run.ps1 -Studio` (env `ROGER_STUDIO=1`, per-launch) boots a **debug-only,
 mouse-driven tuning environment** instead of a game: a single scene — the enhanced plate
 with a view cel composited on it game-style (SQ3 defaults: pic 2, view 12 loop 1) — with
-two live A/B setting slots (params + passes + scaler variant + plate mode each (one scaler module — 6x — is registered today)), Split
+two live A/B setting slots (params + passes + scaler variant + plate mode each) — one scaler module, 6x, is registered today — Split
 and Diff comparison views with an automatic alignment readout, click-to-place/drag cel,
 and stamped PNG export. Everything is button-driven; Esc quits and E exports
 (automation-only keys). It never touches the generation disk cache.
