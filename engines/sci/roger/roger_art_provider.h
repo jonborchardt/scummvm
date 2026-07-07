@@ -256,8 +256,9 @@ public:
 	// rebuild the body text renderer live (for judging fonts in-game). No-op in base.
 	virtual void cycleBodyFont() {}
 
-	// TEMPORARY DEBUG TOOL (tune panel, spec 2026-07-05) — delete with the
-	// panel. F12 / Ctrl+Shift+T toggles the in-game quick-tune panel;
+	// DEBUG TOOL — tune-panel provider seams (spec 2026-07-05). MMPX judging
+	// concluded 2026-07-06 (s2>s3 shipped); the panel is kept (no scheduled
+	// deletion). F12 / Ctrl+Shift+T toggles the in-game quick-tune panel;
 	// tunePanelMouse routes a button event at gamePos (320x200 game space) and
 	// returns true when the panel consumed it (event.cpp then swallows it so
 	// the game never sees clicks on the panel). No-ops in the base.

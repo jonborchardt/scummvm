@@ -1239,8 +1239,8 @@ void FileRogerArtProvider::buildCursorFromView(int viewId, int loopNo, int celNo
 
 void FileRogerArtProvider::compositeCursor(Graphics::ManagedSurface &scene,
                                            const Common::Rect &gameRect) {
-	// TEMPORARY DEBUG TOOL: quick-tune panel rides the cursor layer — drawn at
-	// every present site, above scene+UI, below the cursor. Never cached.
+	// DEBUG TOOL: quick-tune panel rides the cursor layer — drawn at every
+	// present site, above scene+UI, below the cursor. Never cached.
 	if (_tunePanel.open && _mode == Roger::kModeEnhanced)
 		Roger::drawTunePanel(scene, gameRect, _tunePanel, _tuneWidgets);
 
@@ -3005,7 +3005,7 @@ void FileRogerArtProvider::reloadGenConfig() {
 	regenInPlace();
 }
 
-// ── TEMPORARY DEBUG TOOL: in-game quick-tune panel (spec 2026-07-05) ─────────
+// ── DEBUG TOOL: in-game quick-tune panel (spec 2026-07-05) ───────────────────
 
 void FileRogerArtProvider::markTunePanelDirty() {
 	if (!_compositor)
@@ -3155,7 +3155,7 @@ void FileRogerArtProvider::onNativePicture() {
 }
 
 void FileRogerArtProvider::onMouseMoved() {
-	// TEMPORARY DEBUG TOOL: tune-panel hover tracking (game-space hit test).
+	// DEBUG TOOL: tune-panel hover tracking (game-space hit test).
 	if (_tunePanel.open && _mode == Roger::kModeEnhanced) {
 		const Common::Point mp = g_system->getEventManager()->getMousePos();
 		const uint32 h = Roger::hitTestWidgets(_tuneWidgets, mp.x, mp.y);

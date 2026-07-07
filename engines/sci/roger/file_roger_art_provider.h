@@ -85,7 +85,7 @@ public:
 	void tuneEnhancePasses(int delta, int which) override; // Ctrl+Shift+]/[ add/remove fill; '/; add/remove all
 	void reloadGenConfig() override; // Ctrl+Shift+R: re-read roger_omyac_passes from ConfMan
 	void cycleBodyFont() override; // Ctrl+Shift+F: rotate dialog font through the shortlist
-	void toggleTunePanel() override;  // F12 / Ctrl+Shift+T (TEMPORARY debug tool)
+	void toggleTunePanel() override;  // F12 / Ctrl+Shift+T (debug tool — kept)
 	bool tunePanelMouse(bool buttonDown, const Common::Point &gamePos) override;
 
 	// UI display-list capture (Roger hires dialogs) — see roger_art_provider.h.

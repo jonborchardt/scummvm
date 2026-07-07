@@ -21,7 +21,7 @@
 #ifndef SCI_ROGER_ROGER_TUNE_PANEL_H
 #define SCI_ROGER_ROGER_TUNE_PANEL_H
 
-// TEMPORARY DEBUG TOOL — the in-game quick-tune panel (F12), spec
+// DEBUG TOOL — the in-game quick-tune panel (F12), spec
 // docs/superpowers/specs/2026-07-05-roger-tune-panel-design.md. Session-only
 // staged omyac pass edits behind Apply, plus view-scaler module selection
 // (registry-driven; a single module — the shipping 6x — is registered today,

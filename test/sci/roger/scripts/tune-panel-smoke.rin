@@ -1,7 +1,13 @@
-# TEMPORARY DEBUG TOOL smoke: tune panel (F12) - single 6x variant row + staged passes.
+# Tune panel (F12) smoke: single 6x variant row + staged passes.
+# MMPX judging concluded 2026-07-06 (s2>s3 shipped); panel is kept as the
+# pass-tuning debug tool (no scheduled deletion).
 # Geometry locked by test_tune_panel.h::test_script_geometry_lock (panel rect,
 # variant row 0, clear/apply). Ops-row clicks derive from the same layout:
 # +f center (278,165), +a center (306,165).
+# NOTE: chip-strip click coordinates depend on the variant-row count (rows flow
+# down 11 px per registered scaler). Ops-row and clear/reset/apply clicks are
+# bottom-anchored and safe. Re-derive chip coordinates if a second scaler module
+# ever registers.
 # Passes are STAGED via +f/+a rather than relying on Reset-to-config: a config
 # whose roger_omyac_passes tokens don't parse (e.g. numeric "2 1") yields an
 # empty live pass list, which would make Clear/Reset/Apply all no-ops.
