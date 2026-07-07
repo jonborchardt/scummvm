@@ -26,6 +26,7 @@
 // file ports Steps 2-8 and the top-level entry point.
 
 #include "sci/roger/roger_omyac.h"
+#include "sci/roger/roger_passes.h"
 
 #include <math.h>
 
@@ -768,19 +769,7 @@ static void fillNullPixels(const NativeRef &ref, Common::Array<byte> &buf,
 
 // ─── Top-level entry point ──────────────────────────────────────────────────────
 Common::Array<int> defaultPasses() {
-	// 3x fill, 1x line, 2x fill, 4x all (MODE_BY_NAME: fill=2, line=1, all=0).
-	Common::Array<int> passes;
-	passes.push_back(2);
-	passes.push_back(2);
-	passes.push_back(2);
-	passes.push_back(1);
-	passes.push_back(2);
-	passes.push_back(2);
-	passes.push_back(0);
-	passes.push_back(0);
-	passes.push_back(0);
-	passes.push_back(0);
-	return passes;
+	return parsePassString(kDefaultPassString);
 }
 
 OmyacResult renderOmyac(const NativeRef &ref, const Common::Array<int> &passes,

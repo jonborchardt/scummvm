@@ -20,6 +20,7 @@
 
 #include "sci/roger/roger_studio_render.h"
 #include "sci/roger/roger_view_scaler.h"
+#include "sci/roger/roger_passes.h"
 #include "common/util.h"
 
 namespace Sci {
@@ -89,10 +90,7 @@ void omyacParamSet(OmyacParams &p, int i, int value) {
 Common::String omyacPassStamp(const Common::Array<int> &passes) {
 	if (passes.empty())
 		return "none";
-	Common::String s;
-	for (uint i = 0; i < passes.size(); i++)
-		s += (passes[i] == 2) ? 'f' : (passes[i] == 1) ? 'l' : 'a';
-	return s;
+	return passString(passes);
 }
 
 Common::String omyacParamStamp(const OmyacParams &p) {

@@ -32,6 +32,7 @@
 #include "sci/roger/roger_compositor.h"
 #include "sci/roger/roger_coords.h"
 #include "sci/roger/roger_omyac.h"
+#include "sci/roger/roger_passes.h"
 #include "sci/roger/roger_journal.h"
 #include "sci/roger/roger_tokens.h"
 #include "sci/roger/roger_text.h"
@@ -243,12 +244,12 @@ FileRogerArtProvider::FileRogerArtProvider(const Common::String &gameId,
 	}
 
 	// roger_omyac_passes: three-state semantics —
-	//   unset           => default sequence (defaultPasses())
+	//   unset           => default sequence (kDefaultPassString)
 	//   set to ""       => wireframe (empty array = zero passes)
-	//   set to tokens   => parsed list (fill/f=2, line/l=1, all/a=0)
+	//   set to tokens   => parsed list (compact chars or fill/f=2, line/l=1, all/a=0)
 	_assetGen->setEnhancePasses(
-		parseOmyacPasses(ConfMan.hasKey("roger_omyac_passes"),
-		                 ConfMan.hasKey("roger_omyac_passes") ? ConfMan.get("roger_omyac_passes") : "")
+		Roger::effectivePasses(ConfMan.hasKey("roger_omyac_passes"),
+		                       ConfMan.hasKey("roger_omyac_passes") ? ConfMan.get("roger_omyac_passes") : "")
 	);
 
 }
@@ -2881,37 +2882,6 @@ void FileRogerArtProvider::cycleBodyFont() {
 // Live enhance-pass tuning helpers
 // ---------------------------------------------------------------------------
 
-Common::Array<int> FileRogerArtProvider::parseOmyacPasses(bool hasKey, const Common::String &passStr) const {
-	if (!hasKey)
-		return Roger::defaultPasses();
-	// hasKey + empty string = wireframe (zero passes).
-	Common::Array<int> passes;
-	Common::String tok;
-	for (uint i = 0; i <= passStr.size(); ++i) {
-		const char c = (i < passStr.size()) ? passStr[i] : '\0';
-		if (c == ',' || c == ' ' || c == '\t' || c == '\0') {
-			if (!tok.empty()) {
-				// Numeric tokens are the raw renderOmyac mode values (2=fill,
-				// 1=line, 0=all) — the same ints the cache key stamps as pNpN.
-				// Accepting them keeps hand-written configs like "2 1" working.
-				if (tok == "fill" || tok == "f" || tok == "2")
-					passes.push_back(2);
-				else if (tok == "line" || tok == "l" || tok == "1")
-					passes.push_back(1);
-				else if (tok == "all" || tok == "a" || tok == "0")
-					passes.push_back(0);
-				else
-					warning("ROGER: roger_omyac_passes token '%s' not recognized "
-					        "(use fill/f/2, line/l/1, all/a/0) — skipped", tok.c_str());
-				tok.clear();
-			}
-		} else {
-			tok += c;
-		}
-	}
-	return passes;
-}
-
 void FileRogerArtProvider::regenInPlace() {
 	if (!_assetGen || _loadedPicId < 0)
 		return;
@@ -2991,8 +2961,8 @@ void FileRogerArtProvider::reloadGenConfig() {
 	// Re-parse roger_omyac_passes from ConfMan using the same three-state logic
 	// as the constructor. The user edits the config file and presses Ctrl+Shift+R.
 	_assetGen->setEnhancePasses(
-		parseOmyacPasses(ConfMan.hasKey("roger_omyac_passes"),
-		                 ConfMan.hasKey("roger_omyac_passes") ? ConfMan.get("roger_omyac_passes") : "")
+		Roger::effectivePasses(ConfMan.hasKey("roger_omyac_passes"),
+		                       ConfMan.hasKey("roger_omyac_passes") ? ConfMan.get("roger_omyac_passes") : "")
 	);
 
 	// Keep in a generating mode so the reload actually produces a new plate.
@@ -3058,8 +3028,8 @@ void FileRogerArtProvider::tuneApplyStagedPasses() {
 		return; // Apply with nothing pending is a no-op
 	_assetGen->setEnhancePasses(_tunePanel.stagedPasses);
 	const Common::Array<int> configPasses =
-		parseOmyacPasses(ConfMan.hasKey("roger_omyac_passes"),
-		                 ConfMan.hasKey("roger_omyac_passes") ? ConfMan.get("roger_omyac_passes") : "");
+		Roger::effectivePasses(ConfMan.hasKey("roger_omyac_passes"),
+		                       ConfMan.hasKey("roger_omyac_passes") ? ConfMan.get("roger_omyac_passes") : "");
 	if (Roger::tunePassesEqual(_tunePanel.stagedPasses, configPasses)) {
 		// Back at the launch config: restore the pre-tuning mode so room loads
 		// return to cache speed. (The variant never flips the mode — spec §3.)
@@ -3106,8 +3076,8 @@ bool FileRogerArtProvider::tunePanelMouse(bool buttonDown, const Common::Point &
 	case Roger::kTuneClear:     _tunePanel.stagedPasses.clear(); _tunePanel.selectedChip = -1; break;
 	case Roger::kTuneReset:
 		_tunePanel.stagedPasses =
-			parseOmyacPasses(ConfMan.hasKey("roger_omyac_passes"),
-			                 ConfMan.hasKey("roger_omyac_passes") ? ConfMan.get("roger_omyac_passes") : "");
+			Roger::effectivePasses(ConfMan.hasKey("roger_omyac_passes"),
+			                       ConfMan.hasKey("roger_omyac_passes") ? ConfMan.get("roger_omyac_passes") : "");
 		_tunePanel.selectedChip = -1;
 		break;
 	case Roger::kTuneApply:     tuneApplyStagedPasses(); break;

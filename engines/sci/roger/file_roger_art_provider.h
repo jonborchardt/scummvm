@@ -322,12 +322,6 @@ private:
 	// Off by default; never on the steady-state path.
 	void runDiffCheck();
 
-	// Parse a roger_omyac_passes string (or the three-state unset/empty/tokens
-	// logic) into an enhance-pass array. Call with hasKey=false for the "unset"
-	// case (returns defaultPasses); hasKey=true with an empty string for wireframe
-	// (returns empty); hasKey=true with tokens for a parsed list.
-	Common::Array<int> parseOmyacPasses(bool hasKey, const Common::String &passStr) const;
-
 	// Regenerate the current room's plate in place and re-push the overlay.
 	// No-op if no room is loaded (_loadedPicId < 0) or _assetGen is null.
 	void regenInPlace();

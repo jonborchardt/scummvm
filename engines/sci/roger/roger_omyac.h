@@ -42,9 +42,9 @@ struct OmyacResult {
 	Common::Array<byte> backfilled;
 };
 
-// Default enhance pass sequence: 3x fill, 1x line, 2x fill, 4x all.
-// MODE_BY_NAME: fill=2, line=1, all=0. (Task 8 orchestrator decides whether to
-// use this or a custom list; renderOmyac itself runs exactly the passes given.)
+// Default enhance pass sequence: parsePassString(kDefaultPassString), i.e.
+// "ffflffaaaa" — 3x fill, 1x line, 2x fill, 4x all (MODE_BY_NAME: fill=2,
+// line=1, all=0). Kept as a convenience wrapper over roger_passes.h.
 Common::Array<int> defaultPasses();
 
 // Tunable internals of the omyac pipeline. A default-constructed OmyacParams
