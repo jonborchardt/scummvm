@@ -50,7 +50,7 @@ public:
 			default: break;
 			}
 		}
-		TS_ASSERT_EQUALS(variantRows, viewScalerPresetCount());
+		TS_ASSERT_EQUALS(variantRows, viewScalerCount());
 		TS_ASSERT_EQUALS(chips, 2);
 		TS_ASSERT(haveApply && haveClose && xEnabled);
 
@@ -67,21 +67,24 @@ public:
 		}
 	}
 
-	// The variant row for the current variant is marked on; hit-testing a
-	// row center returns that row (game-space coords, reused hitTestWidgets).
+	// The single registered module's row is marked on for variant 0;
+	// hit-testing the row center returns that row.
 	void test_variant_rows_and_hittest() {
 		TunePanelState st;
-		st.variant = 3;
+		st.variant = 0;
 		Common::Array<StudioWidget> w;
 		buildTunePanel(st, w);
+		int rows = 0;
 		for (uint i = 0; i < w.size(); i++) {
 			if (widKind(w[i].id) != kTuneVariantRow)
 				continue;
-			TS_ASSERT_EQUALS(w[i].on, widIndex(w[i].id) == 3);
+			rows++;
+			TS_ASSERT_EQUALS(w[i].on, widIndex(w[i].id) == 0);
 			const int cx = (w[i].rect.left + w[i].rect.right) / 2;
 			const int cy = (w[i].rect.top + w[i].rect.bottom) / 2;
 			TS_ASSERT_EQUALS(hitTestWidgets(w, cx, cy), w[i].id);
 		}
+		TS_ASSERT_EQUALS(rows, viewScalerCount());
 	}
 
 	// Geometry lock for the .rin verification script: the panel rect and the
@@ -97,8 +100,6 @@ public:
 		// Clicks used by test/sci/roger/scripts/tune-panel-smoke.rin:
 		TS_ASSERT_EQUALS(widKind(hitTestWidgets(w, 273, 31)), (int)kTuneVariantRow);
 		TS_ASSERT_EQUALS(widIndex(hitTestWidgets(w, 273, 31)), 0);
-		TS_ASSERT_EQUALS(widKind(hitTestWidgets(w, 273, 75)), (int)kTuneVariantRow);
-		TS_ASSERT_EQUALS(widIndex(hitTestWidgets(w, 273, 75)), 4);
 		TS_ASSERT_EQUALS(widKind(hitTestWidgets(w, 244, 177)), (int)kTuneClear);
 		TS_ASSERT_EQUALS(widKind(hitTestWidgets(w, 274, 177)), (int)kTuneReset);
 		TS_ASSERT_EQUALS(widKind(hitTestWidgets(w, 303, 177)), (int)kTuneApply);

@@ -26,52 +26,45 @@
 namespace Sci {
 namespace Roger {
 
-// Composable view-cel upscaler pipelines. A pipeline is an ordered list of
-// primitive integer-factor kernels applied LEFT TO RIGHT; its total factor is
-// the product of the kernel factors. Preset ids are stable, filename-safe
-// strings intended to become disk-cache transform names if a pipeline is
-// ever promoted to the shipping path (generateViewCel's "scale6x" key slot).
-// The shipping path does NOT consume this registry yet — Roger Studio is the
-// only caller. Preset 0 is locked byte-identical to scale6x() by unit test.
-
-enum ScaleKernel {
-	kKernScale2x = 0, // EPX/Scale2x
-	kKernScale3x,     // Scale3x (EPX-9)
-	kKernNearest2,    // nearest-neighbour x2 (blocky reference)
-	kKernNearest3,    // nearest-neighbour x3 (blocky reference)
-	kKernMMPX,        // MMPX 2x (style-preserving; needs clearKey for luma)
-	kKernCount
+// Registry of view-cel upscaler modules. Entry 0 is the shipping scaler —
+// scale6x() == scale3x(scale2x(in)) — locked byte-identical by unit test
+// (test_view_scaler.h). It is the only registered module today, so every
+// selection UI (tune panel variant rows, Studio variant button / grid)
+// shows exactly one option: 6x.
+//
+// To add a new scaler module:
+//   1. Implement `IndexImage myScale(const IndexImage &in, byte clearKey);`
+//      in its own source file (clearKey = the cel's transparent palette
+//      index, for scalers that need a luma/clear channel).
+//   2. Append one row to SCALERS[] in roger_view_scaler.cpp: a stable,
+//      filename-safe id (it becomes the disk-cache transform name if the
+//      module is ever promoted to the shipping path), a UI label, the
+//      integer upscale factor, and the function pointer.
+// Non-6x factors are normalized onto the 6x plate grid by
+// applyViewScalerTo6x, so any integer factor is selectable.
+struct ViewScaler {
+	const char *id;     // filename-safe, unique, stable
+	const char *label;  // UI label (tune panel row / Studio variant button)
+	int factor;         // integer upscale factor of scale()
+	IndexImage (*scale)(const IndexImage &in, byte clearKey);
 };
 
-int kernelFactor(int k);       // 2 or 3
-const char *kernelCode(int k); // "s2" "s3" "n2" "n3" "mx"
-IndexImage applyKernel(int k, const IndexImage &in, byte clearKey);
+int viewScalerCount();                   // >= 1; entry 0 = shipping module
+const ViewScaler &viewScaler(int i);     // i clamped to the valid range
+int viewScalerIndexById(const char *id); // -1 when unknown (or id == null)
+IndexImage applyViewScaler(int i, const IndexImage &in, byte clearKey);
 
-struct ViewScalerPreset {
-	const char *id;    // kernel codes joined by '-', e.g. "mx-mx-mx"
-	const char *label; // Studio panel label, e.g. "mmpx^3 8x"
-	int kernels[4];    // applied left to right; entries past kernelCount unused
-	int kernelCount;
-};
-
-int viewScalerPresetCount();
-const ViewScalerPreset &viewScalerPreset(int i); // i clamped to valid range
-int viewScalerPresetFactor(int i);
-IndexImage applyViewScalerPreset(int i, const IndexImage &in, byte clearKey);
-int viewScalerPresetIndexById(const char *id);   // -1 when unknown
+// Apply module i, then bring the result onto the 6x plate grid when the
+// module's factor is not 6 (exact-rational nearest resample below; keeps
+// cel geometry plate-aligned).
+IndexImage applyViewScalerTo6x(int i, const IndexImage &in, byte clearKey);
 
 // Exact-rational nearest resample: out(x,y) = in(x*in.w/outW, y*in.h/outH).
-// Brings a non-6x pipeline result onto the 6x plate grid without the
+// Brings a non-6x module result onto the 6x plate grid without the
 // truncated 8.8 fixed-point drift of ManagedSurface's blit scaler (the
 // resolved occlusion-misalignment bug class — never scale plate-aligned
 // content through blitFrom/blendBlitFrom).
 IndexImage resampleNearestExact(const IndexImage &in, int outW, int outH);
-
-// TEMPORARY DEBUG TOOL (tune panel, spec 2026-07-05) — delete with the panel.
-// Apply preset i, then resample onto the 6x plate grid when the preset's
-// factor is not 6 (the Studio's normalization; keeps cel geometry
-// plate-aligned). Preset 0 is byte-identical to scale6x().
-IndexImage applyViewScalerPresetTo6x(int i, const IndexImage &in, byte clearKey);
 
 } // namespace Roger
 } // namespace Sci

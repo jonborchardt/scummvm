@@ -152,11 +152,11 @@ bool estimateOffsetSAD(const byte *a, const byte *b, int w, int h, int radius,
 
 // ── Grid mode + animation helpers (pure; unit-tested) ───────────────────────
 
-// The 6 comparison pipelines, in tile order (row-major 2x3). Returns the
-// roger_view_scaler registry preset index for tile 0..5, or -1 if the preset
-// id is missing (registry drift — the caller should skip the tile).
+// One comparison tile per registered view-scaler module (row-major 2x3 grid,
+// max 6 tiles). gridPresetSlot returns the viewScaler registry index for
+// tile 0..gridTileCount()-1, or -1 for tiles past the registry (left empty).
 int gridPresetSlot(int tile);
-int gridTileCount(); // 6
+int gridTileCount(); // MIN(viewScalerCount(), 6)
 
 // Tile rect for the 2x3 grid inside `area`, 2 px gutters, row-major.
 Common::Rect gridTileRect(const Common::Rect &area, int tile);

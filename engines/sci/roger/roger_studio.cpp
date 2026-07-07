@@ -150,12 +150,10 @@ void RogerStudio::renderSlot(Slot &slot) {
 		IndexImage cel;
 		byte clearKey = 0;
 		if (_gen.nativeCelIndexImage(_viewIds[_viewIdx], _loopNo, _celNo, cel, clearKey)) {
-			IndexImage scaled = applyViewScalerPreset(slot.variant, cel, clearKey);
-			// Non-6x pipelines (8x/9x) are resampled onto the 6x plate grid so
-			// the 1:1 blit below and the Diff view stay pixel-exact. Exact
-			// rational only — never ManagedSurface's truncated 8.8 blit scaler.
-			if (viewScalerPresetFactor(slot.variant) != 6)
-				scaled = resampleNearestExact(scaled, cel.w * 6, cel.h * 6);
+			// applyViewScalerTo6x lands every module on the 6x plate grid
+			// (exact-rational resample for non-6x factors) so the 1:1 blit
+			// below and the Diff view stay pixel-exact.
+			IndexImage scaled = applyViewScalerTo6x(slot.variant, cel, clearKey);
 			Graphics::Surface *celSurf = _gen.surfaceFromIndex(scaled, clearKey);
 			if (celSurf) {
 				// Bottom-centre anchor at (_celX, _celY) native.
@@ -186,9 +184,7 @@ void RogerStudio::freeGridCels() {
 	_gcView = _gcLoop = _gcCel = -1;
 }
 
-// Build the six per-preset surfaces for the current (view, loop, cel). Each
-// surface is at the preset's OWN factor (6x/8x/9x) — the grid preserves 8x/9x
-// detail; normalization to a common on-screen footprint happens at blit time.
+// Build one surface per registered scaler module for the current (view, loop, cel), each at the module's OWN factor; normalization to a common on-screen footprint happens at blit time.
 void RogerStudio::ensureGridCels() {
 #ifdef ENABLE_SCI
 	if (_viewIds.empty())
@@ -220,9 +216,9 @@ void RogerStudio::ensureGridCels() {
 		const int slot = gridPresetSlot(i);
 		if (slot < 0)
 			continue; // registry drift; tile stays empty
-		IndexImage scaled = applyViewScalerPreset(slot, cel, clearKey);
+		IndexImage scaled = applyViewScaler(slot, cel, clearKey);
 		_gcSurf[i] = _gen.surfaceFromIndex(scaled, clearKey);
-		_gcFactor[i] = viewScalerPresetFactor(slot);
+		_gcFactor[i] = viewScaler(slot).factor;
 	}
 	_gcView = viewId; _gcLoop = _loopNo; _gcCel = _celNo;
 #endif
@@ -251,7 +247,7 @@ Common::String RogerStudio::slotStamp(const Slot &slot) const {
 	if (slot.plateMode == kPlateNearestRef)
 		s += "-nref";
 	if (_showView)
-		s += Common::String("-") + viewScalerPreset(slot.variant).id;
+		s += Common::String("-") + viewScaler(slot.variant).id;
 	return s;
 }
 
@@ -537,7 +533,7 @@ void RogerStudio::drawGrid(const Common::Rect &area) {
 		_display->frameRect(tile, border);
 		const int slot = gridPresetSlot(i);
 		if (lf && slot >= 0)
-			lf->drawString(_display, viewScalerPreset(slot).label,
+			lf->drawString(_display, viewScaler(slot).label,
 			               tile.left + 4, tile.top + 2, tile.width() - 8, white);
 
 		if (!_gcSurf[i])
@@ -684,7 +680,7 @@ void RogerStudio::drawPanel() {
 	st.viewId = _viewIds.empty() ? -1 : _viewIds[_viewIdx];
 	st.loopNo = _loopNo; st.celNo = _celNo;
 	st.celX = _celX; st.celY = _celY;
-	st.variantName = viewScalerPreset(s.variant).label;
+	st.variantName = viewScaler(s.variant).label;
 	st.plateNearest = s.plateMode == kPlateNearestRef;
 	st.showView = _showView;
 	st.showBackfill = _showBackfill;
@@ -770,9 +766,10 @@ void RogerStudio::dispatchWidget(uint32 id) {
 	case kWidCelPrev: _celNo = MAX(0, _celNo - 1); invalidateCelOnly(); break;
 	case kWidCelNext: _celNo++; invalidateCelOnly(); break;              // clamped in renderSlot
 	case kWidVariantCycle:
-		// All presets are cycle-eligible: non-6x results are resampled onto
-		// the 6x plate grid at compose time (renderSlot).
-		s.variant = (s.variant + 1) % viewScalerPresetCount();
+		// One registered module today -> stays at 0; starts cycling again
+		// the moment a second module registers (non-6x factors land on
+		// the 6x plate grid via applyViewScalerTo6x).
+		s.variant = (s.variant + 1) % viewScalerCount();
 		invalidateActive(); break;
 	case kWidPlateMode:
 		s.plateMode = (s.plateMode == kPlateOmyac) ? kPlateNearestRef : kPlateOmyac;
@@ -855,7 +852,7 @@ void RogerStudio::exportShown() {
 			if (lf) {
 				const int slot = gridPresetSlot(i);
 				if (slot >= 0)
-					lf->drawString(&gridOut, viewScalerPreset(slot).label,
+					lf->drawString(&gridOut, viewScaler(slot).label,
 					               tx + kPad, ty + 2, tw - 2 * kPad, white);
 			}
 			const Common::Rect d(tx + kPad, ty + labelH + kPad,

@@ -575,9 +575,10 @@ Graphics::Surface *RogerAssetGen::generateViewCel(int viewId, int loopNo, int ce
 		return nullptr;
 
 	uint32 t0 = g_system->getMillis();
-	IndexImage scaled = (_viewVariant == 0)
-		? scale6x(idx)
-		: applyViewScalerPresetTo6x(_viewVariant, idx, clearKey);
+	// Registry entry 0 is byte-identical to scale6x (unit-test-locked), so
+	// the shipping path and cache contents are unchanged by routing through
+	// the registry uniformly.
+	IndexImage scaled = applyViewScalerTo6x(_viewVariant, idx, clearKey);
 	uint32 t1 = g_system->getMillis();
 	outMs = t1 - t0;
 

@@ -3047,7 +3047,7 @@ void FileRogerArtProvider::tuneApplyVariant(int preset) {
 	if (_viewCache)
 		_viewCache->clear();
 	debug("ROGER tunePanel: view variant -> %d (%s)", preset,
-	      Roger::viewScalerPreset(preset).id);
+	      Roger::viewScaler(preset).id);
 	// Sprites re-pull cels through the ViewCache next animate cycle; a full
 	// present then restyles everything on screen (event-driven, not per-cycle).
 	markFullDirty();

@@ -377,20 +377,12 @@ bool estimateOffsetSAD(const byte *a, const byte *b, int w, int h, int radius,
 
 // ── Grid mode + animation helpers ────────────────────────────────────────────
 
-// Tile order = the six pipelines under comparison (user's A-F). s3-s2 and
-// n2-n3 stay reachable via the A/B slot variant button only.
-static const char *const GRID_PRESET_IDS[6] = {
-	"s2-s3", "s3-mx", "mx-s3", "mx-mx-mx", "mx-s2-s2", "s3-s3"
-};
-
 int gridTileCount() {
-	return 6;
+	return MIN(viewScalerCount(), 6);
 }
 
 int gridPresetSlot(int tile) {
-	if (tile < 0 || tile >= 6)
-		return -1;
-	return viewScalerPresetIndexById(GRID_PRESET_IDS[tile]);
+	return (tile >= 0 && tile < gridTileCount()) ? tile : -1;
 }
 
 Common::Rect gridTileRect(const Common::Rect &area, int tile) {

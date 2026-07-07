@@ -405,10 +405,12 @@ public:
 	// ── Grid + animation helpers ─────────────────────────────────────────
 
 	// 2x3 row-major tiling: 6 tiles inside the area, no overlaps, gutters.
+	// gridTileRect is a pure geometry helper covering all 6 positions regardless
+	// of how many registry modules are active.
 	void test_grid_tile_rects() {
 		const Common::Rect area(0, 0, 900, 400);
 		Common::Rect r[6];
-		for (int i = 0; i < gridTileCount(); i++) {
+		for (int i = 0; i < 6; i++) {
 			r[i] = gridTileRect(area, i);
 			TS_ASSERT(!r[i].isEmpty());
 			TS_ASSERT(area.contains(r[i]));
@@ -429,16 +431,16 @@ public:
 			}
 	}
 
-	// The six grid tiles resolve to registry presets with factors 6,6,6,8,8,9.
+	// Grid tiles map 1:1 onto the scaler registry (max 6); tiles past the
+	// registry resolve to -1. Tile 0 is the shipping 6x module.
 	void test_grid_preset_slots() {
-		const int wantFactor[6] = { 6, 6, 6, 8, 8, 9 };
-		for (int i = 0; i < 6; i++) {
-			const int slot = gridPresetSlot(i);
-			TS_ASSERT(slot >= 0);
-			TS_ASSERT_EQUALS(viewScalerPresetFactor(slot), wantFactor[i]);
-		}
-		// Tile 0 is the shipping pipeline.
-		TS_ASSERT_EQUALS(strcmp(viewScalerPreset(gridPresetSlot(0)).id, "s2-s3"), 0);
+		TS_ASSERT_EQUALS(gridTileCount(), MIN(viewScalerCount(), 6));
+		for (int i = 0; i < gridTileCount(); i++)
+			TS_ASSERT_EQUALS(gridPresetSlot(i), i);
+		TS_ASSERT_EQUALS(gridPresetSlot(gridTileCount()), -1);
+		TS_ASSERT_EQUALS(gridPresetSlot(-1), -1);
+		TS_ASSERT_EQUALS(strcmp(viewScaler(gridPresetSlot(0)).id, "s2-s3"), 0);
+		TS_ASSERT_EQUALS(viewScaler(gridPresetSlot(0)).factor, 6);
 	}
 
 	// Speed table + clamped stepping.
@@ -470,7 +472,7 @@ public:
 		StudioPanelState st;
 		st.picId = 1; st.viewId = 1; st.loopNo = 0; st.celNo = 0;
 		st.celX = 10; st.celY = 10;
-		st.variantName = "s2>s3 6x (ship)";
+		st.variantName = "6x (s2>s3)";
 		st.plateNearest = false; st.showView = true;
 		st.activeSlot = 0; st.displayMode = 4; st.selectedChip = -1;
 		st.showBackfill = false; st.showGrid = false;

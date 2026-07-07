@@ -23,9 +23,11 @@
 
 // TEMPORARY DEBUG TOOL — the in-game quick-tune panel (F12), spec
 // docs/superpowers/specs/2026-07-05-roger-tune-panel-design.md. Session-only
-// view-scaler variant selection + staged omyac pass edits behind Apply.
-// DELETE this module (and its provider/event.cpp seams) when the MMPX
-// judging is done. Everything here is engine-free and unit-testable.
+// staged omyac pass edits behind Apply, plus view-scaler module selection
+// (registry-driven; a single module — the shipping 6x — is registered today,
+// so exactly one variant row shows). The MMPX judging this panel was built
+// for concluded 2026-07-06 (s2>s3 won); the panel stays as the pass-tuning
+// debug tool. Everything here is engine-free and unit-testable.
 //
 // All layout/hit-testing is in GAME space (320x200): the panel rect is fixed
 // so .rin scripts can click widgets at window-size-independent coordinates.
@@ -44,7 +46,7 @@ namespace Roger {
 enum TuneWidKind {
 	kTuneNone = 0,
 	kTuneClose,
-	kTuneVariantRow, // index = viewScalerPreset() index
+	kTuneVariantRow, // index = viewScaler() registry index
 	kTuneChip,       // index = chip position in stagedPasses
 	kTuneChipX, kTuneChipLeft, kTuneChipRight,
 	kTuneChipAddF, kTuneChipAddL, kTuneChipAddA,

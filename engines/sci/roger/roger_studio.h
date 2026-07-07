@@ -53,7 +53,7 @@ private:
 	struct Slot {
 		OmyacParams        params;
 		Common::Array<int> passes;               // starts = defaultPasses()
-		int                variant = 0;          // viewScalerPreset() index; 0 = shipping s2-s3
+		int                variant = 0;          // viewScaler() registry index; 0 = the shipping 6x module
 		PlateMode          plateMode = kPlateOmyac;
 		Graphics::Surface *render = nullptr;     // cached scene render (1920x1140 RGBA)
 		Graphics::Surface *plateCache = nullptr; // cached plate (no cel); reused while !plateStale
@@ -71,7 +71,7 @@ private:
 	void blitRender(const Graphics::Surface &render, const Common::Rect &subArea);
 	// Light 1-screen-px grid at plate-pixel boundaries (only when _viewScale >= 3).
 	void drawPixelGrid(const Common::Rect &subArea);
-	void drawGrid(const Common::Rect &area);   // 6-pipeline cel comparison tiles
+	void drawGrid(const Common::Rect &area);   // per-module cel comparison tiles (one per registered scaler)
 	void ensureGridCels();                     // (re)build _gcSurf for the current cel
 	void freeGridCels();
 	void stepAnimCel();                        // advance shared cel index (wraps)

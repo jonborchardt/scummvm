@@ -62,10 +62,10 @@ void buildTunePanel(const TunePanelState &st, Common::Array<StudioWidget> &out) 
 	addTuneWidget(out, kTuneClose, 0, Common::Rect(x1 - 10, y, x1, y + 10), "x", false);
 	y += 12;
 
-	// Variant rows (top-flowing).
-	for (int i = 0; i < viewScalerPresetCount(); i++) {
+	// Variant rows (top-flowing): one per registered view-scaler module.
+	for (int i = 0; i < viewScalerCount(); i++) {
 		addTuneWidget(out, kTuneVariantRow, i, Common::Rect(x0, y, x1, y + 10),
-		              viewScalerPreset(i).label, i == st.variant);
+		              viewScaler(i).label, i == st.variant);
 		y += 11;
 	}
 
