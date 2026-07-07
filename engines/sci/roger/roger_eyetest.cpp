@@ -100,7 +100,8 @@ void RogerEyeTest::startCompareQueue(uint firstIdx) {
 	for (uint i = firstIdx; i < _all.size(); i++)
 		if ((int)i != _champion && _surf[i])
 			_queue.push_back((int)i);
-	_champLeft = _rng.below(2) == 0;
+	_champIsA = _rng.below(2) == 0;
+	_showingB = false;
 	_phase = kPhaseCompare;
 	_dirty = true;
 	// Drain input queued during the blocking render batch: stale clicks /
@@ -123,18 +124,18 @@ void RogerEyeTest::choose(int choice) {
 	const int chall = _queue[_qPos];
 
 	EyeComparison rec;
-	rec.aId = _all[_champLeft ? champ : chall].id(); // A = left as shown
-	rec.bId = _all[_champLeft ? chall : champ].id();
+	rec.aId = _all[_champIsA ? champ : chall].id(); // A/B labels, as shown to the user
+	rec.bId = _all[_champIsA ? chall : champ].id();
 	rec.choice = choice;
 	rec.millis = g_system->getMillis();
 
 	int winner = -1, loser = -1;
 	if (choice == kEyeChoiceA) {
-		winner = _champLeft ? champ : chall;
-		loser  = _champLeft ? chall : champ;
+		winner = _champIsA ? champ : chall;
+		loser  = _champIsA ? chall : champ;
 	} else if (choice == kEyeChoiceB) {
-		winner = _champLeft ? chall : champ;
-		loser  = _champLeft ? champ : chall;
+		winner = _champIsA ? chall : champ;
+		loser  = _champIsA ? champ : chall;
 	}
 	if (winner >= 0) {
 		_all[winner].wins++;
@@ -152,7 +153,8 @@ void RogerEyeTest::choose(int choice) {
 	writeManifests();
 
 	_qPos++;
-	_champLeft = _rng.below(2) == 0;
+	_champIsA = _rng.below(2) == 0;
+	_showingB = false; // every new pair starts on A
 	_dirty = true;
 	if (_qPos >= (int)_queue.size())
 		endOfGeneration();
@@ -336,22 +338,20 @@ void RogerEyeTest::drawFrame() {
 		return;
 	}
 
-	// Compare / banner: current pair. Left is always shown as A, right as B.
+	// Compare / banner: the current pair, eye-exam style — ONE image at a time,
+	// flipped in place (Space / Tab / click on the image / Flip button) so both
+	// candidates occupy the exact same pixels and differences pop.
 	const int chall = (_qPos < (int)_queue.size()) ? _queue[_qPos] : _champion;
-	const int li = _champLeft ? _champion : chall;
-	const int ri = _champLeft ? chall : _champion;
-	_leftArea = Common::Rect(10, 10, _display->w / 2 - 5, barTop - 10);
-	_rightArea = Common::Rect(_display->w / 2 + 5, 10, _display->w - 10, barTop - 10);
-	if (_surf[li])
-		_display->blitFrom(*_surf[li], Common::Rect(0, 0, _surf[li]->w, _surf[li]->h),
-		                   fitRect(_surf[li], _leftArea));
-	if (_surf[ri])
-		_display->blitFrom(*_surf[ri], Common::Rect(0, 0, _surf[ri]->w, _surf[ri]->h),
-		                   fitRect(_surf[ri], _rightArea));
-	if (lf) {
-		lf->drawString(_display, "A", _leftArea.left + 10, _leftArea.top + 6, 60, white);
-		lf->drawString(_display, "B", _rightArea.left + 10, _rightArea.top + 6, 60, white);
-	}
+	const int aIdx = _champIsA ? _champion : chall;
+	const int bIdx = _champIsA ? chall : _champion;
+	const int shown = _showingB ? bIdx : aIdx;
+	_imageArea = Common::Rect(10, 10, _display->w - 10, barTop - 10);
+	if (_surf[shown])
+		_display->blitFrom(*_surf[shown], Common::Rect(0, 0, _surf[shown]->w, _surf[shown]->h),
+		                   fitRect(_surf[shown], _imageArea));
+	if (lf)
+		lf->drawString(_display, Common::String::format("Showing:  %s", _showingB ? "B" : "A"),
+		               _imageArea.left + 10, _imageArea.top + 6, 400, white);
 
 	// Bottom bar: prompt, buttons, status.
 	_display->hLine(0, barTop, _display->w - 1, grey);
@@ -360,10 +360,17 @@ void RogerEyeTest::drawFrame() {
 			lf->drawString(_display, _banner, 40, barTop + 55, _display->w - 80, white);
 	} else {
 		if (lf)
-			lf->drawString(_display, "Which looks better?", 40, barTop + 12,
-			               _display->w - 80, white);
-		static const char *labels[4] = {"1  A", "2  B", "3  Same", "4  Neither / skip"};
+			lf->drawString(_display, "Which looks better?  (Space or click the image flips A/B)",
+			               40, barTop + 12, _display->w - 80, white);
 		int bx = 40;
+		// Flip button first: the eye-exam lens switch.
+		_btnFlip = Common::Rect(bx, barTop + 56, bx + 380, barTop + 116);
+		_display->frameRect(_btnFlip, white);
+		if (lf)
+			lf->drawString(_display, Common::String::format("Flip  (showing %s)", _showingB ? "B" : "A"),
+			               _btnFlip.left + 20, _btnFlip.top + 16, 340, white);
+		bx += 380 + 30;
+		static const char *labels[4] = {"1  A", "2  B", "3  Same", "4  Neither / skip"};
 		for (int i = 0; i < 4; i++) {
 			const int bw = (i == 3) ? 460 : 300;
 			_btn[i] = Common::Rect(bx, barTop + 56, bx + bw, barTop + 116);
@@ -402,13 +409,17 @@ void RogerEyeTest::handleEvent(const Common::Event &ev) {
 		_dirty = true;
 		return;
 	case Common::EVENT_LBUTTONDOWN: {
-		if (_phase != kPhaseCompare)
-			return;
 		const int16 mx = ev.mouse.x, my = ev.mouse.y;
-		for (int i = 0; i < 4; i++)
-			if (_btn[i].contains(mx, my)) { choose(i); return; }
-		if (_leftArea.contains(mx, my)) { choose(kEyeChoiceA); return; }
-		if (_rightArea.contains(mx, my)) { choose(kEyeChoiceB); return; }
+		if (_phase == kPhaseCompare) {
+			for (int i = 0; i < 4; i++)
+				if (_btn[i].contains(mx, my)) { choose(i); return; }
+			if (_btnFlip.contains(mx, my)) { _showingB = !_showingB; _dirty = true; return; }
+		}
+		// Clicking the image flips the lens (compare AND banner — the pair stays up).
+		if (_phase != kPhaseDone && _imageArea.contains(mx, my)) {
+			_showingB = !_showingB;
+			_dirty = true;
+		}
 		return;
 	}
 	case Common::EVENT_KEYDOWN:
@@ -428,6 +439,13 @@ void RogerEyeTest::handleEvent(const Common::Event &ev) {
 	case Common::KEYCODE_KP_ENTER:
 		if (_phase == kPhaseBanner)
 			nextGeneration();
+		break;
+	case Common::KEYCODE_SPACE:
+	case Common::KEYCODE_TAB:
+		if (_phase != kPhaseDone) {
+			_showingB = !_showingB;
+			_dirty = true;
+		}
 		break;
 	case Common::KEYCODE_1: case Common::KEYCODE_a:
 		choose(kEyeChoiceA);

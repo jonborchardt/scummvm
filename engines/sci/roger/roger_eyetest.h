@@ -85,14 +85,16 @@ private:
 	int _champion = 0;                        // index into _all
 	Common::Array<int> _queue;                // challenger indices, current gen
 	int _qPos = 0;
-	bool _champLeft = true;                   // side randomization for current pair
+	bool _champIsA = true;                    // which pair member is labeled A (randomized per pair)
+	bool _showingB = false;                   // eye-exam flip state: currently displaying B
 	int _genNo = 0;
 	int _phase = kPhaseCompare;
 	Common::String _banner;
 	bool _summaryWritten = false;
 
 	Common::Rect _btn[4];                     // A / B / Same / Neither hit rects
-	Common::Rect _leftArea, _rightArea;       // image halves (click-to-pick)
+	Common::Rect _btnFlip;                    // Flip A<->B button
+	Common::Rect _imageArea;                  // the single in-place image (click = flip)
 	int _mouseX = 0, _mouseY = 0;
 	bool _dirty = true;
 	bool _quit = false;
