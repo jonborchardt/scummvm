@@ -84,7 +84,7 @@ For each game, the launcher shows:
 - **Cache status** (number of cached pics/views)
 - **Per-game settings** that update when a different game is selected:
   - **Pre-cache** (Off/Pictures/All) — controls what is generated on demand before launch
-  - **Passes** (the raw `roger_omyac_passes` string, round-tripped verbatim to the ini; shows `ffflffaaaa` when the key is unset)
+  - **Passes** (the raw `roger_omyac_passes` string, round-tripped verbatim to the ini; shows `ffflffaaaa` when the key is unset). Inis written by the old picker carry `roger_omyac_passes=2 1` (the old auto-written "balanced" default) — the Passes field shows it verbatim; edit it to `ffflffaaaa` (or delete the key) to get the current default.
   - **Font** (cycles through the same shortlist as Ctrl+Shift+F in-game)
   - **Fallback** (hardware cursor / cursor size)
 
