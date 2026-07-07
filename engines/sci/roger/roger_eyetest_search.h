@@ -41,8 +41,9 @@ enum {
 	kEyeSameWindow    = 12   // convergence: >= 50% Same over the last 12 choices
 };
 
-// Pass values are renderOmyac mode ints, the same mapping parseOmyacPasses uses:
-// f(ill) = 2, l(ine) = 1, a(ll) = 0 — feed straight into setEnhancePasses().
+// Pass values are renderOmyac mode ints, the same mapping parsePassString
+// (roger_passes.h) uses: f(ill) = 2, l(ine) = 1, a(ll) = 0 — feed straight
+// into setEnhancePasses().
 typedef Common::Array<int> EyeSeq;
 
 EyeSeq eyeBaseSeq();                            // f f f l f f a a a a

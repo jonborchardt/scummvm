@@ -39,6 +39,10 @@ namespace Roger {
 extern const char *const kDefaultPassString; // "ffflffaaaa"
 
 // Parse a roger_omyac_passes string.
+//  - Whole-word keywords fill/line/all are matched FIRST (before compact):
+//    "fill"->single 2, "line"->single 1, "all"->single 0. This prevents "all"
+//    from being mis-read as per-char compact [0,1,1].
+//  - Leading/trailing whitespace is trimmed before matching.
 //  - Compact form: a string with no separators whose every char is one of
 //    f l a 2 1 0 (lowercase only) parses per-character ("ffflffaaaa", "21").
 //  - Legacy form: otherwise, space/comma/tab-separated tokens fill|f|2,

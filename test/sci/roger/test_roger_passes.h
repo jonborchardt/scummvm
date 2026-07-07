@@ -68,4 +68,19 @@ public:
 		for (uint i = 0; i < viaOmyac.size() && i < viaString.size(); i++)
 			TS_ASSERT_EQUALS(viaOmyac[i], viaString[i]);
 	}
+
+	void test_whole_word_keywords_and_trim() {
+		// Whole-word keywords must match as a single pass, not per-char.
+		// "all" = [0], NOT the compact mis-parse [0,1,1].
+		assertPasses(parsePassString("all"),  "0");
+		assertPasses(parsePassString("fill"), "2");
+		assertPasses(parsePassString("line"), "1");
+
+		// Trailing/leading whitespace is trimmed: compact form is reached.
+		assertPasses(parsePassString("ffflffaaaa "), "2221220000");
+		assertPasses(parsePassString(" ffflffaaaa"), "2221220000");
+
+		// Legacy -> compact round-trip: "2 1" parses to [2,1], passString -> "fl".
+		TS_ASSERT_EQUALS(passString(parsePassString("2 1")), Common::String("fl"));
+	}
 };

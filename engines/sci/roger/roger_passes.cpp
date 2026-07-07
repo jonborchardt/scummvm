@@ -42,17 +42,37 @@ static bool isCompactForm(const Common::String &s) {
 
 Common::Array<int> parsePassString(const Common::String &s) {
 	Common::Array<int> passes;
-	if (isCompactForm(s)) {
-		for (uint i = 0; i < s.size(); i++) {
-			const char c = s[i];
+	// Trim leading/trailing whitespace so e.g. "ffflffaaaa " from the picker
+	// edit field still parses as compact rather than falling through to the
+	// legacy tokenizer as a single unknown token.
+	Common::String t = s;
+	t.trim();
+	// Exact whole-word keywords: match these BEFORE the compact-form check
+	// because "all" consists entirely of compact-vocabulary chars and would
+	// otherwise parse as [0,1,1] instead of the single all-pass [0].
+	if (t == "fill") {
+		passes.push_back(2);
+		return passes;
+	}
+	if (t == "line") {
+		passes.push_back(1);
+		return passes;
+	}
+	if (t == "all") {
+		passes.push_back(0);
+		return passes;
+	}
+	if (isCompactForm(t)) {
+		for (uint i = 0; i < t.size(); i++) {
+			const char c = t[i];
 			passes.push_back((c == 'f' || c == '2') ? 2 : (c == 'l' || c == '1') ? 1 : 0);
 		}
 		return passes;
 	}
 	// Legacy separated-token form (the pre-2026-07 parser, verbatim).
 	Common::String tok;
-	for (uint i = 0; i <= s.size(); ++i) {
-		const char c = (i < s.size()) ? s[i] : '\0';
+	for (uint i = 0; i <= t.size(); ++i) {
+		const char c = (i < t.size()) ? t[i] : '\0';
 		if (c == ',' || c == ' ' || c == '\t' || c == '\0') {
 			if (!tok.empty()) {
 				// Numeric tokens are the raw renderOmyac mode values (2=fill,
