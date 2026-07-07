@@ -116,6 +116,7 @@ MODULE_OBJS += \
 	roger/roger_omyac.o \
 	roger/roger_view_scaler.o \
 	roger/roger_palette_remap.o \
+	roger/roger_passes.o \
 	roger/roger_pic_native.o \
 	roger/roger_pic_parser.o \
 	roger/roger_scale.o \
