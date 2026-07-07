@@ -32,8 +32,19 @@
 #include "graphics/managed_surface.h"
 #include "sci/roger/png_loader.h"
 
+#ifdef ENABLE_SCI
+#include "sci/sci.h"
+#include "sci/resource/resource.h"
+#endif
+
 namespace Sci {
 namespace Roger {
+
+// Shared evaluation-cel anchor (native coords, bottom-centre — the studio's
+// default placement): every candidate composites the SAME cel at the SAME
+// spot, so pairs differ only by their pass sequence.
+static const int kEyeCelX = 160;
+static const int kEyeCelY = 150;
 
 // Mutation position bias, tuned from the 2026-07-06 session's data: the head
 // structure f f f f f f l _ _ _ held up, so concentrate the search on the tail
@@ -43,11 +54,47 @@ namespace Roger {
 static const int kEyeTailBias[kEyeSeqLen] = {1, 1, 1, 2, 1, 1, 2, 5, 5, 5};
 
 RogerEyeTest::RogerEyeTest(const Common::String &gameId)
-	: _assetGen(gameId, "", kGenMemory), _rng(g_system->getMillis()) {
+	: _assetGen(gameId, "", kGenMemory), _rng(g_system->getMillis()), _gameId(gameId) {
+	// Per-game evaluation pic pools (user-curated, 2026-07-07): scenes worth
+	// judging pass sequences on. The launched game decides which pool applies
+	// (sq3 is the default launch; use build_and_run.ps1 -Game qfg1 for qfg1's).
+	static const int sq3Pics[] = {2, 3, 4, 5, 7, 8, 13, 14, 15, 25, 28, 49, 52, 62, 69, 74, 81, 153, 156};
+	static const int qfg1Pics[] = {10, 13, 16, 21, 28, 29, 30, 37, 38, 39, 40, 54, 65, 82, 88, 93, 94, 96, 97, 300, 301, 310, 320, 460};
+	const int *pool = sq3Pics;
+	uint poolLen = ARRAYSIZE(sq3Pics);
+	if (gameId.hasPrefix("qfg1")) {
+		pool = qfg1Pics;
+		poolLen = ARRAYSIZE(qfg1Pics);
+	}
+#ifdef ENABLE_SCI
+	// Keep only pics the running game actually has (same probe as RogerStudio).
+	Common::Array<int> have;
+	if (g_sci && g_sci->getResMan()) {
+		Common::List<ResourceId> pics = g_sci->getResMan()->listResources(kResourceTypePic);
+		for (Common::List<ResourceId>::iterator it = pics.begin(); it != pics.end(); ++it)
+			have.push_back(it->getNumber());
+	}
+	for (uint i = 0; i < poolLen; i++) {
+		bool found = false;
+		for (uint h = 0; h < have.size(); h++)
+			if (have[h] == pool[i]) { found = true; break; }
+		if (found)
+			_picPool.push_back(pool[i]);
+		else
+			warning("ROGER-EYETEST: pic %d not in %s resources - dropped from pool",
+			        pool[i], gameId.c_str());
+	}
+#else
+	for (uint i = 0; i < poolLen; i++)
+		_picPool.push_back(pool[i]);
+#endif
+	if (_picPool.empty())
+		_picPool.push_back(pool[0]); // generatePlate will report the failure
 }
 
 RogerEyeTest::~RogerEyeTest() {
 	if (_display) { _display->free(); delete _display; }
+	if (_celSurf) { _celSurf->free(); delete _celSurf; }
 	for (uint i = 0; i < _surf.size(); i++)
 		if (_surf[i]) { _surf[i]->free(); delete _surf[i]; }
 }
@@ -63,7 +110,10 @@ void RogerEyeTest::importPriorSeen(const Common::String &shotsDir) {
 	Common::FSList dirs;
 	if (!root.exists() || !root.getChildren(dirs, Common::FSNode::kListDirectoriesOnly))
 		return;
-	const Common::String prefix = Common::String::format("eyetest-n%03d", _picId);
+	// Scoped to THIS game's multi-pic era (eyetest-<gameId>*). The single-pic
+	// era's eyetest-n002* backups are deliberately NOT harvested: those
+	// verdicts were pic-2-only and the user keeps them as future seed material.
+	const Common::String prefix = "eyetest-" + _gameId;
 	int imported = 0;
 	for (uint d = 0; d < dirs.size(); d++) {
 		if (!dirs[d].getName().hasPrefix(prefix))
@@ -170,26 +220,50 @@ void RogerEyeTest::seedGeneration0() {
 	}
 }
 
-void RogerEyeTest::renderNewCandidates(uint firstIdx) {
-	for (uint i = firstIdx; i < _all.size(); i++) {
-		drawProgress(Common::String::format(
-			"rendering gen %d candidate %u/%u: %s",
-			_all[i].gen, (uint)(i - firstIdx + 1), (uint)(_all.size() - firstIdx),
-			eyeSeqCompact(_all[i].seq).c_str()));
-		_assetGen.setEnhancePasses(_all[i].seq);
-		uint32 ms = 0;
-		Graphics::Surface *plate = _assetGen.generatePlate(_picId, ms);
-		if (!plate) {
-			warning("ROGER-EYETEST: pic %d generation FAILED for %s",
-			        _picId, eyeSeqCompact(_all[i].seq).c_str());
-			continue; // startCompareQueue skips surface-less candidates
-		}
-		_all[i].file = eyeCandidateFileName(_picId, _all[i]);
-		if (!dumpSurfacePng(*plate, _outDir + _all[i].file))
-			warning("ROGER-EYETEST: could not write %s", (_outDir + _all[i].file).c_str());
-		_surf[i] = plate;
-		debug("ROGER-EYETEST rendered %s (%u ms)", _all[i].file.c_str(), ms);
+void RogerEyeTest::renderCandidate(uint i) {
+	drawProgress(Common::String::format(
+		"rendering gen %d pic %d: %s",
+		_all[i].gen, _picId, eyeSeqCompact(_all[i].seq).c_str()));
+	_assetGen.setEnhancePasses(_all[i].seq);
+	uint32 ms = 0;
+	Graphics::Surface *plate = _assetGen.generatePlate(_picId, ms);
+	if (!plate) {
+		warning("ROGER-EYETEST: pic %d generation FAILED for %s",
+		        _picId, eyeSeqCompact(_all[i].seq).c_str());
+		return; // startCompareQueue skips surface-less candidates
 	}
+	// Composite the shared evaluation cel (view 0 / loop 0 / cel 0 — the ego)
+	// game-style over the plate, so plate and sprite treatment are judged
+	// TOGETHER. The cel is pass-independent (scale6x, not omyac), so one
+	// generated surface serves every candidate; same compose pattern as
+	// RogerStudio::renderSlot.
+	if (!_celSurf) {
+		uint32 cms = 0;
+		_celSurf = _assetGen.generateViewCel(0, 0, 0, cms);
+		if (!_celSurf)
+			warning("ROGER-EYETEST: view 0/0/0 cel generation failed - plates only");
+	}
+	if (_celSurf) {
+		Graphics::ManagedSurface composed(plate->w, plate->h, plate->format);
+		composed.blitFrom(*plate);
+		const int dx = kEyeCelX * 6 - _celSurf->w / 2;
+		const int dy = kEyeCelY * 6 - _celSurf->h;
+		composed.blendBlitFrom(*_celSurf, Common::Rect(0, 0, _celSurf->w, _celSurf->h),
+		                       Common::Rect(dx, dy, dx + _celSurf->w, dy + _celSurf->h),
+		                       Graphics::FLIP_NONE);
+		plate->copyFrom(composed.rawSurface());
+	}
+	if (_surf[i]) { _surf[i]->free(); delete _surf[i]; _surf[i] = nullptr; }
+	_all[i].file = eyeCandidateFileName(_picId, _all[i]);
+	if (!dumpSurfacePng(*plate, _outDir + _all[i].file))
+		warning("ROGER-EYETEST: could not write %s", (_outDir + _all[i].file).c_str());
+	_surf[i] = plate;
+	debug("ROGER-EYETEST rendered %s (%u ms)", _all[i].file.c_str(), ms);
+}
+
+void RogerEyeTest::renderNewCandidates(uint firstIdx) {
+	for (uint i = firstIdx; i < _all.size(); i++)
+		renderCandidate(i);
 	writeManifests(); // file names are now known
 }
 
@@ -275,9 +349,14 @@ void RogerEyeTest::endOfGeneration() {
 
 void RogerEyeTest::nextGeneration() {
 	_genNo++;
-	// Free surfaces we no longer show; the champion stays (comparison anchor).
+	// New generation, new scene: every pair within a generation shares one
+	// pool pic (re-rolled here), so comparisons stay apples-to-apples while
+	// the search samples many rooms across the run.
+	_picId = _picPool[_rng.below(_picPool.size())];
+	// A pic change stales EVERY cached render, the champion's included — free
+	// them all; the champion re-renders on the new pic below.
 	for (uint i = 0; i < _surf.size(); i++) {
-		if ((int)i != _champion && _surf[i]) {
+		if (_surf[i]) {
 			_surf[i]->free();
 			delete _surf[i];
 			_surf[i] = nullptr;
@@ -292,6 +371,7 @@ void RogerEyeTest::nextGeneration() {
 		_surf.push_back(nullptr);
 	}
 	writeManifests();
+	renderCandidate((uint)_champion); // the anchor joins the new scene
 	renderNewCandidates(firstIdx);
 	startCompareQueue(firstIdx);
 }
@@ -578,9 +658,10 @@ void RogerEyeTest::run() {
 		dir = "screenshots";
 	if (dir.lastChar() != '/')
 		dir += '/';
-	_outDir = dir + Common::String::format("eyetest-n%03d/", _picId);
+	_outDir = dir + Common::String::format("eyetest-%s/", _gameId.c_str());
 
-	importPriorSeen(dir);    // old runs' judged sequences never re-proposed by breeding
+	_picId = _picPool[_rng.below(_picPool.size())]; // generation 0's scene
+	importPriorSeen(dir);    // this game's judged sequences never re-proposed by breeding
 	seedGeneration0();
 	writeManifests();        // createPath=true creates _outDir before the first PNG
 	renderNewCandidates(0);

@@ -54,7 +54,8 @@ private:
 
 	void seedGeneration0();                  // seeds.txt in _outDir, else base + mutations
 	void importPriorSeen(const Common::String &shotsDir); // harvest judged seqs from old run dirs
-	void renderNewCandidates(uint firstIdx); // generate + save PNG + keep surface
+	void renderCandidate(uint i);            // plate + eval cel -> PNG + kept surface
+	void renderNewCandidates(uint firstIdx); // renderCandidate for _all[firstIdx..]
 	void startCompareQueue(uint firstIdx);   // challengers = firstIdx.. vs champion
 	void handleEvent(const Common::Event &ev);
 	void choose(int choice);                 // EyeChoice for the CURRENT pair
@@ -74,8 +75,11 @@ private:
 	RogerAssetGen _assetGen;                 // kGenMemory, empty cache dir
 	Graphics::ManagedSurface *_display = nullptr;
 	EyeRng _rng;
-	int _picId = 2;                          // SQ3 "n002"
-	Common::String _outDir;                  // <screenshotpath>/eyetest-n002/
+	Common::String _gameId;
+	Common::Array<int> _picPool;             // per-game evaluation pics (see ctor)
+	int _picId = 2;                          // CURRENT generation's pic (re-rolled per gen)
+	Graphics::Surface *_celSurf = nullptr;   // shared eval cel (view 0/0/0), lazily generated
+	Common::String _outDir;                  // <screenshotpath>/eyetest-<gameId>/
 
 	Common::Array<EyeCandidate> _all;
 	Common::Array<Graphics::Surface *> _surf; // parallel to _all; freed -> nullptr
