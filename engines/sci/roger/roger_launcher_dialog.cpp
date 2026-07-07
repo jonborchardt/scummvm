@@ -3,6 +3,7 @@
 #include "gui/widget.h"
 #include "gui/widgets/list.h"
 #include "gui/widgets/popup.h"
+#include "gui/widgets/edittext.h"
 #include "common/util.h"  // CLIP
 #include "gui/browser.h"
 #include "gui/message.h"
@@ -29,7 +30,6 @@ public:
 };
 
 static const char *kPrecacheVals[] = { "off", "pics", "views", "all" };
-static const char *kEnhanceVals[]  = { "off", "fast", "balanced", "quality" };
 static const char *kFontVals[]     = {
 	"ms_sans_serif.ttf", "LiberationSans-Regular.ttf", "NotoSans-Regular.ttf",
 	"LiberationSerif-Regular.ttf", "GoMono-Regular.ttf",
@@ -90,7 +90,14 @@ RogerLauncherDialog::RogerLauncherDialog(RogerLauncher &launcher)
 	                          Common::U32String("SETTINGS"), Graphics::kTextAlignLeft);
 
 	_precachePop = addSettingsRow(settTop + LH + 0*(LH + M/3), M, LH, "Pre-cache",   kPrecachePopCmd);
-	_enhancePop  = addSettingsRow(settTop + LH + 1*(LH + M/3), M, LH, "Enhancement", kEnhancePopCmd);
+	{
+		const int y = settTop + LH + 1*(LH + M/3);
+		const int labelW = _w / 5;
+		new GUI::StaticTextWidget(this, M, y, labelW, LH,
+		                          Common::U32String("Passes"), Graphics::kTextAlignLeft);
+		_passesEdit = new GUI::EditTextWidget(this, M + labelW + M/2, y, _w / 4, LH,
+		                                      Common::U32String());
+	}
 	_fontPop     = addSettingsRow(settTop + LH + 2*(LH + M/3), M, LH, "Font",        kFontPopCmd);
 	_fallbackPop = addSettingsRow(settTop + LH + 3*(LH + M/3), M, LH, "Fallback",    kFallbackPopCmd);
 
@@ -125,11 +132,6 @@ RogerLauncherDialog::RogerLauncherDialog(RogerLauncher &launcher)
 	_precachePop->appendEntry(Common::U32String("pics"),  1);
 	_precachePop->appendEntry(Common::U32String("views"), 2);
 	_precachePop->appendEntry(Common::U32String("all"),   3);
-
-	_enhancePop->appendEntry(Common::U32String("off"),      0);
-	_enhancePop->appendEntry(Common::U32String("fast"),     1);
-	_enhancePop->appendEntry(Common::U32String("balanced"), 2);
-	_enhancePop->appendEntry(Common::U32String("quality"),  3);
 
 	for (int i = 0; i < 7; ++i)
 		_fontPop->appendEntry(Common::U32String(kFontVals[i]), (uint32)i);
@@ -176,17 +178,24 @@ void RogerLauncherDialog::rebuildSettings() {
 
 	for (int i = 0; i < 4; ++i)
 		if (s.precache == kPrecacheVals[i]) { _precachePop->setSelectedTag((uint32)i); break; }
-	for (int i = 0; i < 4; ++i)
-		if (s.enhancement == kEnhanceVals[i]) { _enhancePop->setSelectedTag((uint32)i); break; }
+	_passesEdit->setEditString(Common::U32String(s.passes));
 	for (int i = 0; i < 7; ++i)
 		if (s.font == kFontVals[i]) { _fontPop->setSelectedTag((uint32)i); break; }
 	for (int i = 0; i < 4; ++i)
 		if (s.fallback == kFallbackVals[i]) { _fallbackPop->setSelectedTag((uint32)i); break; }
 }
 
+// EditTextWidget doesn't push per-keystroke commands the way the popups do;
+// pull its text into the settings at the moments they are consumed.
+void RogerLauncherDialog::syncPassesFromField() {
+	if (_passesEdit)
+		_state.settings.passes = _passesEdit->getEditString().encode();
+}
+
 void RogerLauncherDialog::handleCommand(GUI::CommandSender *sender, uint32 cmd, uint32 data) {
 	switch (cmd) {
 	case kLaunchCmd: {
+		syncPassesFromField();
 		if (_state.games.empty()) break;
 		const GameEntry &g    = _state.games[_state.selectedIndex];
 		const bool isCurrent  = (g.targetName == ConfMan.getActiveDomainName());
@@ -206,6 +215,7 @@ void RogerLauncherDialog::handleCommand(GUI::CommandSender *sender, uint32 cmd, 
 		break;
 	}
 	case kPrecacheCmd:
+		syncPassesFromField();
 		if (_state.precaching) {
 			_launchAfterPrecache = false;
 			_state.cancelPrecache = true;
@@ -366,11 +376,6 @@ void RogerLauncherDialog::handleCommand(GUI::CommandSender *sender, uint32 cmd, 
 	case kPrecachePopCmd: {
 		uint32 tag = _precachePop->getSelectedTag();
 		if (tag < 4) _state.settings.precache = kPrecacheVals[tag];
-		break;
-	}
-	case kEnhancePopCmd: {
-		uint32 tag = _enhancePop->getSelectedTag();
-		if (tag < 4) _state.settings.enhancement = kEnhanceVals[tag];
 		break;
 	}
 	case kFontPopCmd: {

@@ -10,6 +10,7 @@ namespace GUI {
 	class StaticTextWidget;
 	class PopUpWidget;
 	class SliderWidget;
+	class EditTextWidget;
 }
 
 namespace Sci {
@@ -34,7 +35,7 @@ private:
 	GUI::ButtonWidget    *_addGameBtn   = nullptr;
 	GUI::ButtonWidget    *_deleteBtn    = nullptr;
 	GUI::PopUpWidget     *_precachePop  = nullptr;
-	GUI::PopUpWidget     *_enhancePop   = nullptr;
+	GUI::EditTextWidget  *_passesEdit   = nullptr;
 	GUI::PopUpWidget     *_fontPop      = nullptr;
 	GUI::PopUpWidget     *_fallbackPop  = nullptr;
 	GUI::StaticTextWidget *_progressLbl = nullptr;
@@ -44,6 +45,7 @@ private:
 
 	void rebuildGameList();
 	void rebuildSettings();
+	void syncPassesFromField();
 	void updateProgress();
 	GUI::PopUpWidget *addSettingsRow(int y, int M, int LH, const char *label, uint32 cmd);
 
@@ -54,7 +56,6 @@ private:
 		kAddGameCmd  = 'RADG',
 		kGameSelCmd  = 'RGSL',
 		kPrecachePopCmd  = 'RPCP',
-		kEnhancePopCmd   = 'RECP',
 		kFontPopCmd      = 'RFCP',
 		kFallbackPopCmd  = 'RBCP',
 	};

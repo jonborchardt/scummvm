@@ -27,7 +27,7 @@ struct GameEntry {
 
 struct LauncherSettings {
 	Common::String precache;     // "off"|"pics"|"views"|"all"
-	Common::String enhancement;  // "off"|"fast"|"balanced"|"quality"
+	Common::String passes;       // roger_omyac_passes raw string (verbatim ini round-trip)
 	Common::String font;         // roger_ui_font value
 	Common::String fallback;     // "prebuilt"|"cache"|"memory"|"always"
 };

@@ -1,6 +1,7 @@
 #include "sci/roger/roger_launcher.h"
 #include "sci/roger/roger_launcher_dialog.h"
 #include "sci/roger/roger_art_provider.h"
+#include "sci/roger/roger_passes.h"
 #include "sci/sci.h"
 #include "sci/resource/resource.h"
 #include "common/config-manager.h"
@@ -112,14 +113,6 @@ void RogerLauncher::inspectCacheStatus(GameEntry &entry) const {
 	}
 }
 
-static const char *enhancementPasses(const Common::String &label) {
-	if (label == "off")      return "";
-	if (label == "fast")     return "2";
-	if (label == "balanced") return "2 1";
-	if (label == "quality")  return "2 2 1 1 0";
-	return nullptr;
-}
-
 void RogerLauncher::loadSettingsForSelected() {
 	if (_state.games.empty()) return;
 	const Common::String &dom = _state.games[_state.selectedIndex].targetName;
@@ -127,16 +120,9 @@ void RogerLauncher::loadSettingsForSelected() {
 	s.precache    = ConfMan.hasKey("roger_precache",   dom) ? ConfMan.get("roger_precache",   dom) : "all";
 	s.fallback    = ConfMan.hasKey("roger_gen_mode",   dom) ? ConfMan.get("roger_gen_mode",   dom) : "cache";
 	s.font        = ConfMan.hasKey("roger_ui_font",    dom) ? ConfMan.get("roger_ui_font",    dom) : "GoMono-Regular.ttf";
-	if (!ConfMan.hasKey("roger_omyac_passes", dom)) {
-		s.enhancement = "balanced";
-	} else {
-		const Common::String p = ConfMan.get("roger_omyac_passes", dom);
-		if (p.empty())        s.enhancement = "off";
-		else if (p == "2")    s.enhancement = "fast";
-		else if (p == "2 1")  s.enhancement = "balanced";
-		else if (p == "2 2 1 1 0") s.enhancement = "quality";
-		else                  s.enhancement = "custom";
-	}
+	s.passes      = ConfMan.hasKey("roger_omyac_passes", dom)
+		? ConfMan.get("roger_omyac_passes", dom)
+		: Common::String(kDefaultPassString);
 }
 
 void RogerLauncher::flushSettingsForSelected() {
@@ -146,8 +132,12 @@ void RogerLauncher::flushSettingsForSelected() {
 	ConfMan.set("roger_precache",  s.precache,    dom);
 	ConfMan.set("roger_gen_mode",  s.fallback,     dom);
 	ConfMan.set("roger_ui_font",   s.font,         dom);
-	const char *passes = enhancementPasses(s.enhancement);
-	if (passes) ConfMan.set("roger_omyac_passes", Common::String(passes), dom);
+	// Verbatim passthrough: whatever the Passes field holds is what the ini
+	// gets — the engine parser warns about unknown tokens at load. An empty
+	// field writes "" (wireframe). An unset key becomes explicit
+	// (kDefaultPassString) after the first launch; effective behavior is
+	// identical.
+	ConfMan.set("roger_omyac_passes", s.passes, dom);
 	ConfMan.flushToDisk();
 }
 
