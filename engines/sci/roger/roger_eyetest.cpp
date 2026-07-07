@@ -103,6 +103,15 @@ void RogerEyeTest::startCompareQueue(uint firstIdx) {
 	_champLeft = _rng.below(2) == 0;
 	_phase = kPhaseCompare;
 	_dirty = true;
+	// Drain input queued during the blocking render batch: stale clicks /
+	// key-repeats must not score pairs the user never saw. Quit still counts.
+	Common::Event stale;
+	while (g_system->getEventManager()->pollEvent(stale)) {
+		if (stale.type == Common::EVENT_QUIT || stale.type == Common::EVENT_RETURN_TO_LAUNCHER) {
+			finish();
+			_quit = true;
+		}
+	}
 	if (_queue.empty())
 		endOfGeneration(); // every render failed — don't strand the UI
 }
