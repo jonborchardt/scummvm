@@ -50,12 +50,26 @@ public:
 	void run();
 
 private:
-	enum Phase { kPhaseCompare, kPhaseBanner, kPhaseDone };
+	enum Phase { kPhaseCompare, kPhaseBanner, kPhaseGenDone, kPhaseDone };
+
+	// One judged pair, exactly as scored — so undo can revert it precisely.
+	struct UndoRec {
+		int pa = -1, pb = -1;        // the pair's candidate indices
+		int champBefore = -1;        // _champion before the choice
+		int winner = -1, loser = -1; // -1 when the choice moved no score
+		bool tie = false;
+	};
 
 	void seedGeneration0();                  // seeds.txt in _outDir, else base + mutations
+	bool loadShowdown();                     // showdown.txt in _outDir -> entrants; true = armed
+	void startShowdownRound();               // new scene + full round-robin schedule
 	void importPriorSeen(const Common::String &shotsDir); // harvest judged seqs from old run dirs
 	void renderCandidate(uint i);            // plate + eval cel -> PNG + kept surface
 	void renderNewCandidates(uint firstIdx); // renderCandidate for _all[firstIdx..]
+	int pairCount() const { return _showdown ? (int)_pairA.size() : (int)_queue.size(); }
+	void pairAt(int pos, int &pa, int &pb) const; // schedule lookup (GA or showdown)
+	void undoLast();                         // revert one judged pair (repeatable)
+	void drainStaleInput();                  // eat input queued during a render batch
 	void startCompareQueue(uint firstIdx);   // challengers = firstIdx.. vs champion
 	void handleEvent(const Common::Event &ev);
 	void choose(int choice);                 // EyeChoice for the CURRENT pair
@@ -88,7 +102,10 @@ private:
 	Common::Array<int> _choices;              // EyeChoice history (convergence)
 
 	int _champion = 0;                        // index into _all
-	Common::Array<int> _queue;                // challenger indices, current gen
+	Common::Array<int> _queue;                // GA: challenger indices, current gen
+	bool _showdown = false;                   // showdown.txt mode: round-robin, no breeding
+	Common::Array<int> _pairA, _pairB;        // showdown: current round's pair schedule
+	Common::Array<UndoRec> _undo;             // undo stack, cleared per generation/round
 	int _qPos = 0;
 	bool _champIsA = true;                    // which pair member is labeled A (randomized per pair)
 	bool _showingB = false;                   // eye-exam flip state: currently displaying B
@@ -99,6 +116,7 @@ private:
 
 	Common::Rect _btn[4];                     // A / B / Same / Neither hit rects
 	Common::Rect _btnFlip;                    // Flip A<->B button
+	Common::Rect _btnUndo;                    // Undo button (Backspace equivalent)
 	Common::Rect _imageArea;                  // the single in-place image (click = flip)
 	int _mouseX = 0, _mouseY = 0;
 	bool _dirty = true;

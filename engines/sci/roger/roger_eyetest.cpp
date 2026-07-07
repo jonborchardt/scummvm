@@ -143,56 +143,66 @@ void RogerEyeTest::importPriorSeen(const Common::String &shotsDir) {
 		      imported, shotsDir.c_str(), prefix.c_str());
 }
 
+// Read a compact-sequence list file: one sequence per line, '#' comments,
+// blank lines ok, invalid lines warned and skipped, duplicates skipped.
+static void readSeqList(const Common::String &path, uint maxN, Common::Array<EyeSeq> &out) {
+	Common::FSNode node((Common::Path(path)));
+	if (!node.exists() || !node.isReadable())
+		return;
+	Common::SeekableReadStream *in = node.createReadStream();
+	if (!in)
+		return;
+	while (!in->eos() && out.size() < maxN) {
+		Common::String line = in->readLine();
+		Common::String clean;
+		for (uint i = 0; i < line.size(); i++) {
+			if (line[i] == '#')
+				break;
+			clean += line[i];
+		}
+		clean.trim();
+		if (clean.empty())
+			continue;
+		EyeSeq seq;
+		if (!eyeParseCompact(clean, seq)) {
+			warning("ROGER-EYETEST %s: '%s' is not %d chars of f/l/a — skipped",
+			        path.c_str(), clean.c_str(), kEyeSeqLen);
+			continue;
+		}
+		bool dup = false;
+		for (uint s = 0; s < out.size(); s++)
+			if (eyeSeqCompact(out[s]) == clean) { dup = true; break; }
+		if (!dup)
+			out.push_back(seq);
+	}
+	delete in;
+}
+
 // gen 0: when _outDir/seeds.txt exists, its sequences ARE the generation — one
 // compact string per line ('#' comments, blank lines ok), first line becomes
 // the starting champion, and listed sequences are re-run even if a prior run
 // already judged them. Otherwise: the base sequence + (kEyePop - 1) mutations.
 void RogerEyeTest::seedGeneration0() {
-	Common::FSNode seedNode((Common::Path(_outDir + "seeds.txt")));
-	if (seedNode.exists() && seedNode.isReadable()) {
-		Common::SeekableReadStream *in = seedNode.createReadStream();
-		if (in) {
-			while (!in->eos() && (int)_all.size() < 16) {
-				Common::String line = in->readLine();
-				Common::String clean;
-				for (uint i = 0; i < line.size(); i++) {
-					if (line[i] == '#')
-						break;
-					clean += line[i];
-				}
-				clean.trim();
-				if (clean.empty())
-					continue;
-				EyeSeq seq;
-				if (!eyeParseCompact(clean, seq)) {
-					warning("ROGER-EYETEST seeds.txt: '%s' is not %d chars of f/l/a — skipped",
-					        clean.c_str(), kEyeSeqLen);
-					continue;
-				}
-				bool dupSeed = false;
-				for (uint s = 0; s < _all.size(); s++)
-					if (eyeSeqCompact(_all[s].seq) == clean) { dupSeed = true; break; }
-				if (dupSeed)
-					continue;
-				EyeCandidate c;
-				c.gen = 0; c.idx = (int)_all.size();
-				c.seq = seq;
-				c.source = "seed";
-				_all.push_back(c);
-				_surf.push_back(nullptr);
-				bool inSeen = false;
-				for (uint s = 0; s < _seen.size(); s++)
-					if (_seen[s] == clean) { inSeen = true; break; }
-				if (!inSeen)
-					_seen.push_back(clean);
-			}
-			delete in;
+	Common::Array<EyeSeq> seeds;
+	readSeqList(_outDir + "seeds.txt", 16, seeds);
+	if (!seeds.empty()) {
+		for (uint k = 0; k < seeds.size(); k++) {
+			EyeCandidate c;
+			c.gen = 0; c.idx = (int)k;
+			c.seq = seeds[k];
+			c.source = "seed";
+			_all.push_back(c);
+			_surf.push_back(nullptr);
+			const Common::String compact = eyeSeqCompact(c.seq);
+			bool inSeen = false;
+			for (uint s = 0; s < _seen.size(); s++)
+				if (_seen[s] == compact) { inSeen = true; break; }
+			if (!inSeen)
+				_seen.push_back(compact);
 		}
-		if (!_all.empty()) {
-			debug("ROGER-EYETEST seeded gen 0 from seeds.txt: %u candidates, champion %s",
-			      (uint)_all.size(), eyeSeqCompact(_all[0].seq).c_str());
-			return;
-		}
+		debug("ROGER-EYETEST seeded gen 0 from seeds.txt: %u candidates, champion %s",
+		      (uint)_all.size(), eyeSeqCompact(_all[0].seq).c_str());
+		return;
 	}
 
 	EyeCandidate base;
@@ -267,18 +277,9 @@ void RogerEyeTest::renderNewCandidates(uint firstIdx) {
 	writeManifests(); // file names are now known
 }
 
-void RogerEyeTest::startCompareQueue(uint firstIdx) {
-	_queue.clear();
-	_qPos = 0;
-	for (uint i = firstIdx; i < _all.size(); i++)
-		if ((int)i != _champion && _surf[i])
-			_queue.push_back((int)i);
-	_champIsA = _rng.below(2) == 0;
-	_showingB = false;
-	_phase = kPhaseCompare;
-	_dirty = true;
-	// Drain input queued during the blocking render batch: stale clicks /
-	// key-repeats must not score pairs the user never saw. Quit still counts.
+// Drain input queued during a blocking render batch: stale clicks /
+// key-repeats must not score pairs the user never saw. Quit still counts.
+void RogerEyeTest::drainStaleInput() {
 	Common::Event stale;
 	while (g_system->getEventManager()->pollEvent(stale)) {
 		if (stale.type == Common::EVENT_QUIT || stale.type == Common::EVENT_RETURN_TO_LAUNCHER) {
@@ -286,51 +287,175 @@ void RogerEyeTest::startCompareQueue(uint firstIdx) {
 			_quit = true;
 		}
 	}
+}
+
+void RogerEyeTest::startCompareQueue(uint firstIdx) {
+	_queue.clear();
+	_qPos = 0;
+	_undo.clear(); // undo window = the current generation
+	for (uint i = firstIdx; i < _all.size(); i++)
+		if ((int)i != _champion && _surf[i])
+			_queue.push_back((int)i);
+	_champIsA = _rng.below(2) == 0;
+	_showingB = false;
+	_phase = kPhaseCompare;
+	_dirty = true;
+	drainStaleInput();
 	if (_queue.empty())
 		endOfGeneration(); // every render failed — don't strand the UI
 }
 
-void RogerEyeTest::choose(int choice) {
-	if (_phase != kPhaseCompare || _qPos >= (int)_queue.size())
+// showdown.txt (same format as seeds.txt, 2-8 entrants) arms showdown mode:
+// no breeding, no generations — round after round of full round-robins, each
+// on a fresh random scene, until Esc reports the final ranking.
+bool RogerEyeTest::loadShowdown() {
+	Common::Array<EyeSeq> entrants;
+	readSeqList(_outDir + "showdown.txt", 8, entrants);
+	if (entrants.size() < 2)
+		return false;
+	for (uint k = 0; k < entrants.size(); k++) {
+		EyeCandidate c;
+		c.gen = 0; c.idx = (int)k;
+		c.seq = entrants[k];
+		c.source = "showdown";
+		_all.push_back(c);
+		_surf.push_back(nullptr);
+		_seen.push_back(eyeSeqCompact(c.seq));
+	}
+	debug("ROGER-EYETEST showdown armed: %u entrants", (uint)_all.size());
+	return true;
+}
+
+void RogerEyeTest::startShowdownRound() {
+	// New scene per round; every entrant re-renders on it.
+	_picId = _picPool[_rng.below(_picPool.size())];
+	for (uint i = 0; i < _surf.size(); i++) {
+		if (_surf[i]) {
+			_surf[i]->free();
+			delete _surf[i];
+			_surf[i] = nullptr;
+		}
+	}
+	renderNewCandidates(0);
+	_pairA.clear();
+	_pairB.clear();
+	for (uint i = 0; i < _all.size(); i++)
+		for (uint j = i + 1; j < _all.size(); j++)
+			if (_surf[i] && _surf[j]) {
+				_pairA.push_back((int)i);
+				_pairB.push_back((int)j);
+			}
+	_qPos = 0;
+	_undo.clear(); // undo window = the current round
+	_champIsA = _rng.below(2) == 0;
+	_showingB = false;
+	_phase = kPhaseCompare;
+	_dirty = true;
+	drainStaleInput();
+	if (_pairA.empty())
+		finish(); // nothing comparable this round — end with the ranking
+}
+
+// The pair at schedule position `pos`: GA mode pits the champion against the
+// queued challenger; showdown mode walks the round-robin schedule. `pos` is
+// clamped so the gen-done pause keeps displaying the LAST judged pair.
+void RogerEyeTest::pairAt(int pos, int &pa, int &pb) const {
+	const int n = pairCount();
+	pos = CLIP(pos, 0, MAX(0, n - 1));
+	if (_showdown) {
+		pa = _pairA.empty() ? _champion : _pairA[pos];
+		pb = _pairB.empty() ? _champion : _pairB[pos];
+	} else {
+		pa = _champion;
+		pb = _queue.empty() ? _champion : _queue[pos];
+	}
+}
+
+// Revert one judged pair, exactly as scored — repeatable back to the start of
+// the current generation/round (a bred generation is final: its choices
+// already shaped the offspring). The pair is re-shown for a fresh answer.
+void RogerEyeTest::undoLast() {
+	if (_phase == kPhaseDone || _undo.empty())
 		return;
-	const int champ = _champion;
-	const int chall = _queue[_qPos];
+	const UndoRec u = _undo.back();
+	_undo.pop_back();
+	if (u.winner >= 0) {
+		_all[u.winner].wins--;
+		_all[u.loser].losses--;
+	}
+	if (u.tie) {
+		_all[u.pa].ties--;
+		_all[u.pb].ties--;
+	}
+	_champion = u.champBefore;
+	if (!_history.empty())
+		_history.pop_back();
+	if (!_choices.empty())
+		_choices.pop_back();
+	_qPos--;
+	_phase = kPhaseCompare;
+	_champIsA = _rng.below(2) == 0;
+	_showingB = false;
+	writeManifests();
+	_dirty = true;
+}
+
+void RogerEyeTest::choose(int choice) {
+	if (_phase != kPhaseCompare || _qPos >= pairCount())
+		return;
+	int pa, pb;
+	pairAt(_qPos, pa, pb);
 
 	EyeComparison rec;
-	rec.aId = _all[_champIsA ? champ : chall].id(); // A/B labels, as shown to the user
-	rec.bId = _all[_champIsA ? chall : champ].id();
+	rec.aId = _all[_champIsA ? pa : pb].id(); // A/B labels, as shown to the user
+	rec.bId = _all[_champIsA ? pb : pa].id();
 	rec.choice = choice;
 	rec.millis = g_system->getMillis();
 
+	UndoRec u;
+	u.pa = pa;
+	u.pb = pb;
+	u.champBefore = _champion;
+
 	int winner = -1, loser = -1;
 	if (choice == kEyeChoiceA) {
-		winner = _champIsA ? champ : chall;
-		loser  = _champIsA ? chall : champ;
+		winner = _champIsA ? pa : pb;
+		loser  = _champIsA ? pb : pa;
 	} else if (choice == kEyeChoiceB) {
-		winner = _champIsA ? chall : champ;
-		loser  = _champIsA ? champ : chall;
+		winner = _champIsA ? pb : pa;
+		loser  = _champIsA ? pa : pb;
 	}
 	if (winner >= 0) {
 		_all[winner].wins++;
 		_all[loser].losses++;
-		if (winner == chall)
-			_champion = chall; // king of the hill
+		u.winner = winner;
+		u.loser = loser;
+		if (!_showdown && winner == pb)
+			_champion = pb; // king of the hill (GA mode only)
 	} else if (choice == kEyeChoiceSame) {
-		_all[champ].ties++;
-		_all[chall].ties++;
+		_all[pa].ties++;
+		_all[pb].ties++;
+		u.tie = true;
 	} // skip: no score movement
 
 	rec.championAfter = _all[_champion].id();
 	_history.push_back(rec);
 	_choices.push_back(choice);
+	_undo.push_back(u);
 	writeManifests();
 
 	_qPos++;
 	_champIsA = _rng.below(2) == 0;
 	_showingB = false; // every new pair starts on A
 	_dirty = true;
-	if (_qPos >= (int)_queue.size())
-		endOfGeneration();
+	if (_qPos >= pairCount()) {
+		// Pause instead of breeding/rolling immediately: the last choice of a
+		// generation/round stays undoable until Enter commits it.
+		_phase = kPhaseGenDone;
+		_banner = _showdown
+			? "Round done.  Enter = new scene, Backspace = undo, Esc = final ranking."
+			: "Generation done.  Enter = breed the next one, Backspace = undo, Esc = finish.";
+	}
 }
 
 void RogerEyeTest::endOfGeneration() {
@@ -380,6 +505,18 @@ void RogerEyeTest::finish() {
 	if (_phase == kPhaseDone)
 		return;
 	_phase = kPhaseDone;
+	if (_showdown && !_all.empty()) {
+		// Final ranking: net wins decide; the top entrant becomes the reported
+		// winner. Full standings go to the run log (per-entrant W/T/L is also
+		// in manifest.json).
+		Common::Array<int> rank = eyeRankPool(_all, (int)_all.size());
+		_champion = rank[0];
+		for (uint r = 0; r < rank.size(); r++) {
+			const EyeCandidate &c = _all[rank[r]];
+			debug("ROGER-EYETEST showdown rank %u: %s score %d (W%d T%d L%d)",
+			      r + 1, eyeSeqCompact(c.seq).c_str(), c.score(), c.wins, c.ties, c.losses);
+		}
+	}
 	writeSummary();
 	const EyeCandidate &w = _all[_champion];
 	Common::String spaced;
@@ -438,6 +575,7 @@ void RogerEyeTest::writeSummary() {
 		"  \"candidates\": %u,\n"
 		"  \"comparisons\": %u,\n"
 		"  \"converged\": %s,\n"
+		"  \"showdown\": %s,\n"
 		"  \"manifest\": \"manifest.json\",\n"
 		"  \"comparisons_file\": \"comparisons.json\"\n"
 		"}\n",
@@ -445,7 +583,8 @@ void RogerEyeTest::writeSummary() {
 		eyeSeqCompact(w.seq).c_str(), spaced.c_str(),
 		w.wins, w.ties, w.losses, _genNo + 1,
 		(uint)_all.size(), (uint)_history.size(),
-		eyeConverged(_choices, kEyeSameWindow) ? "true" : "false"));
+		eyeConverged(_choices, kEyeSameWindow) ? "true" : "false",
+		_showdown ? "true" : "false"));
 	sf.close();
 }
 
@@ -520,9 +659,10 @@ void RogerEyeTest::drawFrame() {
 	// Compare / banner: the current pair, eye-exam style — ONE image at a time,
 	// flipped in place (Space / Tab / click on the image / Flip button) so both
 	// candidates occupy the exact same pixels and differences pop.
-	const int chall = (_qPos < (int)_queue.size()) ? _queue[_qPos] : _champion;
-	const int aIdx = _champIsA ? _champion : chall;
-	const int bIdx = _champIsA ? chall : _champion;
+	int pa, pb;
+	pairAt(_qPos, pa, pb); // clamped: the gen-done pause keeps the last pair up
+	const int aIdx = _champIsA ? pa : pb;
+	const int bIdx = _champIsA ? pb : pa;
 	const int shown = _showingB ? bIdx : aIdx;
 	_imageArea = Common::Rect(10, 10, _display->w - 10, barTop - 10);
 	if (_surf[shown])
@@ -534,7 +674,7 @@ void RogerEyeTest::drawFrame() {
 
 	// Bottom bar: prompt, buttons, status.
 	_display->hLine(0, barTop, _display->w - 1, grey);
-	if (_phase == kPhaseBanner) {
+	if (_phase == kPhaseBanner || _phase == kPhaseGenDone) {
 		if (lf)
 			lf->drawString(_display, _banner, 40, barTop + 55, _display->w - 80, white);
 	} else {
@@ -559,11 +699,21 @@ void RogerEyeTest::drawFrame() {
 				               bw - 40, white);
 			bx += bw + 30;
 		}
+		_btnUndo = Common::Rect(bx, barTop + 56, bx + 280, barTop + 116);
+		_display->frameRect(_btnUndo, _undo.empty() ? grey : white);
 		if (lf)
-			lf->drawString(_display, Common::String::format(
-				"gen %d   comparison %d/%u   Same in last %d: %d   candidates %u   Esc = stop",
-				_genNo, _qPos + 1, (uint)_queue.size(), kEyeSameWindow,
-				sameInLastWindow(), (uint)_all.size()),
+			lf->drawString(_display, "Undo (Bksp)", _btnUndo.left + 20, _btnUndo.top + 16,
+			               240, _undo.empty() ? grey : white);
+		bx += 280 + 30;
+		if (lf)
+			lf->drawString(_display, _showdown
+				? Common::String::format(
+					"round %d   pair %d/%d   pic %d   entrants %u   Esc = ranking",
+					_genNo + 1, _qPos + 1, pairCount(), _picId, (uint)_all.size())
+				: Common::String::format(
+					"gen %d   pair %d/%d   pic %d   Same in last %d: %d   candidates %u   Esc = stop",
+					_genNo, _qPos + 1, pairCount(), _picId, kEyeSameWindow,
+					sameInLastWindow(), (uint)_all.size()),
 				bx, barTop + 76, _display->w - bx - 20, grey);
 	}
 
@@ -593,6 +743,7 @@ void RogerEyeTest::handleEvent(const Common::Event &ev) {
 			for (int i = 0; i < 4; i++)
 				if (_btn[i].contains(mx, my)) { choose(i); return; }
 			if (_btnFlip.contains(mx, my)) { _showingB = !_showingB; _dirty = true; return; }
+			if (_btnUndo.contains(mx, my)) { undoLast(); return; }
 		}
 		// Clicking the image flips the lens (compare AND banner — the pair stays up).
 		if (_phase != kPhaseDone && _imageArea.contains(mx, my)) {
@@ -616,8 +767,21 @@ void RogerEyeTest::handleEvent(const Common::Event &ev) {
 		break;
 	case Common::KEYCODE_RETURN:
 	case Common::KEYCODE_KP_ENTER:
-		if (_phase == kPhaseBanner)
+		if (_phase == kPhaseGenDone) {
+			// Commit the generation/round: past this point its choices are final.
+			if (_showdown) {
+				_genNo++;
+				startShowdownRound();
+			} else {
+				endOfGeneration(); // converged/budget banner, or breed
+			}
+		} else if (_phase == kPhaseBanner) {
 			nextGeneration();
+		}
+		break;
+	case Common::KEYCODE_BACKSPACE:
+	case Common::KEYCODE_u:
+		undoLast(); // repeatable; no-op once the generation/round was committed
 		break;
 	case Common::KEYCODE_SPACE:
 	case Common::KEYCODE_TAB:
@@ -661,11 +825,18 @@ void RogerEyeTest::run() {
 	_outDir = dir + Common::String::format("eyetest-%s/", _gameId.c_str());
 
 	_picId = _picPool[_rng.below(_picPool.size())]; // generation 0's scene
-	importPriorSeen(dir);    // this game's judged sequences never re-proposed by breeding
-	seedGeneration0();
-	writeManifests();        // createPath=true creates _outDir before the first PNG
-	renderNewCandidates(0);
-	startCompareQueue(1);    // champion = candidate 0 (base or first seed); challengers follow
+	if (loadShowdown()) {
+		// showdown.txt present: round-robin the listed finalists, no GA.
+		_showdown = true;
+		writeManifests();    // createPath=true creates _outDir before the first PNG
+		startShowdownRound();
+	} else {
+		importPriorSeen(dir); // this game's judged sequences never re-proposed by breeding
+		seedGeneration0();
+		writeManifests();
+		renderNewCandidates(0);
+		startCompareQueue(1); // champion = candidate 0 (base or first seed); challengers follow
+	}
 
 	{
 		const Common::Point p = g_system->getEventManager()->getMousePos();
