@@ -182,8 +182,11 @@ public:
 	// native transition is then finalized instantly (invisible under the opaque overlay).
 	// sciType is the *normalized* transitions.h enum value (SCI_TRANSITIONS_*) — raw
 	// game-script IDs have already been translated by GfxTransitions::doit() before this
-	// hook fires. picRect is the 320x200 picture rect.
-	virtual void onTransition(int sciType, const Common::Rect &picRect) {}
+	// hook fires. picRect is the 320x200 picture rect. blackoutSciType mirrors the
+	// original's two-phase blackout form (SCI0 raw IDs 11-17): the screen first
+	// animates old -> BLACK with that (normalized) type, then black -> new with
+	// sciType. -1 = no blackout (plain old -> new).
+	virtual void onTransition(int sciType, const Common::Rect &picRect, int blackoutSciType) {}
 	// Called from kShakeScreen (gated). shakeCount jolts; directions bit0=vertical,
 	// bit1=horizontal. The provider jolts the overlay; native shake is skipped.
 	virtual void onShake(int shakeCount, int directions) {}

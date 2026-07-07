@@ -74,7 +74,7 @@ public:
 	void onNativeFreeSave(uint32 handleToken) override;
 	void onNativeRestoreRect(uint32 handleToken, const Common::Rect &rect) override;
 	void snapshotNativeBaseline() override;
-	void onTransition(int sciType, const Common::Rect &picRect) override;
+	void onTransition(int sciType, const Common::Rect &picRect, int blackoutSciType) override;
 	void onShake(int shakeCount, int directions) override;
 	void onCursorShape(int cursorId) override;
 	void onCursorHidden(bool hidden) override;

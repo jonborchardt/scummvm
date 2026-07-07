@@ -3194,12 +3194,12 @@ void FileRogerArtProvider::composeRoomScene(Graphics::ManagedSurface &out,
 	_compositor->renderScene(out, sprites, gameRect);
 }
 
-void FileRogerArtProvider::onTransition(int sciType, const Common::Rect & /*picRect*/) {
+void FileRogerArtProvider::onTransition(int sciType, const Common::Rect & /*picRect*/, int blackoutSciType) {
 	if (!_transitionsEnabled || !overlayShown() || !_compositor || !_plate)
 		return;
 	diagDumpState("transition");
 	const Roger::TransitionFamily fam = Roger::transitionFamilyFor(sciType);
-	if (fam == Roger::kFxNone)
+	if (fam == Roger::kFxNone && blackoutSciType < 0)
 		return; // instant cut: the deferred first-frame present (existing path) handles it
 	const Graphics::PixelFormat rgba(4, 8, 8, 8, 8, 24, 16, 8, 0);
 	const int OW = g_system->getOverlayWidth(), OH = g_system->getOverlayHeight();
@@ -3243,8 +3243,8 @@ void FileRogerArtProvider::onTransition(int sciType, const Common::Rect & /*picR
 		delete nativeSurfaces[i];
 	}
 	if (_diag)
-		warning("ROGER-DIAG[transition]: type=%d fam=%d frame1Sprites=%u",
-		        sciType, (int)fam, (unsigned)frame1.size());
+		warning("ROGER-DIAG[transition]: type=%d blackoutType=%d fam=%d frame1Sprites=%u",
+		        sciType, blackoutSciType, (int)fam, (unsigned)frame1.size());
 	// composeRoomScene pre-validates _bgCache; ensure the first post-transition renderFrame
 	// does a full _compositeCache copy so the software-cursor fast path has clean pixels.
 	_compositeCacheValid = false;
@@ -3252,8 +3252,26 @@ void FileRogerArtProvider::onTransition(int sciType, const Common::Rect & /*picR
 	// Skip the FX animation in side-by-side (it would present the non-split full-overlay
 	// layout); the room-change bookkeeping below still runs, and the next frame's
 	// presentComparison shows the split with the new room.
-	if (_mode != Roger::kModeSideBySide)
-		_compositor->runTransition(from, to, scratch, fam, Roger::defaultDurationMs(fam), sciType);
+	if (_mode != Roger::kModeSideBySide) {
+		if (blackoutSciType >= 0) {
+			// Blackout form (SCI0 raw IDs 11-17): the original animates old -> BLACK
+			// with the mirror type from blackoutTransitionIDs, then black -> new with
+			// the requested type. A direct old->new morph here read as a foreign
+			// "soft wipe" — the black interstitial is what gives the original its
+			// pop. A kFxNone phase is an instant cut to/from black, exactly native.
+			Graphics::ManagedSurface black(OW, OH, rgba);
+			black.fillRect(Common::Rect(0, 0, (int16)OW, (int16)OH), rgba.ARGBToColor(255, 0, 0, 0));
+			const Roger::TransitionFamily boFam = Roger::transitionFamilyFor(blackoutSciType);
+			if (boFam != Roger::kFxNone)
+				_compositor->runTransition(from, black, scratch, boFam,
+				                           Roger::defaultDurationMs(boFam), blackoutSciType);
+			if (fam != Roger::kFxNone)
+				_compositor->runTransition(black, to, scratch, fam,
+				                           Roger::defaultDurationMs(fam), sciType);
+		} else {
+			_compositor->runTransition(from, to, scratch, fam, Roger::defaultDurationMs(fam), sciType);
+		}
+	}
 	// Leave _sceneCache holding the new background so the next kAnimate frame's dirty
 	// present builds on it correctly.
 	if (!_sceneCache || _sceneCache->w != OW || _sceneCache->h != OH) {
