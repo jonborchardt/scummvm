@@ -52,7 +52,7 @@ private:
 
 	struct Slot {
 		OmyacParams        params;
-		Common::Array<int> passes;               // starts = defaultPasses()
+		Common::Array<int> passes;               // starts = ini-effective passes (_iniPasses)
 		int                variant = 0;          // viewScaler() registry index; 0 = the shipping 6x module
 		PlateMode          plateMode = kPlateOmyac;
 		Graphics::Surface *render = nullptr;     // cached scene render (1920x1140 RGBA)
@@ -110,6 +110,11 @@ private:
 
 	bool  _dirty = true;
 	bool  _quit = false;
+
+	// roger_omyac_passes resolved once at startup (default when unset). Slot
+	// seeds and the Default chip button both reset to this — "default" means
+	// the effective ini value, matching the tune panel's Reset.
+	Common::Array<int> _iniPasses;
 
 	Slot _slots[2];
 	int  _activeSlot = 0;            // 0 = A, 1 = B

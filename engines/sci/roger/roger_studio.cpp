@@ -29,6 +29,7 @@
 #include "graphics/font.h"
 #include "graphics/managed_surface.h"
 #include "sci/roger/png_loader.h"
+#include "sci/roger/roger_passes.h"
 
 #ifdef ENABLE_SCI
 #include "sci/sci.h"
@@ -52,8 +53,10 @@ static Common::String sanitize(const Common::String &detail) {
 
 RogerStudio::RogerStudio(const Common::String &gameId)
 	: _gen(gameId, "", kGenMemory) {
-	_slots[0].passes = defaultPasses();
-	_slots[1].passes = defaultPasses();
+	_iniPasses = effectivePasses(ConfMan.hasKey("roger_omyac_passes"),
+	                             ConfMan.hasKey("roger_omyac_passes") ? ConfMan.get("roger_omyac_passes") : "");
+	_slots[0].passes = _iniPasses;
+	_slots[1].passes = _iniPasses;
 #ifdef ENABLE_SCI
 	if (g_sci && g_sci->getResMan()) {
 		ResourceManager *resMan = g_sci->getResMan();
@@ -822,7 +825,7 @@ void RogerStudio::dispatchWidget(uint32 id) {
 	case kWidChipClear:
 		s.passes.clear(); _selectedChip = -1; invalidateActive(); break;
 	case kWidChipReset:
-		s.passes = defaultPasses(); _selectedChip = -1; invalidateActive(); break;
+		s.passes = _iniPasses; _selectedChip = -1; invalidateActive(); break;
 	default: break;
 	}
 }
