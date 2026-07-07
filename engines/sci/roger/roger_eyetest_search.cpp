@@ -53,5 +53,52 @@ EyeSeq eyeRandomSeq(EyeRng &rng) {
 	return s;
 }
 
+EyeSeq eyeMutate(const EyeSeq &src, EyeRng &rng, Common::String &outDesc) {
+	// Position-count distribution: 60/25/10/5% for 1/2/3/4-5.
+	const uint32 roll = rng.below(100);
+	int count;
+	if (roll < 60)
+		count = 1;
+	else if (roll < 85)
+		count = 2;
+	else if (roll < 95)
+		count = 3;
+	else
+		count = 4 + (int)rng.below(2);
+
+	bool picked[kEyeSeqLen] = {};
+	for (int n = 0; n < count; n++) {
+		int p;
+		do {
+			p = (int)rng.below(kEyeSeqLen);
+		} while (picked[p]);
+		picked[p] = true;
+	}
+
+	EyeSeq out = src;
+	outDesc = "mut";
+	for (int p = 0; p < kEyeSeqLen; p++) {
+		if (!picked[p])
+			continue;
+		// Always switch to one of the OTHER two pass values.
+		int alt[2];
+		int na = 0;
+		for (int v = 0; v < 3; v++)
+			if (v != src[p])
+				alt[na++] = v;
+		out[p] = alt[rng.below(2)];
+		outDesc += Common::String::format("_pos%02d_%c_to_%c",
+			p, eyePassChar(src[p]), eyePassChar(out[p]));
+	}
+	return out;
+}
+
+EyeSeq eyeCrossover(const EyeSeq &a, const EyeSeq &b, EyeRng &rng) {
+	EyeSeq out;
+	for (int i = 0; i < kEyeSeqLen; i++)
+		out.push_back(rng.below(2) ? b[i] : a[i]);
+	return out;
+}
+
 } // namespace Roger
 } // namespace Sci
