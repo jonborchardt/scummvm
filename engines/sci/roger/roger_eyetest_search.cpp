@@ -100,5 +100,35 @@ EyeSeq eyeCrossover(const EyeSeq &a, const EyeSeq &b, EyeRng &rng) {
 	return out;
 }
 
+bool eyeConverged(const Common::Array<int> &choices, int window) {
+	if ((int)choices.size() < window)
+		return false;
+	int same = 0;
+	for (int i = (int)choices.size() - window; i < (int)choices.size(); i++)
+		if (choices[i] == kEyeChoiceSame)
+			same++;
+	return same * 2 >= window;
+}
+
+Common::Array<int> eyeRankPool(const Common::Array<EyeCandidate> &all, int maxPool) {
+	Common::Array<int> idx;
+	for (uint i = 0; i < all.size(); i++)
+		idx.push_back((int)i);
+	// Insertion sort (n <= kEyeMaxCandidates): score desc, ties newest-first.
+	for (uint i = 1; i < idx.size(); i++) {
+		const int v = idx[i];
+		int j = (int)i - 1;
+		while (j >= 0 && (all[idx[j]].score() < all[v].score() ||
+		       (all[idx[j]].score() == all[v].score() && idx[j] < v))) {
+			idx[j + 1] = idx[j];
+			j--;
+		}
+		idx[j + 1] = v;
+	}
+	while ((int)idx.size() > maxPool)
+		idx.pop_back();
+	return idx;
+}
+
 } // namespace Roger
 } // namespace Sci

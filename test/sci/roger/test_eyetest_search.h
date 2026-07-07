@@ -93,4 +93,45 @@ public:
 				TS_ASSERT(c[i] == a[i] || c[i] == b[i]);
 		}
 	}
+
+	void testConvergedNeedsFullWindow() {
+		Common::Array<int> ch;
+		for (int i = 0; i < kEyeSameWindow - 1; i++)
+			ch.push_back(kEyeChoiceSame);
+		TS_ASSERT(!eyeConverged(ch, kEyeSameWindow)); // 11 Sames, window unfilled
+		ch.push_back(kEyeChoiceSame);
+		TS_ASSERT(eyeConverged(ch, kEyeSameWindow));  // 12/12
+	}
+
+	void testConvergedHalfSameInLastWindow() {
+		Common::Array<int> ch;
+		// 12 old A-picks, then 6 Same + 6 A in the last 12 -> exactly 50% = converged.
+		for (int i = 0; i < 12; i++)
+			ch.push_back(kEyeChoiceA);
+		for (int i = 0; i < 6; i++)
+			ch.push_back(kEyeChoiceSame);
+		for (int i = 0; i < 6; i++)
+			ch.push_back(kEyeChoiceA);
+		TS_ASSERT(eyeConverged(ch, kEyeSameWindow));
+		ch.push_back(kEyeChoiceA); // last 12 now has 5 Sames -> not converged
+		TS_ASSERT(!eyeConverged(ch, kEyeSameWindow));
+	}
+
+	void testRankPoolOrdersByScoreThenRecency() {
+		Common::Array<EyeCandidate> all;
+		for (int i = 0; i < 4; i++) {
+			EyeCandidate c;
+			c.gen = 0; c.idx = i; c.seq = eyeBaseSeq();
+			all.push_back(c);
+		}
+		all[0].wins = 1;                    // score 1
+		all[1].wins = 3; all[1].losses = 1; // score 2
+		all[2].wins = 2;                    // score 2 (newer than [1])
+		all[3].losses = 2;                  // score -2
+		Common::Array<int> pool = eyeRankPool(all, 3);
+		TS_ASSERT_EQUALS(pool.size(), (uint)3);
+		TS_ASSERT_EQUALS(pool[0], 2); // score 2, newest wins the tie
+		TS_ASSERT_EQUALS(pool[1], 1); // score 2, older
+		TS_ASSERT_EQUALS(pool[2], 0); // score 1
+	}
 };
