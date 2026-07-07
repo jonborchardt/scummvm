@@ -332,9 +332,9 @@ private:
 	// No-op if no room is loaded (_loadedPicId < 0) or _assetGen is null.
 	void regenInPlace();
 
-	// ── TEMPORARY DEBUG TOOL: in-game quick-tune panel (spec 2026-07-05) ──────
-	// Delete this whole block (and the compositeCursor/onMouseMoved/event.cpp
-	// seams) when the MMPX judging is done.
+	// ── DEBUG TOOL: in-game quick-tune panel (spec 2026-07-05) ─────────────────
+	// Pass-tuning debug tool; kept permanently. MMPX judging concluded 2026-07-06
+	// (s2>s3 shipped; MMPX removed); panel stays as the session-only pass-tuning tool.
 	Roger::TunePanelState _tunePanel;
 	Common::Array<Roger::StudioWidget> _tuneWidgets;
 	Roger::GenMode _tunePreTuneMode = Roger::kGenCache; // mode before Apply first forced kGenMemory

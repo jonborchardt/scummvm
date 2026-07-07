@@ -39,9 +39,9 @@ pointer over either panel, and clicks through either panel are remapped to game
 coordinates, so the game stays playable while comparing. The status banner and overlay
 follow the toggle.
 
-**F12** (or Ctrl+Shift+T) toggles the quick-tune panel (TEMPORARY debug tool:
-session-only view-scaler variant + staged omyac pass edits behind Apply;
-will be removed when the MMPX judging is done).
+**F12** (or Ctrl+Shift+T) toggles the quick-tune panel (pass-tuning debug tool:
+session-only staged omyac pass edits behind Apply, plus view-scaler module selection
+(a single module — the shipping 6x — is registered today)).
 
 The startup mode is `roger_display_mode` (default `enhanced`); for a single launch use
 `build_and_run.ps1 -Mode enhanced|original|sbs` (env `ROGER_DISPLAY_MODE` — never touches
@@ -301,7 +301,7 @@ is `test/sci/roger/scripts/qfg1-smoke.rin`.
 `build_and_run.ps1 -Studio` (env `ROGER_STUDIO=1`, per-launch) boots a **debug-only,
 mouse-driven tuning environment** instead of a game: a single scene — the enhanced plate
 with a view cel composited on it game-style (SQ3 defaults: pic 2, view 12 loop 1) — with
-two live A/B setting slots (params + passes + scaler variant + plate mode each), Split
+two live A/B setting slots (params + passes + scaler variant + plate mode each (one scaler module — 6x — is registered today)), Split
 and Diff comparison views with an automatic alignment readout, click-to-place/drag cel,
 and stamped PNG export. Everything is button-driven; Esc quits and E exports
 (automation-only keys). It never touches the generation disk cache.
