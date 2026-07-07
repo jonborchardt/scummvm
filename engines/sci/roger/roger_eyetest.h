@@ -52,7 +52,8 @@ public:
 private:
 	enum Phase { kPhaseCompare, kPhaseBanner, kPhaseDone };
 
-	void seedGeneration0();
+	void seedGeneration0();                  // seeds.txt in _outDir, else base + mutations
+	void importPriorSeen(const Common::String &shotsDir); // harvest judged seqs from old run dirs
 	void renderNewCandidates(uint firstIdx); // generate + save PNG + keep surface
 	void startCompareQueue(uint firstIdx);   // challengers = firstIdx.. vs champion
 	void handleEvent(const Common::Event &ev);

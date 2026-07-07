@@ -23,6 +23,7 @@
 #include "common/config-manager.h"
 #include "common/events.h"
 #include "common/file.h"
+#include "common/fs.h"
 #include "common/system.h"
 #include "common/textconsole.h"
 #include "graphics/cursorman.h"
@@ -34,6 +35,13 @@
 namespace Sci {
 namespace Roger {
 
+// Mutation position bias, tuned from the 2026-07-06 session's data: the head
+// structure f f f f f f l _ _ _ held up, so concentrate the search on the tail
+// (positions 7-9), probe the l-slots at 3 and 6 occasionally, and keep every
+// position reachable (eyeMutate requires all weights >= 1; the 60/25/10/5
+// large-mutation escape hatch is untouched).
+static const int kEyeTailBias[kEyeSeqLen] = {1, 1, 1, 2, 1, 1, 2, 5, 5, 5};
+
 RogerEyeTest::RogerEyeTest(const Common::String &gameId)
 	: _assetGen(gameId, "", kGenMemory), _rng(g_system->getMillis()) {
 }
@@ -44,8 +52,99 @@ RogerEyeTest::~RogerEyeTest() {
 		if (_surf[i]) { _surf[i]->free(); delete _surf[i]; }
 }
 
-// gen 0: the base sequence + (kEyePop - 1) mutations of it.
+// Harvest compact sequences already judged in previous runs so breeding never
+// re-proposes them. The candidate PNG names encode the sequence after "__", so
+// scanning filenames is a full import with zero JSON parsing: every
+// "eyetest-n<pic>*" directory under screenshotpath (manual backups like
+// eyetest-n002-run1 included, plus leftovers in the active dir) contributes.
+// Explicit seeds.txt entries are exempt — a listed sequence is always re-run.
+void RogerEyeTest::importPriorSeen(const Common::String &shotsDir) {
+	Common::FSNode root((Common::Path(shotsDir)));
+	Common::FSList dirs;
+	if (!root.exists() || !root.getChildren(dirs, Common::FSNode::kListDirectoriesOnly))
+		return;
+	const Common::String prefix = Common::String::format("eyetest-n%03d", _picId);
+	int imported = 0;
+	for (uint d = 0; d < dirs.size(); d++) {
+		if (!dirs[d].getName().hasPrefix(prefix))
+			continue;
+		Common::FSList files;
+		if (!dirs[d].getChildren(files, Common::FSNode::kListFilesOnly))
+			continue;
+		for (uint f = 0; f < files.size(); f++) {
+			const Common::String name = files[f].getName();
+			if (!name.hasSuffix(".png") || name.size() < (uint)kEyeSeqLen + 6)
+				continue;
+			const Common::String compact(name.c_str() + name.size() - 4 - kEyeSeqLen, kEyeSeqLen);
+			EyeSeq seq;
+			if (!eyeParseCompact(compact, seq))
+				continue;
+			bool dup = false;
+			for (uint s = 0; s < _seen.size(); s++)
+				if (_seen[s] == compact) { dup = true; break; }
+			if (!dup) {
+				_seen.push_back(compact);
+				imported++;
+			}
+		}
+	}
+	if (imported)
+		debug("ROGER-EYETEST imported %d previously judged sequences from %s%s*",
+		      imported, shotsDir.c_str(), prefix.c_str());
+}
+
+// gen 0: when _outDir/seeds.txt exists, its sequences ARE the generation — one
+// compact string per line ('#' comments, blank lines ok), first line becomes
+// the starting champion, and listed sequences are re-run even if a prior run
+// already judged them. Otherwise: the base sequence + (kEyePop - 1) mutations.
 void RogerEyeTest::seedGeneration0() {
+	Common::FSNode seedNode((Common::Path(_outDir + "seeds.txt")));
+	if (seedNode.exists() && seedNode.isReadable()) {
+		Common::SeekableReadStream *in = seedNode.createReadStream();
+		if (in) {
+			while (!in->eos() && (int)_all.size() < 16) {
+				Common::String line = in->readLine();
+				Common::String clean;
+				for (uint i = 0; i < line.size(); i++) {
+					if (line[i] == '#')
+						break;
+					clean += line[i];
+				}
+				clean.trim();
+				if (clean.empty())
+					continue;
+				EyeSeq seq;
+				if (!eyeParseCompact(clean, seq)) {
+					warning("ROGER-EYETEST seeds.txt: '%s' is not %d chars of f/l/a — skipped",
+					        clean.c_str(), kEyeSeqLen);
+					continue;
+				}
+				bool dupSeed = false;
+				for (uint s = 0; s < _all.size(); s++)
+					if (eyeSeqCompact(_all[s].seq) == clean) { dupSeed = true; break; }
+				if (dupSeed)
+					continue;
+				EyeCandidate c;
+				c.gen = 0; c.idx = (int)_all.size();
+				c.seq = seq;
+				c.source = "seed";
+				_all.push_back(c);
+				_surf.push_back(nullptr);
+				bool inSeen = false;
+				for (uint s = 0; s < _seen.size(); s++)
+					if (_seen[s] == clean) { inSeen = true; break; }
+				if (!inSeen)
+					_seen.push_back(clean);
+			}
+			delete in;
+		}
+		if (!_all.empty()) {
+			debug("ROGER-EYETEST seeded gen 0 from seeds.txt: %u candidates, champion %s",
+			      (uint)_all.size(), eyeSeqCompact(_all[0].seq).c_str());
+			return;
+		}
+	}
+
 	EyeCandidate base;
 	base.gen = 0; base.idx = 0;
 	base.seq = eyeBaseSeq();
@@ -58,7 +157,7 @@ void RogerEyeTest::seedGeneration0() {
 		c.gen = 0; c.idx = k;
 		bool fresh = false;
 		for (int attempt = 0; attempt < 20 && !fresh; attempt++) {
-			c.seq = eyeMutate(base.seq, _rng, c.source);
+			c.seq = eyeMutate(base.seq, _rng, c.source, kEyeTailBias);
 			fresh = true;
 			for (uint s = 0; s < _seen.size(); s++)
 				if (_seen[s] == eyeSeqCompact(c.seq))
@@ -187,7 +286,7 @@ void RogerEyeTest::nextGeneration() {
 	Common::Array<int> pool = eyeRankPool(_all, kEyePop);
 	const uint firstIdx = _all.size();
 	Common::Array<EyeCandidate> kids =
-		eyeBreed(_all, pool, _genNo, kEyePop - kEyeElite, _rng, _seen);
+		eyeBreed(_all, pool, _genNo, kEyePop - kEyeElite, _rng, _seen, kEyeTailBias);
 	for (uint k = 0; k < kids.size(); k++) {
 		_all.push_back(kids[k]);
 		_surf.push_back(nullptr);
@@ -481,10 +580,11 @@ void RogerEyeTest::run() {
 		dir += '/';
 	_outDir = dir + Common::String::format("eyetest-n%03d/", _picId);
 
+	importPriorSeen(dir);    // old runs' judged sequences never re-proposed by breeding
 	seedGeneration0();
 	writeManifests();        // createPath=true creates _outDir before the first PNG
 	renderNewCandidates(0);
-	startCompareQueue(1);    // champion = candidate 0 (base); challengers 1..5
+	startCompareQueue(1);    // champion = candidate 0 (base or first seed); challengers follow
 
 	{
 		const Common::Point p = g_system->getEventManager()->getMousePos();

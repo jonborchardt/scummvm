@@ -80,6 +80,41 @@ public:
 		}
 	}
 
+	void testParseCompact() {
+		EyeSeq s;
+		TS_ASSERT(eyeParseCompact("ffflffaaaa", s));
+		TS_ASSERT_EQUALS(eyeSeqCompact(s), Common::String("ffflffaaaa"));
+		TS_ASSERT(eyeParseCompact("fffffflaaa", s));
+		TS_ASSERT_EQUALS(eyeSeqCompact(s), Common::String("fffffflaaa"));
+		TS_ASSERT(!eyeParseCompact("ffflffaaa", s));   // too short
+		TS_ASSERT(!eyeParseCompact("ffflffaaaax", s)); // too long
+		TS_ASSERT(!eyeParseCompact("ffflffaaza", s));  // bad char
+		TS_ASSERT(!eyeParseCompact("", s));
+		TS_ASSERT_EQUALS(s.size(), (uint)0); // cleared on failure
+	}
+
+	void testMutateWeightsBiasPositions() {
+		// Overwhelming weight on position 9: nearly every mutation must touch
+		// it (first pick lands there with ~99% probability per mutation).
+		static const int w[kEyeSeqLen] = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1000};
+		EyeRng rng(123);
+		const EyeSeq base = eyeBaseSeq();
+		int touched9 = 0;
+		for (int n = 0; n < 200; n++) {
+			Common::String desc;
+			EyeSeq m = eyeMutate(base, rng, desc, w);
+			TS_ASSERT_EQUALS(m.size(), (uint)kEyeSeqLen);
+			int changed = 0;
+			for (int i = 0; i < kEyeSeqLen; i++)
+				if (m[i] != base[i])
+					changed++;
+			TS_ASSERT(changed >= 1 && changed <= 5); // distribution unchanged
+			if (m[9] != base[9])
+				touched9++;
+		}
+		TS_ASSERT(touched9 > 180); // decisive skew, seed-stable
+	}
+
 	void testCrossoverTakesEveryPositionFromAParent() {
 		EyeRng rng(5);
 		EyeSeq a = eyeBaseSeq();

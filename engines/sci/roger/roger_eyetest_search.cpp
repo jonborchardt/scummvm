@@ -53,7 +53,25 @@ EyeSeq eyeRandomSeq(EyeRng &rng) {
 	return s;
 }
 
-EyeSeq eyeMutate(const EyeSeq &src, EyeRng &rng, Common::String &outDesc) {
+bool eyeParseCompact(const Common::String &line, EyeSeq &out) {
+	out.clear();
+	if (line.size() != (uint)kEyeSeqLen)
+		return false;
+	for (uint i = 0; i < line.size(); i++) {
+		switch (line[i]) {
+		case 'f': out.push_back(2); break;
+		case 'l': out.push_back(1); break;
+		case 'a': out.push_back(0); break;
+		default:
+			out.clear();
+			return false;
+		}
+	}
+	return true;
+}
+
+EyeSeq eyeMutate(const EyeSeq &src, EyeRng &rng, Common::String &outDesc,
+                 const int *posWeights) {
 	// Position-count distribution: 60/25/10/5% for 1/2/3/4-5.
 	const uint32 roll = rng.below(100);
 	int count;
@@ -68,10 +86,29 @@ EyeSeq eyeMutate(const EyeSeq &src, EyeRng &rng, Common::String &outDesc) {
 
 	bool picked[kEyeSeqLen] = {};
 	for (int n = 0; n < count; n++) {
-		int p;
-		do {
-			p = (int)rng.below(kEyeSeqLen);
-		} while (picked[p]);
+		int p = -1;
+		if (posWeights) {
+			// Weighted pick over the not-yet-picked positions. Weights must be
+			// >= 1 (documented); a zero total falls through to the uniform pick.
+			uint32 total = 0;
+			for (int i = 0; i < kEyeSeqLen; i++)
+				if (!picked[i])
+					total += (uint32)posWeights[i];
+			if (total > 0) {
+				uint32 w = rng.below(total);
+				for (int i = 0; i < kEyeSeqLen; i++) {
+					if (picked[i])
+						continue;
+					if (w < (uint32)posWeights[i]) { p = i; break; }
+					w -= (uint32)posWeights[i];
+				}
+			}
+		}
+		if (p < 0) {
+			do {
+				p = (int)rng.below(kEyeSeqLen);
+			} while (picked[p]);
+		}
 		picked[p] = true;
 	}
 
@@ -140,7 +177,8 @@ static bool eyeSeen(const Common::Array<Common::String> &seen, const Common::Str
 Common::Array<EyeCandidate> eyeBreed(const Common::Array<EyeCandidate> &all,
                                      const Common::Array<int> &pool,
                                      int gen, int count, EyeRng &rng,
-                                     Common::Array<Common::String> &seen) {
+                                     Common::Array<Common::String> &seen,
+                                     const int *posWeights) {
 	Common::Array<EyeCandidate> out;
 	for (int k = 0; k < count; k++) {
 		EyeCandidate c;
@@ -156,7 +194,7 @@ Common::Array<EyeCandidate> eyeBreed(const Common::Array<EyeCandidate> &all,
 				c.source = "rand";
 			} else if (roll < 75 || pool.size() < 2) {
 				const EyeCandidate &p = all[pool[rng.below(pool.size())]];
-				c.seq = eyeMutate(p.seq, rng, c.source);
+				c.seq = eyeMutate(p.seq, rng, c.source, posWeights);
 				c.parents.push_back(p.id());
 			} else {
 				uint32 i0 = rng.below(pool.size()), i1;

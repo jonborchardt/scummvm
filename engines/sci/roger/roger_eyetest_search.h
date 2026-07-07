@@ -62,10 +62,18 @@ struct EyeRng {
 
 EyeSeq eyeRandomSeq(EyeRng &rng);
 
+// Parse a compact sequence string ("ffflffaaaa") into pass ints. Accepts only
+// exactly kEyeSeqLen chars of f/l/a; false (and out cleared) on anything else.
+bool eyeParseCompact(const Common::String &line, EyeSeq &out);
+
 // Mutate 1-5 positions (60/25/10/5% for 1/2/3/4-5). Every selected position
 // changes to one of the OTHER two pass types. outDesc: "mut_pos04_f_to_a"
 // (one _posNN_x_to_y group per changed position, positions ascending).
-EyeSeq eyeMutate(const EyeSeq &src, EyeRng &rng, Common::String &outDesc);
+// posWeights (optional, length kEyeSeqLen, every entry >= 1) biases WHICH
+// positions get mutated — e.g. tail-heavy weights concentrate the search on
+// positions 7-9 while every position stays reachable. nullptr = uniform.
+EyeSeq eyeMutate(const EyeSeq &src, EyeRng &rng, Common::String &outDesc,
+                 const int *posWeights = nullptr);
 
 // Uniform per-position crossover: out[i] is a[i] or b[i], 50/50.
 EyeSeq eyeCrossover(const EyeSeq &a, const EyeSeq &b, EyeRng &rng);
@@ -107,7 +115,8 @@ Common::Array<int> eyeRankPool(const Common::Array<EyeCandidate> &all, int maxPo
 Common::Array<EyeCandidate> eyeBreed(const Common::Array<EyeCandidate> &all,
                                      const Common::Array<int> &pool,
                                      int gen, int count, EyeRng &rng,
-                                     Common::Array<Common::String> &seen);
+                                     Common::Array<Common::String> &seen,
+                                     const int *posWeights = nullptr);
 
 // "n002_gen001_cand003_mut_pos04_f_to_a__ffflaaaaaa.png". Source strings are
 // [a-z0-9_] by construction, so no sanitizing is needed.
