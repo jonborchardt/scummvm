@@ -130,5 +130,93 @@ Common::Array<int> eyeRankPool(const Common::Array<EyeCandidate> &all, int maxPo
 	return idx;
 }
 
+static bool eyeSeen(const Common::Array<Common::String> &seen, const Common::String &compact) {
+	for (uint i = 0; i < seen.size(); i++)
+		if (seen[i] == compact)
+			return true;
+	return false;
+}
+
+Common::Array<EyeCandidate> eyeBreed(const Common::Array<EyeCandidate> &all,
+                                     const Common::Array<int> &pool,
+                                     int gen, int count, EyeRng &rng,
+                                     Common::Array<Common::String> &seen) {
+	Common::Array<EyeCandidate> out;
+	for (int k = 0; k < count; k++) {
+		EyeCandidate c;
+		c.gen = gen;
+		c.idx = k;
+		bool fresh = false;
+		for (int attempt = 0; attempt < 20 && !fresh; attempt++) {
+			c.parents.clear();
+			const uint32 roll = rng.below(100);
+			if (pool.empty() || roll >= 90) {
+				// Random restart: rare, keeps diversity / escapes local maxima.
+				c.seq = eyeRandomSeq(rng);
+				c.source = "rand";
+			} else if (roll < 75 || pool.size() < 2) {
+				const EyeCandidate &p = all[pool[rng.below(pool.size())]];
+				c.seq = eyeMutate(p.seq, rng, c.source);
+				c.parents.push_back(p.id());
+			} else {
+				uint32 i0 = rng.below(pool.size()), i1;
+				do {
+					i1 = rng.below(pool.size());
+				} while (i1 == i0);
+				const EyeCandidate &pa = all[pool[i0]];
+				const EyeCandidate &pb = all[pool[i1]];
+				c.seq = eyeCrossover(pa.seq, pb.seq, rng);
+				c.source = "cross";
+				c.parents.push_back(pa.id());
+				c.parents.push_back(pb.id());
+			}
+			fresh = !eyeSeen(seen, eyeSeqCompact(c.seq));
+		}
+		// Last resort: random until unseen (bounded), then accept a duplicate.
+		for (int attempt = 0; attempt < 100 && !fresh; attempt++) {
+			c.seq = eyeRandomSeq(rng);
+			c.source = "rand";
+			c.parents.clear();
+			fresh = !eyeSeen(seen, eyeSeqCompact(c.seq));
+		}
+		seen.push_back(eyeSeqCompact(c.seq));
+		out.push_back(c);
+	}
+	return out;
+}
+
+Common::String eyeCandidateFileName(int picId, const EyeCandidate &c) {
+	return Common::String::format("n%03d_gen%03d_cand%03d_%s__%s.png",
+	                              picId, c.gen, c.idx, c.source.c_str(),
+	                              eyeSeqCompact(c.seq).c_str());
+}
+
+Common::String eyeCandidateJson(int picId, const EyeCandidate &c) {
+	Common::String seqArr;
+	for (uint i = 0; i < c.seq.size(); i++)
+		seqArr += Common::String::format("%s\"%c\"", i ? ", " : "", eyePassChar(c.seq[i]));
+	Common::String par;
+	for (uint i = 0; i < c.parents.size(); i++)
+		par += Common::String::format("%s\"%s\"", i ? ", " : "", c.parents[i].c_str());
+	return Common::String::format(
+		"{\"candidate_id\": \"%s\", \"generation\": %d, \"picture\": \"n%03d\", "
+		"\"sequence\": [%s], \"sequence_compact\": \"%s\", \"source\": \"%s\", "
+		"\"parents\": [%s], \"wins\": %d, \"ties\": %d, \"losses\": %d, "
+		"\"output_file\": \"%s\"}",
+		c.id().c_str(), c.gen, picId, seqArr.c_str(),
+		eyeSeqCompact(c.seq).c_str(), c.source.c_str(), par.c_str(),
+		c.wins, c.ties, c.losses, c.file.c_str());
+}
+
+Common::String eyeComparisonJson(const EyeComparison &c) {
+	const char *choice = (c.choice == kEyeChoiceA)    ? "A"
+	                   : (c.choice == kEyeChoiceB)    ? "B"
+	                   : (c.choice == kEyeChoiceSame) ? "same" : "skip";
+	return Common::String::format(
+		"{\"a\": \"%s\", \"b\": \"%s\", \"choice\": \"%s\", \"millis\": %u, "
+		"\"champion_after\": \"%s\"}",
+		c.aId.c_str(), c.bId.c_str(), choice, c.millis, c.championAfter.c_str());
+}
+
 } // namespace Roger
 } // namespace Sci

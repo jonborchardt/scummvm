@@ -134,4 +134,70 @@ public:
 		TS_ASSERT_EQUALS(pool[1], 1); // score 2, older
 		TS_ASSERT_EQUALS(pool[2], 0); // score 1
 	}
+
+	void testBreedCountSourcesAndDedup() {
+		Common::Array<EyeCandidate> all;
+		EyeCandidate a; a.gen = 0; a.idx = 0; a.seq = eyeBaseSeq(); a.wins = 2; a.source = "base";
+		EyeCandidate b; b.gen = 0; b.idx = 1; b.seq = eyeBaseSeq(); b.seq[0] = 0; b.wins = 1;
+		all.push_back(a); all.push_back(b);
+		Common::Array<int> pool = eyeRankPool(all, kEyePop);
+		Common::Array<Common::String> seen;
+		seen.push_back(eyeSeqCompact(a.seq));
+		seen.push_back(eyeSeqCompact(b.seq));
+		EyeRng rng(31);
+		Common::Array<EyeCandidate> kids = eyeBreed(all, pool, 1, 4, rng, seen);
+		TS_ASSERT_EQUALS(kids.size(), (uint)4);
+		for (uint k = 0; k < kids.size(); k++) {
+			TS_ASSERT_EQUALS(kids[k].gen, 1);
+			TS_ASSERT_EQUALS(kids[k].idx, (int)k);
+			TS_ASSERT(!kids[k].source.empty());
+			TS_ASSERT_EQUALS(kids[k].seq.size(), (uint)kEyeSeqLen);
+			// dedup: no offspring repeats base or b or an earlier sibling
+			const Common::String cs = eyeSeqCompact(kids[k].seq);
+			int hits = 0;
+			for (uint s = 0; s < seen.size(); s++)
+				if (seen[s] == cs)
+					hits++;
+			TS_ASSERT_EQUALS(hits, 1); // exactly its own entry, appended by eyeBreed
+			// mutation/crossover offspring must record parent ids
+			if (kids[k].source.hasPrefix("mut") || kids[k].source == "cross")
+				TS_ASSERT(kids[k].parents.size() >= 1);
+		}
+	}
+
+	void testCandidateFileName() {
+		EyeCandidate c;
+		c.gen = 0; c.idx = 0; c.seq = eyeBaseSeq(); c.source = "base";
+		TS_ASSERT_EQUALS(eyeCandidateFileName(2, c),
+			Common::String("n002_gen000_cand000_base__ffflffaaaa.png"));
+	}
+
+	void testCandidateJsonFields() {
+		EyeCandidate c;
+		c.gen = 1; c.idx = 3; c.seq = eyeBaseSeq(); c.source = "mut_pos04_f_to_a";
+		c.parents.push_back("gen000_cand000");
+		c.file = "n002_gen001_cand003_mut_pos04_f_to_a__ffflffaaaa.png";
+		c.wins = 1;
+		const Common::String j = eyeCandidateJson(2, c);
+		TS_ASSERT(j.contains("\"candidate_id\": \"gen001_cand003\""));
+		TS_ASSERT(j.contains("\"generation\": 1"));
+		TS_ASSERT(j.contains("\"picture\": \"n002\""));
+		TS_ASSERT(j.contains("\"sequence_compact\": \"ffflffaaaa\""));
+		TS_ASSERT(j.contains("\"source\": \"mut_pos04_f_to_a\""));
+		TS_ASSERT(j.contains("\"parents\": [\"gen000_cand000\"]"));
+		TS_ASSERT(j.contains("\"sequence\": [\"f\", \"f\", \"f\", \"l\", \"f\", \"f\", \"a\", \"a\", \"a\", \"a\"]"));
+		TS_ASSERT(j.contains("\"output_file\": "));
+		TS_ASSERT(j.contains("\"wins\": 1"));
+	}
+
+	void testComparisonJson() {
+		EyeComparison r;
+		r.aId = "gen000_cand000"; r.bId = "gen001_cand002";
+		r.choice = kEyeChoiceSame; r.millis = 123; r.championAfter = "gen000_cand000";
+		const Common::String j = eyeComparisonJson(r);
+		TS_ASSERT(j.contains("\"a\": \"gen000_cand000\""));
+		TS_ASSERT(j.contains("\"b\": \"gen001_cand002\""));
+		TS_ASSERT(j.contains("\"choice\": \"same\""));
+		TS_ASSERT(j.contains("\"champion_after\": \"gen000_cand000\""));
+	}
 };
