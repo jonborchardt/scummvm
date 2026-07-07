@@ -75,6 +75,7 @@
 #include "sci/roger/file_roger_art_provider.h"
 #include "sci/roger/roger_launcher.h"
 #include "sci/roger/roger_studio.h"
+#include "sci/roger/roger_eyetest.h" // TEMPORARY (eye-test pass search)
 
 #ifdef ENABLE_SCI32
 #include "sci/graphics/controls32.h"
@@ -417,6 +418,14 @@ Common::Error SciEngine::run() {
 	if (getenv("ROGER_STUDIO") != nullptr) {
 		Roger::RogerStudio studio(getGameIdStr());
 		studio.run();
+		return Common::kNoError;
+	}
+
+	// TEMPORARY EXPERIMENT: eye-test genetic pass search (delete with
+	// roger_eyetest.{h,cpp}) — same seam and lifecycle as Roger Studio above.
+	if (getenv("ROGER_EYETEST") != nullptr) {
+		Roger::RogerEyeTest eyetest(getGameIdStr());
+		eyetest.run();
 		return Common::kNoError;
 	}
 
