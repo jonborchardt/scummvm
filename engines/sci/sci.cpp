@@ -73,7 +73,7 @@
 #include "sci/graphics/text16.h"
 #include "sci/graphics/transitions.h"
 #include "sci/roger/file_roger_art_provider.h"
-#include "sci/roger/roger_launcher.h"
+#include "sci/roger/launcher/roger_launcher.h"
 #include "sci/roger/utils/studio/roger_studio.h" // quarantined dev utility (Roger Studio)
 #include "sci/roger/utils/eyetest/roger_eyetest.h" // quarantined dev utility (eye exam)
 

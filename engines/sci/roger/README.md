@@ -110,7 +110,7 @@ invalidated automatically when the generation pipeline changes.
 | Art generation (omyac pipeline) | `roger_asset_gen.*`, `roger_pic_parser.*`, `roger_pic_native.*`, `roger_omyac.*`, `roger_scale.*`, `roger_ega_blend.*` |
 | Compositing & presentation | `roger_compositor.*`, `roger_ui_layer.*`, `roger_text.*`, `roger_cursor.*`, `roger_effects.*` |
 | Caching | `view_cache.*`, `png_loader.*` |
-| Launcher | `roger_launcher.*`, `roger_launcher_dialog.*` |
+| Game picker (launcher) | `launcher/` — startup game-picker dialog; see [launcher/README.md](launcher/README.md) |
 | Input automation | `roger_input.*` (engine-agnostic; no SCI includes) |
 | Shared debug-panel primitives | `roger_widgets.*`, `roger_passes.*` |
 | Quarantined dev utilities | `utils/studio/` (Roger Studio), `utils/tunepanel/` (F12 tune panel), `utils/eyetest/` (eye exam) — each has its own README + quarantine contract |

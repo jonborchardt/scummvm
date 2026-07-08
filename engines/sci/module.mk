@@ -122,8 +122,8 @@ MODULE_OBJS += \
 	roger/roger_scale.o \
 	roger/roger_text.o \
 	roger/roger_journal.o \
-	roger/roger_launcher.o \
-	roger/roger_launcher_dialog.o \
+	roger/launcher/roger_launcher.o \
+	roger/launcher/roger_launcher_dialog.o \
 	roger/roger_selftest.o \
 	roger/roger_widgets.o \
 	roger/utils/tunepanel/roger_tune_panel.o \

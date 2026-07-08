@@ -1,4 +1,4 @@
-#include "sci/roger/roger_launcher_dialog.h"
+#include "sci/roger/launcher/roger_launcher_dialog.h"
 #include "sci/roger/roger_passes.h"
 #include "gui/gui-manager.h"
 #include "gui/widget.h"

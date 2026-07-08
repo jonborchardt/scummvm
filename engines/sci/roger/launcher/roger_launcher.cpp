@@ -1,5 +1,5 @@
-#include "sci/roger/roger_launcher.h"
-#include "sci/roger/roger_launcher_dialog.h"
+#include "sci/roger/launcher/roger_launcher.h"
+#include "sci/roger/launcher/roger_launcher_dialog.h"
 #include "sci/roger/roger_art_provider.h"
 #include "sci/roger/roger_passes.h"
 #include "sci/sci.h"

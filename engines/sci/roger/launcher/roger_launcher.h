@@ -1,5 +1,5 @@
-#ifndef SCI_ROGER_ROGER_LAUNCHER_H
-#define SCI_ROGER_ROGER_LAUNCHER_H
+#ifndef SCI_ROGER_LAUNCHER_ROGER_LAUNCHER_H
+#define SCI_ROGER_LAUNCHER_ROGER_LAUNCHER_H
 
 #include "common/array.h"
 #include "common/str.h"
@@ -87,4 +87,4 @@ private:
 } // namespace Roger
 } // namespace Sci
 
-#endif // SCI_ROGER_ROGER_LAUNCHER_H
+#endif // SCI_ROGER_LAUNCHER_ROGER_LAUNCHER_H

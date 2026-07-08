@@ -1,8 +1,8 @@
-#ifndef SCI_ROGER_ROGER_LAUNCHER_DIALOG_H
-#define SCI_ROGER_ROGER_LAUNCHER_DIALOG_H
+#ifndef SCI_ROGER_LAUNCHER_ROGER_LAUNCHER_DIALOG_H
+#define SCI_ROGER_LAUNCHER_ROGER_LAUNCHER_DIALOG_H
 
 #include "gui/dialog.h"
-#include "sci/roger/roger_launcher.h"
+#include "sci/roger/launcher/roger_launcher.h"
 
 namespace GUI {
 	class ListWidget;
@@ -65,4 +65,4 @@ private:
 } // namespace Roger
 } // namespace Sci
 
-#endif // SCI_ROGER_ROGER_LAUNCHER_DIALOG_H
+#endif // SCI_ROGER_LAUNCHER_ROGER_LAUNCHER_DIALOG_H
