@@ -2,6 +2,7 @@
 #include "common/util.h"
 #include "engines/sci/roger/utils/tunepanel/roger_tune_panel.h"
 #include "engines/sci/roger/roger_view_scaler.h"
+#include "engines/sci/roger/roger_passes.h"
 
 using namespace Sci::Roger;
 
@@ -103,6 +104,46 @@ public:
 		TS_ASSERT_EQUALS(widKind(hitTestWidgets(w, 244, 177)), (int)kTuneClear);
 		TS_ASSERT_EQUALS(widKind(hitTestWidgets(w, 274, 177)), (int)kTuneReset);
 		TS_ASSERT_EQUALS(widKind(hitTestWidgets(w, 303, 177)), (int)kTuneApply);
+		// Preset row coordinates flow below the variant rows, so (unlike the
+		// bottom-anchored rows) they move if a second scaler module registers —
+		// same caveat as the chip strip, documented in the smoke script.
+		TS_ASSERT_EQUALS(widKind(hitTestWidgets(w, 273, 44)), (int)kTunePreset);
+		TS_ASSERT_EQUALS(widIndex(hitTestWidgets(w, 273, 44)), 0);
+		TS_ASSERT_EQUALS(widKind(hitTestWidgets(w, 273, 55)), (int)kTunePreset);
+		TS_ASSERT_EQUALS(widIndex(hitTestWidgets(w, 273, 55)), 1);
+	}
+
+	// Known-good preset rows: one per goodPassPattern() registry entry, labeled
+	// by its compact string, lit only while the staged list matches, and the
+	// one-click swap contract (registry order preserved, rows sit between the
+	// variant rows and the ops row).
+	void test_preset_rows() {
+		TunePanelState st;
+		Common::Array<PanelWidget> w;
+		buildTunePanel(st, w);
+		int presets = 0;
+		for (uint i = 0; i < w.size(); i++) {
+			if (widKind(w[i].id) != kTunePreset)
+				continue;
+			const int idx = widIndex(w[i].id);
+			TS_ASSERT_EQUALS(presets, idx); // registry order, best-first
+			presets++;
+			TS_ASSERT_EQUALS(w[i].label, Common::String(goodPassPattern(idx).compact));
+			TS_ASSERT(!w[i].on); // staged empty: no preset matches
+			const int cx = (w[i].rect.left + w[i].rect.right) / 2;
+			const int cy = (w[i].rect.top + w[i].rect.bottom) / 2;
+			TS_ASSERT_EQUALS(hitTestWidgets(w, cx, cy), w[i].id);
+		}
+		TS_ASSERT_EQUALS(presets, goodPassPatternCount());
+
+		// Staging a registry pattern lights exactly that row.
+		st.stagedPasses = parsePassString(goodPassPattern(0).compact);
+		buildTunePanel(st, w);
+		for (uint i = 0; i < w.size(); i++) {
+			if (widKind(w[i].id) != kTunePreset)
+				continue;
+			TS_ASSERT_EQUALS(w[i].on, widIndex(w[i].id) == 0);
+		}
 	}
 
 	void test_status_line() {

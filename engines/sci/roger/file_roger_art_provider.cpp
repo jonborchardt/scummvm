@@ -3081,6 +3081,11 @@ bool FileRogerArtProvider::tunePanelMouse(bool buttonDown, const Common::Point &
 		_tunePanel.selectedChip = -1;
 		break;
 	case Roger::kTuneApply:     tuneApplyStagedPasses(); break;
+	case Roger::kTunePreset: // known-good registry row: stage + apply in one click
+		_tunePanel.stagedPasses = Roger::parsePassString(Roger::goodPassPattern(Roger::widIndex(id)).compact);
+		_tunePanel.selectedChip = -1;
+		tuneApplyStagedPasses();
+		break;
 	default: break; // click on panel background: consumed, no action
 	}
 	Roger::buildTunePanel(_tunePanel, _tuneWidgets);

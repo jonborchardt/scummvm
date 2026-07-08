@@ -71,6 +71,21 @@ void buildTunePanel(const TunePanelState &st, Common::Array<PanelWidget> &out) {
 		y += 11;
 	}
 
+	// Known-good preset rows (goodPassPattern registry, best-first): one-click
+	// swap between curated pass sequences, labeled by their compact string
+	// (provenance notes live in the registry / picker tooltips — no room here).
+	// A row lights while the STAGED list matches it. The registry is curated
+	// and small; if it ever grows, stop before eating the chip strip's space.
+	y += 2;
+	for (int i = 0; i < goodPassPatternCount(); i++) {
+		if (y + 10 > p.bottom - 70)
+			break; // keep >=2 chip rows + ops/apply rows reachable
+		addTuneWidget(out, kTunePreset, i, Common::Rect(x0, y, x1, y + 10),
+		              goodPassPattern(i).compact,
+		              tunePassesEqual(st.stagedPasses, parsePassString(goodPassPattern(i).compact)));
+		y += 11;
+	}
+
 	// Bottom-anchored rows (fixed coordinates regardless of chip count):
 	//   ops row    at bottom-36, clear/reset/apply at bottom-24,
 	//   status text (drawn, not a widget) at bottom-12.

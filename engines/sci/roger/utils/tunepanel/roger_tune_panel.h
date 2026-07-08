@@ -64,7 +64,8 @@ enum TuneWidKind {
 	kTuneChipX, kTuneChipLeft, kTuneChipRight,
 	kTuneChipAddF, kTuneChipAddL, kTuneChipAddA,
 	kTuneClear, kTuneReset, kTuneApply,
-	kTuneSide        // send the panel to the other screen side
+	kTuneSide,       // send the panel to the other screen side
+	kTunePreset      // index = goodPassPattern() registry index (one-click swap)
 };
 
 struct TunePanelState {

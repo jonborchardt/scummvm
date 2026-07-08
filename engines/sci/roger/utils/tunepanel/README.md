@@ -23,6 +23,14 @@ kept afterwards as the standing pass-tuning tool.
   (`roger_view_scaler.h` registry). A single module — the shipping 6x — is
   registered today, so exactly one row shows; clicking a row applies that
   scaler immediately (non-zero registry indices bypass the disk cache).
+- **Known-good preset rows** (below the variants): one per `goodPassPattern()`
+  entry in `roger_passes.cpp` — the curated, best-first registry the picker's
+  suggestion buttons and the Eye Exam seed share. Labels are the compact
+  strings (provenance notes live in the registry; no room for tooltips here).
+  Clicking a row stages **and applies** that pattern in one click — the
+  easy-swap path — and the row stays lit while the staged list matches it.
+  Session-only like everything else here (regen in memory; the ini is never
+  written).
 - **Pass chips**: the staged OMYAC pass sequence, one chip per pass
   (`f`/`l`/`a`), 7 per row. Click a chip to select it, then use the ops row:
   `x` delete, `<`/`>` move, `+f`/`+l`/`+a` insert after the selection.
