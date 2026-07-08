@@ -128,8 +128,8 @@ MODULE_OBJS += \
 	roger/roger_studio_render.o \
 	roger/roger_tune_panel.o \
 	roger/roger_studio.o \
-	roger/roger_eyetest_search.o \
-	roger/roger_eyetest.o \
+	roger/utils/eyeexam/roger_eyetest_search.o \
+	roger/utils/eyeexam/roger_eyetest.o \
 	roger/file_roger_art_provider.o \
 	roger/png_loader.o \
 	roger/slice_set.o \

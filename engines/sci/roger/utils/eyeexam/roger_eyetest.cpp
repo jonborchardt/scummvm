@@ -18,7 +18,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "sci/roger/roger_eyetest.h"
+#include "sci/roger/utils/eyeexam/roger_eyetest.h"
 
 #include "common/config-manager.h"
 #include "common/events.h"
@@ -615,7 +615,10 @@ void RogerEyeTest::drawProgress(const Common::String &msg) {
 
 // Fit src into area preserving aspect, centered. Display-only scaled blit
 // (same use as RogerStudio::blitRender; plate-alignment precision is moot here).
+// Degenerate sources yield an empty rect (blitFrom with an empty dest is a no-op).
 static Common::Rect fitRect(const Graphics::Surface *src, const Common::Rect &area) {
+	if (!src || src->w <= 0 || src->h <= 0)
+		return Common::Rect();
 	const float sc = MIN((float)area.width() / src->w, (float)area.height() / src->h);
 	const int w = (int)(src->w * sc), h = (int)(src->h * sc);
 	const int x = area.left + (area.width() - w) / 2;
@@ -689,7 +692,7 @@ void RogerEyeTest::drawFrame() {
 			lf->drawString(_display, Common::String::format("Flip  (showing %s)", _showingB ? "B" : "A"),
 			               _btnFlip.left + 20, _btnFlip.top + 16, 340, white);
 		bx += 380 + 30;
-		static const char *labels[4] = {"1  A", "2  B", "3  Same", "4  Neither / skip"};
+		static const char *const labels[4] = {"1  A", "2  B", "3  Same", "4  Neither / skip"};
 		for (int i = 0; i < 4; i++) {
 			const int bw = (i == 3) ? 460 : 300;
 			_btn[i] = Common::Rect(bx, barTop + 56, bx + bw, barTop + 116);

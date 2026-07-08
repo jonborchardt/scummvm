@@ -18,22 +18,23 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef SCI_ROGER_ROGER_EYETEST_H
-#define SCI_ROGER_ROGER_EYETEST_H
+#ifndef SCI_ROGER_UTILS_EYEEXAM_ROGER_EYETEST_H
+#define SCI_ROGER_UTILS_EYEEXAM_ROGER_EYETEST_H
 
-// TEMPORARY EXPERIMENT (eye-test genetic pass search, 2026-07-06). Studio-style
-// interactive tool: renders small batches of OMYAC pass-sequence candidates for
-// one pic and asks the user "Which looks better?" — the choices drive a simple
-// genetic search (see roger_eyetest_search.h). Launched via ROGER_EYETEST=1
+// EYE EXAM (kept dev utility, quarantined 2026-07-07). Studio-style interactive
+// tool: renders small batches of OMYAC pass-sequence candidates ("Which looks
+// better?"); the choices drive a simple genetic search (roger_eyetest_search.h),
+// or a round-robin showdown of listed finalists. Launched via ROGER_EYETEST=1
 // (build_and_run.ps1 -EyeTest) at the same sci.cpp seam as RogerStudio; owns the
-// overlay; never touches the generation disk cache (kGenMemory). DELETE this
-// pair + the sci.cpp hook + the -EyeTest switch when the pass search is done.
+// overlay; never touches the generation disk cache (kGenMemory); zero effect on
+// any launch without the env var. See roger_eyetest_search.h for the quarantine
+// contract (who may reference utils/eyeexam/ — sci.cpp hook + build lists only).
 
 #include "common/array.h"
 #include "common/rect.h"
 #include "common/str.h"
 #include "sci/roger/roger_asset_gen.h"
-#include "sci/roger/roger_eyetest_search.h"
+#include "sci/roger/utils/eyeexam/roger_eyetest_search.h"
 
 namespace Graphics { class ManagedSurface; struct Surface; }
 namespace Common { struct Event; }
@@ -110,7 +111,7 @@ private:
 	bool _champIsA = true;                    // which pair member is labeled A (randomized per pair)
 	bool _showingB = false;                   // eye-exam flip state: currently displaying B
 	int _genNo = 0;
-	int _phase = kPhaseCompare;
+	Phase _phase = kPhaseCompare;
 	Common::String _banner;
 	bool _summaryWritten = false;
 
@@ -126,4 +127,4 @@ private:
 } // namespace Roger
 } // namespace Sci
 
-#endif // SCI_ROGER_ROGER_EYETEST_H
+#endif // SCI_ROGER_UTILS_EYEEXAM_ROGER_EYETEST_H

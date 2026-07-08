@@ -75,7 +75,7 @@
 #include "sci/roger/file_roger_art_provider.h"
 #include "sci/roger/roger_launcher.h"
 #include "sci/roger/roger_studio.h"
-#include "sci/roger/roger_eyetest.h" // TEMPORARY (eye-test pass search)
+#include "sci/roger/utils/eyeexam/roger_eyetest.h" // quarantined dev utility (eye exam)
 
 #ifdef ENABLE_SCI32
 #include "sci/graphics/controls32.h"
@@ -421,8 +421,9 @@ Common::Error SciEngine::run() {
 		return Common::kNoError;
 	}
 
-	// TEMPORARY EXPERIMENT: eye-test genetic pass search (delete with
-	// roger_eyetest.{h,cpp}) — same seam and lifecycle as Roger Studio above.
+	// Eye Exam: interactive OMYAC pass-sequence tuner (quarantined dev utility,
+	// engines/sci/roger/utils/eyeexam/) — same seam and lifecycle as Roger
+	// Studio above. This env-gated block is its ONLY engine reference.
 	if (getenv("ROGER_EYETEST") != nullptr) {
 		Roger::RogerEyeTest eyetest(getGameIdStr());
 		eyetest.run();

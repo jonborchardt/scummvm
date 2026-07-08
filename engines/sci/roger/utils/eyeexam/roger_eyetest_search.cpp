@@ -18,7 +18,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "sci/roger/roger_eyetest_search.h"
+#include "sci/roger/utils/eyeexam/roger_eyetest_search.h"
 
 namespace Sci {
 namespace Roger {

@@ -1,8 +1,8 @@
 #include <cxxtest/TestSuite.h>
-#include "sci/roger/roger_eyetest_search.h"
+#include "sci/roger/utils/eyeexam/roger_eyetest_search.h"
 
-// TEMPORARY EXPERIMENT (eye-test genetic pass search, 2026-07-06) — delete with
-// roger_eyetest_search.{h,cpp}.
+// Eye Exam (kept dev utility): unit tests for the quarantined pure search
+// module at engines/sci/roger/utils/eyeexam/roger_eyetest_search.{h,cpp}.
 
 using namespace Sci::Roger;
 

@@ -18,13 +18,19 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef SCI_ROGER_ROGER_EYETEST_SEARCH_H
-#define SCI_ROGER_ROGER_EYETEST_SEARCH_H
+#ifndef SCI_ROGER_UTILS_EYEEXAM_ROGER_EYETEST_SEARCH_H
+#define SCI_ROGER_UTILS_EYEEXAM_ROGER_EYETEST_SEARCH_H
 
-// TEMPORARY EXPERIMENT (eye-test genetic pass search, 2026-07-06) — studio-only,
-// delete together with roger_eyetest.{h,cpp}, the sci.cpp ROGER_EYETEST hook and
-// the build_and_run.ps1 -EyeTest switch. SCI-free pure logic so it unit-tests
-// without an engine (same isolation pattern as roger_studio_render.h).
+// EYE EXAM (kept dev utility, quarantined 2026-07-07): pure search logic for
+// the interactive OMYAC pass-sequence tuner in roger_eyetest.{h,cpp}. SCI-free
+// so it unit-tests without an engine (same isolation as roger_studio_render.h).
+//
+// QUARANTINE CONTRACT — nothing in the engine may depend on utils/eyeexam/.
+// The only permitted references are: the env-gated ROGER_EYETEST hook in
+// sci.cpp, engines/sci/module.mk, build_tests.ps1's test registration, and the
+// build_and_run.ps1 -EyeTest switch. Production code must never include these
+// headers; this module may only consume stable roger seams (RogerAssetGen,
+// png_loader) — never provider/compositor internals.
 
 #include "common/array.h"
 #include "common/str.h"
@@ -129,4 +135,4 @@ Common::String eyeComparisonJson(const EyeComparison &c);
 } // namespace Roger
 } // namespace Sci
 
-#endif // SCI_ROGER_ROGER_EYETEST_SEARCH_H
+#endif // SCI_ROGER_UTILS_EYEEXAM_ROGER_EYETEST_SEARCH_H
