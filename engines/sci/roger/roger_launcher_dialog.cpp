@@ -1,4 +1,5 @@
 #include "sci/roger/roger_launcher_dialog.h"
+#include "sci/roger/roger_passes.h"
 #include "gui/gui-manager.h"
 #include "gui/widget.h"
 #include "gui/widgets/list.h"
@@ -97,6 +98,19 @@ RogerLauncherDialog::RogerLauncherDialog(RogerLauncher &launcher)
 		                          Common::U32String("Passes"), Graphics::kTextAlignLeft);
 		_passesEdit = new GUI::EditTextWidget(this, M + labelW + M/2, y, _w / 4, LH,
 		                                      Common::U32String());
+		// Known-good suggestions (roger_passes registry): one click fills the
+		// field. An emptied field launches with the default (key removed).
+		int bx = M + labelW + M/2 + _w / 4 + M/2;
+		const int bw = (W - M - bx - (goodPassPatternCount() - 1) * M/4) / MAX(1, goodPassPatternCount());
+		for (int i = 0; i < goodPassPatternCount() && i < 4; ++i) {
+			const GoodPassPattern &p = goodPassPattern(i);
+			new GUI::ButtonWidget(this, bx, y, bw, LH,
+			                      Common::U32String(p.compact),
+			                      Common::U32String(Common::String::format(
+			                          "known-good: %s (click to use)", p.note)),
+			                      kGoodPass0Cmd + (uint32)i);
+			bx += bw + M/4;
+		}
 	}
 	_fontPop     = addSettingsRow(settTop + LH + 2*(LH + M/3), M, LH, "Font",        kFontPopCmd);
 	_fallbackPop = addSettingsRow(settTop + LH + 3*(LH + M/3), M, LH, "Fallback",    kFallbackPopCmd);
@@ -194,6 +208,19 @@ void RogerLauncherDialog::syncPassesFromField() {
 
 void RogerLauncherDialog::handleCommand(GUI::CommandSender *sender, uint32 cmd, uint32 data) {
 	switch (cmd) {
+	case kGoodPass0Cmd + 0:
+	case kGoodPass0Cmd + 1:
+	case kGoodPass0Cmd + 2:
+	case kGoodPass0Cmd + 3: {
+		// Known-good suggestion clicked: fill the Passes field with it.
+		const GoodPassPattern &p = goodPassPattern((int)(cmd - kGoodPass0Cmd));
+		if (_passesEdit) {
+			_passesEdit->setEditString(Common::U32String(p.compact));
+			_passesEdit->markAsDirty();
+		}
+		_state.settings.passes = p.compact;
+		break;
+	}
 	case kLaunchCmd: {
 		syncPassesFromField();
 		if (_state.games.empty()) break;

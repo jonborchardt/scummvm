@@ -133,11 +133,20 @@ void RogerLauncher::flushSettingsForSelected() {
 	ConfMan.set("roger_gen_mode",  s.fallback,     dom);
 	ConfMan.set("roger_ui_font",   s.font,         dom);
 	// Verbatim passthrough: whatever the Passes field holds is what the ini
-	// gets — the engine parser warns about unknown tokens at load. An empty
-	// field writes "" (wireframe). An unset key becomes explicit
-	// (kDefaultPassString) after the first launch; effective behavior is
-	// identical.
-	ConfMan.set("roger_omyac_passes", s.passes, dom);
+	// gets — the engine parser warns about unknown tokens at load. An unset
+	// key becomes explicit (kDefaultPassString) after the first launch;
+	// effective behavior is identical. An EMPTIED field means "use the
+	// default": the key is removed (unset -> defaultPasses()). Wireframe
+	// (explicit "") is no longer expressible from the picker — hand-edit the
+	// ini for that debug state.
+	Common::String trimmedPasses = s.passes;
+	trimmedPasses.trim();
+	if (trimmedPasses.empty()) {
+		if (ConfMan.hasKey("roger_omyac_passes", dom))
+			ConfMan.removeKey("roger_omyac_passes", dom);
+	} else {
+		ConfMan.set("roger_omyac_passes", s.passes, dom);
+	}
 	ConfMan.flushToDisk();
 }
 

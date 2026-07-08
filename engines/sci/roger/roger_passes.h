@@ -34,9 +34,22 @@ namespace Roger {
 // A pass value is a renderOmyac MODE_BY_NAME int: fill=2, line=1, all=0.
 
 // Canonical default enhance-pass sequence as a compact character string
-// (one char per pass: f=fill, l=line, a=all): 3x fill, 1x line, 2x fill,
-// 4x all. The single source of truth — defaultPasses() parses this.
+// (one char per pass: f=fill, l=line, a=all). The single source of truth —
+// defaultPasses() parses this, the picker shows it when the ini key is unset,
+// and the Eye Exam starts its search from it. THE swap point for promoting a
+// new best: point its definition (roger_passes.cpp) at another
+// goodPassPattern entry's compact.
 extern const char *const kDefaultPassString; // "ffflffaaaa"
+
+// Curated known-good pass sequences (judged with the Eye Exam, best-first).
+// The picker shows them as one-click suggestions; kDefaultPassString should
+// always be one of them.
+struct GoodPassPattern {
+	const char *compact; // "ffflffaaaa" form
+	const char *note;    // provenance, shown as a tooltip
+};
+int goodPassPatternCount();
+const GoodPassPattern &goodPassPattern(int i); // i clipped to the table
 
 // Parse a roger_omyac_passes string.
 //  - Whole-word keywords fill/line/all are matched FIRST (before compact):

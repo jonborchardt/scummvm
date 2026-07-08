@@ -20,14 +20,23 @@
 
 #include "sci/roger/utils/eyetest/roger_eyetest_search.h"
 
+#include "sci/roger/roger_passes.h"
+
 namespace Sci {
 namespace Roger {
 
+// The search starts from the SHIPPING default (kDefaultPassString, the single
+// swap point in roger_passes) so the tool always measures against what the
+// game actually renders. The GA machinery assumes kEyeSeqLen positions, so a
+// default of any other length falls back to the classic 10-char sequence.
 EyeSeq eyeBaseSeq() {
-	static const int base[kEyeSeqLen] = {2, 2, 2, 1, 2, 2, 0, 0, 0, 0}; // f f f l f f a a a a
-	EyeSeq s;
-	for (int i = 0; i < kEyeSeqLen; i++)
-		s.push_back(base[i]);
+	EyeSeq s = parsePassString(kDefaultPassString);
+	if ((int)s.size() != kEyeSeqLen) {
+		static const int classic[kEyeSeqLen] = {2, 2, 2, 1, 2, 2, 0, 0, 0, 0}; // f f f l f f a a a a
+		s.clear();
+		for (int i = 0; i < kEyeSeqLen; i++)
+			s.push_back(classic[i]);
+	}
 	return s;
 }
 

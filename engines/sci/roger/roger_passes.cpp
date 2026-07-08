@@ -26,6 +26,28 @@
 namespace Sci {
 namespace Roger {
 
+// Known-good pass sequences, judged with the Eye Exam (utils/eyetest) —
+// multi-scene GA runs + showdowns, 2026-07-07. Order = user's ranking,
+// best-first. The picker offers these as one-click suggestions.
+static const GoodPassPattern kGoodPassPatterns[] = {
+	{"fffflffaaa", "eye-exam finalist (2026-07-07)"},
+	{"ffffffflff", "sq3 multi-scene winner (2026-07-07)"},
+	{"fffffflaaa", "run-1 winner, pic 2 (2026-07-06)"},
+	{"ffflffaaaa", "original hand-tuned default"},
+};
+
+int goodPassPatternCount() {
+	return ARRAYSIZE(kGoodPassPatterns);
+}
+
+const GoodPassPattern &goodPassPattern(int i) {
+	return kGoodPassPatterns[CLIP(i, 0, ARRAYSIZE(kGoodPassPatterns) - 1)];
+}
+
+// THE default best — the single swap point. Everything that renders with an
+// unset roger_omyac_passes key follows this: the game (defaultPasses()), the
+// picker's shown value, Studio slot seeds, and the Eye Exam's base sequence.
+// To promote a new winner, change this to another kGoodPassPatterns compact.
 const char *const kDefaultPassString = "ffflffaaaa";
 
 // True when every char is in the compact vocabulary. Separators are not in

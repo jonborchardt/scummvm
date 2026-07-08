@@ -49,8 +49,11 @@ Everything reads/writes under `<screenshotpath>/eyetest-<gameId>/`
 
 ## Genetic-search mode (default)
 
-- **Generation 0**: the base sequence `ffflffaaaa` + 5 mutations of it — or
-  your explicit `seeds.txt` list (below).
+- **Generation 0**: the shipping default sequence (`kDefaultPassString` in
+  `roger_passes.cpp` — the single swap point the game/picker also follow;
+  currently `ffflffaaaa`) + 5 mutations of it — or your explicit `seeds.txt`
+  list (below). The curated known-good winners live next to it as
+  `goodPassPattern()` and appear as one-click picks in the game picker.
 - Each generation you judge every candidate against the current **champion**
   (king-of-the-hill: beat the champion, become the champion).
 - **Each generation rolls a random scene** from the per-game pool (defined in

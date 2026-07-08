@@ -31,7 +31,7 @@
 // sci.cpp, engines/sci/module.mk, build_tests.ps1's test registration, and the
 // build_and_run.ps1 -EyeTest switch. Production code must never include these
 // headers; this module may only consume stable roger seams (RogerAssetGen,
-// png_loader) — never provider/compositor internals.
+// png_loader, roger_passes) — never provider/compositor internals.
 
 #include "common/array.h"
 #include "common/str.h"
@@ -53,7 +53,7 @@ enum {
 // into setEnhancePasses().
 typedef Common::Array<int> EyeSeq;
 
-EyeSeq eyeBaseSeq();                            // f f f l f f a a a a
+EyeSeq eyeBaseSeq();                            // the shipping default (kDefaultPassString)
 char eyePassChar(int v);                        // 2->'f', 1->'l', 0->'a'
 Common::String eyeSeqCompact(const EyeSeq &s);  // "ffflffaaaa"
 

@@ -58,6 +58,7 @@ private:
 		kPrecachePopCmd  = 'RPCP',
 		kFontPopCmd      = 'RFCP',
 		kFallbackPopCmd  = 'RBCP',
+		kGoodPass0Cmd    = 'RGP0', // +i for goodPassPattern(i), i < 4
 	};
 };
 

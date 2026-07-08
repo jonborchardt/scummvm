@@ -1,4 +1,5 @@
 #include <cxxtest/TestSuite.h>
+#include "sci/roger/roger_passes.h"
 #include "sci/roger/utils/eyetest/roger_eyetest_search.h"
 
 // Eye Exam (kept dev utility): unit tests for the quarantined pure search
@@ -9,9 +10,17 @@ using namespace Sci::Roger;
 class EyeTestSearchSuite : public CxxTest::TestSuite {
 public:
 	void testBaseSeqIsSpec() {
+		// The search base IS the shipping default (single swap point in
+		// roger_passes) — this locks the two together whatever the default is.
 		EyeSeq b = eyeBaseSeq();
 		TS_ASSERT_EQUALS(b.size(), (uint)kEyeSeqLen);
-		TS_ASSERT_EQUALS(eyeSeqCompact(b), Common::String("ffflffaaaa"));
+		TS_ASSERT_EQUALS(eyeSeqCompact(b), Common::String(kDefaultPassString));
+		// And the default must be one of the curated known-good patterns.
+		bool inRegistry = false;
+		for (int i = 0; i < goodPassPatternCount(); i++)
+			if (Common::String(goodPassPattern(i).compact) == kDefaultPassString)
+				inRegistry = true;
+		TS_ASSERT(inRegistry);
 	}
 
 	void testPassChars() {
