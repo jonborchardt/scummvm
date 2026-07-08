@@ -1,7 +1,7 @@
 #include <cxxtest/TestSuite.h>
 #include "common/util.h"
-#include "engines/sci/roger/roger_view_scaler.h"
-#include "engines/sci/roger/roger_scale.h"
+#include "engines/sci/roger/gen/roger_view_scaler.h"
+#include "engines/sci/roger/gen/roger_scale.h"
 
 using namespace Sci::Roger;
 
@@ -56,7 +56,7 @@ public:
 	// Entry 0 is THE shipping module: id "s2-s3", factor 6, byte-identical to
 	// scale6x() both directly and through the 6x-grid helper. This is the lock
 	// that keeps the registry honest about the shipping path (and the proof
-	// that this refactor did not change cel output — kTransformVersion holds).
+	// that this refactor did not change cel output â€” kTransformVersion holds).
 	void test_shipping_module_is_scale6x() {
 		IndexImage in = synthImgVS(8, 7);
 		TS_ASSERT_EQUALS(strcmp(viewScaler(0).id, "s2-s3"), 0);

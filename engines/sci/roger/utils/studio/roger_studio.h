@@ -32,20 +32,20 @@
 // env var. Specs: docs/superpowers/specs/2026-07-02-roger-studio-design.md +
 // 2026-07-02-roger-studio-v2-ui-design.md; usage: utils/studio/README.md.
 //
-// QUARANTINE CONTRACT — see utils/studio/README.md. The only permitted
+// QUARANTINE CONTRACT â€” see utils/studio/README.md. The only permitted
 // references to utils/studio/ are: the env-gated ROGER_STUDIO hook in
 // sci.cpp, the engines/sci/module.mk object list, build_tests.ps1's source +
 // test registration, and the unit tests (test/sci/roger/test_studio_render.h,
 // test_shift_lock.h). Production code must never include it. This module may
 // only consume stable roger seams (roger_asset_gen.h, roger_view_scaler.h,
-// roger_passes.h, roger_widgets.h, png_loader.h) — never provider/compositor
+// roger_passes.h, roger_widgets.h, png_loader.h) â€” never provider/compositor
 // internals.
 
 #include "common/array.h"
 #include "common/rect.h"
 #include "common/str.h"
-#include "sci/roger/roger_asset_gen.h"
-#include "sci/roger/roger_view_scaler.h"
+#include "sci/roger/gen/roger_asset_gen.h"
+#include "sci/roger/gen/roger_view_scaler.h"
 #include "sci/roger/utils/studio/roger_studio_render.h"
 
 namespace Graphics { class ManagedSurface; struct Surface; }
@@ -128,7 +128,7 @@ private:
 	bool  _quit = false;
 
 	// roger_omyac_passes resolved once at startup (default when unset). Slot
-	// seeds and the Default chip button both reset to this — "default" means
+	// seeds and the Default chip button both reset to this â€” "default" means
 	// the effective ini value, matching the tune panel's Reset.
 	Common::Array<int> _iniPasses;
 

@@ -1,7 +1,7 @@
 // test/sci/roger/test_asset_cache.h
 #include <cxxtest/TestSuite.h>
 #include <cstdio>              // remove() for tmp cache files (test-only; cf. test_load_surface.h)
-#include "sci/roger/roger_asset_gen.h"
+#include "sci/roger/gen/roger_asset_gen.h"
 #include "common/file.h"       // Common::DumpFile
 #include "common/path.h"
 #include "../../system/null_osystem.h"
@@ -105,7 +105,7 @@ public:
 	}
 
 	// End-to-end existence check: plant a file under the exact keyed name in
-	// FIXTURE_DIR and probe it. No decode happens — an empty file suffices,
+	// FIXTURE_DIR and probe it. No decode happens â€” an empty file suffices,
 	// which is itself the point of the feature.
 	void test_view_cel_exists_check_hits_planted_file() {
 		const Common::String dir(FIXTURE_DIR);

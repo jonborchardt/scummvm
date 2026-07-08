@@ -1,6 +1,6 @@
 #include <cxxtest/TestSuite.h>
-#include "sci/roger/roger_pic_native.h"
-#include "sci/roger/roger_omyac.h"
+#include "sci/roger/gen/roger_pic_native.h"
+#include "sci/roger/gen/roger_omyac.h"
 using namespace Sci::Roger;
 
 class RogerOmyacTestSuite : public CxxTest::TestSuite {

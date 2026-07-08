@@ -106,20 +106,21 @@ MODULE_OBJS := \
 # Roger art replacement
 MODULE_OBJS += \
 	roger/roger_art_provider.o \
-	roger/roger_asset_gen.o \
 	roger/roger_capabilities.o \
 	roger/roger_compositor.o \
 	roger/roger_cursor.o \
 	roger/roger_effects.o \
-	roger/roger_ega_blend.o \
 	roger/roger_input.o \
-	roger/roger_omyac.o \
-	roger/roger_view_scaler.o \
+	roger/gen/roger_asset_gen.o \
+	roger/gen/roger_ega_blend.o \
+	roger/gen/roger_omyac.o \
+	roger/gen/roger_view_scaler.o \
+	roger/gen/roger_passes.o \
+	roger/gen/roger_pic_native.o \
+	roger/gen/roger_pic_parser.o \
+	roger/gen/roger_scale.o \
+	roger/gen/slice_set.o \
 	roger/roger_palette_remap.o \
-	roger/roger_passes.o \
-	roger/roger_pic_native.o \
-	roger/roger_pic_parser.o \
-	roger/roger_scale.o \
 	roger/roger_text.o \
 	roger/roger_journal.o \
 	roger/launcher/roger_launcher.o \
@@ -133,7 +134,6 @@ MODULE_OBJS += \
 	roger/utils/eyetest/roger_eyetest.o \
 	roger/file_roger_art_provider.o \
 	roger/png_loader.o \
-	roger/slice_set.o \
 	roger/view_cache.o
 
 

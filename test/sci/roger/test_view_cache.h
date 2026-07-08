@@ -1,6 +1,6 @@
 #include <cxxtest/TestSuite.h>
 #include "sci/roger/view_cache.h"
-#include "sci/roger/roger_asset_gen.h"
+#include "sci/roger/gen/roger_asset_gen.h"
 #include "graphics/surface.h"
 
 // ViewCache now serves cels solely from the generator (no on-disk spritesheets),

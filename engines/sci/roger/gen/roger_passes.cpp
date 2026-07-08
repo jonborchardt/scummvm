@@ -18,7 +18,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "sci/roger/roger_passes.h"
+#include "sci/roger/gen/roger_passes.h"
 
 #include "common/textconsole.h"
 #include "common/util.h"
@@ -26,7 +26,7 @@
 namespace Sci {
 namespace Roger {
 
-// Known-good pass sequences, judged with the Eye Exam (utils/eyetest) —
+// Known-good pass sequences, judged with the Eye Exam (utils/eyetest) â€”
 // multi-scene GA runs + showdowns, 2026-07-07. Order = user's ranking,
 // best-first. The picker offers these as one-click suggestions.
 static const GoodPassPattern kGoodPassPatterns[] = {
@@ -44,7 +44,7 @@ const GoodPassPattern &goodPassPattern(int i) {
 	return kGoodPassPatterns[CLIP(i, 0, ARRAYSIZE(kGoodPassPatterns) - 1)];
 }
 
-// THE default best — the single swap point. Everything that renders with an
+// THE default best â€” the single swap point. Everything that renders with an
 // unset roger_omyac_passes key follows this: the game (defaultPasses()), the
 // picker's shown value, Studio slot seeds, and the Eye Exam's base sequence.
 // To promote a new winner, change this to another kGoodPassPatterns compact.
@@ -99,7 +99,7 @@ Common::Array<int> parsePassString(const Common::String &s) {
 		if (c == ',' || c == ' ' || c == '\t' || c == '\0') {
 			if (!tok.empty()) {
 				// Numeric tokens are the raw renderOmyac mode values (2=fill,
-				// 1=line, 0=all) — the same ints the cache key stamps as pNpN.
+				// 1=line, 0=all) â€” the same ints the cache key stamps as pNpN.
 				if (tok == "fill" || tok == "f" || tok == "2")
 					passes.push_back(2);
 				else if (tok == "line" || tok == "l" || tok == "1")
@@ -108,7 +108,7 @@ Common::Array<int> parsePassString(const Common::String &s) {
 					passes.push_back(0);
 				else
 					warning("ROGER: roger_omyac_passes token '%s' not recognized "
-					        "(use fill/f/2, line/l/1, all/a/0) — skipped", tok.c_str());
+					        "(use fill/f/2, line/l/1, all/a/0) â€” skipped", tok.c_str());
 				tok.clear();
 			}
 		} else {

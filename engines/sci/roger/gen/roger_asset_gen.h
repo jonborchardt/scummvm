@@ -26,8 +26,8 @@
 
 #include "common/str.h"
 #include "common/array.h"
-#include "sci/roger/roger_omyac.h"
-#include "sci/roger/roger_scale.h"
+#include "sci/roger/gen/roger_omyac.h"
+#include "sci/roger/gen/roger_scale.h"
 
 namespace Graphics { struct Surface; }
 
@@ -38,7 +38,7 @@ namespace Roger {
 // collapsing a two-colour dither checkerboard into a single combined byte
 // (high<<4 | low, value 16..254), which then resolves to a washed-out *blended*
 // palette entry (the pink/orange look). The reference pipeline (sci.js) never
-// undithers — it keeps the original dither. Re-expand a combined byte back into
+// undithers â€” it keeps the original dither. Re-expand a combined byte back into
 // the two-colour checkerboard at pixel (x,y) so upscaled cels keep saturated EGA
 // colours (consistent with how pic backgrounds preserve dither). Bytes <= 0x0f
 // (true palette indices, including the clearKey) pass through unchanged.
@@ -58,7 +58,7 @@ enum GenMode {
 };
 
 // Pipeline version embedded in every cache key. Bump whenever the generation
-// pipeline changes in a way that invalidates previously cached files — stale
+// pipeline changes in a way that invalidates previously cached files â€” stale
 // files are then simply not found and regenerated on next use.
 //   v1: initial omyac plate + scale6x view-cel pipeline.
 //   v2: in-engine art path; overlay occlusion from native priority bands.
@@ -67,17 +67,17 @@ enum GenMode {
 //   v5: fillNullPixels backfills unclaimed pixels with their own native cell's
 //       colour (OmyacParams::backfillOwnCell) instead of the scan-order majority
 //       flood, which cascaded foreign colours down-right across cells (the SQ3
-//       pod-door cyan artifact). Superseded same day by v6 — pure own-cell reads
+//       pod-door cyan artifact). Superseded same day by v6 â€” pure own-cell reads
 //       too blocky under sparse pass lists.
-//   v6: bounded direction-neutral backfill — backfillFloodRounds breadth-first
+//   v6: bounded direction-neutral backfill â€” backfillFloodRounds breadth-first
 //       majority rounds (frozen src per round), then own-cell fill. Keeps the
 //       flood-rasterized smooth look, kills the unbounded cascade.
-//   v7/v8 (WITHDRAWN same day, code removed — see git history e23ff7f7151):
+//   v7/v8 (WITHDRAWN same day, code removed â€” see git history e23ff7f7151):
 //       foreign-fill-fringe erosion bounded the pod-door seam but visibly
 //       blockified scenes (the fringes ARE the boundary smoothing). The
 //       pipeline is bit-identical to v6, so the version stays 6 and v6 cache
 //       files remain valid. The seam is fixed in the compositor instead
-//       (game cels drawn slightly larger — Sprite::coverGrow).
+//       (game cels drawn slightly larger â€” Sprite::coverGrow).
 //
 // THE PIPELINE, for bump purposes, is anything that can change generated
 // pixels: roger_omyac.{h,cpp} (incl. OmyacParams defaults + BLEND_TABLE),
@@ -88,12 +88,12 @@ enum GenMode {
 //  - Output-changing edit to any file above -> bump this constant IN THE
 //    SAME COMMIT and append a history line below.
 //  - Bit-identical refactor -> NO bump, and the commit message must say so
-//    ("output bit-identical; kTransformVersion unchanged" — precedent: the
+//    ("output bit-identical; kTransformVersion unchanged" â€” precedent: the
 //    v7/v8 note below). To prove bit-identical: launch with
 //    roger_gen_mode=always for one room and byte-compare the rewritten
 //    cache PNG against the previous one.
 //  - Never renumber or reuse a version. Stale files are invalidated by
-//    orphaning (never looked up again), not deletion — old-version files
+//    orphaning (never looked up again), not deletion â€” old-version files
 //    accumulate in the cache dir harmlessly.
 //  - Next bump must also widen the cache hash fnv1a32 -> fnv1a64 (see the
 //    TODO at the cache-existence probes): folding it into a bump makes the
@@ -167,12 +167,12 @@ public:
 	Graphics::Surface *generatePlate(int id, uint32 &outMs);
 
 	// As generatePlate, but also returns the omyac doubled-nibble index buffer
-	// (OMYAC_HYBRID_W*OMYAC_HYBRID_H) in outIndex — the pre-blend color source used by
+	// (OMYAC_HYBRID_W*OMYAC_HYBRID_H) in outIndex â€” the pre-blend color source used by
 	// live palette re-apply. outIndex is cleared on any failure / cache-only path where
 	// the index is unavailable (caller must check !outIndex.empty()).
 	Graphics::Surface *generatePlateWithIndex(int id, Common::Array<byte> &outIndex, uint32 &outMs);
 
-	// Pic-STACK plate: the scene an SCI0 overlay pic sequence produces — ids[0]
+	// Pic-STACK plate: the scene an SCI0 overlay pic sequence produces â€” ids[0]
 	// drawn full, each subsequent id drawn addTo (no screen clear) on top, exactly
 	// mirroring kDrawPic's addToFlag accumulation (the SQ3 intro title/scanner
 	// screens). The command lists are concatenated in draw order and rendered
@@ -185,7 +185,7 @@ public:
 
 	// As generatePlate, but also returns the omyac backfill mask
 	// (OMYAC_HYBRID_W*OMYAC_HYBRID_H bytes: 1 where fillNullPixels painted the
-	// pixel, else 0) in outBackfill — the studio "unfilled pixels" diagnostic
+	// pixel, else 0) in outBackfill â€” the studio "unfilled pixels" diagnostic
 	// (recoloured hot pink). Studio-only; the mask is NEVER cached, so a plate
 	// served from the disk cache leaves outBackfill empty (no pink). The studio
 	// runs kGenMemory, so plates always generate live and the mask is available.
@@ -193,7 +193,7 @@ public:
 
 	/**
 	 * Reference plate for shift diagnosis: the native 320x190 pre-render
-	 * (NativeRef.refPixel) replicated x6 nearest-neighbour — geometrically
+	 * (NativeRef.refPixel) replicated x6 nearest-neighbour â€” geometrically
 	 * exact by construction (every native pixel -> exactly one 6x6 block).
 	 * Studio-only; never cached. Caller owns (->free() then delete).
 	 */
@@ -234,7 +234,7 @@ public:
 
 	// Cache-existence probes (precache fast path). The cache key fully
 	// determines a file's pixels, so "the keyed file exists" is exactly as
-	// strong a validity test as decoding it — see cacheKey(). kGenCache only:
+	// strong a validity test as decoding it â€” see cacheKey(). kGenCache only:
 	// every other mode returns false so callers fall through to today's
 	// generate path (kGenAlways must regenerate; kGenMemory never reads disk).
 	// TODO(next kTransformVersion bump): widen fnv1a32 -> fnv1a64 for hash

@@ -18,14 +18,14 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "sci/roger/roger_view_scaler.h"
+#include "sci/roger/gen/roger_view_scaler.h"
 #include "common/util.h"
 #include "common/str.h"
 
 namespace Sci {
 namespace Roger {
 
-// Entry 0's module function: the shipping scale6x. clearKey is unused —
+// Entry 0's module function: the shipping scale6x. clearKey is unused â€”
 // scale2x/scale3x carry the transparent index through like any other pixel.
 static IndexImage scale6xModule(const IndexImage &in, byte) {
 	return scale6x(in);

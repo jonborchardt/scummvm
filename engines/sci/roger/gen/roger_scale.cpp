@@ -36,7 +36,7 @@
  * Edge clamping: out-of-bounds neighbours replicate the centre pixel (s9.ts:26-34).
  */
 
-#include "sci/roger/roger_scale.h"
+#include "sci/roger/gen/roger_scale.h"
 
 namespace Sci {
 namespace Roger {
@@ -234,7 +234,7 @@ IndexImage scale6x(const IndexImage &in) {
 }
 
 // ---------------------------------------------------------------------------
-// scaleNearest — integer nearest-neighbour (pixel replication) by `factor`.
+// scaleNearest â€” integer nearest-neighbour (pixel replication) by `factor`.
 // ---------------------------------------------------------------------------
 IndexImage scaleNearest(const IndexImage &in, int factor) {
 	IndexImage out;

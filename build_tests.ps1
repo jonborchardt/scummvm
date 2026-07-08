@@ -51,15 +51,15 @@ $FixtureDir = ("$Root\test\sci\roger\fixtures" -replace '\\','/')
 # form create_project emits for every other ClCompile entry. Absolute paths break
 # MSBuild's per-file intermediate-dir computation.
 $RogerSources = @(
-    "..\..\engines\sci\roger\roger_pic_parser.cpp",
-    "..\..\engines\sci\roger\roger_pic_native.cpp",
-    "..\..\engines\sci\roger\roger_ega_blend.cpp",
-    "..\..\engines\sci\roger\roger_omyac.cpp",
-    "..\..\engines\sci\roger\roger_scale.cpp",
-    "..\..\engines\sci\roger\roger_asset_gen.cpp",
+    "..\..\engines\sci\roger\gen\roger_pic_parser.cpp",
+    "..\..\engines\sci\roger\gen\roger_pic_native.cpp",
+    "..\..\engines\sci\roger\gen\roger_ega_blend.cpp",
+    "..\..\engines\sci\roger\gen\roger_omyac.cpp",
+    "..\..\engines\sci\roger\gen\roger_scale.cpp",
+    "..\..\engines\sci\roger\gen\roger_asset_gen.cpp",
     "..\..\engines\sci\roger\png_loader.cpp",
     "..\..\engines\sci\roger\view_cache.cpp",
-    "..\..\engines\sci\roger\slice_set.cpp",
+    "..\..\engines\sci\roger\gen\slice_set.cpp",
     "..\..\engines\sci\roger\roger_effects.cpp",
     "..\..\engines\sci\roger\roger_cursor.cpp",
     "..\..\engines\sci\roger\roger_compositor.cpp",
@@ -69,11 +69,11 @@ $RogerSources = @(
     "..\..\engines\sci\roger\roger_widgets.cpp",
     "..\..\engines\sci\roger\utils\studio\roger_studio_render.cpp",
     "..\..\engines\sci\roger\roger_input.cpp",
-    "..\..\engines\sci\roger\roger_view_scaler.cpp",
+    "..\..\engines\sci\roger\gen\roger_view_scaler.cpp",
     "..\..\engines\sci\roger\roger_journal.cpp",
     "..\..\engines\sci\roger\utils\tunepanel\roger_tune_panel.cpp",
     "..\..\engines\sci\roger\utils\eyetest\roger_eyetest_search.cpp",
-    "..\..\engines\sci\roger\roger_passes.cpp"
+    "..\..\engines\sci\roger\gen\roger_passes.cpp"
 )
 
 # The Roger test-suite headers to feed cxxtestgen, listed explicitly rather than via

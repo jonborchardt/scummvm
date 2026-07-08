@@ -18,8 +18,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "sci/roger/roger_pic_parser.h"
-#include "sci/roger/roger_byte_reader.h"
+#include "sci/roger/gen/roger_pic_parser.h"
+#include "sci/roger/gen/roger_byte_reader.h"
 
 namespace Sci {
 namespace Roger {
@@ -58,7 +58,7 @@ enum {
 	OP_DONE          = 0xff
 };
 
-// points.ts: getPoint24 — reads 24 bits as absolute (x,y).
+// points.ts: getPoint24 â€” reads 24 bits as absolute (x,y).
 // bits 0-3:   high nibble of x
 // bits 4-7:   high nibble of y
 // bits 8-15:  low byte of x
@@ -71,7 +71,7 @@ static Point getPoint24(ByteReader &r) {
 	return p;
 }
 
-// points.ts: getPoint16 — reads 16-bit delta (y first, then x).
+// points.ts: getPoint16 â€” reads 16-bit delta (y first, then x).
 static Point getPoint16(ByteReader &r, Point ref) {
 	int y = r.read8();
 	int absY = y & 0x7f;
@@ -84,7 +84,7 @@ static Point getPoint16(ByteReader &r, Point ref) {
 	return p;
 }
 
-// points.ts: getPoint8 — reads 8-bit delta (4 bits x, 4 bits y with sign flags).
+// points.ts: getPoint8 â€” reads 8-bit delta (4 bits x, 4 bits y with sign flags).
 static Point getPoint8(ByteReader &r, Point ref) {
 	int code = r.read8();
 	bool xSign = ((code >> 4) & 8) != 0;
@@ -178,7 +178,7 @@ Common::Array<DrawCommand> parsePic(const byte *data, uint32 size) {
 		}
 
 		// ---- Fills ----
-		// handlers.ts: Fills — while peek < 0xf0, read one getPoint24 per fill.
+		// handlers.ts: Fills â€” while peek < 0xf0, read one getPoint24 per fill.
 		case OP_FILLS: {
 			while (more(r)) {
 				DrawCommand c = makeCmd(kCmdFill, drawMode, drawCodes);
@@ -189,7 +189,7 @@ Common::Array<DrawCommand> parsePic(const byte *data, uint32 size) {
 		}
 
 		// ---- Set Pattern ----
-		// handlers.ts: SetPattern — reads one byte, extracts size/rect/spray flags.
+		// handlers.ts: SetPattern â€” reads one byte, extracts size/rect/spray flags.
 		case OP_SET_PATTERN: {
 			int code = r.read8();
 			pSize  = code & 0x07;
@@ -205,7 +205,7 @@ Common::Array<DrawCommand> parsePic(const byte *data, uint32 size) {
 		//   LongBrushes: while(peek < 0xf0) from the start (no unconditional first).
 		// Texture byte (read8()>>1) is read BEFORE the point, only when pSpray.
 		case OP_SHORT_BRUSHES: {
-			// First brush: texture (if any) then getPoint24 — unconditional.
+			// First brush: texture (if any) then getPoint24 â€” unconditional.
 			{
 				int texture = pSpray ? (r.read8() >> 1) : 0;
 				Point pos = getPoint24(r);
@@ -231,7 +231,7 @@ Common::Array<DrawCommand> parsePic(const byte *data, uint32 size) {
 			break;
 		}
 		case OP_MEDIUM_BRUSHES: {
-			// First brush: texture (if any) then getPoint24 — unconditional.
+			// First brush: texture (if any) then getPoint24 â€” unconditional.
 			{
 				int texture = pSpray ? (r.read8() >> 1) : 0;
 				Point pos = getPoint24(r);
@@ -255,7 +255,7 @@ Common::Array<DrawCommand> parsePic(const byte *data, uint32 size) {
 			break;
 		}
 		case OP_LONG_BRUSHES: {
-			// LongBrushes: starts with while(peek < 0xf0) — no unconditional first.
+			// LongBrushes: starts with while(peek < 0xf0) â€” no unconditional first.
 			while (more(r)) {
 				int texture = pSpray ? (r.read8() >> 1) : 0;
 				Point pos = getPoint24(r);

@@ -19,7 +19,7 @@
  */
 
 #include "sci/roger/roger_cursor.h"
-#include "sci/roger/roger_scale.h"
+#include "sci/roger/gen/roger_scale.h"
 #include "common/endian.h"
 #include "graphics/pixelformat.h"
 

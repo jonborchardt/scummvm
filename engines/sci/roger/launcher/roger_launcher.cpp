@@ -1,7 +1,7 @@
 #include "sci/roger/launcher/roger_launcher.h"
 #include "sci/roger/launcher/roger_launcher_dialog.h"
 #include "sci/roger/roger_art_provider.h"
-#include "sci/roger/roger_passes.h"
+#include "sci/roger/gen/roger_passes.h"
 #include "sci/sci.h"
 #include "sci/resource/resource.h"
 #include "common/config-manager.h"
@@ -74,7 +74,7 @@ void RogerLauncher::discoverGames() {
 		                ConfMan.hasKey("description", dom) ? ConfMan.get("description", dom) : ""));
 	}
 
-	// Also check the active domain — handles command-line games not persisted in scummvm.ini.
+	// Also check the active domain â€” handles command-line games not persisted in scummvm.ini.
 	// When launched as "scummvm -p /path gameid", getGameDomains() returns empty because
 	// the domain only exists in memory; ConfMan.hasKey("path") reads from the active chain.
 	{
@@ -133,11 +133,11 @@ void RogerLauncher::flushSettingsForSelected() {
 	ConfMan.set("roger_gen_mode",  s.fallback,     dom);
 	ConfMan.set("roger_ui_font",   s.font,         dom);
 	// Verbatim passthrough: whatever the Passes field holds is what the ini
-	// gets — the engine parser warns about unknown tokens at load. An unset
+	// gets â€” the engine parser warns about unknown tokens at load. An unset
 	// key becomes explicit (kDefaultPassString) after the first launch;
 	// effective behavior is identical. An EMPTIED field means "use the
 	// default": the key is removed (unset -> defaultPasses()). Wireframe
-	// (explicit "") is no longer expressible from the picker — hand-edit the
+	// (explicit "") is no longer expressible from the picker â€” hand-edit the
 	// ini for that debug state.
 	Common::String trimmedPasses = s.passes;
 	trimmedPasses.trim();
@@ -165,7 +165,7 @@ bool RogerLauncher::handleLaunch() {
 		// Switch to a different game. setActiveDomain() alone does NOT work here:
 		// after this engine returns, base/main.cpp's post-run cleanup calls
 		// setActiveDomain("") and drops to the GUI launcher. The engine-initiated
-		// switch path is ChainedGamesMan — main.cpp pops it (after the
+		// switch path is ChainedGamesMan â€” main.cpp pops it (after the
 		// return-to-launcher event) and runs it as the next game.
 		ChainedGamesMan.push(selected);
 		Common::Event e;

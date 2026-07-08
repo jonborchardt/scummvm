@@ -19,7 +19,7 @@
  */
 
 #include "sci/roger/utils/studio/roger_studio_render.h"
-#include "sci/roger/roger_view_scaler.h"
+#include "sci/roger/gen/roger_view_scaler.h"
 #include "common/util.h"
 
 namespace Sci {
@@ -319,7 +319,7 @@ bool estimateOffsetSAD(const byte *a, const byte *b, int w, int h, int radius,
 	return true;
 }
 
-// ── Grid mode + animation helpers ────────────────────────────────────────────
+// â”€â”€ Grid mode + animation helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 int gridTileCount() {
 	return MIN(viewScalerCount(), 6);

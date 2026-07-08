@@ -19,8 +19,8 @@
  */
 
 #include "sci/roger/utils/tunepanel/roger_tune_panel.h"
-#include "sci/roger/roger_passes.h" // omyacPassStamp
-#include "sci/roger/roger_view_scaler.h"
+#include "sci/roger/gen/roger_passes.h" // omyacPassStamp
+#include "sci/roger/gen/roger_view_scaler.h"
 #include "common/util.h"
 #include "graphics/fontman.h"
 #include "graphics/font.h"
@@ -73,7 +73,7 @@ void buildTunePanel(const TunePanelState &st, Common::Array<PanelWidget> &out) {
 
 	// Known-good preset rows (goodPassPattern registry, best-first): one-click
 	// swap between curated pass sequences, labeled by their compact string
-	// (provenance notes live in the registry / picker tooltips — no room here).
+	// (provenance notes live in the registry / picker tooltips â€” no room here).
 	// A row lights while the STAGED list matches it. The registry is curated
 	// and small; if it ever grows, stop before eating the chip strip's space.
 	y += 2;

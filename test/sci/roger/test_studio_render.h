@@ -1,7 +1,7 @@
 #include <cxxtest/TestSuite.h>
 #include "sci/roger/utils/studio/roger_studio_render.h"
-#include "sci/roger/roger_passes.h" // omyacPassStamp + pass-edit ops (moved there)
-#include "sci/roger/roger_view_scaler.h"
+#include "sci/roger/gen/roger_passes.h" // omyacPassStamp + pass-edit ops (moved there)
+#include "sci/roger/gen/roger_view_scaler.h"
 using namespace Sci::Roger;
 
 class RogerStudioRenderTestSuite : public CxxTest::TestSuite {
@@ -290,7 +290,7 @@ public:
 		TS_ASSERT_EQUALS(dy, 0);
 	}
 
-	// ── New tests for polish wave ──────────────────────────────────────────────
+	// â”€â”€ New tests for polish wave â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 	void test_chip_caret_with_selection() {
 		// selectedChip=1, 3 passes: caret must appear immediately after chip 1's
@@ -403,7 +403,7 @@ public:
 		TS_ASSERT(found);
 	}
 
-	// ── Grid + animation helpers ─────────────────────────────────────────
+	// â”€â”€ Grid + animation helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 	// 2x3 row-major tiling: 6 tiles inside the area, no overlaps, gutters.
 	// gridTileRect is a pure geometry helper covering all 6 positions regardless

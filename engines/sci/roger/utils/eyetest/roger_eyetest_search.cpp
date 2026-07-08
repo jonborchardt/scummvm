@@ -20,7 +20,7 @@
 
 #include "sci/roger/utils/eyetest/roger_eyetest_search.h"
 
-#include "sci/roger/roger_passes.h"
+#include "sci/roger/gen/roger_passes.h"
 
 namespace Sci {
 namespace Roger {

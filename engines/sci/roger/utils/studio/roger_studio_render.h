@@ -22,26 +22,26 @@
 #define SCI_ROGER_UTILS_STUDIO_ROGER_STUDIO_RENDER_H
 
 // ROGER STUDIO (kept dev utility, quarantined 2026-07-07): SCI-free pure
-// helpers for the Studio — param registry, panel layout, export names, the
+// helpers for the Studio â€” param registry, panel layout, export names, the
 // diff/alignment diagnostics. Everything here is unit-testable without a
 // running engine (test/sci/roger/test_studio_render.h, test_shift_lock.h).
 // See roger_studio.h for the quarantine contract (who may reference
-// utils/studio/ — the env-gated sci.cpp hook + build lists + tests only).
+// utils/studio/ â€” the env-gated sci.cpp hook + build lists + tests only).
 // The generic widget record / hit-testing lives in the neutral
 // sci/roger/roger_widgets.h (shared with the F12 tune panel); pass-list edit
-// ops and stamps live in sci/roger/roger_passes.h.
+// ops and stamps live in sci/roger/gen/roger_passes.h.
 
 #include "common/array.h"
 #include "common/rect.h"
 #include "common/str.h"
-#include "sci/roger/roger_omyac.h"
-#include "sci/roger/roger_scale.h"
+#include "sci/roger/gen/roger_omyac.h"
+#include "sci/roger/gen/roger_scale.h"
 #include "sci/roger/roger_widgets.h"
 
 namespace Sci {
 namespace Roger {
 
-// ── OmyacParams registry: index-addressable fields for the studio HUD ────────
+// â”€â”€ OmyacParams registry: index-addressable fields for the studio HUD â”€â”€â”€â”€â”€â”€â”€â”€
 struct OmyacParamDesc {
 	const char *name;
 	int minV;
@@ -56,11 +56,11 @@ OmyacParamDesc omyacParamDesc(int i);
 int omyacParamGet(const OmyacParams &p, int i);
 void omyacParamSet(OmyacParams &p, int i, int value); // clamps to [minV, maxV]
 
-// ── Export filename stamps ───────────────────────────────────────────────────
+// â”€â”€ Export filename stamps â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 Common::String omyacParamStamp(const OmyacParams &p);            // "default" / "mvl3-iso0"
 Common::String studioExportName(const char *kind, int id, const Common::String &detail);
 
-// ── Studio v2: per-game startup defaults ─────────────────────────────────────
+// â”€â”€ Studio v2: per-game startup defaults â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 struct StudioDefaults {
 	int picId;   // -1 = first available
 	int viewId;  // -1 = first available
@@ -72,14 +72,14 @@ struct StudioDefaults {
 
 StudioDefaults studioDefaultsForGame(const Common::String &gameId);
 
-// ── Studio v2: export names ──────────────────────────────────────────────────
+// â”€â”€ Studio v2: export names â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 Common::String studioSceneExportName(int picId, char slot, const Common::String &detail);
 Common::String studioCompareExportName(int picId, bool diff,
                                        const Common::String &stampA,
                                        const Common::String &stampB);
 
-// ── Studio v2: widget kinds (the widget record, id encoding, and hit-test are
-//    the shared sci/roger/roger_widgets.h; kind 0 = "none" by that contract) ──
+// â”€â”€ Studio v2: widget kinds (the widget record, id encoding, and hit-test are
+//    the shared sci/roger/roger_widgets.h; kind 0 = "none" by that contract) â”€â”€
 enum WidKind {
 	kWidNone = 0,
 	kWidPicPrev, kWidPicNext, kWidViewPrev, kWidViewNext,
@@ -123,7 +123,7 @@ void buildStudioPanel(const Common::Rect &panel, const StudioPanelState &st,
 static const int kStudioCharW = 7;   // layout char width (small px)
 static const int kStudioRowH = 24;   // layout row height (small px)
 
-// ── Studio v2: shift diagnosis (pure; unit-tested) ───────────────────────────
+// â”€â”€ Studio v2: shift diagnosis (pure; unit-tested) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Per-pixel |a-b| map, white-on-black: out = (m,m,m,255) with m = max channel
 // delta of the first 3 bytes. All buffers w*h*4 bytes, same layout.
 void diffMapRGBA(const byte *a, const byte *b, int w, int h, byte *out);
@@ -137,7 +137,7 @@ void diffMapRGBA(const byte *a, const byte *b, int w, int h, byte *out);
 bool estimateOffsetSAD(const byte *a, const byte *b, int w, int h, int radius,
                        int &outDx, int &outDy);
 
-// ── Grid mode + animation helpers (pure; unit-tested) ───────────────────────
+// â”€â”€ Grid mode + animation helpers (pure; unit-tested) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 // One comparison tile per registered view-scaler module (row-major 2x3 grid,
 // max 6 tiles). gridPresetSlot returns the viewScaler registry index for

@@ -1,12 +1,12 @@
 #include <cxxtest/TestSuite.h>
-#include "sci/roger/roger_scale.h"
-#include "sci/roger/roger_pic_native.h"
-#include "sci/roger/roger_omyac.h"
+#include "sci/roger/gen/roger_scale.h"
+#include "sci/roger/gen/roger_pic_native.h"
+#include "sci/roger/gen/roger_omyac.h"
 #include "sci/roger/utils/studio/roger_studio_render.h"
 using namespace Sci::Roger;
 
 // Locks against sub-pixel drift ("shifting") in the upscalers. If one of these
-// fails after a pipeline change, the pipeline gained a systematic dx/dy bias —
+// fails after a pipeline change, the pipeline gained a systematic dx/dy bias â€”
 // exactly the class of bug the studio's Diff/offset tools diagnose visually.
 class RogerShiftLockTestSuite : public CxxTest::TestSuite {
 	// Centroid of non-background mass, in output pixels.
@@ -20,7 +20,7 @@ class RogerShiftLockTestSuite : public CxxTest::TestSuite {
 		cx = n ? sx / n : 0; cy = n ? sy / n : 0;
 	}
 
-	// Most-common byte value in the array — used as the background sentinel when
+	// Most-common byte value in the array â€” used as the background sentinel when
 	// renderOmyac's fillNullPixels replaces every 0xff with a fill color so that
 	// the naive 0xff-background centroid would cover the whole image.
 	static byte mostCommonByte(const Common::Array<byte> &px) {
@@ -52,7 +52,7 @@ public:
 	// filled square outline, symmetric under 180-degree rotation.
 	//
 	// TOLERANCE POLICY: 1.0 hybrid px (= 1/6 native px). If this FAILS, do NOT
-	// widen the tolerance — the failure IS the diagnosis of a real drift.
+	// widen the tolerance â€” the failure IS the diagnosis of a real drift.
 	// Report the measured (dx, dy) in your task report and escalate
 	// (DONE_WITH_CONCERNS); the user explicitly wants to know.
 	void test_omyac_default_pipeline_centered_vs_nearest_ref() {

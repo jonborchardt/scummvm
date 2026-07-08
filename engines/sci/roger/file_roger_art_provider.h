@@ -23,7 +23,7 @@
 
 #include "sci/roger/roger_art_provider.h"
 #include "sci/roger/null_roger_art_provider.h"
-#include "sci/roger/roger_asset_gen.h"
+#include "sci/roger/gen/roger_asset_gen.h"
 #include "sci/roger/roger_capabilities.h"
 #include "sci/roger/roger_compositor.h"
 #include "sci/roger/roger_journal.h"
@@ -43,7 +43,7 @@ public:
 	// gameId: ScummVM game ID string (e.g. "sq3", "qfg1")
 	// gamePath: path to the game directory, as a Common::Path so native
 	//   separators are parsed correctly (use ConfMan.getPath("path"), NOT
-	//   ConfMan.get("path") — the latter is a raw string with backslashes on
+	//   ConfMan.get("path") â€” the latter is a raw string with backslashes on
 	//   Windows that Common::Path's '/' separator cannot split).
 	FileRogerArtProvider(const Common::String &gameId, const Common::Path &gamePath);
 	~FileRogerArtProvider();
@@ -85,10 +85,10 @@ public:
 	void tuneEnhancePasses(int delta, int which) override; // Ctrl+Shift+]/[ add/remove fill; '/; add/remove all
 	void reloadGenConfig() override; // Ctrl+Shift+R: re-read roger_omyac_passes from ConfMan
 	void cycleBodyFont() override; // Ctrl+Shift+F: rotate dialog font through the shortlist
-	void toggleTunePanel() override;  // F12 / Ctrl+Shift+T (debug tool — kept)
+	void toggleTunePanel() override;  // F12 / Ctrl+Shift+T (debug tool â€” kept)
 	bool tunePanelMouse(bool buttonDown, const Common::Point &gamePos) override;
 
-	// UI display-list capture (Roger hires dialogs) — see roger_art_provider.h.
+	// UI display-list capture (Roger hires dialogs) â€” see roger_art_provider.h.
 	void uiPushWindow(const Common::Rect &globalRect, int backColor, int penColor,
 	                  uint16 wndStyle, uint32 token) override;
 	void uiPushText(const Common::Rect &globalRect, const char *text, int penColor,
@@ -114,7 +114,7 @@ public:
 	// Called each frame by the GfxAnimate hook (Task 7).
 	void renderFrame(const Common::Array<Roger::Sprite> &sprites);
 
-	// Accessor used by the GfxAnimate hook to translate AnimateEntry → Sprite.
+	// Accessor used by the GfxAnimate hook to translate AnimateEntry â†’ Sprite.
 	Roger::ViewCache *viewCache() { return _viewCache; }
 
 private:
@@ -153,8 +153,8 @@ private:
 	bool _selfTest = false;      // roger_selftest: log structural invariant PASS/FAIL per room (off by default)
 	bool _diffBackstop = false;  // roger_diff_backstop: Feeder B pixel-diff backstop (default off; per-frame full-buffer diff is costly and can stamp blocky native pixels over the plate around moving sprites)
 	bool _diffCheck = false;     // roger_diff_check: gated in-engine native-vs-overlay diff (off by default; once per pic; never on steady-state path)
-	bool _truthCapture = false; // .rin captures grab the REAL overlay pixels (grabOverlay) instead of forcing a full recompose — evidence mode, default off; stale never-pushed regions are visible
-	// Roger::ScriptHost — game-side services for the .rin loop commands
+	bool _truthCapture = false; // .rin captures grab the REAL overlay pixels (grabOverlay) instead of forcing a full recompose â€” evidence mode, default off; stale never-pushed regions are visible
+	// Roger::ScriptHost â€” game-side services for the .rin loop commands
 	Common::String describeState() override;
 	int stateValue(const Common::String &key) override;
 	void onSnap(const Common::String &label) override;
@@ -163,7 +163,7 @@ private:
 	int uiWindowCount() const;                              // kUiWindow elements in _journal
 	void dumpOverlaySnap(const Common::String &label, const Common::Rect &gameRect); // grabOverlay -> dumpAutoshot
 
-	// Input automation (scripted verification loop / live control) — roger_input.h.
+	// Input automation (scripted verification loop / live control) â€” roger_input.h.
 	Roger::InputScriptDriver *_inputDriver = nullptr;
 	bool _cycleLog = false;
 	void maybeScriptCapture(Graphics::ManagedSurface &scene, const Common::Rect &gameRect);
@@ -184,11 +184,11 @@ private:
 	Graphics::ManagedSurface *_scratchScene = nullptr; // reused per-frame compose buffer (realloc only on size change)
 	// Side-by-side present buffer. MUST be separate from _scratchScene: renderScene
 	// redraws only its seed union into the scratch and relies on the remaining
-	// pixels persisting across frames — composing the split layout there corrupted
+	// pixels persisting across frames â€” composing the split layout there corrupted
 	// the next bounded frame (recursive nested split in the left panel).
 	Graphics::ManagedSurface *_sbsScratch = nullptr;
 	// Return a persistent scratch surface of (w,h) in RGBA32, reallocated only when
-	// the overlay size changes — avoids a fresh ManagedSurface alloc/free every frame.
+	// the overlay size changes â€” avoids a fresh ManagedSurface alloc/free every frame.
 	Graphics::ManagedSurface *scratchScene(int w, int h);
 	// Compose the current room scene (plate, plus the given sprites for the two-arg form;
 	// the no-arg form composes the plate only) into `out` at full overlay size.
@@ -201,7 +201,7 @@ private:
 	// Cels drawn during room init (_picNotValid) that bake into the native picture (QFG1
 	// first-visit signs), tagged with their owning animate object (one capture per owner,
 	// latest wins; owner 0 = script kDrawCel). Cleared on room change; each frame the entries
-	// whose owner is absent from the animate list are merged in as persistent hires statics —
+	// whose owner is absent from the animate list are merged in as persistent hires statics â€”
 	// a disposed-after-baking prop promotes, a live actor (the ego) never does. See onInitCel.
 	Common::Array<Roger::Sprite> _initCels;
 	// Native-foreground capture (QFG1 menu/character-creation stat labels, class buttons,
@@ -209,7 +209,7 @@ private:
 	// into persistent sprites so they survive past one frame (Feeder-A style). Each carries
 	// its owning window token (0x40000000 | id, 0 = none): pending regions AND stamped
 	// sprites owned by a window are dropped when that window is disposed (uiClearToken from
-	// GfxPorts::removeWindow) — without this, a region queued while a blocking window froze
+	// GfxPorts::removeWindow) â€” without this, a region queued while a blocking window froze
 	// the game cycle is processed only after dispose and stamps the restored native
 	// background over the plate for the rest of the room. Owner-less captures stay
 	// room-scoped (cleared by clearTextSprites on room change).
@@ -230,7 +230,7 @@ private:
 	struct DrawCelNativeKey { int viewId; int loopNo; int celNo; Graphics::Surface *surf; };
 	Common::Array<DrawCelNativeKey> _drawCelNativeCache;
 	// Rects rolled back this cycle: a bitsShow inside one is SCI revealing restored
-	// background, not drawing content — Feeder B must not stamp it. Cleared at the
+	// background, not drawing content â€” Feeder B must not stamp it. Cleared at the
 	// end of each animate cycle and whenever new content is drawn over the rect.
 	Common::Array<Common::Rect> _revealRects;
 	uint32 _stampSeqCounter = 0; // seq tags for Feeder B stamps (rollback scope)
@@ -238,7 +238,7 @@ private:
 	Common::Array<Common::Rect> _genRegions;  // Feeder B native rects captured this frame
 	Common::Array<byte> _nativeBaseline;      // last "known" native visual buffer (Feeder B diff)
 	bool _haveBaseline = false;
-	// ── Cycle-diff backstop net (spec Phase 2) ─────────────────────────────────
+	// â”€â”€ Cycle-diff backstop net (spec Phase 2) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 	bool _diffNet = false;               // roger_diff_net; default ON (escape hatch: =false)
 	Common::Array<byte> _netPrevVisual;  // previous cycle's native visual buffer
 	Common::Array<byte> _netCurVisual;   // this cycle's read (member: no per-cycle alloc)
@@ -282,14 +282,14 @@ private:
 	// present full. Gated by _mode == kModeSideBySide; called from renderFrame/presentWithUi.
 	void presentComparison();
 
-	// ── Present barrier (spec §3.2) ────────────────────────────────────────────
+	// â”€â”€ Present barrier (spec Â§3.2) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 	// The ONLY entry point that pushes to the overlay outside transitions. O(1)
 	// when nothing changed. Defers while the animate cycle is mid-draw
-	// (_inAnimateCycle) — the end-of-renderFromAnimateList call flushes.
+	// (_inAnimateCycle) â€” the end-of-renderFromAnimateList call flushes.
 	void presentBarrier();
 	void markUiDirty(const Common::Rect &nativeRect);      // element pushed/redrawn at nr
 	void markVacatedDirty(const Common::Rect &nativeRect); // element removed at nr
-	void markNativeDirty(const Common::Rect &nativeRect);  // §3.1: exact rect SCI touched
+	void markNativeDirty(const Common::Rect &nativeRect);  // Â§3.1: exact rect SCI touched
 	void markFullDirty();                                  // room/F10/font/plate change
 	// Overlay-space rect the cursor would occupy right now (empty when not drawable).
 	// Extracted from compositeCursor so the barrier can detect cursor movement.
@@ -326,7 +326,7 @@ private:
 	// No-op if no room is loaded (_loadedPicId < 0) or _assetGen is null.
 	void regenInPlace();
 
-	// ── DEBUG TOOL: in-game quick-tune panel (spec 2026-07-05) ─────────────────
+	// â”€â”€ DEBUG TOOL: in-game quick-tune panel (spec 2026-07-05) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 	// Pass-tuning debug tool; kept permanently. MMPX judging concluded 2026-07-06
 	// (s2>s3 shipped; MMPX removed); panel stays as the session-only pass-tuning tool.
 	Roger::TunePanelState _tunePanel;

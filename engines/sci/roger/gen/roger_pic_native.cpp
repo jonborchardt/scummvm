@@ -18,13 +18,13 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "sci/roger/roger_pic_native.h"
+#include "sci/roger/gen/roger_pic_native.h"
 #include "common/queue.h"
 
 namespace Sci {
 namespace Roger {
 
-// ─── default-palette.ts: 40-entry default palette ───────────────────────────
+// â”€â”€â”€ default-palette.ts: 40-entry default palette â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 static const byte DEFAULT_PALETTE[40] = {
 	0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99,
 	0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0x88, 0x88, 0x01, 0x02, 0x03,
@@ -32,7 +32,7 @@ static const byte DEFAULT_PALETTE[40] = {
 	0xfe, 0xff, 0x08, 0x91, 0x2a, 0x3b, 0x4c, 0x5d, 0x6e, 0x88
 };
 
-// ─── circles.ts: per-size brush bitmask table (verbatim) ────────────────────
+// â”€â”€â”€ circles.ts: per-size brush bitmask table (verbatim) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Variable-height rows (1,3,5,7,9,11,13,15); a max-width 15-col table holds
 // each size's rows in [0 .. rows-1]. The brush loop indexes sprite[py-top].
 static const uint16 CIRCLE_BITMAPS[8][15] = {
@@ -46,7 +46,7 @@ static const uint16 CIRCLE_BITMAPS[8][15] = {
 	{ 0x3e0, 0xff8, 0x1ffc, 0x3ffe, 0x3ffe, 0x7fff, 0x7fff, 0x7fff, 0x7fff, 0x7fff, 0x3ffe, 0x3ffe, 0x1ffc, 0xff8, 0x3e0 }
 };
 
-// ─── noise.ts: 256-entry boolean table + 120 offsets (verbatim) ─────────────
+// â”€â”€â”€ noise.ts: 256-entry boolean table + 120 offsets (verbatim) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // The 32 source bytes are expanded MSB-first into 256 booleans.
 static const byte NOISE_SRC[32] = {
 	0x20, 0x94, 0x02, 0x24, 0x90, 0x82, 0xa4, 0xa2, 0x82, 0x09, 0x0a, 0x22, 0x12,
@@ -74,7 +74,7 @@ static inline bool noiseAt(int i) {
 	return ((b >> (7 - (idx & 7))) & 0x1) == 0x1;
 }
 
-// ─── screen-buffer.ts: layer buffers + low-level plotters ───────────────────
+// â”€â”€â”€ screen-buffer.ts: layer buffers + low-level plotters â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Port of createBuffers at scale [1,1] (so plot==plotOne, no doubling), plus
 // the omyac tracking wrapper (render-omyac-upscaler.ts trackPlot/isFillable).
 struct Buffers {
@@ -175,7 +175,7 @@ struct Buffers {
 	}
 };
 
-// ─── create-line.ts: integer Bresenham (verbatim) ───────────────────────────
+// â”€â”€â”€ create-line.ts: integer Bresenham (verbatim) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 static void drawLine(Buffers &b, int x0, int y0, int x1, int y1, int drawMode, const int *drawCodes) {
 	if (x0 == x1) {
 		int yMin = (y0 < y1) ? y0 : y1;
@@ -226,7 +226,7 @@ static void drawLine(Buffers &b, int x0, int y0, int x1, int y1, int drawMode, c
 	}
 }
 
-// ─── create-flood-fill.ts: scanline flood fill (verbatim seed order) ─────────
+// â”€â”€â”€ create-flood-fill.ts: scanline flood fill (verbatim seed order) â”€â”€â”€â”€â”€â”€â”€â”€â”€
 static void floodFill(Buffers &b, int ix, int iy, int drawMode, const int *drawCodes) {
 	const int width = b.width;
 	const int height = b.height;
@@ -301,7 +301,7 @@ static void floodFill(Buffers &b, int ix, int iy, int drawMode, const int *drawC
 	} while (!stack.empty());
 }
 
-// ─── create-brush.ts (+ circles/noise): brush stamp ─────────────────────────
+// â”€â”€â”€ create-brush.ts (+ circles/noise): brush stamp â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 static void drawBrush(Buffers &b, int cx, int cy, int drawMode, const int *drawCodes,
                       int size, bool isRect, bool isSpray, int textureCode) {
 	const int stageWidth = b.width;
@@ -346,7 +346,7 @@ static void drawBrush(Buffers &b, int cx, int cy, int drawMode, const int *drawC
 		}
 }
 
-// ─── create-blitter.ts: embedded cel blit (verbatim) ────────────────────────
+// â”€â”€â”€ create-blitter.ts: embedded cel blit (verbatim) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 static void blitCel(Buffers &b, int x0, int y0, int drawMode, const EmbeddedCel &cel) {
 	const int stageWidth = b.width;
 	const int stageHeight = b.height;
@@ -373,7 +373,7 @@ static void blitCel(Buffers &b, int x0, int y0, int drawMode, const EmbeddedCel 
 		}
 }
 
-// ─── pic-step.ts: command dispatch at scale [1,1] ───────────────────────────
+// â”€â”€â”€ pic-step.ts: command dispatch at scale [1,1] â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 static void picStep(Buffers &b, const DrawCommand &cmd) {
 	switch (cmd.kind) {
 	case kCmdSetPalette: {
@@ -429,7 +429,7 @@ static void picStep(Buffers &b, const DrawCommand &cmd) {
 	}
 }
 
-// ─── render-omyac-upscaler.ts: nativePreRender (lines 146-248) ──────────────
+// â”€â”€â”€ render-omyac-upscaler.ts: nativePreRender (lines 146-248) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 NativeRef nativePreRender(const Common::Array<DrawCommand> &cmds, int trackLayer) {
 	const int N = OMYAC_NATIVE_W * OMYAC_NATIVE_H;
 

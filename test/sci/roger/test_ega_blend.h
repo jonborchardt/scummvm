@@ -1,6 +1,6 @@
 // test/sci/roger/test_ega_blend.h
 #include <cxxtest/TestSuite.h>
-#include "sci/roger/roger_ega_blend.h"
+#include "sci/roger/gen/roger_ega_blend.h"
 #include "graphics/surface.h"
 using namespace Sci::Roger;
 

@@ -20,13 +20,13 @@
 
 #include "graphics/surface.h"
 #include "sci/roger/view_cache.h"
-#include "sci/roger/roger_asset_gen.h"
+#include "sci/roger/gen/roger_asset_gen.h"
 
 namespace Sci {
 namespace Roger {
 
 // viewsBasePath is retained in the constructor signature for API compatibility,
-// but cels now come solely from the generator — no on-disk spritesheet layout is read.
+// but cels now come solely from the generator â€” no on-disk spritesheet layout is read.
 ViewCache::ViewCache(const Common::String &viewsBasePath) {
 	(void)viewsBasePath;
 }

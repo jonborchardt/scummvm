@@ -19,7 +19,7 @@
  */
 
 #include <cxxtest/TestSuite.h>
-#include "sci/roger/slice_set.h"
+#include "sci/roger/gen/slice_set.h"
 
 // EGA priority-band helpers (the former SliceSet class was removed; see slice_set.h).
 class TestSliceSet : public CxxTest::TestSuite {

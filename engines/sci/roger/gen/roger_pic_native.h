@@ -22,7 +22,7 @@
 #define SCI_ROGER_ROGER_PIC_NATIVE_H
 #include "common/array.h"
 #include "common/scummsys.h"
-#include "sci/roger/roger_draw_command.h"
+#include "sci/roger/gen/roger_draw_command.h"
 namespace Sci {
 namespace Roger {
 
@@ -34,7 +34,7 @@ static const int OMYAC_HYBRID_W = 1920, OMYAC_HYBRID_H = 1140;
 // Per-pixel command-type tracking. 0=untouched, 1=line, 2=fill.
 enum { CMD_NONE = 0, CMD_LINE = 1, CMD_FILL = 2 };
 
-// Output of nativePreRender — per-pixel ownership tracking over a 320x190
+// Output of nativePreRender â€” per-pixel ownership tracking over a 320x190
 // native SCI0 render (port of render-omyac-upscaler.ts NativeRef).
 struct NativeRef {
 	Common::Array<byte> refPixel;  // 320*190 doubled-nibble bytes (init 0xff)

@@ -1,6 +1,6 @@
 // test/sci/roger/test_scale.h
 #include <cxxtest/TestSuite.h>
-#include "sci/roger/roger_scale.h"
+#include "sci/roger/gen/roger_scale.h"
 using namespace Sci::Roger;
 
 class RogerScaleTestSuite : public CxxTest::TestSuite {

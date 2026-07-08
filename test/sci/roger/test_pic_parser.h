@@ -1,5 +1,5 @@
 #include <cxxtest/TestSuite.h>
-#include "sci/roger/roger_pic_parser.h"
+#include "sci/roger/gen/roger_pic_parser.h"
 using namespace Sci::Roger;
 
 class RogerPicParserTestSuite : public CxxTest::TestSuite {

@@ -29,7 +29,7 @@
 #include "graphics/font.h"
 #include "graphics/managed_surface.h"
 #include "sci/roger/png_loader.h"
-#include "sci/roger/roger_passes.h"
+#include "sci/roger/gen/roger_passes.h"
 
 #ifdef ENABLE_SCI
 #include "sci/sci.h"
@@ -109,7 +109,7 @@ void RogerStudio::renderSlot(Slot &slot) {
 
 	// Plate cache: regenerate the (expensive) omyac plate only when plateStale.
 	// A cel place/drag or loop/cel/view/showView change reuses the cached plate and
-	// only recomposites the cel over it — no omyac regen at drag rate.
+	// only recomposites the cel over it â€” no omyac regen at drag rate.
 	if (slot.plateStale || !slot.plateCache) {
 		if (slot.plateCache) { slot.plateCache->free(); delete slot.plateCache; slot.plateCache = nullptr; }
 		slot.backfillMask.clear();
@@ -133,8 +133,8 @@ void RogerStudio::renderSlot(Slot &slot) {
 	Graphics::ManagedSurface composed(slot.plateCache->w, slot.plateCache->h, slot.plateCache->format);
 	composed.blitFrom(*slot.plateCache);
 
-	// Feature 1: recolour "unfilled" pixels — those fillNullPixels backfilled
-	// (nothing official painted) — hot pink, before the cel goes on. Toggling
+	// Feature 1: recolour "unfilled" pixels â€” those fillNullPixels backfilled
+	// (nothing official painted) â€” hot pink, before the cel goes on. Toggling
 	// this is invalidateCelOnly()-tier (plate cache is reused). The mask matches
 	// the plate 1:1 (OMYAC_HYBRID_W*OMYAC_HYBRID_H); nearest-ref plates carry an
 	// empty mask, so no pink there.
@@ -446,7 +446,7 @@ void RogerStudio::blitRender(const Graphics::Surface &render, const Common::Rect
 // Feature 2: draw a light 1-screen-px grid at every plate-pixel boundary within
 // subArea, using the same (_panX,_panY,_viewScale) transform as blitRender.
 // Only meaningful when a plate pixel spans several screen px, so callers gate on
-// _viewScale >= 3. Display-time only (bare markDirty tier — no render regen).
+// _viewScale >= 3. Display-time only (bare markDirty tier â€” no render regen).
 void RogerStudio::drawPixelGrid(const Common::Rect &subArea) {
 	if (_viewScale < 3.0f)
 		return;

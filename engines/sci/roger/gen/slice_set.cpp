@@ -18,7 +18,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "sci/roger/slice_set.h"
+#include "sci/roger/gen/slice_set.h"
 #include "common/scummsys.h"
 
 namespace Sci {

@@ -1,5 +1,5 @@
 #include "sci/roger/launcher/roger_launcher_dialog.h"
-#include "sci/roger/roger_passes.h"
+#include "sci/roger/gen/roger_passes.h"
 #include "gui/gui-manager.h"
 #include "gui/widget.h"
 #include "gui/widgets/list.h"
@@ -60,11 +60,11 @@ RogerLauncherDialog::RogerLauncherDialog(RogerLauncher &launcher)
 	const int M  = W / 30;   // margin
 	const int LH = H / 20;   // line height
 
-	// ── Title ─────────────────────────────────────────────────────────────────
+	// â”€â”€ Title â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 	new GUI::StaticTextWidget(this, M, M, W / 4, LH,
 	                          Common::U32String("ROGER"), Graphics::kTextAlignLeft);
 
-	// ── Games section ─────────────────────────────────────────────────────────
+	// â”€â”€ Games section â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 	const int listTop = M + LH + M;
 	const int listH   = H * 2 / 5;
 	const int btnColW = W / 5;                       // width of Add/Delete buttons
@@ -85,7 +85,7 @@ RogerLauncherDialog::RogerLauncherDialog(RogerLauncher &launcher)
 	                                    Common::U32String("Delete"),
 	                                    Common::U32String(), kDeleteCmd);
 
-	// ── Settings section ──────────────────────────────────────────────────────
+	// â”€â”€ Settings section â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 	const int settTop = listTop + listH + M;
 	new GUI::StaticTextWidget(this, M, settTop, W - 2*M, LH,
 	                          Common::U32String("SETTINGS"), Graphics::kTextAlignLeft);
@@ -115,7 +115,7 @@ RogerLauncherDialog::RogerLauncherDialog(RogerLauncher &launcher)
 	_fontPop     = addSettingsRow(settTop + LH + 2*(LH + M/3), M, LH, "Font",        kFontPopCmd);
 	_fallbackPop = addSettingsRow(settTop + LH + 3*(LH + M/3), M, LH, "Fallback",    kFallbackPopCmd);
 
-	// ── Bottom row ────────────────────────────────────────────────────────────
+	// â”€â”€ Bottom row â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 	const int btnY = H - M - LH;
 
 	// Progress label sits in its own row above the buttons.
@@ -141,7 +141,7 @@ RogerLauncherDialog::RogerLauncherDialog(RogerLauncher &launcher)
 	                                     Common::U32String("Launch"),
 	                                     Common::U32String(), kLaunchCmd);
 
-	// ── Populate popup options ─────────────────────────────────────────────────
+	// â”€â”€ Populate popup options â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 	_precachePop->appendEntry(Common::U32String("off"),   0);
 	_precachePop->appendEntry(Common::U32String("pics"),  1);
 	_precachePop->appendEntry(Common::U32String("views"), 2);

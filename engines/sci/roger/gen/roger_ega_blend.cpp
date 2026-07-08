@@ -18,7 +18,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "sci/roger/roger_ega_blend.h"
+#include "sci/roger/gen/roger_ega_blend.h"
 #include "graphics/pixelformat.h"
 
 namespace Sci {

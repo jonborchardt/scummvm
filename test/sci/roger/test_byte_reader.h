@@ -1,5 +1,5 @@
 #include <cxxtest/TestSuite.h>
-#include "sci/roger/roger_byte_reader.h"
+#include "sci/roger/gen/roger_byte_reader.h"
 using namespace Sci::Roger;
 
 class RogerByteReaderTestSuite : public CxxTest::TestSuite {

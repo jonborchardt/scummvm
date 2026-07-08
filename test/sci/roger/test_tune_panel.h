@@ -1,8 +1,8 @@
 #include <cxxtest/TestSuite.h>
 #include "common/util.h"
 #include "engines/sci/roger/utils/tunepanel/roger_tune_panel.h"
-#include "engines/sci/roger/roger_view_scaler.h"
-#include "engines/sci/roger/roger_passes.h"
+#include "engines/sci/roger/gen/roger_view_scaler.h"
+#include "engines/sci/roger/gen/roger_passes.h"
 
 using namespace Sci::Roger;
 
@@ -105,7 +105,7 @@ public:
 		TS_ASSERT_EQUALS(widKind(hitTestWidgets(w, 274, 177)), (int)kTuneReset);
 		TS_ASSERT_EQUALS(widKind(hitTestWidgets(w, 303, 177)), (int)kTuneApply);
 		// Preset row coordinates flow below the variant rows, so (unlike the
-		// bottom-anchored rows) they move if a second scaler module registers —
+		// bottom-anchored rows) they move if a second scaler module registers â€”
 		// same caveat as the chip strip, documented in the smoke script.
 		TS_ASSERT_EQUALS(widKind(hitTestWidgets(w, 273, 44)), (int)kTunePreset);
 		TS_ASSERT_EQUALS(widIndex(hitTestWidgets(w, 273, 44)), 0);

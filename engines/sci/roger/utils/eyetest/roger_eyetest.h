@@ -28,12 +28,12 @@
 // (build_and_run.ps1 -EyeTest) at the same sci.cpp seam as RogerStudio; owns the
 // overlay; never touches the generation disk cache (kGenMemory); zero effect on
 // any launch without the env var. See roger_eyetest_search.h for the quarantine
-// contract (who may reference utils/eyetest/ — sci.cpp hook + build lists only).
+// contract (who may reference utils/eyetest/ â€” sci.cpp hook + build lists only).
 
 #include "common/array.h"
 #include "common/rect.h"
 #include "common/str.h"
-#include "sci/roger/roger_asset_gen.h"
+#include "sci/roger/gen/roger_asset_gen.h"
 #include "sci/roger/utils/eyetest/roger_eyetest_search.h"
 
 namespace Graphics { class ManagedSurface; struct Surface; }
@@ -53,7 +53,7 @@ public:
 private:
 	enum Phase { kPhaseCompare, kPhaseBanner, kPhaseGenDone, kPhaseDone };
 
-	// One judged pair, exactly as scored — so undo can revert it precisely.
+	// One judged pair, exactly as scored â€” so undo can revert it precisely.
 	struct UndoRec {
 		int pa = -1, pb = -1;        // the pair's candidate indices
 		int champBefore = -1;        // _champion before the choice

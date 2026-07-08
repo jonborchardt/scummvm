@@ -19,7 +19,7 @@
  */
 
 #include "sci/roger/roger_palette_remap.h"
-#include "sci/roger/roger_ega_blend.h"
+#include "sci/roger/gen/roger_ega_blend.h"
 #include "graphics/surface.h"
 #include "common/util.h"
 

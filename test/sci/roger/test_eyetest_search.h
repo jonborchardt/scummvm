@@ -1,5 +1,5 @@
 #include <cxxtest/TestSuite.h>
-#include "sci/roger/roger_passes.h"
+#include "sci/roger/gen/roger_passes.h"
 #include "sci/roger/utils/eyetest/roger_eyetest_search.h"
 
 // Eye Exam (kept dev utility): unit tests for the quarantined pure search
@@ -11,7 +11,7 @@ class EyeTestSearchSuite : public CxxTest::TestSuite {
 public:
 	void testBaseSeqIsSpec() {
 		// The search base IS the shipping default (single swap point in
-		// roger_passes) — this locks the two together whatever the default is.
+		// roger_passes) â€” this locks the two together whatever the default is.
 		EyeSeq b = eyeBaseSeq();
 		TS_ASSERT_EQUALS(b.size(), (uint)kEyeSeqLen);
 		TS_ASSERT_EQUALS(eyeSeqCompact(b), Common::String(kDefaultPassString));
@@ -45,7 +45,7 @@ public:
 			TS_ASSERT_EQUALS(a.next(), b.next());
 	}
 
-	// Structural assertions only — never assert exact RNG-dependent values.
+	// Structural assertions only â€” never assert exact RNG-dependent values.
 	void testMutateChangesOneToFivePositions() {
 		EyeRng rng(7);
 		const EyeSeq base = eyeBaseSeq();

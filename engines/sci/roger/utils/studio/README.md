@@ -120,7 +120,7 @@ registration, and the unit tests (`test/sci/roger/test_studio_render.h`,
 `roger_studio_render.{h,cpp}`). Production code must never include anything
 from this folder — the generic widget primitives it shares with the F12 tune
 panel live in the neutral `sci/roger/roger_widgets.h`, and the pass-list edit
-ops/stamps in `sci/roger/roger_passes.h`, precisely so nothing outside
+ops/stamps in `sci/roger/gen/roger_passes.h`, precisely so nothing outside
 `utils/` ever needs a studio header.
 
 This module may only consume stable roger seams (`roger_asset_gen.h`,
