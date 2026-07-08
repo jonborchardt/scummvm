@@ -212,8 +212,10 @@ public:
 	void testCandidateFileName() {
 		EyeCandidate c;
 		c.gen = 0; c.idx = 0; c.seq = eyeBaseSeq(); c.source = "base";
+		// Compact suffix is derived from the base seq (== the shipping default),
+		// so a default promotion doesn't need this expectation re-baselined.
 		TS_ASSERT_EQUALS(eyeCandidateFileName(2, c),
-			Common::String("n002_gen000_cand000_base__ffflffaaaa.png"));
+			Common::String("n002_gen000_cand000_base__") + eyeSeqCompact(eyeBaseSeq()) + ".png");
 	}
 
 	void testCandidateJsonFields() {
@@ -226,10 +228,17 @@ public:
 		TS_ASSERT(j.contains("\"candidate_id\": \"gen001_cand003\""));
 		TS_ASSERT(j.contains("\"generation\": 1"));
 		TS_ASSERT(j.contains("\"picture\": \"n002\""));
-		TS_ASSERT(j.contains("\"sequence_compact\": \"ffflffaaaa\""));
 		TS_ASSERT(j.contains("\"source\": \"mut_pos04_f_to_a\""));
 		TS_ASSERT(j.contains("\"parents\": [\"gen000_cand000\"]"));
-		TS_ASSERT(j.contains("\"sequence\": [\"f\", \"f\", \"f\", \"l\", \"f\", \"f\", \"a\", \"a\", \"a\", \"a\"]"));
+		// sequence fields are derived from the base seq (== the shipping default),
+		// so a default promotion doesn't need these expectations re-baselined.
+		const Common::String compact = eyeSeqCompact(eyeBaseSeq());
+		TS_ASSERT(j.contains(Common::String("\"sequence_compact\": \"") + compact + "\""));
+		Common::String seqArr = "\"sequence\": [";
+		for (uint i = 0; i < compact.size(); i++)
+			seqArr += Common::String::format("%s\"%c\"", i ? ", " : "", compact[i]);
+		seqArr += "]";
+		TS_ASSERT(j.contains(seqArr));
 		TS_ASSERT(j.contains("\"output_file\": "));
 		TS_ASSERT(j.contains("\"wins\": 1"));
 	}

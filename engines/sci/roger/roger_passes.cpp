@@ -48,7 +48,7 @@ const GoodPassPattern &goodPassPattern(int i) {
 // unset roger_omyac_passes key follows this: the game (defaultPasses()), the
 // picker's shown value, Studio slot seeds, and the Eye Exam's base sequence.
 // To promote a new winner, change this to another kGoodPassPatterns compact.
-const char *const kDefaultPassString = "ffflffaaaa";
+const char *const kDefaultPassString = kGoodPassPatterns[1].compact;
 
 // True when every char is in the compact vocabulary. Separators are not in
 // the set, so a separated legacy string can never read as compact.

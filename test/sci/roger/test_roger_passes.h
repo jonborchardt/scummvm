@@ -48,9 +48,12 @@ public:
 	}
 
 	void test_effective_three_state() {
-		// unset -> the default sequence
-		assertPasses(effectivePasses(false, ""), "2221220000");
-		assertPasses(effectivePasses(false, "ignored"), "2221220000");
+		// unset -> the default sequence (derived from kDefaultPassString so a
+		// default promotion doesn't need this test re-baselined).
+		TS_ASSERT_EQUALS(passString(effectivePasses(false, "")),
+		                 Common::String(kDefaultPassString));
+		TS_ASSERT_EQUALS(passString(effectivePasses(false, "ignored")),
+		                 Common::String(kDefaultPassString));
 		// set + empty -> wireframe (zero passes)
 		assertPasses(effectivePasses(true, ""), "");
 		// set + tokens -> parsed

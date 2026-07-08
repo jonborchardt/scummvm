@@ -1,7 +1,14 @@
 #include <cxxtest/TestSuite.h>
 #include "sci/roger/roger_pic_native.h"
 #include "sci/roger/roger_omyac.h"
+#include "sci/roger/roger_passes.h" // parsePassString — golden tests pin a FIXED sequence
 using namespace Sci::Roger;
+
+// The pass sequence the golden-checksum tests below render with. Deliberately a
+// FIXED literal, NOT defaultPasses(): promoting a new roger_omyac_passes default
+// (a config choice) must not break these pipeline-integrity hashes. This is the
+// historical default and the value both goldens were baselined against.
+static const char *const kGoldenPassSeq = "ffflffaaaa";
 
 // Two crossing plines in different colours plus two same-colour segments that
 // share an endpoint pixel (adjacent, different cmdId, same colour). With
@@ -120,13 +127,14 @@ public:
 		// Pipeline: minVotesLine=1 minVotesFillAll=2 fillSuppressLineNeighbours=3
 		//           endpointMaxSame=2 isolatedPixelPass=true tieBreakBlend=true
 		//           diagFlankSuppress=true backfillOwnCell=true (kTransformVersion 6);
-		//           passes=3f1l2f4a (defaultPasses()).
+		//           passes=3f1l2f4a (kGoldenPassSeq — a FIXED sequence, not the
+		//           swappable roger_omyac_passes default; see kGoldenPassSeq above).
 		// NOTE: identical to the legacy hash — the bounded backfill (v6) reproduces
 		// the scan flood on this fixture; the change only manifests at long-range
 		// cascades.
 		static const uint32 kDefaultPipelineGolden = 0x40B38BFFu; // FNV-1a over pixels+cmdType
 		NativeRef ref = crossingLinesRef();
-		Common::Array<int> passes = defaultPasses();
+		Common::Array<int> passes = parsePassString(kGoldenPassSeq);
 		OmyacResult out = renderOmyac(ref, passes, OmyacParams());
 		uint32 got = omyacResultHash(out);
 		TS_ASSERT_EQUALS(got, kDefaultPipelineGolden);
@@ -138,7 +146,7 @@ public:
 	void test_legacy_backfill_pipeline_golden_checksum() {
 		static const uint32 kLegacyPipelineGolden = 0x40B38BFFu; // FNV-1a over pixels+cmdType
 		NativeRef ref = crossingLinesRef();
-		Common::Array<int> passes = defaultPasses();
+		Common::Array<int> passes = parsePassString(kGoldenPassSeq);
 		OmyacParams p;
 		p.backfillOwnCell = false;
 		OmyacResult out = renderOmyac(ref, passes, p);
