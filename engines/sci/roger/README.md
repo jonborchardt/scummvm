@@ -98,6 +98,7 @@ invalidated automatically when the generation pipeline changes.
   (e.g. `qfg1-smoke.rin`; grammar in [docs/roger.md](../../../docs/roger.md#rin-grammar))
 - **Roger Studio** — a mouse-driven tuning environment for A/B-comparing
   enhancement settings on a live scene: `.\build_and_run.ps1 -Studio`
+  (quarantined dev utility; full guide in [utils/studio/README.md](utils/studio/README.md))
 - **Regression suite** — `test/sci/roger/run-regression.ps1`
   (manifest-driven phase-gate checks)
 
@@ -111,7 +112,8 @@ invalidated automatically when the generation pipeline changes.
 | Caching | `view_cache.*`, `png_loader.*` |
 | Launcher | `roger_launcher.*`, `roger_launcher_dialog.*` |
 | Input automation | `roger_input.*` (engine-agnostic; no SCI includes) |
-| Tuning environment | `roger_studio.*`, `roger_studio_render.*` |
+| Shared debug-panel primitives | `roger_widgets.*`, `roger_passes.*` |
+| Quarantined dev utilities | `utils/studio/` (Roger Studio), `utils/tunepanel/` (F12 tune panel), `utils/eyetest/` (eye exam) — each has its own README + quarantine contract |
 | Validation | `roger_selftest.*`, `roger_capabilities.*` |
 
 Hook sites in the SCI engine proper (`engines/sci/graphics/`) are mechanical,

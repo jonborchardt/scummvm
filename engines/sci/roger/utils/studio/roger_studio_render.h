@@ -18,18 +18,25 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef SCI_ROGER_ROGER_STUDIO_RENDER_H
-#define SCI_ROGER_ROGER_STUDIO_RENDER_H
+#ifndef SCI_ROGER_UTILS_STUDIO_ROGER_STUDIO_RENDER_H
+#define SCI_ROGER_UTILS_STUDIO_ROGER_STUDIO_RENDER_H
 
-// SCI-free pure helpers for the Roger Studio debug tool (see
-// docs/superpowers/specs/2026-07-02-roger-studio-design.md). Everything here
-// is unit-testable without a running engine.
+// ROGER STUDIO (kept dev utility, quarantined 2026-07-07): SCI-free pure
+// helpers for the Studio — param registry, panel layout, export names, the
+// diff/alignment diagnostics. Everything here is unit-testable without a
+// running engine (test/sci/roger/test_studio_render.h, test_shift_lock.h).
+// See roger_studio.h for the quarantine contract (who may reference
+// utils/studio/ — the env-gated sci.cpp hook + build lists + tests only).
+// The generic widget record / hit-testing lives in the neutral
+// sci/roger/roger_widgets.h (shared with the F12 tune panel); pass-list edit
+// ops and stamps live in sci/roger/roger_passes.h.
 
 #include "common/array.h"
 #include "common/rect.h"
 #include "common/str.h"
 #include "sci/roger/roger_omyac.h"
 #include "sci/roger/roger_scale.h"
+#include "sci/roger/roger_widgets.h"
 
 namespace Sci {
 namespace Roger {
@@ -50,7 +57,6 @@ int omyacParamGet(const OmyacParams &p, int i);
 void omyacParamSet(OmyacParams &p, int i, int value); // clamps to [minV, maxV]
 
 // ── Export filename stamps ───────────────────────────────────────────────────
-Common::String omyacPassStamp(const Common::Array<int> &passes); // "ffla" / "none"
 Common::String omyacParamStamp(const OmyacParams &p);            // "default" / "mvl3-iso0"
 Common::String studioExportName(const char *kind, int id, const Common::String &detail);
 
@@ -66,18 +72,14 @@ struct StudioDefaults {
 
 StudioDefaults studioDefaultsForGame(const Common::String &gameId);
 
-// ── Studio v2: pass-list edit ops (pure; unit-tested) ────────────────────────
-void passInsertAfter(Common::Array<int> &passes, int &selected, int passVal);
-void passRemoveAt(Common::Array<int> &passes, int &selected);
-bool passMove(Common::Array<int> &passes, int &selected, int dir); // dir in {-1,+1}
-
 // ── Studio v2: export names ──────────────────────────────────────────────────
 Common::String studioSceneExportName(int picId, char slot, const Common::String &detail);
 Common::String studioCompareExportName(int picId, bool diff,
                                        const Common::String &stampA,
                                        const Common::String &stampB);
 
-// ── Studio v2: widget layer - kinds, id encoding, panel layout, hit-testing ────
+// ── Studio v2: widget kinds (the widget record, id encoding, and hit-test are
+//    the shared sci/roger/roger_widgets.h; kind 0 = "none" by that contract) ──
 enum WidKind {
 	kWidNone = 0,
 	kWidPicPrev, kWidPicNext, kWidViewPrev, kWidViewNext,
@@ -93,18 +95,6 @@ enum WidKind {
 	kWidShowBackfill, kWidShowGrid,  // shared scene toggles (pink / pixel grid)
 	kWidGrid6,                       // 6-pipeline comparison grid display mode
 	kWidAnimPlay, kWidAnimSlower, kWidAnimFaster   // global cel playback
-};
-
-uint32 widId(int kind, int index = 0);   // (kind << 16) | (index & 0xffff)
-int widKind(uint32 id);
-int widIndex(uint32 id);
-
-struct StudioWidget {
-	Common::Rect rect;      // panel-local small coords
-	uint32 id;
-	Common::String label;
-	bool on;                // toggled/active state (drawn highlighted)
-	bool enabled;
 };
 
 struct StudioPanelState {
@@ -128,10 +118,7 @@ struct StudioPanelState {
 // panel = panel-local small rect, i.e. (0, 0, smallW, smallH).
 // Pure and deterministic: same state -> same rects. Uses kCharW/kRowH below.
 void buildStudioPanel(const Common::Rect &panel, const StudioPanelState &st,
-                      Common::Array<StudioWidget> &out);
-
-// First widget whose rect contains (x, y) and is enabled; kWidNone if none.
-uint32 hitTestWidgets(const Common::Array<StudioWidget> &widgets, int x, int y);
+                      Common::Array<PanelWidget> &out);
 
 static const int kStudioCharW = 7;   // layout char width (small px)
 static const int kStudioRowH = 24;   // layout row height (small px)
@@ -174,4 +161,4 @@ Common::Rect celAnchorRect(int w, int h, int displaceX, int displaceY,
 } // namespace Roger
 } // namespace Sci
 
-#endif // SCI_ROGER_ROGER_STUDIO_RENDER_H
+#endif // SCI_ROGER_UTILS_STUDIO_ROGER_STUDIO_RENDER_H

@@ -2,7 +2,7 @@
 #include "sci/roger/roger_scale.h"
 #include "sci/roger/roger_pic_native.h"
 #include "sci/roger/roger_omyac.h"
-#include "sci/roger/roger_studio_render.h"
+#include "sci/roger/utils/studio/roger_studio_render.h"
 using namespace Sci::Roger;
 
 // Locks against sub-pixel drift ("shifting") in the upscalers. If one of these

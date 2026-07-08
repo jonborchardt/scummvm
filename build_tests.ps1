@@ -66,12 +66,13 @@ $RogerSources = @(
     "..\..\engines\sci\roger\roger_text.cpp",
     "..\..\engines\sci\roger\roger_palette_remap.cpp",
     "..\..\engines\sci\roger\roger_selftest.cpp",
-    "..\..\engines\sci\roger\roger_studio_render.cpp",
+    "..\..\engines\sci\roger\roger_widgets.cpp",
+    "..\..\engines\sci\roger\utils\studio\roger_studio_render.cpp",
     "..\..\engines\sci\roger\roger_input.cpp",
     "..\..\engines\sci\roger\roger_view_scaler.cpp",
     "..\..\engines\sci\roger\roger_journal.cpp",
     "..\..\engines\sci\roger\utils\tunepanel\roger_tune_panel.cpp",
-    "..\..\engines\sci\roger\utils\eyeexam\roger_eyetest_search.cpp",
+    "..\..\engines\sci\roger\utils\eyetest\roger_eyetest_search.cpp",
     "..\..\engines\sci\roger\roger_passes.cpp"
 )
 

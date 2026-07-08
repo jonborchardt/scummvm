@@ -21,6 +21,7 @@
 #include "sci/roger/roger_passes.h"
 
 #include "common/textconsole.h"
+#include "common/util.h"
 
 namespace Sci {
 namespace Roger {
@@ -102,11 +103,47 @@ Common::String passString(const Common::Array<int> &passes) {
 	return s;
 }
 
+Common::String omyacPassStamp(const Common::Array<int> &passes) {
+	if (passes.empty())
+		return "none";
+	return passString(passes);
+}
+
 Common::Array<int> effectivePasses(bool hasKey, const Common::String &s) {
 	if (!hasKey)
 		return parsePassString(kDefaultPassString);
 	// hasKey + empty string = wireframe (zero passes).
 	return parsePassString(s);
+}
+
+void passInsertAfter(Common::Array<int> &passes, int &selected, int passVal) {
+	int at = (selected < 0 || selected >= (int)passes.size())
+	         ? (int)passes.size() : selected + 1;
+	passes.insert_at(at, passVal);
+	selected = at;
+}
+
+void passRemoveAt(Common::Array<int> &passes, int &selected) {
+	if (selected < 0 || selected >= (int)passes.size())
+		return;
+	passes.remove_at(selected);
+	if (passes.empty())
+		selected = -1;
+	else if (selected >= (int)passes.size())
+		selected = (int)passes.size() - 1;
+}
+
+bool passMove(Common::Array<int> &passes, int &selected, int dir) {
+	if (dir != -1 && dir != 1)
+		return false;
+	if (selected < 0 || selected >= (int)passes.size())
+		return false;
+	const int to = selected + dir;
+	if (to < 0 || to >= (int)passes.size())
+		return false;
+	SWAP(passes[selected], passes[to]);
+	selected = to;
+	return true;
 }
 
 } // namespace Roger

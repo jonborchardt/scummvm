@@ -31,9 +31,9 @@ param(
                               # ROGER_DIAG env var; no scummvm.ini edit — ini edits race against
                               # a running instance's config rewrite-on-exit)
     [switch]$Studio,          # launch the Roger Studio tuning environment (ROGER_STUDIO=1,
-                              # this launch only; see docs/superpowers/specs/2026-07-02-roger-studio-design.md)
-    [switch]$EyeTest,         # TEMPORARY: launch the eye-test genetic pass search
-                              # (ROGER_EYETEST=1, this launch only; delete with the tool)
+                              # this launch only; see engines/sci/roger/utils/studio/README.md)
+    [switch]$EyeTest,         # launch the eye-exam pass tuner (ROGER_EYETEST=1, this launch
+                              # only; kept dev utility — see engines/sci/roger/utils/eyetest/README.md)
     [ValidateSet("", "enhanced", "original", "sbs")]
     [string]$Mode     = "",   # boot straight into a display mode (F10 still cycles from it):
                               # enhanced (default), original (native), sbs (side-by-side

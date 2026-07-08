@@ -18,7 +18,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "sci/roger/roger_studio.h"
+#include "sci/roger/utils/studio/roger_studio.h"
 
 #include "common/config-manager.h"
 #include "common/events.h"
@@ -699,7 +699,7 @@ void RogerStudio::drawPanel() {
 	buildStudioPanel(Common::Rect(0, 0, smallW, smallH - kStudioRowH), st, _widgets);
 
 	for (uint i = 0; i < _widgets.size(); i++) {
-		const StudioWidget &wg = _widgets[i];
+		const PanelWidget &wg = _widgets[i];
 		if (wg.enabled) {
 			if (wg.id == _hoverWid)
 				small.fillRect(wg.rect, hov);

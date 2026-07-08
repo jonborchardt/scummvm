@@ -23,7 +23,8 @@
 
 // EYE EXAM (kept dev utility, quarantined 2026-07-07): pure search logic for
 // the interactive OMYAC pass-sequence tuner in roger_eyetest.{h,cpp}. SCI-free
-// so it unit-tests without an engine (same isolation as roger_studio_render.h).
+// so it unit-tests without an engine (same isolation as the Studio's pure
+// helpers in utils/studio/roger_studio_render.h).
 //
 // QUARANTINE CONTRACT — nothing in the engine may depend on utils/eyetest/.
 // The only permitted references are: the env-gated ROGER_EYETEST hook in

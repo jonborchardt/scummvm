@@ -1,5 +1,6 @@
 #include <cxxtest/TestSuite.h>
-#include "sci/roger/roger_studio_render.h"
+#include "sci/roger/utils/studio/roger_studio_render.h"
+#include "sci/roger/roger_passes.h" // omyacPassStamp + pass-edit ops (moved there)
 #include "sci/roger/roger_view_scaler.h"
 using namespace Sci::Roger;
 
@@ -145,7 +146,7 @@ public:
 
 	void test_panel_layout_invariants() {
 		const Common::Rect panel(0, 0, 1400, 280);
-		Common::Array<StudioWidget> w;
+		Common::Array<PanelWidget> w;
 		buildStudioPanel(panel, samplePanelState(), w);
 		TS_ASSERT(!w.empty());
 		// Every expected clickable kind is present at least once.
@@ -200,7 +201,7 @@ public:
 
 	void test_panel_hit_test() {
 		const Common::Rect panel(0, 0, 1400, 280);
-		Common::Array<StudioWidget> w;
+		Common::Array<PanelWidget> w;
 		buildStudioPanel(panel, samplePanelState(), w);
 		for (uint i = 0; i < w.size(); i++) {
 			if (!w[i].enabled) continue;
@@ -216,7 +217,7 @@ public:
 		// Regression: PanelCursor.newRow() must respect panel.left, not hardcode 4.
 		// Test panel with non-zero left and top origins.
 		const Common::Rect panel(20, 10, 1420, 290);
-		Common::Array<StudioWidget> w;
+		Common::Array<PanelWidget> w;
 		buildStudioPanel(panel, samplePanelState(), w);
 		TS_ASSERT(!w.empty());
 		// Every widget rect must be fully inside the panel.
@@ -295,7 +296,7 @@ public:
 		// selectedChip=1, 3 passes: caret must appear immediately after chip 1's
 		// x-button (i.e. left >= that button's right) and before chip 2's rect.
 		const Common::Rect panel(0, 0, 1400, 280);
-		Common::Array<StudioWidget> w;
+		Common::Array<PanelWidget> w;
 		buildStudioPanel(panel, samplePanelState(), w);
 
 		// Find chip 1's x-button rect.
@@ -341,7 +342,7 @@ public:
 		const Common::Rect panel(0, 0, 1400, 280);
 		StudioPanelState st = samplePanelState();
 		st.selectedChip = -1; // no selection
-		Common::Array<StudioWidget> w;
+		Common::Array<PanelWidget> w;
 		buildStudioPanel(panel, st, w);
 
 		// Find the last chip x-button (index 2).
@@ -386,7 +387,7 @@ public:
 		// whose label is "@(160,150)".
 		const Common::Rect panel(0, 0, 1400, 280);
 		StudioPanelState st = samplePanelState(); // already has celX=160, celY=150
-		Common::Array<StudioWidget> w;
+		Common::Array<PanelWidget> w;
 		buildStudioPanel(panel, st, w);
 
 		bool found = false;
@@ -477,7 +478,7 @@ public:
 		st.activeSlot = 0; st.displayMode = 4; st.selectedChip = -1;
 		st.showBackfill = false; st.showGrid = false;
 		st.animPlaying = true; st.animMs = 150;
-		Common::Array<StudioWidget> w;
+		Common::Array<PanelWidget> w;
 		buildStudioPanel(Common::Rect(0, 0, 1400, 500), st, w);
 		bool haveGrid = false, havePlay = false, haveSlower = false, haveFaster = false;
 		for (uint i = 0; i < w.size(); i++) {

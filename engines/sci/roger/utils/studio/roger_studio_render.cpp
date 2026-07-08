@@ -18,9 +18,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "sci/roger/roger_studio_render.h"
+#include "sci/roger/utils/studio/roger_studio_render.h"
 #include "sci/roger/roger_view_scaler.h"
-#include "sci/roger/roger_passes.h"
 #include "common/util.h"
 
 namespace Sci {
@@ -87,12 +86,6 @@ void omyacParamSet(OmyacParams &p, int i, int value) {
 	}
 }
 
-Common::String omyacPassStamp(const Common::Array<int> &passes) {
-	if (passes.empty())
-		return "none";
-	return passString(passes);
-}
-
 Common::String omyacParamStamp(const OmyacParams &p) {
 	if (p.isDefault())
 		return "default";
@@ -129,36 +122,6 @@ StudioDefaults studioDefaultsForGame(const Common::String &gameId) {
 	return d;
 }
 
-void passInsertAfter(Common::Array<int> &passes, int &selected, int passVal) {
-	int at = (selected < 0 || selected >= (int)passes.size())
-	         ? (int)passes.size() : selected + 1;
-	passes.insert_at(at, passVal);
-	selected = at;
-}
-
-void passRemoveAt(Common::Array<int> &passes, int &selected) {
-	if (selected < 0 || selected >= (int)passes.size())
-		return;
-	passes.remove_at(selected);
-	if (passes.empty())
-		selected = -1;
-	else if (selected >= (int)passes.size())
-		selected = (int)passes.size() - 1;
-}
-
-bool passMove(Common::Array<int> &passes, int &selected, int dir) {
-	if (dir != -1 && dir != 1)
-		return false;
-	if (selected < 0 || selected >= (int)passes.size())
-		return false;
-	const int to = selected + dir;
-	if (to < 0 || to >= (int)passes.size())
-		return false;
-	SWAP(passes[selected], passes[to]);
-	selected = to;
-	return true;
-}
-
 Common::String studioSceneExportName(int picId, char slot, const Common::String &detail) {
 	return Common::String::format("studio-scene%03d-%c-%s.png", picId, slot, detail.c_str());
 }
@@ -170,16 +133,10 @@ Common::String studioCompareExportName(int picId, bool diff,
 		picId, diff ? "diff" : "AB", stampA.c_str(), stampB.c_str());
 }
 
-uint32 widId(int kind, int index) {
-	return ((uint32)kind << 16) | ((uint32)index & 0xffff);
-}
-int widKind(uint32 id) { return (int)(id >> 16); }
-int widIndex(uint32 id) { return (int)(id & 0xffff); }
-
 namespace {
 
 struct PanelCursor {
-	Common::Array<StudioWidget> *out;
+	Common::Array<PanelWidget> *out;
 	int x, y;
 	int rowH;
 	int right;
@@ -191,7 +148,7 @@ struct PanelCursor {
 	Common::Rect emit(const Common::String &label, uint32 id, bool on, bool enabled) {
 		const int wpx = (int)label.size() * kStudioCharW + 10;
 		if (x + wpx > right) newRow();          // wrap long rows defensively
-		StudioWidget wgt;
+		PanelWidget wgt;
 		wgt.rect = Common::Rect((int16)x, (int16)(y + 2), (int16)(x + wpx), (int16)(y + rowH - 2));
 		wgt.id = id; wgt.label = label; wgt.on = on; wgt.enabled = enabled;
 		out->push_back(wgt);
@@ -205,7 +162,7 @@ struct PanelCursor {
 } // anonymous namespace
 
 void buildStudioPanel(const Common::Rect &panel, const StudioPanelState &st,
-                      Common::Array<StudioWidget> &out) {
+                      Common::Array<PanelWidget> &out) {
 	out.clear();
 	PanelCursor c;
 	c.out = &out; c.leftEdge = panel.left + 4; c.x = c.leftEdge; c.y = panel.top; c.rowH = kStudioRowH;
@@ -302,17 +259,6 @@ void buildStudioPanel(const Common::Rect &panel, const StudioPanelState &st,
 	c.btn("+a", widId(kWidChipAddA));
 	c.btn("Clear", widId(kWidChipClear));
 	c.btn("Reset", widId(kWidChipReset));
-}
-
-uint32 hitTestWidgets(const Common::Array<StudioWidget> &widgets, int x, int y) {
-	for (uint i = 0; i < widgets.size(); i++) {
-		if (!widgets[i].enabled)
-			continue;
-		const Common::Rect &r = widgets[i].rect;
-		if (x >= r.left && x < r.right && y >= r.top && y < r.bottom)
-			return widgets[i].id;
-	}
-	return (uint32)kWidNone;
 }
 
 void diffMapRGBA(const byte *a, const byte *b, int w, int h, byte *out) {

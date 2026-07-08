@@ -33,7 +33,7 @@ public:
 		st.stagedPasses.push_back(2);
 		st.stagedPasses.push_back(1);
 		st.selectedChip = 1;
-		Common::Array<StudioWidget> w;
+		Common::Array<PanelWidget> w;
 		buildTunePanel(st, w);
 		const Common::Rect p = tunePanelRect();
 		int variantRows = 0, chips = 0;
@@ -72,7 +72,7 @@ public:
 	void test_variant_rows_and_hittest() {
 		TunePanelState st;
 		st.variant = 0;
-		Common::Array<StudioWidget> w;
+		Common::Array<PanelWidget> w;
 		buildTunePanel(st, w);
 		int rows = 0;
 		for (uint i = 0; i < w.size(); i++) {
@@ -95,7 +95,7 @@ public:
 		TS_ASSERT_EQUALS(tunePanelRect().right, 318);
 		TS_ASSERT_EQUALS(tunePanelRect().bottom, 196);
 		TunePanelState st;
-		Common::Array<StudioWidget> w;
+		Common::Array<PanelWidget> w;
 		buildTunePanel(st, w);
 		// Clicks used by test/sci/roger/scripts/tune-panel-smoke.rin:
 		TS_ASSERT_EQUALS(widKind(hitTestWidgets(w, 273, 31)), (int)kTuneVariantRow);
@@ -124,7 +124,7 @@ public:
 	// The RIGHT-side default stays locked by test_script_geometry_lock.
 	void test_side_toggle_layout() {
 		TunePanelState st;
-		Common::Array<StudioWidget> w;
+		Common::Array<PanelWidget> w;
 		buildTunePanel(st, w);
 		bool sideFound = false;
 		for (uint i = 0; i < w.size(); i++) {

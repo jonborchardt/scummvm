@@ -54,11 +54,20 @@ Common::Array<int> parsePassString(const Common::String &s);
 // wants "none" adds it itself, e.g. omyacPassStamp).
 Common::String passString(const Common::Array<int> &passes);
 
+// Display/export stamp: passString, but an empty array reads "none".
+Common::String omyacPassStamp(const Common::Array<int> &passes);
+
 // The roger_omyac_passes three-state rule:
 //   hasKey=false          -> parsePassString(kDefaultPassString)
 //   hasKey=true, s empty  -> empty array (wireframe)
 //   hasKey=true, s tokens -> parsePassString(s)
 Common::Array<int> effectivePasses(bool hasKey, const Common::String &s);
+
+// Pass-list edit ops shared by the chip editors (tune panel, Studio). All keep
+// `selected` (the chip cursor, -1 = none) consistent with the mutated list.
+void passInsertAfter(Common::Array<int> &passes, int &selected, int passVal);
+void passRemoveAt(Common::Array<int> &passes, int &selected);
+bool passMove(Common::Array<int> &passes, int &selected, int dir); // dir in {-1,+1}
 
 } // namespace Roger
 } // namespace Sci

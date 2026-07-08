@@ -18,15 +18,35 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef SCI_ROGER_ROGER_STUDIO_H
-#define SCI_ROGER_ROGER_STUDIO_H
+#ifndef SCI_ROGER_UTILS_STUDIO_ROGER_STUDIO_H
+#define SCI_ROGER_UTILS_STUDIO_ROGER_STUDIO_H
+
+// ROGER STUDIO (kept dev utility, quarantined 2026-07-07). Standalone,
+// mouse-driven tuning environment for the omyac enhance pipeline: one scene
+// (plate + view cel composited game-style), two live A/B setting slots,
+// Split/Diff comparison with an automatic alignment readout, a per-module
+// cel-comparison grid, and stamped PNG export. Launched via ROGER_STUDIO=1
+// (build_and_run.ps1 -Studio) at the sci.cpp seam where resources are alive
+// but no game scripts have run; owns the overlay; never touches the
+// generation disk cache (kGenMemory); zero effect on any launch without the
+// env var. Specs: docs/superpowers/specs/2026-07-02-roger-studio-design.md +
+// 2026-07-02-roger-studio-v2-ui-design.md; usage: utils/studio/README.md.
+//
+// QUARANTINE CONTRACT — see utils/studio/README.md. The only permitted
+// references to utils/studio/ are: the env-gated ROGER_STUDIO hook in
+// sci.cpp, the engines/sci/module.mk object list, build_tests.ps1's source +
+// test registration, and the unit tests (test/sci/roger/test_studio_render.h,
+// test_shift_lock.h). Production code must never include it. This module may
+// only consume stable roger seams (roger_asset_gen.h, roger_view_scaler.h,
+// roger_passes.h, roger_widgets.h, png_loader.h) — never provider/compositor
+// internals.
 
 #include "common/array.h"
 #include "common/rect.h"
 #include "common/str.h"
 #include "sci/roger/roger_asset_gen.h"
-#include "sci/roger/roger_studio_render.h"
 #include "sci/roger/roger_view_scaler.h"
+#include "sci/roger/utils/studio/roger_studio_render.h"
 
 namespace Graphics { class ManagedSurface; struct Surface; }
 namespace Common { struct Event; }
@@ -34,10 +54,6 @@ namespace Common { struct Event; }
 namespace Sci {
 namespace Roger {
 
-// Debug-only interactive tuning environment (ROGER_STUDIO=1 /
-// build_and_run.ps1 -Studio). Owns the overlay; never touches the disk cache
-// (own RogerAssetGen in kGenMemory with an empty cache dir). See
-// docs/superpowers/specs/2026-07-02-roger-studio-design.md.
 class RogerStudio {
 public:
 	explicit RogerStudio(const Common::String &gameId);
@@ -158,7 +174,7 @@ private:
 	int _dragLastX = 0, _dragLastY = 0;
 
 	// Panel (Task 6)
-	Common::Array<StudioWidget> _widgets;   // panel-local small coords
+	Common::Array<PanelWidget> _widgets;    // panel-local small coords
 	int _selectedChip = -1;
 	uint32 _hoverWid = 0;
 
@@ -175,4 +191,4 @@ private:
 } // namespace Roger
 } // namespace Sci
 
-#endif // SCI_ROGER_ROGER_STUDIO_H
+#endif // SCI_ROGER_UTILS_STUDIO_ROGER_STUDIO_H

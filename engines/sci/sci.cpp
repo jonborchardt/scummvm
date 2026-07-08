@@ -74,8 +74,8 @@
 #include "sci/graphics/transitions.h"
 #include "sci/roger/file_roger_art_provider.h"
 #include "sci/roger/roger_launcher.h"
-#include "sci/roger/roger_studio.h"
-#include "sci/roger/utils/eyeexam/roger_eyetest.h" // quarantined dev utility (eye exam)
+#include "sci/roger/utils/studio/roger_studio.h" // quarantined dev utility (Roger Studio)
+#include "sci/roger/utils/eyetest/roger_eyetest.h" // quarantined dev utility (eye exam)
 
 #ifdef ENABLE_SCI32
 #include "sci/graphics/controls32.h"
@@ -412,9 +412,11 @@ Common::Error SciEngine::run() {
 
 	g_sciRogerProvider = new FileRogerArtProvider(getGameIdStr(), ConfMan.getPath("path"));
 
-	// Roger Studio: debug-only tuning environment (build_and_run.ps1 -Studio /
-	// ROGER_STUDIO=1). Runs its own blocking loop at this seam — resources and
+	// Roger Studio: tuning environment (quarantined dev utility,
+	// engines/sci/roger/utils/studio/) — build_and_run.ps1 -Studio /
+	// ROGER_STUDIO=1. Runs its own blocking loop at this seam — resources and
 	// graphics are alive, no game scripts have run — then exits the process.
+	// This env-gated block is its ONLY engine reference.
 	if (getenv("ROGER_STUDIO") != nullptr) {
 		Roger::RogerStudio studio(getGameIdStr());
 		studio.run();
@@ -422,7 +424,7 @@ Common::Error SciEngine::run() {
 	}
 
 	// Eye Exam: interactive OMYAC pass-sequence tuner (quarantined dev utility,
-	// engines/sci/roger/utils/eyeexam/) — same seam and lifecycle as Roger
+	// engines/sci/roger/utils/eyetest/) — same seam and lifecycle as Roger
 	// Studio above. This env-gated block is its ONLY engine reference.
 	if (getenv("ROGER_EYETEST") != nullptr) {
 		Roger::RogerEyeTest eyetest(getGameIdStr());

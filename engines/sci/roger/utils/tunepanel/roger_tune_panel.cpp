@@ -19,6 +19,7 @@
  */
 
 #include "sci/roger/utils/tunepanel/roger_tune_panel.h"
+#include "sci/roger/roger_passes.h" // omyacPassStamp
 #include "sci/roger/roger_view_scaler.h"
 #include "common/util.h"
 #include "graphics/fontman.h"
@@ -38,10 +39,10 @@ bool tunePassesEqual(const Common::Array<int> &a, const Common::Array<int> &b) {
 	return true;
 }
 
-static void addTuneWidget(Common::Array<StudioWidget> &out, int kind, int index,
+static void addTuneWidget(Common::Array<PanelWidget> &out, int kind, int index,
                           const Common::Rect &r, const Common::String &label,
                           bool on, bool enabled = true) {
-	StudioWidget w;
+	PanelWidget w;
 	w.rect = r;
 	w.id = widId(kind, index);
 	w.label = label;
@@ -50,7 +51,7 @@ static void addTuneWidget(Common::Array<StudioWidget> &out, int kind, int index,
 	out.push_back(w);
 }
 
-void buildTunePanel(const TunePanelState &st, Common::Array<StudioWidget> &out) {
+void buildTunePanel(const TunePanelState &st, Common::Array<PanelWidget> &out) {
 	out.clear();
 	const Common::Rect p = tunePanelRect(st.leftSide);
 	const int x0 = p.left + 2, x1 = p.right - 2;
@@ -117,7 +118,7 @@ Common::String tuneStatusLine(const TunePanelState &st) {
 }
 
 void drawTunePanel(Graphics::ManagedSurface &scene, const Common::Rect &gameRect,
-                   const TunePanelState &st, const Common::Array<StudioWidget> &widgets) {
+                   const TunePanelState &st, const Common::Array<PanelWidget> &widgets) {
 	if (gameRect.isEmpty())
 		return;
 	const Common::Rect panelGame = tunePanelRect(st.leftSide);
@@ -141,7 +142,7 @@ void drawTunePanel(Graphics::ManagedSurface &scene, const Common::Rect &gameRect
 	}
 
 	for (uint i = 0; i < widgets.size(); i++) {
-		const StudioWidget &w = widgets[i];
+		const PanelWidget &w = widgets[i];
 		const Common::Rect r = sciRectToDest(w.rect, gameRect);
 		if (w.id == st.hoverId && w.enabled)
 			scene.fillRect(r, hov);

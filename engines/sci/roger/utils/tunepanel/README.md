@@ -44,7 +44,8 @@ purpose.
 
 This folder holds only **pure, engine-free logic**: panel state, widget layout,
 hit-test geometry, and drawing into an RGBA scene surface. It unit-tests
-without an engine (same isolation as `roger_studio_render.h`).
+without an engine (same isolation as the Studio's pure helpers in
+`utils/studio/roger_studio_render.h`).
 
 The glue lives in `file_roger_art_provider.{h,cpp}`: the provider owns a
 `TunePanelState`, draws the panel at the end of its composite pass, and
@@ -66,7 +67,8 @@ glue. The only permitted references:
 Everything else — including `event.cpp`'s key/mouse routing — must go through
 the plain virtuals on the abstract provider, which name no tunepanel types.
 This module may only consume stable SCI-free roger seams
-(`roger_studio_render.h`, `roger_view_scaler.h`, `roger_coords.h`) — never
-provider/compositor internals, never SCI engine state. It never writes the
+(`roger_widgets.h`, `roger_passes.h`, `roger_view_scaler.h`,
+`roger_coords.h`) — never provider/compositor internals, never SCI engine
+state, and never anything under `utils/studio/`. It never writes the
 ini or the generation disk cache, and with the panel closed the render path
 is untouched (the draw call is gated on `open && kModeEnhanced`).

@@ -38,8 +38,9 @@
 // event.cpp's key/mouse routing — must go through the plain virtuals on the
 // abstract provider (roger_art_provider.h), which name no tunepanel types.
 // This module may only consume stable SCI-free roger seams
-// (roger_studio_render.h, roger_view_scaler.h, roger_coords.h) — never
-// provider/compositor internals, and never SCI engine state.
+// (roger_widgets.h, roger_passes.h, roger_view_scaler.h, roger_coords.h) —
+// never provider/compositor internals, never SCI engine state, and never
+// anything under utils/studio/ (each utils/ tool is quarantined on its own).
 //
 // All layout/hit-testing is in GAME space (320x200): the panel rect is fixed
 // so .rin scripts can click widgets at window-size-independent coordinates.
@@ -48,7 +49,7 @@
 #include "common/array.h"
 #include "common/rect.h"
 #include "common/str.h"
-#include "sci/roger/roger_studio_render.h" // StudioWidget, widId, hitTestWidgets, pass helpers
+#include "sci/roger/roger_widgets.h" // PanelWidget, widId, hitTestWidgets
 
 namespace Graphics { class ManagedSurface; }
 
@@ -95,7 +96,7 @@ inline Common::Rect tunePanelRect(bool leftSide = false) {
 // move as chips are added (script stability). Chips render in rows of 7,
 // capped to the space between (extra staged passes still exist, just not
 // clickable — acceptable for a debug tool).
-void buildTunePanel(const TunePanelState &st, Common::Array<StudioWidget> &out);
+void buildTunePanel(const TunePanelState &st, Common::Array<PanelWidget> &out);
 
 // "fla * 812ms": pass stamp (omyacPassStamp), pending marker, last gen time.
 Common::String tuneStatusLine(const TunePanelState &st);
@@ -104,7 +105,7 @@ Common::String tuneStatusLine(const TunePanelState &st);
 // picture placement (provider's _lastGameRect); each game-space rect maps
 // through sciRectToDest. Labels use the GUI big font. Task 5 implements.
 void drawTunePanel(Graphics::ManagedSurface &scene, const Common::Rect &gameRect,
-                   const TunePanelState &st, const Common::Array<StudioWidget> &widgets);
+                   const TunePanelState &st, const Common::Array<PanelWidget> &widgets);
 
 } // namespace Roger
 } // namespace Sci
