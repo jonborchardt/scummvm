@@ -70,7 +70,7 @@ $RogerSources = @(
     "..\..\engines\sci\roger\roger_input.cpp",
     "..\..\engines\sci\roger\roger_view_scaler.cpp",
     "..\..\engines\sci\roger\roger_journal.cpp",
-    "..\..\engines\sci\roger\roger_tune_panel.cpp",
+    "..\..\engines\sci\roger\utils\tunepanel\roger_tune_panel.cpp",
     "..\..\engines\sci\roger\utils\eyeexam\roger_eyetest_search.cpp",
     "..\..\engines\sci\roger\roger_passes.cpp"
 )
