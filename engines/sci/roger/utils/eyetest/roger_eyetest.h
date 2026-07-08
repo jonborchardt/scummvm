@@ -18,8 +18,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef SCI_ROGER_UTILS_EYEEXAM_ROGER_EYETEST_H
-#define SCI_ROGER_UTILS_EYEEXAM_ROGER_EYETEST_H
+#ifndef SCI_ROGER_UTILS_EYETEST_ROGER_EYETEST_H
+#define SCI_ROGER_UTILS_EYETEST_ROGER_EYETEST_H
 
 // EYE EXAM (kept dev utility, quarantined 2026-07-07). Studio-style interactive
 // tool: renders small batches of OMYAC pass-sequence candidates ("Which looks
@@ -28,13 +28,13 @@
 // (build_and_run.ps1 -EyeTest) at the same sci.cpp seam as RogerStudio; owns the
 // overlay; never touches the generation disk cache (kGenMemory); zero effect on
 // any launch without the env var. See roger_eyetest_search.h for the quarantine
-// contract (who may reference utils/eyeexam/ — sci.cpp hook + build lists only).
+// contract (who may reference utils/eyetest/ — sci.cpp hook + build lists only).
 
 #include "common/array.h"
 #include "common/rect.h"
 #include "common/str.h"
 #include "sci/roger/roger_asset_gen.h"
-#include "sci/roger/utils/eyeexam/roger_eyetest_search.h"
+#include "sci/roger/utils/eyetest/roger_eyetest_search.h"
 
 namespace Graphics { class ManagedSurface; struct Surface; }
 namespace Common { struct Event; }
@@ -127,4 +127,4 @@ private:
 } // namespace Roger
 } // namespace Sci
 
-#endif // SCI_ROGER_UTILS_EYEEXAM_ROGER_EYETEST_H
+#endif // SCI_ROGER_UTILS_EYETEST_ROGER_EYETEST_H

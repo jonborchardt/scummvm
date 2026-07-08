@@ -1,8 +1,8 @@
 #include <cxxtest/TestSuite.h>
-#include "sci/roger/utils/eyeexam/roger_eyetest_search.h"
+#include "sci/roger/utils/eyetest/roger_eyetest_search.h"
 
 // Eye Exam (kept dev utility): unit tests for the quarantined pure search
-// module at engines/sci/roger/utils/eyeexam/roger_eyetest_search.{h,cpp}.
+// module at engines/sci/roger/utils/eyetest/roger_eyetest_search.{h,cpp}.
 
 using namespace Sci::Roger;
 

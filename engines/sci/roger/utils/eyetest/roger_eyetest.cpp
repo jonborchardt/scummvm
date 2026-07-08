@@ -18,7 +18,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "sci/roger/utils/eyeexam/roger_eyetest.h"
+#include "sci/roger/utils/eyetest/roger_eyetest.h"
 
 #include "common/config-manager.h"
 #include "common/events.h"
