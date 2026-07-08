@@ -19,7 +19,7 @@
  */
 
 #include <cxxtest/TestSuite.h>
-#include "sci/roger/roger_journal.h"
+#include "sci/roger/overlay/roger_journal.h"
 
 using namespace Sci::Roger;
 

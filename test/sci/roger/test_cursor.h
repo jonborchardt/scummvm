@@ -19,7 +19,7 @@
  */
 
 #include <cxxtest/TestSuite.h>
-#include "sci/roger/roger_cursor.h"
+#include "sci/roger/overlay/roger_cursor.h"
 #include "graphics/surface.h"
 
 // SCI0 cursor resource format (68 bytes):

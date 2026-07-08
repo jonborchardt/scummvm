@@ -1,5 +1,5 @@
 #include <cxxtest/TestSuite.h>
-#include "sci/roger/view_cache.h"
+#include "sci/roger/overlay/view_cache.h"
 #include "sci/roger/gen/roger_asset_gen.h"
 #include "graphics/surface.h"
 

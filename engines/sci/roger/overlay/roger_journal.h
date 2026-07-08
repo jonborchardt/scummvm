@@ -23,8 +23,8 @@
 
 #include "common/array.h"
 #include "common/rect.h"
-#include "sci/roger/roger_ui_layer.h"
-#include "sci/roger/roger_tokens.h"
+#include "sci/roger/overlay/roger_ui_layer.h"
+#include "sci/roger/overlay/roger_tokens.h"
 
 namespace Sci {
 namespace Roger {
@@ -44,7 +44,7 @@ bool opSupersedes(const UiElement &newer, const UiElement &older);
 bool opIsOpaque(const UiElement &e);
 
 // Append-only draw journal: ops render in append order (native "last draw wins").
-// Lifetime is structural — erase-rect containment and window brackets (Tasks 2-3);
+// Lifetime is structural â€” erase-rect containment and window brackets (Tasks 2-3);
 // clearToken survives ONLY for the explicit singletons (status bar 0x10000000,
 // menu dropdown 0x20000000, frame box 0x70000000).
 class RogerJournal {
@@ -68,7 +68,7 @@ public:
 
 	// The one non-structural pass that survives Phase 1: dropping the generic
 	// re-capture of a draw a control hook already captured (same ONE native draw
-	// seen by two hooks — not an ordering or lifetime concern).
+	// seen by two hooks â€” not an ordering or lifetime concern).
 	void dedupeGenericText(uint32 genericNamespace) { dedupeGenericTextElements(_ops, genericNamespace); }
 
 	uint32 seqNow() const { return _seq; }

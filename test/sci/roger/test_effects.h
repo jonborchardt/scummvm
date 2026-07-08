@@ -19,7 +19,7 @@
  */
 
 #include <cxxtest/TestSuite.h>
-#include "sci/roger/roger_effects.h"
+#include "sci/roger/overlay/roger_effects.h"
 #include "graphics/surface.h"
 #include "common/rect.h"
 using namespace Sci::Roger;
@@ -54,7 +54,7 @@ public:
 		TS_ASSERT_EQUALS(transitionFamilyFor(6),   kFxDiagonal); // DIAGONALROLL_TOCENTER
 	}
 	void test_effectiveFamily_identity() {
-		// effectiveFamily is now an identity — each family renders faithfully.
+		// effectiveFamily is now an identity â€” each family renders faithfully.
 		TS_ASSERT_EQUALS(effectiveFamily(kFxWipe),     kFxWipe);
 		TS_ASSERT_EQUALS(effectiveFamily(kFxScroll),   kFxScroll);
 		TS_ASSERT_EQUALS(effectiveFamily(kFxFade),     kFxFade);
@@ -62,7 +62,7 @@ public:
 		TS_ASSERT_EQUALS(effectiveFamily(kFxNone),     kFxNone);
 	}
 	void test_effectiveFamily_includes_new_families() {
-		// effectiveFamily is identity — verify new families pass through unchanged.
+		// effectiveFamily is identity â€” verify new families pass through unchanged.
 		TS_ASSERT_EQUALS(effectiveFamily(kFxSplitV),   kFxSplitV);
 		TS_ASSERT_EQUALS(effectiveFamily(kFxSplitH),   kFxSplitH);
 		TS_ASSERT_EQUALS(effectiveFamily(kFxDiagonal), kFxDiagonal);
@@ -157,7 +157,7 @@ public:
 		from->free(); delete from; to->free(); delete to; out.free();
 	}
 	void test_blendDissolve_hash_density() {
-		// At t=0.5, roughly half the blocks should show `to`. Verify 20%–80% mix.
+		// At t=0.5, roughly half the blocks should show `to`. Verify 20%â€“80% mix.
 		const Graphics::PixelFormat rgba(4, 8, 8, 8, 8, 24, 16, 8, 0);
 		Graphics::Surface *from = solid(64, 64, 255, 0, 0);   // red = from
 		Graphics::Surface *to   = solid(64, 64, 0, 0, 255);   // blue = to
@@ -171,7 +171,7 @@ public:
 				if (b > r) toCount++;   // blue pixel came from 'to'
 			}
 		}
-		// 64*64 = 4096 pixels; expect 20%–80% showing to (819–3277)
+		// 64*64 = 4096 pixels; expect 20%â€“80% showing to (819â€“3277)
 		TS_ASSERT_LESS_THAN(819,  toCount);
 		TS_ASSERT_LESS_THAN(toCount, 3277);
 		from->free(); delete from; to->free(); delete to; out.free();
@@ -269,8 +269,8 @@ public:
 		TS_ASSERT_EQUALS((int)r, 0);   TS_ASSERT_EQUALS((int)b, 255);
 
 		// fromCenter=true at t=0.5:
-		//   corner (0,0):   L∞ = max(|2*0/32-1|, |2*0/32-1|) = 1.0 > 0.5 -> from (red)
-		//   center (16,16): L∞ = max(|2*16/32-1|, |2*16/32-1|) = 0.0 < 0.5 -> to (blue)
+		//   corner (0,0):   Lâˆž = max(|2*0/32-1|, |2*0/32-1|) = 1.0 > 0.5 -> from (red)
+		//   center (16,16): Lâˆž = max(|2*16/32-1|, |2*16/32-1|) = 0.0 < 0.5 -> to (blue)
 		blendDiagonal(*from, *to, out, 0.5f, true);
 		out.format.colorToARGB(out.getPixel(0, 0), a, r, g, b);
 		TS_ASSERT_EQUALS((int)r, 255); TS_ASSERT_EQUALS((int)b, 0);

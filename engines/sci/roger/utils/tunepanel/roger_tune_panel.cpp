@@ -25,7 +25,7 @@
 #include "graphics/fontman.h"
 #include "graphics/font.h"
 #include "graphics/managed_surface.h"
-#include "sci/roger/roger_coords.h"
+#include "sci/roger/overlay/roger_coords.h"
 
 namespace Sci {
 namespace Roger {
@@ -73,7 +73,7 @@ void buildTunePanel(const TunePanelState &st, Common::Array<PanelWidget> &out) {
 
 	// Known-good preset rows (goodPassPattern registry, best-first): one-click
 	// swap between curated pass sequences, labeled by their compact string
-	// (provenance notes live in the registry / picker tooltips â€” no room here).
+	// (provenance notes live in the registry / picker tooltips Ã¢â‚¬â€ no room here).
 	// A row lights while the STAGED list matches it. The registry is curated
 	// and small; if it ever grows, stop before eating the chip strip's space.
 	y += 2;

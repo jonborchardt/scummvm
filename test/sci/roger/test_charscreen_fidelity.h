@@ -21,8 +21,8 @@
 #include <cxxtest/TestSuite.h>
 #include "common/array.h"
 #include "common/rect.h"
-#include "engines/sci/roger/roger_compositor.h"
-#include "engines/sci/roger/roger_ui_layer.h"
+#include "engines/sci/roger/overlay/roger_compositor.h"
+#include "engines/sci/roger/overlay/roger_ui_layer.h"
 
 using namespace Sci;
 using namespace Sci::Roger;

@@ -21,7 +21,7 @@
 #include <cxxtest/TestSuite.h>
 #include "common/rect.h"
 #include "common/array.h"
-#include "engines/sci/roger/roger_compositor.h"
+#include "engines/sci/roger/overlay/roger_compositor.h"
 
 class ForegroundCaptureTestSuite : public CxxTest::TestSuite {
 public:

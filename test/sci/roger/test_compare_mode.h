@@ -1,7 +1,7 @@
 // test/sci/roger/test_compare_mode.h
 #include <cxxtest/TestSuite.h>
 #include "graphics/surface.h"
-#include "sci/roger/roger_compositor.h"
+#include "sci/roger/overlay/roger_compositor.h"
 using namespace Sci::Roger;
 
 class RogerCompareModeTestSuite : public CxxTest::TestSuite {

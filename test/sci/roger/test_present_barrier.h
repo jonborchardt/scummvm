@@ -20,9 +20,9 @@
  */
 
 #include <cxxtest/TestSuite.h>
-#include "sci/roger/roger_coords.h"
-#include "sci/roger/roger_compositor.h"
-#include "sci/roger/roger_ui_layer.h"
+#include "sci/roger/overlay/roger_coords.h"
+#include "sci/roger/overlay/roger_compositor.h"
+#include "sci/roger/overlay/roger_ui_layer.h"
 #include "graphics/managed_surface.h"
 #include "common/rect.h"
 

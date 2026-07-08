@@ -18,7 +18,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "sci/roger/roger_cursor.h"
+#include "sci/roger/overlay/roger_cursor.h"
 #include "sci/roger/gen/roger_scale.h"
 #include "common/endian.h"
 #include "graphics/pixelformat.h"

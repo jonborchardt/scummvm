@@ -18,7 +18,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "sci/roger/roger_effects.h"
+#include "sci/roger/overlay/roger_effects.h"
 #include "graphics/surface.h"
 #include "common/array.h"
 #include "common/util.h"
@@ -314,7 +314,7 @@ void blendDiagonal(const Graphics::Surface &from, const Graphics::Surface &to,
 		const float dy = fabsf(2.0f * y / fH - 1.0f);
 		for (int x = 0; x < out.w; x++) {
 			const float dx = fabsf(2.0f * x / fW - 1.0f);
-			const float L = dx > dy ? dx : dy;  // L∞ norm from center
+			const float L = dx > dy ? dx : dy;  // Lâˆž norm from center
 			const float threshold = fromCenter ? L : 1.0f - L;
 			out.setPixel(x, y, (t >= threshold) ? to.getPixel(x, y) : from.getPixel(x, y));
 		}

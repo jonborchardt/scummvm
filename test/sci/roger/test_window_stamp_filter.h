@@ -21,15 +21,15 @@
 #include <cxxtest/TestSuite.h>
 #include "common/array.h"
 #include "common/rect.h"
-#include "engines/sci/roger/roger_compositor.h"
-#include "engines/sci/roger/roger_ui_layer.h"
+#include "engines/sci/roger/overlay/roger_compositor.h"
+#include "engines/sci/roger/overlay/roger_ui_layer.h"
 
 using namespace Sci;
 using namespace Sci::Roger;
 
 // regionIsCapturedWindowBody: the window's own frame+fill bitsShow (tagged with the
-// window token) must never be pixel-stamped — it is already reproduced semantically as
-// a kUiWindow element — while graphics drawn INSIDE the window (dialog icons) must
+// window token) must never be pixel-stamped â€” it is already reproduced semantically as
+// a kUiWindow element â€” while graphics drawn INSIDE the window (dialog icons) must
 // stay stampable. Rects below are the real SQ3 death-message / Deceleration Trauma
 // dialog numbers from the 2026-07-04 under-draw bug.
 class WindowStampFilterTestSuite : public CxxTest::TestSuite {

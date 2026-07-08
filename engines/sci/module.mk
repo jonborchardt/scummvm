@@ -107,9 +107,6 @@ MODULE_OBJS := \
 MODULE_OBJS += \
 	roger/roger_art_provider.o \
 	roger/roger_capabilities.o \
-	roger/roger_compositor.o \
-	roger/roger_cursor.o \
-	roger/roger_effects.o \
 	roger/roger_input.o \
 	roger/gen/roger_asset_gen.o \
 	roger/gen/roger_ega_blend.o \
@@ -120,9 +117,13 @@ MODULE_OBJS += \
 	roger/gen/roger_pic_parser.o \
 	roger/gen/roger_scale.o \
 	roger/gen/slice_set.o \
-	roger/roger_palette_remap.o \
-	roger/roger_text.o \
-	roger/roger_journal.o \
+	roger/overlay/roger_compositor.o \
+	roger/overlay/roger_cursor.o \
+	roger/overlay/roger_effects.o \
+	roger/overlay/roger_palette_remap.o \
+	roger/overlay/roger_text.o \
+	roger/overlay/roger_journal.o \
+	roger/overlay/view_cache.o \
 	roger/launcher/roger_launcher.o \
 	roger/launcher/roger_launcher_dialog.o \
 	roger/roger_selftest.o \
@@ -133,8 +134,7 @@ MODULE_OBJS += \
 	roger/utils/eyetest/roger_eyetest_search.o \
 	roger/utils/eyetest/roger_eyetest.o \
 	roger/file_roger_art_provider.o \
-	roger/png_loader.o \
-	roger/view_cache.o
+	roger/png_loader.o
 
 
 ifdef ENABLE_SCI32

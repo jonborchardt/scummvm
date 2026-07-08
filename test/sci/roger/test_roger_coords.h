@@ -1,5 +1,5 @@
 #include <cxxtest/TestSuite.h>
-#include "sci/roger/roger_coords.h"
+#include "sci/roger/overlay/roger_coords.h"
 #include "common/rect.h"
 
 class TestRogerCoords : public CxxTest::TestSuite {

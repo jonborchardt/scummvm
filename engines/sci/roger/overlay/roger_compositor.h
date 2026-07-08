@@ -24,8 +24,8 @@
 #include "common/array.h"
 #include "common/rect.h"
 #include "sci/roger/roger_capabilities.h"
-#include "sci/roger/roger_ui_layer.h"
-#include "sci/roger/roger_effects.h"
+#include "sci/roger/overlay/roger_ui_layer.h"
+#include "sci/roger/overlay/roger_effects.h"
 
 namespace Graphics { struct Surface; class ManagedSurface; }
 
@@ -98,12 +98,12 @@ static const int kCoverageThresholdPct = 90;
 int rectCoverageFraction(const Common::Rect &inner, const Common::Rect &outer);
 
 // True when a bitsRestore of `restoreRect` should reclaim a pixel stamp whose cel occupies
-// `stampRect` — the stamp's content was just overwritten by the restore. Uses coverage
+// `stampRect` â€” the stamp's content was just overwritten by the restore. Uses coverage
 // (>= minCoveragePct of the STAMP inside the restore), NOT strict containment: a menu
 // dropdown's bitsSave/bitsRestore restore rect is byte-aligned and up to a pixel narrower
 // per side than the show rect that produced the stamp (show (60,9,214,59) vs restore
 // (61,9,214,59)). Strict `restoreRect.contains(stampRect)` fails that 1px inset and the
-// stamp is retained forever — the tracked non-enhanced menu residue. This MUST mirror the
+// stamp is retained forever â€” the tracked non-enhanced menu residue. This MUST mirror the
 // >= 90% reveal-suppression at capture time so creation and rollback stay symmetric.
 bool restoreReclaimsStamp(const Common::Rect &restoreRect, const Common::Rect &stampRect,
                           int minCoveragePct);
@@ -127,7 +127,7 @@ bool regionIsCapturedWindowBody(const Common::Array<UiElement> &elems, uint32 ow
                                 const Common::Rect &region, int minMutualPct);
 
 // Drop each element tagged with `genericToken` whose rect is contained in a non-generic
-// element that itself renders the SAME text (kUiText / kUiButton / kUiTextEdit) — so a
+// element that itself renders the SAME text (kUiText / kUiButton / kUiTextEdit) â€” so a
 // label controls16/menu already captured semantically is not rendered twice by the generic
 // text-out hook. A kUiWindow or kUiIcon enclosing the text does NOT drop it (those are a
 // frame/image, not the text). In-place.
@@ -136,12 +136,12 @@ void dedupeGenericTextElements(Common::Array<UiElement> &elems, uint32 genericTo
 // True when a captured SCI window should be shrink-wrapped ("hugged") to its content
 // union: SCI dialog windows reserve more vertical space than their text needs, so small
 // message boxes hug. A near-full-screen window (>= 60% of the screen area) is a SCREEN
-// (QFG1 char creation), not an oversized message box — hugging it drew the dialog border
+// (QFG1 char creation), not an oversized message box â€” hugging it drew the dialog border
 // mid-screen and left native content leaking outside the hug. Pure: unit-testable.
 bool windowShouldHugContent(const Common::Rect &winRect, int screenW, int screenH);
 
 // Merge addToPic (static) and animate sprites into one back-to-front draw list:
-// static first, then animate, then a STABLE sort by ascending priority. Stable ⇒ at
+// static first, then animate, then a STABLE sort by ascending priority. Stable â‡’ at
 // equal priority addToPic draws before animate (native bakes addToPic into the pic
 // first). n is small (a handful of sprites), so insertion sort is fine.
 void mergeSpritesByPriority(const Common::Array<Sprite> &animate,
@@ -149,7 +149,7 @@ void mergeSpritesByPriority(const Common::Array<Sprite> &animate,
                             Common::Array<Sprite> &out);
 
 // Build the transition frame's sprite set: addToPic statics + ALL captured
-// init-frame cels (NO live-owner filtering — unlike the steady-state promotion
+// init-frame cels (NO live-owner filtering â€” unlike the steady-state promotion
 // in renderFromAnimateList, the transition frame mirrors the native buffer at
 // animateShowPic time, which contains every frame-1 cast draw including live
 // actors). Deduped by view/loop/cel + celRect, then priority-sorted via
@@ -187,21 +187,21 @@ void scaleBlitNearest(Graphics::Surface &dest, const Common::Rect &destRect,
 // Alpha-aware nearest scale-blit of a cel into dest's destRect, with the SAME exact
 // rational mapping as scaleBlitNearest (sx = dx*srcW/dstW) so cel content aligns with
 // the plate. Per-pixel src-over; a cel's alpha is 0/255 in practice, so the blend
-// collapses to skip/copy. Replaces blendBlitFrom for scene sprites — its truncated
+// collapses to skip/copy. Replaces blendBlitFrom for scene sprites â€” its truncated
 // 8.8 fixed-point step misplaced content by a few px. Painting is CLIPPED to the dest
 // surface and (when given) to `clip`, but the source is always sampled against the
-// FULL destRect — a destRect extending past the clip is CROPPED, never compressed
+// FULL destRect â€” a destRect extending past the clip is CROPPED, never compressed
 // (native SCI port clipping, and how sprites exit the screen edge without squishing).
 void blendScaleBlitNearest(Graphics::ManagedSurface &dest, const Graphics::Surface &cel,
                            const Common::Rect &destRect, bool flipH,
                            const Common::Rect *clip = nullptr);
 
-// §3.3 support: grow `regions` (coalesced, clamped to `bounds`) to a fixpoint over
+// Â§3.3 support: grow `regions` (coalesced, clamped to `bounds`) to a fixpoint over
 // every UI element whose paint extent (uiPaintExtent) intersects them, closed over
 // window-token groups (renderUiLayer's kUiWindow border logic unions the rects of
 // all elements sharing the window's token, so a partial group would render a
 // different border than a full redraw). Appends the selected element indices
-// (ascending — original draw order) to `outElemIndices`.
+// (ascending â€” original draw order) to `outElemIndices`.
 void expandRegionsToElements(Common::Array<Common::Rect> &regions,
                              const Common::Array<UiElement> &elems,
                              const Common::Rect &gameRect, const Common::Rect &bounds,
@@ -226,7 +226,7 @@ public:
 	// Borrowed pointers; lifetime managed by the caller (the provider).
 	void setRoom(Graphics::Surface *cleanPlate, ViewCache *views);
 
-	// Logical SCI picture dimensions (cel rects are in this space — 320x190 for
+	// Logical SCI picture dimensions (cel rects are in this space â€” 320x190 for
 	// SCI0) and the screen row where the picture begins (the menu-bar offset, used
 	// to index the screen-space priority map). The plate encodes this picture.
 	void setPicture(int picW, int picH, int picScreenTop);
@@ -234,11 +234,11 @@ public:
 	// Per-pixel occlusion source: SCI's screen-space priority map (one byte per
 	// pixel = SCI priority band 0..15). Borrowed; lifetime managed by the caller.
 	// A sprite pixel is hidden (the plate's baked-in foreground shows) wherever the
-	// priority there exceeds the sprite's priority — exactly SCI's own occlusion.
+	// priority there exceeds the sprite's priority â€” exactly SCI's own occlusion.
 	void setPriorityMask(const byte *priority, int priW, int priH);
 
 	// Overlay-space rect where the picture (plate + sprites) is drawn. The caller
-	// computes this (roger_coords::computeGameRect → computePictureRect) so it
+	// computes this (roger_coords::computeGameRect â†’ computePictureRect) so it
 	// coincides with the native game's on-screen picture region (below the status
 	// bar), keeping the alpha-blended overlay aligned with the native game. When
 	// left unset (empty), renderScene falls back to the full destination surface.
@@ -247,7 +247,7 @@ public:
 	// Dirty-rect present: record a dest-space UI/cursor rect that changed this present.
 	// renderUiLayer (UI) calls this internally; the provider calls it for the composited
 	// cursor. (Sprite rects are recorded separately by renderScene into the scene-granularity
-	// set — see _sceneDirtyCur.) presentToOverlay pushes the dirtyUnion of all of these.
+	// set â€” see _sceneDirtyCur.) presentToOverlay pushes the dirtyUnion of all of these.
 	void addDirtyRect(const Common::Rect &destRect) { if (!destRect.isEmpty()) _dirtyCur.push_back(destRect); }
 	// Present-barrier ghost fix: record a dest-space rect that renderScene's seed union must
 	// re-seed with clean background this frame, in ADDITION to the present-granularity _dirtyCur.
@@ -270,7 +270,7 @@ public:
 	// area in overlay px). Off by default; the Phase 1 dirty-area gate reads it.
 	void setPresentLog(bool on) { _presentLog = on; }
 
-	// True when any dirty accumulator is non-empty — i.e. the next present would
+	// True when any dirty accumulator is non-empty â€” i.e. the next present would
 	// push at least one region. The present barrier's O(1) skip gate reads this.
 	bool hasPendingDirty() const {
 		return !_dirtyCur.empty() || !_dirtyPrev.empty() ||
@@ -310,9 +310,9 @@ public:
 	                   const byte *palette, const Common::Rect &gameRect,
 	                   const RogerTextRenderer *text, const RogerTextRenderer *altText = nullptr);
 
-	// §3.3 region-bounded recompose. Patch `composite` (the persistent scene+UI
-	// cache) so that inside `regions` — expanded to cover every intersecting UI
-	// element whole (expandRegionsToElements) — it is byte-identical to a full
+	// Â§3.3 region-bounded recompose. Patch `composite` (the persistent scene+UI
+	// cache) so that inside `regions` â€” expanded to cover every intersecting UI
+	// element whole (expandRegionsToElements) â€” it is byte-identical to a full
 	// sceneNoUi + renderUiLayer(elems) recompose. Pixels outside the expanded
 	// regions are untouched. Never allocates full-frame surfaces. sceneNoUi is a
 	// non-const ref only because ManagedSurface::surfacePtr() is non-const; it is
@@ -360,12 +360,12 @@ public:
 	// via a real transition. onTransition()'s composeRoomScene() pre-warms _bgCache, which
 	// would otherwise let the first post-transition renderFrame take the bounded-seed +
 	// dirty-present path using the PREVIOUS room's stale dirty-rect history (never cleared
-	// on room change) — the QFG1 fresh-start town breakage (stale/missing regions, native
+	// on room change) â€” the QFG1 fresh-start town breakage (stale/missing regions, native
 	// bleed-through). This nulls _bgPlate (=> next renderScene full-seeds + rebuilds the bg),
 	// sets _bgRebuilt (=> next present is full), and drops all leftover dirty rects. An
 	// instant-cut / save-restore entry already gets this clean first frame for free
 	// (composeRoomScene doesn't run, so _bgPlate stays null from setRoom); this makes a
-	// transition-entry behave identically. O(1), called once per room entry — no per-cycle cost.
+	// transition-entry behave identically. O(1), called once per room entry â€” no per-cycle cost.
 	void resetForRoomChange() {
 		_bgPlate = nullptr;
 		_bgRebuilt = true;
@@ -381,11 +381,11 @@ public:
 
 	// Coalesced union (clamped to _bgGameRect) of every sprite's current and just-vacated
 	// dest-rect that renderScene re-seeded the background over this frame. Equal to
-	// coalesce(_sceneDirtyCur ∪ _sceneDirtyPrev). The provider uses this to bound its own
+	// coalesce(_sceneDirtyCur âˆª _sceneDirtyPrev). The provider uses this to bound its own
 	// per-frame scene-cache copies to the regions that actually changed.
 	const Common::Array<Common::Rect> &lastSeedUnion() const { return _lastSeedUnion; }
 	// True when the last renderScene re-seeded the WHOLE game region (rebuild, empty
-	// gameRect, or a periodic heal) — in that case lastSeedUnion() is not authoritative and
+	// gameRect, or a periodic heal) â€” in that case lastSeedUnion() is not authoritative and
 	// the caller must do a full-region copy. False => only lastSeedUnion() changed.
 	bool lastSceneWasFull() const { return _lastSceneFull; }
 
@@ -411,8 +411,8 @@ private:
 	Common::Rect _bgPicRect, _bgGameRect;
 	// Set when renderScene (re)draws the static background this frame (room/geometry
 	// change). presentToOverlay then pushes the FULL overlay to lay down the letterbox;
-	// otherwise it pushes only the game region (everything dynamic — sprites, dialogs,
-	// cursor — is inside gameRect, so the static black letterbox needn't be re-converted
+	// otherwise it pushes only the game region (everything dynamic â€” sprites, dialogs,
+	// cursor â€” is inside gameRect, so the static black letterbox needn't be re-converted
 	// and re-pushed every frame).
 	bool _bgRebuilt = false;
 	// Persistent overlay-format buffer for presentToOverlay's RGBA32->overlay conversion,
@@ -420,7 +420,7 @@ private:
 	Graphics::Surface *_overlayConv;
 
 	// Dirty-rect present accumulators (dest/overlay space). _dirtyCur is filled each frame
-	// as the scene is composited; presentToOverlay pushes _dirtyCur ∪ _dirtyPrev (last
+	// as the scene is composited; presentToOverlay pushes _dirtyCur âˆª _dirtyPrev (last
 	// frame's, so a moved sprite/cursor repaints the clean background it vacated), then
 	// rolls _dirtyCur into _dirtyPrev and clears _dirtyCur. Off by default until wired.
 	Common::Array<Common::Rect> _dirtyCur, _dirtyPrev;

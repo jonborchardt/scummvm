@@ -21,8 +21,8 @@
 #include <cxxtest/TestSuite.h>
 #include "common/array.h"
 #include "common/rect.h"
-#include "engines/sci/roger/roger_compositor.h"
-#include "engines/sci/roger/roger_ui_layer.h"
+#include "engines/sci/roger/overlay/roger_compositor.h"
+#include "engines/sci/roger/overlay/roger_ui_layer.h"
 
 using namespace Sci;
 using namespace Sci::Roger;
@@ -104,7 +104,7 @@ public:
 	}
 	void test_window_should_hug_content_only_for_small_dialogs() {
 		// SQ3-style oversized message windows hug their controls; a near-full-screen
-		// window is a SCREEN (QFG1 char creation, (0,9,321,200)) — hugging it drew the
+		// window is a SCREEN (QFG1 char creation, (0,9,321,200)) â€” hugging it drew the
 		// dialog border mid-screen and left native content leaking outside the hug.
 		TS_ASSERT(Roger::windowShouldHugContent(Common::Rect(60, 60, 260, 140), 320, 200));
 		TS_ASSERT(Roger::windowShouldHugContent(Common::Rect(0, 10, 320, 110), 320, 200));

@@ -19,8 +19,8 @@
  */
 
 #include <cxxtest/TestSuite.h>
-#include "sci/roger/roger_compositor.h"
-#include "sci/roger/view_cache.h"
+#include "sci/roger/overlay/roger_compositor.h"
+#include "sci/roger/overlay/view_cache.h"
 #include "sci/roger/png_loader.h"
 #include "graphics/managed_surface.h"
 #include "graphics/surface.h"
@@ -47,7 +47,7 @@ public:
 	void test_plate_then_sprite_with_priority_occlusion() {
 		// 8x8 gray plate (64,64,64). One green sprite of priority 1 covering the whole
 		// picture, supplied via celOverride (the cel source after spritesheet loading
-		// was removed — cels now come from the generator or a pre-rendered override).
+		// was removed â€” cels now come from the generator or a pre-rendered override).
 		// An 8x8 priority map: left half band 0 (<= sprite -> sprite shows), right half
 		// band 15 (> sprite -> occluded, the plate's pixels are restored). picture ==
 		// 8x8, no menu offset.
@@ -201,7 +201,7 @@ public:
 
 	void test_cover_grow_sprite_drawn_larger() {
 		// Game view cels (coverGrow) are drawn kCelCoverPx (3) larger on every
-		// side — capped at 1/8 of the dest size so tiny cels barely grow — so the
+		// side â€” capped at 1/8 of the dest size so tiny cels barely grow â€” so the
 		// cel's opaque content covers the plate's smoothed boundary fringe (the
 		// SQ3 pod-door cyan-seam class). coverGrow=false sprites (Feeder B
 		// stamps, exact-geometry tests) stay geometrically exact.
@@ -271,7 +271,7 @@ public:
 		// REGRESSION for the "views squish as they exit the screen" bug: the
 		// coverGrow block clipped the sprite's DEST rect to picRect, so a sprite
 		// partially off-screen had its whole off-screen extent amputated from the
-		// rect while the full cel was still scaled into what remained — visible
+		// rect while the full cel was still scaled into what remained â€” visible
 		// compression at every screen edge. The dest rect must keep its off-screen
 		// extent; the BLIT is what clips (crop), sampling the source against the
 		// full rect, matching native SCI's port clipping.
@@ -323,7 +323,7 @@ public:
 		// REGRESSION for the "splatted pixels are off by a few px" bug. When the plate
 		// is scaled into the game rect (plate wider than picRect), the occlusion
 		// punch-back must sample the plate with the SAME scaler the compositor used to
-		// draw the background — otherwise the restored foreground pixels drift from
+		// draw the background â€” otherwise the restored foreground pixels drift from
 		// the background. Here: a 10x2 gradient plate scaled into a 6x2 rect, a
 		// sprite covering it all, priority everywhere > sprite -> splat everywhere.
 		// The result must be pixel-identical to the exact nearest scale (plate -> 6x2).
@@ -373,7 +373,7 @@ public:
 	}
 
 	void test_sprite_history_survives_ui_only_present() {
-		// Regression: a UI-only present (presentWithUi — cursor move / dialog, with NO
+		// Regression: a UI-only present (presentWithUi â€” cursor move / dialog, with NO
 		// renderScene) must not discard the previous sprite position. If sprite rects were
 		// rolled at present granularity, a present that lacks them (UI-only) clobbers the
 		// history, so when the sprite next MOVES its old position is never repainted ->
@@ -413,12 +413,12 @@ public:
 		comp.renderScene(dest, list, gameRect);
 		comp.rollPresentDirty();
 
-		// Frame 2: a UI-only present (no renderScene) — e.g. presentWithUi on a mouse move.
+		// Frame 2: a UI-only present (no renderScene) â€” e.g. presentWithUi on a mouse move.
 		// Only a cursor rect is added; the sprite is static (still at P). The present rolls.
 		comp.addDirtyRect(Common::Rect(50, 4, 58, 12)); // "cursor"
 		comp.rollPresentDirty();
 
-		// Frame 3: the animation advances — the sprite moves to Q=(40,40,52,52).
+		// Frame 3: the animation advances â€” the sprite moves to Q=(40,40,52,52).
 		spr.celRect = Common::Rect(40, 40, 52, 52);
 		list.clear(); list.push_back(spr);
 		comp.renderScene(dest, list, gameRect);
@@ -507,7 +507,7 @@ public:
 		in.push_back(Common::Rect(50, 50, 70, 70));
 		in.push_back(Common::Rect(60, 60, 80, 80));
 		Sci::Roger::coalesceDirtyRects(in, bounds, out);
-		// Expect: clipped (0,0,20,20) and merged (50,50,80,80) — the outside one gone.
+		// Expect: clipped (0,0,20,20) and merged (50,50,80,80) â€” the outside one gone.
 		TS_ASSERT_EQUALS(out.size(), (uint)2);
 		bool hasClip = false, hasMerge = false;
 		for (uint i = 0; i < out.size(); i++) {
@@ -572,7 +572,7 @@ public:
 		// Ascending priority: 0,2,5,5.
 		TS_ASSERT_EQUALS(out[0].viewId, 21); // prio 0
 		TS_ASSERT_EQUALS(out[1].viewId, 10); // prio 2
-		// Two prio-5 entries: static (20) keeps its place BEFORE animate (11) — stable,
+		// Two prio-5 entries: static (20) keeps its place BEFORE animate (11) â€” stable,
 		// and static was appended first.
 		TS_ASSERT_EQUALS(out[2].viewId, 20); // prio 5, static
 		TS_ASSERT_EQUALS(out[3].viewId, 11); // prio 5, animate
@@ -741,7 +741,7 @@ public:
 		TS_ASSERT(Sci::Roger::rectCoverageFraction(statusRect, barRestore) >= 90);
 	}
 
-	// A dropdown's own save-under restore starts at row 9 and is far narrower — it must NOT
+	// A dropdown's own save-under restore starts at row 9 and is far narrower â€” it must NOT
 	// be mistaken for a strip revert (else every dropdown close would re-push the banner).
 	void test_dropdown_restore_does_not_cover_status_rect() {
 		const Common::Rect statusRect(0, 0, 320, 9);
@@ -782,7 +782,7 @@ public:
 		TS_ASSERT_EQUALS(out[2].priority, 12);
 	}
 	// Same cel stamped at a second position (e.g. a repeated decoration) is
-	// two draws, not a duplicate — dedup key includes celRect.
+	// two draws, not a duplicate â€” dedup key includes celRect.
 	void test_same_cel_different_rect_is_not_a_dup() {
 		Common::Array<Sci::Roger::Sprite> statics, initCels, out;
 		statics.push_back(mk(300, 2, 0, 5, 10, 20));

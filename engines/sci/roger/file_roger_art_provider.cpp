@@ -19,24 +19,24 @@
  */
 
 // Roger: env-first knob reading (ROGER_INPUT_SCRIPT / ROGER_INPUT_LIVE /
-// ROGER_CYCLE_LOG) uses getenv() â€” same pattern as sci.cpp's ROGER_NO_LAUNCHER.
+// ROGER_CYCLE_LOG) uses getenv() Ã¢â‚¬â€ same pattern as sci.cpp's ROGER_NO_LAUNCHER.
 #define FORBIDDEN_SYMBOL_EXCEPTION_getenv
 
 #include "sci/roger/file_roger_art_provider.h"
 #include "sci/roger/roger_input.h"
 #include "sci/roger/roger_selftest.h"
-#include "sci/roger/roger_cursor.h"
+#include "sci/roger/overlay/roger_cursor.h"
 #include "sci/roger/png_loader.h"
 #include "sci/roger/gen/roger_asset_gen.h"
-#include "sci/roger/roger_palette_remap.h"
-#include "sci/roger/roger_compositor.h"
-#include "sci/roger/roger_coords.h"
+#include "sci/roger/overlay/roger_palette_remap.h"
+#include "sci/roger/overlay/roger_compositor.h"
+#include "sci/roger/overlay/roger_coords.h"
 #include "sci/roger/gen/roger_omyac.h"
 #include "sci/roger/gen/roger_passes.h"
-#include "sci/roger/roger_journal.h"
-#include "sci/roger/roger_tokens.h"
-#include "sci/roger/roger_text.h"
-#include "sci/roger/view_cache.h"
+#include "sci/roger/overlay/roger_journal.h"
+#include "sci/roger/overlay/roger_tokens.h"
+#include "sci/roger/overlay/roger_text.h"
+#include "sci/roger/overlay/view_cache.h"
 #include "sci/roger/gen/slice_set.h"
 #include "sci/roger/gen/roger_pic_parser.h"
 #include "sci/roger/gen/roger_view_scaler.h"
@@ -95,7 +95,7 @@ FileRogerArtProvider::FileRogerArtProvider(const Common::String &gameId,
 	// roger_autoshot: a verification-harness flag (off by default). When set, the
 	// first composited frame of each room is dumped to a PNG (see renderFrame).
 	// This is how the dev loop captures the hires overlay deterministically without
-	// keystrokes/focus â€” injected Alt+s/F10 never reach SDL (Win32 menu keys).
+	// keystrokes/focus Ã¢â‚¬â€ injected Alt+s/F10 never reach SDL (Win32 menu keys).
 	_autoshot = ConfMan.hasKey("roger_autoshot") && ConfMan.getBool("roger_autoshot");
 	_selfTest = ConfMan.hasKey("roger_selftest") && ConfMan.getBool("roger_selftest");
 	// roger_diff_backstop: Feeder B per-frame full-buffer pixel diff (default off). When off
@@ -108,7 +108,7 @@ FileRogerArtProvider::FileRogerArtProvider(const Common::String &gameId,
 	_debugLog = ConfMan.hasKey("roger_debug") && ConfMan.getBool("roger_debug");
 	// roger_diag: revertible overlay-state trace at room/present/transition seams (off by default).
 	// Env-first (ROGER_DIAG=1) so build_and_run.ps1 -Diag arms a single launch without editing
-	// scummvm.ini â€” ini edits race against a running instance's config rewrite-on-exit; the ini
+	// scummvm.ini Ã¢â‚¬â€ ini edits race against a running instance's config rewrite-on-exit; the ini
 	// knob still works for ini-based setups (same pattern as ROGER_INPUT_SCRIPT / ROGER_DISPLAY_MODE).
 	{
 		const char *envDiag = getenv("ROGER_DIAG");
@@ -122,7 +122,7 @@ FileRogerArtProvider::FileRogerArtProvider(const Common::String &gameId,
 	_diffCheck = ConfMan.hasKey("roger_diff_check") && ConfMan.getBool("roger_diff_check");
 
 	// Overlay-truth captures (spec Phase 2 / Phase 1 fix): with this on, a pending
-	// .rin capture grabs the REAL overlay pixels via grabOverlay â€” the presented pixels,
+	// .rin capture grabs the REAL overlay pixels via grabOverlay Ã¢â‚¬â€ the presented pixels,
 	// what the player actually sees. The scratch buffer self-heals every cycle (renderFrame
 	// fully recomposes it), so a scratch-sourced capture can never witness a missing
 	// invalidation mark; grabOverlay reveals stale regions that were never pushed.
@@ -132,9 +132,9 @@ FileRogerArtProvider::FileRogerArtProvider(const Common::String &gameId,
 
 	// Cycle-diff backstop net (spec Phase 2): at the snapshotNativeBaseline seam, diff
 	// the native visual buffer against the previous cycle's copy and invalidate the
-	// changed boxes â€” a native change that slipped past every invalidation hook heals
+	// changed boxes Ã¢â‚¬â€ a native change that slipped past every invalidation hook heals
 	// on the next cycle's present (brief flicker at worst, never persistent staleness).
-	// Default ON; roger_diff_net=false is the runtime escape hatch (spec Â§6).
+	// Default ON; roger_diff_net=false is the runtime escape hatch (spec Ã‚Â§6).
 	{
 		const char *envNet = getenv("ROGER_DIFF_NET");
 		_diffNet = envNet ? (Common::String(envNet) != "0" && Common::String(envNet) != "false")
@@ -161,15 +161,15 @@ FileRogerArtProvider::FileRogerArtProvider(const Common::String &gameId,
 		if (!inputLive.empty())
 			_inputDriver->setLiveFile(inputLive);
 		// Registered as a backend event source: due events flow through the normal
-		// pollEvent path (dispatch drains sources on every poll â€” blocking dialogs
+		// pollEvent path (dispatch drains sources on every poll Ã¢â‚¬â€ blocking dialogs
 		// included). Not autoFree: we own it and unregister in the destructor.
 		g_system->getEventManager()->getEventDispatcher()->registerSource(_inputDriver, false);
 	}
 
 	// Initial display mode (default Enhanced; F10 still cycles from wherever this
 	// starts). Env-first so build_and_run.ps1 -Mode can pin a single launch for
-	// evidence capture â€” e.g. -Mode sbs boots straight into Side-by-Side for an
-	// enhanced-vs-native comparison shot with no F10 keypress choreography â€” without
+	// evidence capture Ã¢â‚¬â€ e.g. -Mode sbs boots straight into Side-by-Side for an
+	// enhanced-vs-native comparison shot with no F10 keypress choreography Ã¢â‚¬â€ without
 	// touching scummvm.ini (same pattern as ROGER_INPUT_SCRIPT); roger_display_mode
 	// works for ini-based setups. Values: enhanced | original | sbs.
 	{
@@ -188,7 +188,7 @@ FileRogerArtProvider::FileRogerArtProvider(const Common::String &gameId,
 	}
 
 	// Cursor: the native hardware cursor is NOT usefully visible over the in-game
-	// OSystem overlay (verified in live play â€” it disappears), which is the original
+	// OSystem overlay (verified in live play Ã¢â‚¬â€ it disappears), which is the original
 	// reason Roger composites its own arrow into the overlay scene. So default to the
 	// composited cursor. roger_hw_cursor=true opts back into the (currently invisible)
 	// hardware cursor for experimentation. Default false.
@@ -229,7 +229,7 @@ FileRogerArtProvider::FileRogerArtProvider(const Common::String &gameId,
 	// Aspect-ratio correction stretches the 320x200 frame to 4:3 (200 -> 240 rows,
 	// +20% vertical) and upstream enables it BY DEFAULT (commit 2870f3627c3). Roger's
 	// art is square-pixel (the plate is an exact 6x of the 320x190 picture), so the
-	// default stretch resamples the enhanced scene 20% too tall â€” the picture band
+	// default stretch resamples the enhanced scene 20% too tall Ã¢â‚¬â€ the picture band
 	// measures 228 game-rows instead of 190. While the generating path is active, pin
 	// the correction off. An EXPLICIT aspect_ratio in the config (ini / command line)
 	// still wins: ConfMan.hasKey skips the defaults domain, so only the silent
@@ -243,7 +243,7 @@ FileRogerArtProvider::FileRogerArtProvider(const Common::String &gameId,
 		warning("ROGER: aspect-ratio correction (default-on upstream) disabled for square-pixel art; set aspect_ratio in scummvm.ini to override");
 	}
 
-	// roger_omyac_passes: three-state semantics â€”
+	// roger_omyac_passes: three-state semantics Ã¢â‚¬â€
 	//   unset           => default sequence (kDefaultPassString)
 	//   set to ""       => wireframe (empty array = zero passes)
 	//   set to tokens   => parsed list (compact chars or fill/f=2, line/l=1, all/a=0)
@@ -261,7 +261,7 @@ bool FileRogerArtProvider::isOverlayVisible() const {
 bool FileRogerArtProvider::hasBackground(GuiResourceId pictureId) const {
 	if (!enabled)
 		return false;
-	// No per-frame view-type check here â€” it stays off the hot render path. A non-EGA
+	// No per-frame view-type check here Ã¢â‚¬â€ it stays off the hot render path. A non-EGA
 	// game that slips past the launcher's add-time VGA block is caught once on its first
 	// pushHiresBackground(), which disables the overlay (enabled=false) so we never reach
 	// here again for it.
@@ -271,7 +271,7 @@ bool FileRogerArtProvider::hasBackground(GuiResourceId pictureId) const {
 void FileRogerArtProvider::precacheAll() {
 	// One-time startup warm-up. Only runs in a generating mode (prebuilt mode has
 	// nothing to cache). roger_precache selects the scope: all|pics|views|off
-	// (default all when the key is unset). Generic: no per-game table â€” we ask the
+	// (default all when the key is unset). Generic: no per-game table Ã¢â‚¬â€ we ask the
 	// live engine for its pic/view resources.
 	if (!_assetGen || _assetGen->mode() == Roger::kGenPrebuilt)
 		return;
@@ -292,10 +292,10 @@ void FileRogerArtProvider::precacheAll() {
 	if (!resMan)
 		return;
 
-	// EGA SCI0 only â€” by design, permanently. VGA/SCI1 is out of scope (not deferred);
+	// EGA SCI0 only Ã¢â‚¬â€ by design, permanently. VGA/SCI1 is out of scope (not deferred);
 	// the omyac pipeline is EGA-specific. Reject cleanly and fall back to native render.
 	if (resMan->getViewType() != kViewEga) {
-		warning("ROGER: VGA game detected â€” Roger art replacement supports EGA games only. Overlay disabled.");
+		warning("ROGER: VGA game detected Ã¢â‚¬â€ Roger art replacement supports EGA games only. Overlay disabled.");
 		enabled = false;
 		return;
 	}
@@ -311,7 +311,7 @@ void FileRogerArtProvider::precacheAll() {
 		for (Common::List<ResourceId>::const_iterator it = pics.begin(); it != pics.end(); ++it) {
 			GuiResourceId id = (GuiResourceId)it->getNumber();
 
-			// Skip non-EGA pics â€” Roger only processes EGA pics via omyac.
+			// Skip non-EGA pics Ã¢â‚¬â€ Roger only processes EGA pics via omyac.
 			Resource *picRes = resMan->findResource(ResourceId(kResourceTypePic, (uint16)id), false);
 			if (picRes && picRes->size() >= 2) {
 				const Roger::PicFormat picFmt = Roger::picResourceFormat(
@@ -351,7 +351,7 @@ void FileRogerArtProvider::precacheAll() {
 				continue; // missing/malformed view -> skip (Hard Constraint 6)
 			// Snapshot loop/cel counts NOW, while 'view' is valid. generateViewCel()
 			// below calls GfxCache::getView(), which purges the WHOLE view cache when
-			// it is full (cache.cpp) â€” that frees this 'view' pointer. Dereferencing
+			// it is full (cache.cpp) Ã¢â‚¬â€ that frees this 'view' pointer. Dereferencing
 			// view->getCelCount() after a generate call would read freed memory and
 			// trip the assert in GfxView::getCelCount. So never touch 'view' again
 			// once generation starts (Hard Constraint 6).
@@ -382,7 +382,7 @@ void FileRogerArtProvider::precacheAll() {
 
 bool FileRogerArtProvider::precacheOnePic(GuiResourceId picId, uint32 &ms) {
 	if (!_assetGen || _assetGen->mode() == Roger::kGenPrebuilt) return false;
-	// Skip non-EGA pics â€” only EGA pics have the omyac path.
+	// Skip non-EGA pics Ã¢â‚¬â€ only EGA pics have the omyac path.
 	ResourceManager *resMan = g_sci ? g_sci->getResMan() : nullptr;
 	if (resMan) {
 		Resource *picRes = resMan->findResource(ResourceId(kResourceTypePic, (uint16)picId), false);
@@ -442,7 +442,7 @@ void FileRogerArtProvider::pushHiresBackgroundAddTo(GuiResourceId pictureId) {
 	// the pic stack so the regenerated plate/priority map contain the whole
 	// sequence. Replacing the plate with the overlay pic's standalone render
 	// (the old behavior: this path simply called pushHiresBackground) lost the
-	// base pic â€” a mostly-white "926" plate where the SQ3 logo should be.
+	// base pic Ã¢â‚¬â€ a mostly-white "926" plate where the SQ3 logo should be.
 	//
 	// The internal body treats every call as a room ENTRY and clears the
 	// per-room captures; like regenInPlace, an addTo draw is mid-room, so carry
@@ -454,7 +454,7 @@ void FileRogerArtProvider::pushHiresBackgroundAddTo(GuiResourceId pictureId) {
 	Common::Array<Roger::Sprite> keepStatics = _staticSprites;
 	Common::Array<Roger::Sprite> keepInitCels = _initCels;
 	Common::Array<Roger::Sprite> keepText = _textSprites;
-	// The copies above are shallow â€” _textSprites entries OWN their celOverride
+	// The copies above are shallow Ã¢â‚¬â€ _textSprites entries OWN their celOverride
 	// surfaces and clearTextSprites() (inside the internal body) frees them.
 	// Empty the source first so the clear frees nothing (regenInPlace rule).
 	_textSprites.clear();
@@ -464,12 +464,12 @@ void FileRogerArtProvider::pushHiresBackgroundAddTo(GuiResourceId pictureId) {
 	_textSprites = keepText;
 	// Mid-room scene change: make the next present a full one (the transition
 	// kernelDrawPicture schedules right after this covers the normal case; the
-	// full mark is the uncertainty fallback â€” never a stale frame).
+	// full mark is the uncertainty fallback Ã¢â‚¬â€ never a stale frame).
 	markFullDirty();
 }
 
 void FileRogerArtProvider::pushHiresBackgroundInternal(GuiResourceId pictureId) {
-	// EGA SCI0 only â€” by design, permanently. VGA/SCI1 is out of scope (not deferred);
+	// EGA SCI0 only Ã¢â‚¬â€ by design, permanently. VGA/SCI1 is out of scope (not deferred);
 	// the omyac pipeline is EGA-specific. Reject cleanly and fall back to native render.
 	// The launcher blocks VGA games at add-time, but a target configured another way
 	// (manual ConfMan / normal ScummVM launcher) can still reach here. Setting enabled = false
@@ -486,7 +486,7 @@ void FileRogerArtProvider::pushHiresBackgroundInternal(GuiResourceId pictureId) 
 
 	// Same pic re-entered (a script kDrawPic redraw, or an in-game restore into the
 	// room already shown): the plate and occlusion map are content-keyed to the pic,
-	// so keep them â€” but SCI just rebuilt the native surface from scratch, and the
+	// so keep them Ã¢â‚¬â€ but SCI just rebuilt the native surface from scratch, and the
 	// overlay may hold foreign pixels (the ScummVM GUI after the restore chooser), so
 	// the room-entry reset + full re-present below must still run. Early-returning
 	// here instead left the restore dialog on screen for seconds (heal-frame latency)
@@ -608,7 +608,7 @@ void FileRogerArtProvider::pushHiresBackgroundInternal(GuiResourceId pictureId) 
 	// Re-push the cached score/title banner into the UI layer so it is enhanced again
 	// after the room change (the game only redraws status on score/text change). The
 	// present is deferred to the first kAnimate frame (presentWithUi no-ops until the
-	// scene is composited) â€” presenting the sprite-less plate here flashed a wrong
+	// scene is composited) Ã¢â‚¬â€ presenting the sprite-less plate here flashed a wrong
 	// frame over in-progress animations (e.g. the intro pod door open/shut/open).
 	reapplyStatus();
 
@@ -638,7 +638,7 @@ void FileRogerArtProvider::pushHiresBackgroundInternal(GuiResourceId pictureId) 
 	diagDumpState("pushBG-exit");
 }
 
-// The backend places the native game screen from three live inputs â€” aspect-ratio
+// The backend places the native game screen from three live inputs Ã¢â‚¬â€ aspect-ratio
 // correction, stretch mode (Ctrl+Alt+S cycles it at runtime), and the software-scaler
 // factor. Mirror all three so the overlay geometry tracks the native placement exactly
 // in every mode, keeping Enhanced/Original toggles shift-free and the backend's
@@ -691,7 +691,7 @@ void FileRogerArtProvider::observeLivePalette() {
 	// Whole-palette change (fade/flash/day-night, e.g. the pod shutting down).
 	// The omyac-enhanced plate contains blended/anti-aliased colors that are NOT pure
 	// EGA palette indices, so a per-pixel reblend through the 16-entry index map
-	// mis-recolors them â€” on a large palette change the whole plate turns to garbage.
+	// mis-recolors them Ã¢â‚¬â€ on a large palette change the whole plate turns to garbage.
 	// Skip the whole-plate reblend: the plate keeps its room-load colors (no fade on the
 	// hires background) rather than corrupting. The partial color-cycle path above
 	// (n <= kPartialMax) is unaffected, so per-index animations still work.
@@ -742,8 +742,8 @@ void FileRogerArtProvider::renderFrame(const Common::Array<Roger::Sprite> &sprit
 	// Bound the copy to the regions renderScene re-drew this frame (the sprite-rect union):
 	// the persistent _sceneCache keeps outside-union pixels valid from prior frames, exactly
 	// like the scratch scene's static background. A FULL copy runs on (re)alloc, on any
-	// full-seed frame (rebuild/transition/shake/heal â€” lastSceneWasFull), and when generic
-	// regions (inventory/close-up upscales) were drawn outside the sprite union â€” so the cache
+	// full-seed frame (rebuild/transition/shake/heal Ã¢â‚¬â€ lastSceneWasFull), and when generic
+	// regions (inventory/close-up upscales) were drawn outside the sprite union Ã¢â‚¬â€ so the cache
 	// is never left partial. Copies into the existing allocation (no per-frame free+malloc).
 	const bool fullSceneCopy = sceneCacheRealloc || _compositor->lastSceneWasFull() || drewGeneric;
 	if (fullSceneCopy) {
@@ -762,7 +762,7 @@ void FileRogerArtProvider::renderFrame(const Common::Array<Roger::Sprite> &sprit
 		g_system->getPaletteManager()->grabPalette(pal, 0, 256);
 		_compositor->renderUiLayer(scene, _journal->ops(), pal, gameRect, _textRenderer, _altTextRenderer);
 	}
-	// Snapshot scene+UI (no cursor) â€” the barrier's bounded path patches and
+	// Snapshot scene+UI (no cursor) Ã¢â‚¬â€ the barrier's bounded path patches and
 	// presents from this cache, so it must stay valid under BOTH cursor modes.
 	// _compositeCacheValid coming in tells us a full cursor-free snapshot from a prior
 	// frame is intact; ensureCompositeCache clears it on (re)alloc. The bounded path
@@ -785,7 +785,7 @@ void FileRogerArtProvider::renderFrame(const Common::Array<Roger::Sprite> &sprit
 
 void FileRogerArtProvider::dumpOverlaySnap(const Common::String &label,
                                            const Common::Rect &gameRect) {
-	// Presented-frame evidence: dump the REAL overlay pixels via grabOverlay â€”
+	// Presented-frame evidence: dump the REAL overlay pixels via grabOverlay Ã¢â‚¬â€
 	// what the player sees right now, including any stale never-pushed regions.
 	// Shared by truth-mode `capture` (present-consumed) and `snap` (immediate).
 	const int OW = g_system->getOverlayWidth();
@@ -821,7 +821,7 @@ void FileRogerArtProvider::maybeScriptCapture(Graphics::ManagedSurface &scene,
 	if (!_inputDriver->takeCaptureRequest(label))
 		return;
 	if (_truthCapture) {
-		// Truth-capture mode: dump the REAL overlay pixels via grabOverlay â€” called
+		// Truth-capture mode: dump the REAL overlay pixels via grabOverlay Ã¢â‚¬â€ called
 		// AFTER presentToOverlay has pushed this present's regions, so the grab
 		// reflects those pushes plus any regions that were never pushed (stale).
 		dumpOverlaySnap(label, gameRect);
@@ -830,7 +830,7 @@ void FileRogerArtProvider::maybeScriptCapture(Graphics::ManagedSurface &scene,
 	}
 }
 
-// Roger::ScriptHost implementation â€” game-side services for .rin loop commands.
+// Roger::ScriptHost implementation Ã¢â‚¬â€ game-side services for .rin loop commands.
 
 int FileRogerArtProvider::uiWindowCount() const {
 	if (!_journal)
@@ -851,7 +851,7 @@ Common::String FileRogerArtProvider::describeState() {
 		SegManager *segMan = s->_segMan;
 		// global var 0 holds the live ego instance (kGlobalVarEgo).
 		// findObjectByName("ego") resolves the class template (or NULL on ambiguity),
-		// not the live object â€” so egox/egoy always read 0,0 from it.
+		// not the live object Ã¢â‚¬â€ so egox/egoy always read 0,0 from it.
 		if (s->variables[VAR_GLOBAL]) {
 			const reg_t ego = s->variables[VAR_GLOBAL][kGlobalVarEgo];
 			if (!ego.isNull() && segMan->isObject(ego)) {
@@ -908,9 +908,9 @@ void FileRogerArtProvider::onRestore(int slot) {
 void FileRogerArtProvider::dumpAutoshot(Graphics::ManagedSurface &scene,
                                         const Common::Rect &gameRect, const char *suffix) {
 	// Output goes to the configured screenshotpath. Two PNGs:
-	//   roger-<id><suffix>-overlay.png â€” Roger's composited layer alone (letterbox +
+	//   roger-<id><suffix>-overlay.png Ã¢â‚¬â€ Roger's composited layer alone (letterbox +
 	//                            status strip are transparent, shown as black by a viewer)
-	//   roger-<id><suffix>-preview.png â€” the true on-screen result: the native 320x200
+	//   roger-<id><suffix>-preview.png Ã¢â‚¬â€ the true on-screen result: the native 320x200
 	//                            game scaled into gameRect with Roger's layer blended over
 	//                            it (mirrors the backend draw order), so plate/native
 	//                            alignment (and, for the "-ui" dump, native-vs-hires dialog
@@ -1037,7 +1037,7 @@ void FileRogerArtProvider::runDiffCheck() {
 			if (sx < 0 || sy < 0 || sx >= OW || sy >= OH)
 				continue;
 			const uint32 px = _compositeCache->getPixel(sx, sy);
-			// RGBA32 format: aShift=0 â†’ alpha is in bits 7..0 (lowest byte).
+			// RGBA32 format: aShift=0 Ã¢â€ â€™ alpha is in bits 7..0 (lowest byte).
 			const byte alpha = (byte)(px & 0xFF);
 			ovlMask[(uint)y * sw + x] = (alpha > 0) ? 1 : 0;
 		}
@@ -1100,7 +1100,7 @@ void FileRogerArtProvider::ensureCursor() {
 	// A classic arrow pointer (tip at design 0,0): white fill + black outline. Built
 	// by supersampling a polygon and dilating for the outline, drawn large so it is
 	// visible over the hires overlay (the native 16px SCI cursor is invisible there).
-	// CLUT8 (index 0 transparent, 1 black, 2 white) â€” the same proven cursor path the
+	// CLUT8 (index 0 transparent, 1 black, 2 white) Ã¢â‚¬â€ the same proven cursor path the
 	// SCI driver uses; an RGBA cursor was invisible under the backend's premultiplied
 	// cursor blend. dontScale keeps it this pixel size in the window.
 	int side = 44;
@@ -1130,7 +1130,7 @@ void FileRogerArtProvider::ensureCursor() {
 		}
 	}
 
-	// RGBA with straight alpha â€” Roger composites this into its own overlay scene
+	// RGBA with straight alpha Ã¢â‚¬â€ Roger composites this into its own overlay scene
 	// (its alpha-aware blit honours partial alpha), so the edges are anti-aliased.
 	const Graphics::PixelFormat rgba(4, 8, 8, 8, 8, 24, 16, 8, 0);
 	_cursorSurf = new Graphics::Surface();
@@ -1240,7 +1240,7 @@ void FileRogerArtProvider::buildCursorFromView(int viewId, int loopNo, int celNo
 
 void FileRogerArtProvider::compositeCursor(Graphics::ManagedSurface &scene,
                                            const Common::Rect &gameRect) {
-	// DEBUG TOOL: quick-tune panel rides the cursor layer â€” drawn at every
+	// DEBUG TOOL: quick-tune panel rides the cursor layer Ã¢â‚¬â€ drawn at every
 	// present site, above scene+UI, below the cursor. Never cached.
 	if (_tunePanel.open && _mode == Roger::kModeEnhanced)
 		Roger::drawTunePanel(scene, gameRect, _tunePanel, _tuneWidgets);
@@ -1278,7 +1278,7 @@ void FileRogerArtProvider::ensureUi() {
 			scale = ConfMan.getInt("roger_ui_font_scale");
 		_textRenderer->setGlobalScale(scale);
 		if (!_textRenderer->ttfLoaded())
-			warning("ROGER: dialog font '%s' did NOT load from fonts.dat â€” using bitmap fallback", ttf.c_str());
+			warning("ROGER: dialog font '%s' did NOT load from fonts.dat Ã¢â‚¬â€ using bitmap fallback", ttf.c_str());
 	}
 	if (!_altTextRenderer) {
 		// Header (score/title banner) + menus use a distinct, more modern font.
@@ -1292,7 +1292,7 @@ void FileRogerArtProvider::ensureUi() {
 			scale = ConfMan.getInt("roger_ui_font_scale");
 		_altTextRenderer->setGlobalScale(scale);
 		if (!_altTextRenderer->ttfLoaded())
-			warning("ROGER: header font '%s' did NOT load from fonts.dat â€” using bitmap fallback", headerTtf.c_str());
+			warning("ROGER: header font '%s' did NOT load from fonts.dat Ã¢â‚¬â€ using bitmap fallback", headerTtf.c_str());
 	}
 }
 
@@ -1320,9 +1320,9 @@ void FileRogerArtProvider::presentWithUi() {
 	const Graphics::PixelFormat rgba(4, 8, 8, 8, 8, 24, 16, 8, 0);
 	// The window may have been resized since the scene was cached. A blocking dialog/
 	// menu/inventory does NOT tick kernelAnimate, so renderFrame can't refresh the
-	// cache â€” and the OSystem overlay was reallocated to the new size on resize.
+	// cache Ã¢â‚¬â€ and the OSystem overlay was reallocated to the new size on resize.
 	// Pushing the stale (now over-sized) cache to the smaller overlay asserts in the
-	// backend (copyRectToTexture bounds check) â†’ crash. Rescale the cached scene to the
+	// backend (copyRectToTexture bounds check) Ã¢â€ â€™ crash. Rescale the cached scene to the
 	// current overlay size and recompute the placement so the present is always valid.
 	const int OW = g_system->getOverlayWidth();
 	const int OH = g_system->getOverlayHeight();
@@ -1346,7 +1346,7 @@ void FileRogerArtProvider::presentWithUi() {
 	// The -ui autoshot dump reads the WHOLE present source, and a present that
 	// presentToOverlay will decide to push FULL (heal frame / dirty-present off /
 	// bg rebuild) needs a fully composed frame: the bounded path only makes the
-	// pushed regions valid. A pending .rin capture also forces the full source â€”
+	// pushed regions valid. A pending .rin capture also forces the full source Ã¢â‚¬â€
 	// UNLESS _truthCapture: then the capture grabs the REAL overlay pixels via
 	// grabOverlay (NOT the scratch buffer), so stale never-pushed regions are
 	// visible in the capture. The scratch self-heals every cycle (renderFrame
@@ -1357,9 +1357,9 @@ void FileRogerArtProvider::presentWithUi() {
 	                            _compositor->nextPresentIsFull();
 
 	if (_compositeCacheValid && !needFullSource && _mode != Roger::kModeSideBySide) {
-		// Â§3.3 region-bounded recompose: patch the composite cache only inside the
+		// Ã‚Â§3.3 region-bounded recompose: patch the composite cache only inside the
 		// dirty union, then source the present from it. No full-frame copy, no
-		// full UI re-render â€” this is the latency win at dialog time.
+		// full UI re-render Ã¢â‚¬â€ this is the latency win at dialog time.
 		Common::Array<Common::Rect> regions;
 		_compositor->dirtyUnion(fullR, regions);
 		if (!regions.empty()) {
@@ -1376,7 +1376,7 @@ void FileRogerArtProvider::presentWithUi() {
 		// patchCompositeRegions may have expanded beyond `regions`; re-read the
 		// union AFTER adding the expanded rects is unnecessary because expansion
 		// only recomputes pixels that are bit-identical outside `regions` (the
-		// re-rendered elements were unchanged there) â€” pushing `regions` suffices.
+		// re-rendered elements were unchanged there) Ã¢â‚¬â€ pushing `regions` suffices.
 		for (uint i = 0; i < regions.size(); i++)
 			scene.copyRectToSurface(_compositeCache->rawSurface(),
 			                        regions[i].left, regions[i].top, regions[i]);
@@ -1472,7 +1472,7 @@ void FileRogerArtProvider::markUiDirty(const Common::Rect &nativeRect) {
 	_compositor->addDirtyRect(Roger::uiPaintExtent(nativeRect, _lastGameRect));
 	// No addSceneDirtyRect here (unlike markVacated/markNativeDirty): markUiDirty accompanies a
 	// UI element being pushed/repainted, and renderFrame's renderUiLayer draws that element into
-	// the SAME fresh-frame scratch the deferred present emits. There is no stale-pixel window â€”
+	// the SAME fresh-frame scratch the deferred present emits. There is no stale-pixel window Ã¢â‚¬â€
 	// the element is present in the scratch this frame, not left over from last frame.
 }
 
@@ -1484,7 +1484,7 @@ void FileRogerArtProvider::markVacatedDirty(const Common::Rect &nativeRect) {
 	// Exact rect + TTF pad. The compositor-overdraw ring beyond it is covered by
 	// bitsRestore's exact erase rect (markNativeDirty in onNativeEraseRect). Phase 2
 	// proved the gate cannot verify invalidation marks either way (layered redundancy:
-	// _dirtyPrev loop + scene seed union) â€” invalidation changes are soak-verified.
+	// _dirtyPrev loop + scene seed union) Ã¢â‚¬â€ invalidation changes are soak-verified.
 	const Common::Rect dest = Roger::uiVacatedExtent(nativeRect, _lastGameRect);
 	_compositor->addDirtyRect(dest);
 	// This mark REMOVES previously-painted content. If it fires mid-cycle, the barrier
@@ -1496,7 +1496,7 @@ void FileRogerArtProvider::markVacatedDirty(const Common::Rect &nativeRect) {
 }
 
 void FileRogerArtProvider::markNativeDirty(const Common::Rect &nativeRect) {
-	// Â§3.1 exact invalidation: SCI touched these native pixels. grow(1) native
+	// Ã‚Â§3.1 exact invalidation: SCI touched these native pixels. grow(1) native
 	// absorbs integer-scaler rounding differences vs the sprite-path mapper.
 	// O(1) accumulate; NEVER presents.
 	if (!overlayShown() || !_compositor || nativeRect.isEmpty())
@@ -1506,7 +1506,7 @@ void FileRogerArtProvider::markNativeDirty(const Common::Rect &nativeRect) {
 	// dirty is a no-op visually but inflates the dirty area on every bitsShow tick,
 	// since SCI re-blits the native score row every cycle. Clip to the picture region.
 	// Invariant: Roger overlay content in the status strip is signalled only via
-	// markUiDirty (uiPushStatus banner) â€” a markNativeDirty rect wholly inside the
+	// markUiDirty (uiPushStatus banner) Ã¢â‚¬â€ a markNativeDirty rect wholly inside the
 	// strip is safe to drop; violating that would silently lose marks here.
 	Common::Rect pic = nativeRect;
 	pic.clip(Common::Rect(0, _statusBarH, 320, 200));
@@ -1547,14 +1547,14 @@ Common::Rect FileRogerArtProvider::cursorDstRect(const Common::Rect &gameRect) {
 }
 
 void FileRogerArtProvider::presentBarrier() {
-	// The single gated present (spec Â§3.2). Every skip path below is O(1).
+	// The single gated present (spec Ã‚Â§3.2). Every skip path below is O(1).
 	if (_inAnimateCycle)
 		return; // mid-cycle marks accumulate; the end-of-cycle call flushes them
 	if (!overlayShown() || !_compositor || !_haveScene || !_sceneCache)
 		return;
 	if (_frameJustComposed && _scratchScene) {
 		// Per-cycle present: renderFrame just composed scene+UI into _scratchScene
-		// and refreshed the caches â€” present that frame directly. No recompose.
+		// and refreshed the caches Ã¢â‚¬â€ present that frame directly. No recompose.
 		_frameJustComposed = false;
 		_barrierDirty = false;
 		Graphics::ManagedSurface &scene = *_scratchScene;
@@ -1590,11 +1590,11 @@ void FileRogerArtProvider::presentComparison() {
 		return;
 
 	const Graphics::PixelFormat rgba(4, 8, 8, 8, 8, 24, 16, 8, 0);
-	// Dedicated buffer â€” NEVER the renderScene scratch. renderScene redraws only
+	// Dedicated buffer Ã¢â‚¬â€ NEVER the renderScene scratch. renderScene redraws only
 	// its seed union each frame and relies on the scratch's other pixels
 	// persisting from prior frames; composing the split layout into that same
 	// buffer left SBS pixels outside the next frame's union, which a later full
-	// _compositeCache copy then baked in â€” presentComparison scaled its OWN
+	// _compositeCache copy then baked in Ã¢â‚¬â€ presentComparison scaled its OWN
 	// previous output into the left panel (recursive nested split, seen in the
 	// SQ3 pod room where idle frames use small bounded seeds).
 	if (!_sbsScratch || _sbsScratch->w != OW || _sbsScratch->h != OH) {
@@ -1608,7 +1608,7 @@ void FileRogerArtProvider::presentComparison() {
 	Roger::comparePanelRects(OW, OH, leftF, rightF);
 
 	// Left panel: the ENHANCED composite. _compositeCache holds scene + UI (no cursor),
-	// rebuilt by renderFrame/presentWithUi â€” so dialogs/narration/banners show here too.
+	// rebuilt by renderFrame/presentWithUi Ã¢â‚¬â€ so dialogs/narration/banners show here too.
 	// Fall back to _sceneCache (scene, no UI) when the composite cache isn't valid.
 	Graphics::ManagedSurface *leftSrc = (_compositeCacheValid && _compositeCache) ? _compositeCache
 	                                  : (_haveScene ? _sceneCache : nullptr);
@@ -1617,7 +1617,7 @@ void FileRogerArtProvider::presentComparison() {
 
 	// Right panel: the ORIGINAL native frame. Read the pre-erase snapshot (_nativeBaseline,
 	// captured at kernelAnimate's snapshot point before restoreAndDelete) so the animating
-	// cast (ego/moving views) is present â€” the live visual buffer has it erased by now.
+	// cast (ego/moving views) is present Ã¢â‚¬â€ the live visual buffer has it erased by now.
 	bool haveRight = false;
 	if (_haveBaseline && g_sci && g_sci->_gfxScreen && g_sci->_gfxPalette16) {
 		GfxScreen *screen = g_sci->_gfxScreen;
@@ -1649,7 +1649,7 @@ void FileRogerArtProvider::presentComparison() {
 	// The side-by-side window is fully SYNTHETIC: no native pixel may show
 	// through. The enhanced composite copied into the left panel carries the
 	// transparent status-bar strip (designed for enhanced mode, where it aligns
-	// with the native score row) â€” but the backend still renders the native game
+	// with the native score row) Ã¢â‚¬â€ but the backend still renders the native game
 	// at the ENHANCED-mode rect, misaligned with both panels, so its pixels bled
 	// through that strip as a stretched garbage band across the panel top.
 	// Force the whole frame opaque before presenting.
@@ -1719,7 +1719,7 @@ void FileRogerArtProvider::uiPushWindow(const Common::Rect &r, int backColor, in
 	e.type = Roger::kUiWindow; e.nativeRect = r;
 	// Faithful fill: a window that is transparent (bit 0) or USER-backed (bit 7 = 0x80,
 	// i.e. a picture-backed port whose content is drawn by scripts/controls directly onto
-	// the game picture â€” the QFG1 character-creation sheet) must not paint an opaque box
+	// the game picture Ã¢â‚¬â€ the QFG1 character-creation sheet) must not paint an opaque box
 	// over the hires plate. In SCI0, _styleUser = USER|TRANSPARENT (0x81); a USER-only
 	// (0x80) window slips through the SCI0 drawWindow skip-guard and reaches this path.
 	// A genuine opaque dialog (SQ3 message windows: style 0, no USER/TRANSPARENT bits)
@@ -1825,7 +1825,7 @@ void FileRogerArtProvider::onDrawCel(const Common::Rect &r, int viewId, int loop
 	// redraw at the SAME rect replaces in place. Clearing the shared token at the start of
 	// every call would erase the previous cel, leaving only the last one visible.
 	// Lifetime: an icon dies when a native erase rect covers it (onNativeEraseRect) or on
-	// room change (uiClearAll) â€” never via a blanket namespace clear.
+	// room change (uiClearAll) Ã¢â‚¬â€ never via a blanket namespace clear.
 	const uint32 tok = Roger::kDrawCelIconTokenNs;
 
 	Roger::UiElement e;
@@ -1856,7 +1856,7 @@ void FileRogerArtProvider::onDrawCel(const Common::Rect &r, int viewId, int loop
 	} else {
 		// No hires art: fall back to a rendered native cel so it stays visible under
 		// the opaque overlay. beginNativeDraw suppressed bitsShow, so Feeder B won't
-		// pick this up â€” we must inject it here. renderNativeCel already bakes mirroring.
+		// pick this up Ã¢â‚¬â€ we must inject it here. renderNativeCel already bakes mirroring.
 		// Use a (viewId,loopNo,celNo)-keyed cache so the same cel drawn at N positions
 		// renders once and is referenced N times (no per-call growth, no leak).
 		Graphics::Surface *surf = nullptr;
@@ -1928,7 +1928,7 @@ void FileRogerArtProvider::reapplyStatus() {
 // Generic text-out captures live in the 0x6------- namespace. The low bits carry the
 // window/port id the text was drawn in (0x60000000 | port->id), so a window dispose
 // (GfxPorts::removeWindow -> uiClearToken(0x60000000 | id)) drops exactly that window's
-// text â€” the same lifetime controls16/menu text already has. Text drawn on the picture
+// text Ã¢â‚¬â€ the same lifetime controls16/menu text already has. Text drawn on the picture
 // port (no dialog / char screen while open) uses that port's id, which is never disposed
 // mid-room, so it persists until room change. kGenericTextTokenNs is the namespace base
 // (matches picture-port id 0 fallback and is the value passed to the namespace helpers).
@@ -1937,9 +1937,9 @@ static inline bool isGenericTextToken(uint32 t) { return (t & Roger::kTokenNames
 void FileRogerArtProvider::uiClearToken(uint32 token) {
 	// The save-under restore path (bitsRestore) now goes through onNativeRestoreRect
 	// (checkpoint rollback) and no longer arrives here. Actual callers:
-	//   - GfxPorts::removeWindow â€” bracket close (0x40000000|id + 0x60000000|id)
-	//   - menu.cpp â€” status strip (0x10000000) and dropdown (0x20000000) singletons
-	// All work below is gated on an actual removal â€” a no-op call must stay cheap
+	//   - GfxPorts::removeWindow Ã¢â‚¬â€ bracket close (0x40000000|id + 0x60000000|id)
+	//   - menu.cpp Ã¢â‚¬â€ status strip (0x10000000) and dropdown (0x20000000) singletons
+	// All work below is gated on an actual removal Ã¢â‚¬â€ a no-op call must stay cheap
 	// (no present, no dirty marks) to keep per-cycle cost trivial.
 	Common::Array<Common::Rect> removedRects;
 	bool removedUi = false;
@@ -1948,7 +1948,7 @@ void FileRogerArtProvider::uiClearToken(uint32 token) {
 		if (ns == Roger::kControlTokenNs) {
 			// removeWindow bracket: drops the window box op AND every op captured
 			// inside it, whatever port drew it (the kGenericTextTokenNs|portId clear that
-			// ports.cpp also sends becomes a no-op â€” brackets subsume it).
+			// ports.cpp also sends becomes a no-op Ã¢â‚¬â€ brackets subsume it).
 			removedUi = _journal->closeBracket(token & 0x0FFFFFFFu, &removedRects);
 		} else if (ns == Roger::kGenericTextTokenNs) {
 			removedUi = false; // lifetime is bracket/erase-based now
@@ -1958,7 +1958,7 @@ void FileRogerArtProvider::uiClearToken(uint32 token) {
 	}
 
 	// Window dispose also kills that window's Feeder B pixel captures (controls namespace
-	// 0x40000000 | window id) â€” both the not-yet-processed pending regions (queued while a
+	// 0x40000000 | window id) Ã¢â‚¬â€ both the not-yet-processed pending regions (queued while a
 	// blocking window froze the animate cycle; processing them after dispose would stamp the
 	// restored native background over the plate) and the persistent stamps already created
 	// (conversation portraits etc. must vanish with their window). Cheap when nothing is
@@ -1990,7 +1990,7 @@ void FileRogerArtProvider::uiClearToken(uint32 token) {
 	if (_diag && isGenericTextToken(token))
 		warning("ROGER-DIAG[clearToken]: tok=0x%08x removed=1", token);
 	// RETAINED duty-3 exception (Phase 3): no-save-under / reanimate==false disposals
-	// never fire bitsRestore, and Feeder B stamp rects can exceed the save-under rect â€”
+	// never fire bitsRestore, and Feeder B stamp rects can exceed the save-under rect Ã¢â‚¬â€
 	// this is their only same-present invalidation (net blind while frozen; _dirtyPrev a frame late).
 	for (uint i = 0; i < removedRects.size(); i++)
 		markVacatedDirty(removedRects[i]);
@@ -1998,8 +1998,8 @@ void FileRogerArtProvider::uiClearToken(uint32 token) {
 }
 
 void FileRogerArtProvider::onNativeEraseRect(const Common::Rect &nativeRect) {
-	// Â§3.1 exact invalidation: the restored save-under rect, straight from SCI.
-	// This is what makes the SQ3 white-line class structurally dead â€” the region
+	// Ã‚Â§3.1 exact invalidation: the restored save-under rect, straight from SCI.
+	// This is what makes the SQ3 white-line class structurally dead Ã¢â‚¬â€ the region
 	// is invalidated no matter what any element bookkeeping thought was there.
 	markNativeDirty(nativeRect);
 	if (!overlayShown() || !_plate || !_journal || nativeRect.isEmpty()) {
@@ -2008,7 +2008,7 @@ void FileRogerArtProvider::onNativeEraseRect(const Common::Rect &nativeRect) {
 	}
 	// Remove persisted generic text and kDrawCel icon captures whose box lies within
 	// the erased region: the restore just overwrote those native pixels.
-	// No early-out on !removed â€” the barrier must always fire to flush the
+	// No early-out on !removed Ã¢â‚¬â€ the barrier must always fire to flush the
 	// markNativeDirty above (bitsRestore walking storm: barrier defers mid-cycle,
 	// so no per-hook present; the deferral, not a token match, guards the cycle).
 	const bool removed = _journal->eraseContained(nativeRect);
@@ -2020,11 +2020,11 @@ void FileRogerArtProvider::onNativeEraseRect(const Common::Rect &nativeRect) {
 }
 
 void FileRogerArtProvider::journalAppend(const Roger::UiElement &e) {
-	// Drop a reveal rect only when the new content EFFECTIVELY COVERS it â€” genuine
+	// Drop a reveal rect only when the new content EFFECTIVELY COVERS it Ã¢â‚¬â€ genuine
 	// content drawn over a rolled-back region should not be suppressed, but a mere
 	// overlap must not kill the reveal: a status-bar re-push overlapping a dropdown
 	// reveal by one row would otherwise cancel it and let the residue stamp return
-	// (Phase 2 final review, Minor #4 â€” timing-fragile any-intersection rule).
+	// (Phase 2 final review, Minor #4 Ã¢â‚¬â€ timing-fragile any-intersection rule).
 	for (uint i = _revealRects.size(); i-- > 0;) {
 		if (Roger::rectCoverageFraction(_revealRects[i], e.nativeRect) >= Roger::kCoverageThresholdPct)
 			_revealRects.remove_at(i);
@@ -2043,21 +2043,21 @@ void FileRogerArtProvider::onNativeFreeSave(uint32 handleToken) {
 }
 
 void FileRogerArtProvider::onNativeRestoreRect(uint32 handleToken, const Common::Rect &rect) {
-	// Â§3.1 invalidation first, exactly like onNativeEraseRect (the barrier defers
+	// Ã‚Â§3.1 invalidation first, exactly like onNativeEraseRect (the barrier defers
 	// mid-cycle; a frozen cycle flushes the mark).
 	markNativeDirty(rect);
 	if (!overlayShown() || !_plate || !_journal) { presentBarrier(); return; }
 	Common::Array<Common::Rect> removed;
 	bool did = _journal->rollback(handleToken, rect, &removed);
 	if (!did)
-		// unknown handle: old semantics, but spare the persistent singletons â€” nothing repaints them after a bare restore
+		// unknown handle: old semantics, but spare the persistent singletons Ã¢â‚¬â€ nothing repaints them after a bare restore
 		did = _journal->eraseContained(rect, &removed, true);
 	// Stamps drawn since the checkpoint inside the rect die with the rollback
 	// (menu-bug class: a dropdown's own stamps must not outlive it). Coverage-based
 	// (>= 90%), NOT strict containment: the restore rect is byte-aligned and up to a
 	// pixel narrower per side than the show rect that created the stamp (show
 	// (60,9,214,59) vs restore (61,9,214,59)); strict rect.contains(celRect) misses
-	// that 1px inset and the stamp is retained forever â€” the tracked non-enhanced menu
+	// that 1px inset and the stamp is retained forever Ã¢â‚¬â€ the tracked non-enhanced menu
 	// residue. This mirrors the >= 90% reveal-suppression at capture time so stamp
 	// creation and rollback stay symmetric.
 	for (uint i = _textSprites.size(); i-- > 0;) {
@@ -2071,8 +2071,8 @@ void FileRogerArtProvider::onNativeRestoreRect(uint32 handleToken, const Common:
 			did = true;
 		}
 	}
-	// â€¦and pending not-yet-processed regions the rect substantially covers are stale too
-	// (same coverage rule as the stamps above â€” a byte-aligned restore must still reclaim
+	// Ã¢â‚¬Â¦and pending not-yet-processed regions the rect substantially covers are stale too
+	// (same coverage rule as the stamps above Ã¢â‚¬â€ a byte-aligned restore must still reclaim
 	// a 1px-wider pending show region).
 	for (uint i = _foregroundRegions.size(); i-- > 0;) {
 		if (Roger::restoreReclaimsStamp(rect, _foregroundRegions[i].rect, Roger::kCoverageThresholdPct))
@@ -2089,13 +2089,13 @@ void FileRogerArtProvider::onNativeRestoreRect(uint32 handleToken, const Common:
 		        did ? 1 : 0, (unsigned)removed.size());
 	// The top strip's score/title banner and the transient menu bar share the singleton
 	// token 0x10000000 (menu.cpp: rogerPushBarOverlay / uiPushStatus). On the MOUSE menu
-	// path SCI closes the menu by bitsRestore(_barSaveHandle) of the full menu strip â€”
-	// which reverts the NATIVE pixels to the saved banner background â€” WITHOUT a following
+	// path SCI closes the menu by bitsRestore(_barSaveHandle) of the full menu strip Ã¢â‚¬â€
+	// which reverts the NATIVE pixels to the saved banner background Ã¢â‚¬â€ WITHOUT a following
 	// kernelDrawStatus. rollback() deliberately spares the 0x10000000 op from removal
 	// (isSaveUnderExemptSingleton), so the stale menu-titles op is neither rolled back nor
 	// re-pushed as the banner: the enhanced strip stays stuck on "File Game Action ..."
 	// while native shows the score banner (SBS-confirmed Roger defect). When a restore
-	// reverts the whole status strip, re-apply the cached banner to mirror native â€” the
+	// reverts the whole status strip, re-apply the cached banner to mirror native Ã¢â‚¬â€ the
 	// same seam the keyboard path reaches via a follow-up kernelDrawStatus. Gated on the
 	// restore actually covering the strip (>= 90% of _statusRect), so a dropdown's own
 	// narrower restore (top row 9, never touching the banner row 0) does not trigger it.
@@ -2121,7 +2121,7 @@ void FileRogerArtProvider::uiClearAll() {
 // token means each new push calls clearToken() first, so the highlight tracks
 // movement without accumulating stale elements even when the rect changes.
 void FileRogerArtProvider::uiPushFrameBox(const Common::Rect &r, int penColor) {
-	if (!overlayShown() || !_plate) return; // no hires scene â€” leave native highlight visible
+	if (!overlayShown() || !_plate) return; // no hires scene Ã¢â‚¬â€ leave native highlight visible
 	ensureUi();
 	// Gate: if the frame element under Roger::kFrameBoxToken is already identical (same rect
 	// + same color), skip the clear/push/invalidate/present cycle entirely. This prevents
@@ -2133,9 +2133,9 @@ void FileRogerArtProvider::uiPushFrameBox(const Common::Rect &r, int penColor) {
 	for (uint i = 0; i < elems.size(); i++) {
 		if (elems[i].token == Roger::kFrameBoxToken) {
 			if (elems[i].nativeRect == r && elems[i].penColor == penColor)
-				return; // identical â€” nothing to do
+				return; // identical Ã¢â‚¬â€ nothing to do
 			oldFrameRect = elems[i].nativeRect;
-			break; // found but different â€” fall through to update
+			break; // found but different Ã¢â‚¬â€ fall through to update
 		}
 	}
 	// Selection moved or color changed (or no existing element): update and present.
@@ -2145,13 +2145,13 @@ void FileRogerArtProvider::uiPushFrameBox(const Common::Rect &r, int penColor) {
 	_journal->clearToken(Roger::kFrameBoxToken);
 	Roger::UiElement e;
 	e.type = Roger::kUiWindow; e.nativeRect = r;
-	e.backColor = -1; // no fill â€” never paints over scene content
+	e.backColor = -1; // no fill Ã¢â‚¬â€ never paints over scene content
 	e.penColor = penColor;
 	e.hasFrame = true;
 	e.token = Roger::kFrameBoxToken;
 	journalAppend(e);
 	// RETAINED duty-3 exception (Phase 3, uiClearToken's twin): no SCI save-under exists
-	// for the frame box, and the net can't see overlay-only draws â€” old position would ghost.
+	// for the frame box, and the net can't see overlay-only draws Ã¢â‚¬â€ old position would ghost.
 	if (!oldFrameRect.isEmpty()) markVacatedDirty(oldFrameRect);
 	markUiDirty(r);
 	presentBarrier();
@@ -2268,7 +2268,7 @@ void FileRogerArtProvider::processForegroundCaptures(const Common::Array<Common:
 	for (uint i = 0; i < pending.size(); i++) {
 		const Common::Rect &nr = pending[i].rect;
 		// The window's own frame+fill draw (GfxPorts::drawWindow's bitsShow, tagged with
-		// the window token) is already reproduced semantically as a kUiWindow element â€”
+		// the window token) is already reproduced semantically as a kUiWindow element Ã¢â‚¬â€
 		// pixel-stamping it puts the blocky native dialog under the enhanced one (the SQ3
 		// death-message bug; visible whenever the game cycle keeps running under a
 		// non-modal window). Match by token + near-equal rect so a graphic drawn INSIDE
@@ -2276,7 +2276,7 @@ void FileRogerArtProvider::processForegroundCaptures(const Common::Array<Common:
 		if (_journal && Roger::regionIsCapturedWindowBody(_journal->ops(), pending[i].owner, nr, Roger::kCoverageThresholdPct))
 			continue;
 		// A region a bitsRestore this cycle just revealed is restored background, not
-		// content â€” do NOT pixel-stamp it (structural replacement for the deleted
+		// content Ã¢â‚¬â€ do NOT pixel-stamp it (structural replacement for the deleted
 		// beginNativeDraw suppressions). The check must be HERE, at process time, not
 		// only at capture time: a menu's dropdown show is captured during the FROZEN
 		// menu-open cycle (kernelAnimate does not tick, so no reveal exists yet), then
@@ -2351,7 +2351,7 @@ void FileRogerArtProvider::onAddToPicCel(int viewId, int loopNo, int celNo,
 	// Mirror is already baked into every cel source: GfxView::getBitmap() flips the
 	// pixels for a mirrored loop, and both cel paths (renderNativeCel and the hires
 	// ViewCache's generateViewCel) read through getBitmap. So the compositor must NOT
-	// flip again â€” keep mirror false here.
+	// flip again Ã¢â‚¬â€ keep mirror false here.
 	s.mirror = false;
 	s.celOverride = nullptr;
 	s.coverGrow = true; // game view cel -> drawn slightly larger to cover plate fringe
@@ -2365,7 +2365,7 @@ void FileRogerArtProvider::onAddToPicCel(int viewId, int loopNo, int celNo,
 void FileRogerArtProvider::onInitCel(int viewId, int loopNo, int celNo,
                                      const Common::Rect &celRect, int priority, uint32 owner) {
 	if (owner != 0) {
-		// One capture per animate object, latest draw wins â€” mirrors the native buffer,
+		// One capture per animate object, latest draw wins Ã¢â‚¬â€ mirrors the native buffer,
 		// which holds the object's most recent baked draw. Prevents an actor that moved
 		// during room init from leaving a trail of stale copies.
 		for (uint i = 0; i < _initCels.size(); i++) {
@@ -2401,7 +2401,7 @@ void FileRogerArtProvider::beginNativeDraw() { _nativeDrawDepth++; }
 void FileRogerArtProvider::endNativeDraw()   { if (_nativeDrawDepth > 0) _nativeDrawDepth--; }
 
 void FileRogerArtProvider::onNativeShowRect(const Common::Rect &screenRect, uint32 ownerToken) {
-	// Â§3.1 exact invalidation: SCI showed these native pixels, so the overlay
+	// Ã‚Â§3.1 exact invalidation: SCI showed these native pixels, so the overlay
 	// region is stale regardless of any capture bookkeeping below. Deliberately
 	// NOT gated on _nativeDrawDepth: invalidation is dumb and exact; only the
 	// content capture below is scoped. O(1); never presents.
@@ -2416,12 +2416,12 @@ void FileRogerArtProvider::onNativeShowRect(const Common::Rect &screenRect, uint
 	if (screenRect.bottom <= (int16)_statusBarH)
 		return;
 	// A show inside a rect we just rolled back is SCI revealing restored
-	// background â€” capture nothing (structural replacement for the hand-placed
+	// background Ã¢â‚¬â€ capture nothing (structural replacement for the hand-placed
 	// beginNativeDraw suppressions on restore paths; kills the menu-close class).
 	// Coverage-based (>=90%), not strict containment: after a bitsRestore SCI
 	// re-shows the region through kGraphRedrawBox / bitsShow grown by the element's
 	// 1px frame (the menu dropdown's restore rect is (7,9,141,27) but its follow-up
-	// show is (6,9,142,27) â€” one border pixel wider per side). Strict contains()
+	// show is (6,9,142,27) Ã¢â‚¬â€ one border pixel wider per side). Strict contains()
 	// missed that overhang and pixel-stamped the native dropdown residue.
 	for (uint i = 0; i < _revealRects.size(); i++) {
 		if (Roger::rectCoverageFraction(screenRect, _revealRects[i]) >= Roger::kCoverageThresholdPct)
@@ -2463,7 +2463,7 @@ void FileRogerArtProvider::onNativeText(const Common::Rect &nativeRect, const ch
 	// Emit into _journal NOW, not deferred to the next animate cycle. A blocking message
 	// (Print/kDisplay) draws its text here and then waits for a click WITHOUT ticking
 	// kernelAnimate, so a deferred flush would only reach _journal after the message's
-	// window is already disposed â€” missing its bracket close and leaving the text
+	// window is already disposed Ã¢â‚¬â€ missing its bracket close and leaving the text
 	// tagged to a dead window (it then lingered until the NEXT window reused the id). Pushing
 	// immediately means the text is in _journal under its live window bracket, so the window's
 	// removeWindow closes it on dismiss. Safe: onNativeText fires on a real text draw, not
@@ -2477,7 +2477,7 @@ void FileRogerArtProvider::flushGenericText() {
 	ensureUi();
 	// Emit this frame's generic captures PERSISTENTLY: append each into _journal where it
 	// stays until room change. We do NOT clear prior generic text every frame, because SCI
-	// draws static text (e.g. QFG1 stat labels) only once â€” clearing+relying-on-recapture
+	// draws static text (e.g. QFG1 stat labels) only once Ã¢â‚¬â€ clearing+relying-on-recapture
 	// made it flash then vanish. append() supersedes an element with the same type and
 	// containing rect, so a stat value redraw refreshes in place (live
 	// updates) while untouched lines persist. Cleared wholesale on room change (clear).
@@ -2532,13 +2532,13 @@ void FileRogerArtProvider::flushGenericText() {
 void FileRogerArtProvider::snapshotNativeBaseline() {
 	// kernelAnimate is mid-cycle from this hook until renderFromAnimateList runs.
 	// While it is, blocking-seam barrier calls defer (the cycle's own tail call
-	// flushes them) â€” this is what makes a bitsRestore storm structurally unable
+	// flushes them) Ã¢â‚¬â€ this is what makes a bitsRestore storm structurally unable
 	// to present per-hook (the bb65c56b75a class).
 	_inAnimateCycle = true;
-	// â”€â”€ Cycle-diff backstop net (spec Phase 2) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+	// Ã¢â€â‚¬Ã¢â€â‚¬ Cycle-diff backstop net (spec Phase 2) Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 	// The visual buffer holds the WHOLE previous frame at this seam (see the
 	// side-by-side comment below). Diff it against the previous cycle's copy and
-	// mark the changed boxes dirty via markNativeDirty â€” which clips the status
+	// mark the changed boxes dirty via markNativeDirty Ã¢â‚¬â€ which clips the status
 	// strip, grows 1 native px, maps to overlay space, and (because _inAnimateCycle
 	// is already set) routes to the scene seed union so the cycle-tail present
 	// re-seeds clean background. Anything a hook missed heals here within one
@@ -2659,7 +2659,7 @@ void FileRogerArtProvider::renderFromAnimateList(const AnimateList &list) {
 
 	// Build the set of cels in the LIVE animate cast this frame (view+loop+cel), so the
 	// init-captured static cels (_initCels) can exclude anything that is actively animated
-	// (those are drawn live; only the never-animated init draws â€” the baked signs/props â€” stay).
+	// (those are drawn live; only the never-animated init draws Ã¢â‚¬â€ the baked signs/props Ã¢â‚¬â€ stay).
 	for (AnimateList::const_iterator it = list.begin(); it != list.end(); ++it) {
 		if (it->signal & kSignalHidden)
 			continue;
@@ -2671,14 +2671,14 @@ void FileRogerArtProvider::renderFromAnimateList(const AnimateList &list) {
 		s.priority = it->priority;
 		s.coverGrow = true; // game view cel -> drawn slightly larger to cover plate fringe
 		// Mirror is already baked in upstream: GfxView::getBitmap() flips a mirrored
-		// loop's pixels, and BOTH cel sources read through it â€” renderNativeCel (native
+		// loop's pixels, and BOTH cel sources read through it Ã¢â‚¬â€ renderNativeCel (native
 		// fallback) and the hires ViewCache's generateViewCel. Flipping again in the
 		// compositor double-flips (ego walks backwards), so keep mirror false.
 		s.mirror = false;
 
 		// Provide a native-cel fallback only for sprites that have no hires view art.
 		// renderScene consults getCel() first and ignores celOverride when a hires cel
-		// exists, so rendering the fallback in that case is wasted work â€” skip it. getCel
+		// exists, so rendering the fallback in that case is wasted work Ã¢â‚¬â€ skip it. getCel
 		// is cheap (cached, incl. cached known-missing).
 		if (!_viewCache || !_viewCache->getCel(it->viewId, it->loopNo, it->celNo)) {
 			Graphics::Surface *nativeSurf = renderNativeCel(it->viewId, it->loopNo, it->celNo);
@@ -2691,7 +2691,7 @@ void FileRogerArtProvider::renderFromAnimateList(const AnimateList &list) {
 	}
 
 	// Static props captured at room-init time (_initCels): cels drawn while _picNotValid was
-	// set, i.e. during the room's first setup â€” that includes BOTH the baked decorations
+	// set, i.e. during the room's first setup Ã¢â‚¬â€ that includes BOTH the baked decorations
 	// (QFG1 first-visit signs: drawn once via the init-frame cast, baked into the picture,
 	// then their objects dispose out of the animate list) AND live actors like the ego, whose
 	// first draw happens on the same init frame. No view/loop/cel identity can tell them apart
@@ -2699,8 +2699,8 @@ void FileRogerArtProvider::renderFromAnimateList(const AnimateList &list) {
 	// = view 300 loop 2, live bard/goblin = loops 0/1/3, and BOTH are in the cast on frame 1).
 	// The reliable discriminator is the OWNING OBJECT, tagged at capture time: promote an init
 	// cel only while its owner is ABSENT from the animate list. A disposed-after-baking prop
-	// promotes (its pixels persist natively); a live actor never does (it is drawn â€” or, when
-	// hidden, natively erased â€” by the cast), which is why this scans the full list including
+	// promotes (its pixels persist natively); a live actor never does (it is drawn Ã¢â‚¬â€ or, when
+	// hidden, natively erased Ã¢â‚¬â€ by the cast), which is why this scans the full list including
 	// kSignalHidden entries. Suppression is per-frame, not a permanent prune: the signs are in
 	// the cast on frame 1 and must still promote after their objects leave.
 	Common::Array<uint32> liveOwners;
@@ -2730,7 +2730,7 @@ void FileRogerArtProvider::renderFromAnimateList(const AnimateList &list) {
 	// Capture native foreground (menu/stat labels, buttons, software cursor) into persistent
 	// sprites, scoped against the live cast so moving actors are never re-captured.
 	// COORDINATE SEAM: fg capture rects are screen-global (bitsShow globalizes via
-	// offsetRect), while sprite celRects are picture-local â€” mixing them drew every
+	// offsetRect), while sprite celRects are picture-local Ã¢â‚¬â€ mixing them drew every
 	// stamp picScreenTop rows too low (the status bar's black underline row stamped
 	// as a dark line across the top of every scene). Compare in screen space here,
 	// convert to picture-local at the statics hand-off below.
@@ -2782,9 +2782,9 @@ void FileRogerArtProvider::renderFromAnimateList(const AnimateList &list) {
 		nativeSurfaces[i]->free();
 		delete nativeSurfaces[i];
 	}
-	_inAnimateCycle = false; // cycle draw complete â€” reopen the barrier
+	_inAnimateCycle = false; // cycle draw complete Ã¢â‚¬â€ reopen the barrier
 	_revealRects.clear();   // reveal suppressions expire at cycle end (bitsShow fired already)
-	presentBarrier(); // spec Â§3.2: the per-cycle present (fresh-frame branch â€” no recompose)
+	presentBarrier(); // spec Ã‚Â§3.2: the per-cycle present (fresh-frame branch Ã¢â‚¬â€ no recompose)
 }
 
 void FileRogerArtProvider::remapComparisonMouse(Common::Point &mousePos) {
@@ -2888,14 +2888,14 @@ void FileRogerArtProvider::regenInPlace() {
 	const int saved = _loadedPicId;
 	// pushHiresBackground treats every call as a room ENTRY and clears the
 	// per-room captured sprites (_staticSprites / _initCels / _textSprites).
-	// Those are captured once, at the room's actual entry draws â€” nothing can
+	// Those are captured once, at the room's actual entry draws Ã¢â‚¬â€ nothing can
 	// re-capture them mid-room, so a live-tuning regen must carry them across
 	// the call or every addToPic/init-baked prop (QFG1 signs, seated NPCs)
 	// vanishes until the next real room change.
 	Common::Array<Roger::Sprite> keepStatics = _staticSprites;
 	Common::Array<Roger::Sprite> keepInitCels = _initCels;
 	Common::Array<Roger::Sprite> keepText = _textSprites;
-	// The copies above are shallow â€” _textSprites entries OWN their celOverride
+	// The copies above are shallow Ã¢â‚¬â€ _textSprites entries OWN their celOverride
 	// surfaces and clearTextSprites() (inside pushHiresBackground) frees them.
 	// Empty the source first so the clear frees nothing.
 	_textSprites.clear();
@@ -2915,7 +2915,7 @@ void FileRogerArtProvider::tuneEnhancePasses(int delta, int which) {
 	if (!_assetGen)
 		return;
 
-	// Map which â†’ pass int: 0(fill)â†’2, 1(line)â†’1, 2(all)â†’0
+	// Map which Ã¢â€ â€™ pass int: 0(fill)Ã¢â€ â€™2, 1(line)Ã¢â€ â€™1, 2(all)Ã¢â€ â€™0
 	const int passType = (which == 0) ? 2 : (which == 1) ? 1 : 0;
 
 	// Count current passes by type.
@@ -2939,7 +2939,7 @@ void FileRogerArtProvider::tuneEnhancePasses(int delta, int which) {
 	for (int i = 0; i < allCount;  ++i) newPasses.push_back(0);
 	_assetGen->setEnhancePasses(newPasses);
 
-	// Tuning must generate in memory â€” avoid disk-cache churn. Switch out of
+	// Tuning must generate in memory Ã¢â‚¬â€ avoid disk-cache churn. Switch out of
 	// prebuilt/cache mode if needed (the user can re-set roger_gen_mode to
 	// restore their preferred mode or call reloadGenConfig() to persist the
 	// chosen sequence).
@@ -2975,7 +2975,7 @@ void FileRogerArtProvider::reloadGenConfig() {
 	regenInPlace();
 }
 
-// â”€â”€ DEBUG TOOL: in-game quick-tune panel (spec 2026-07-05) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Ã¢â€â‚¬Ã¢â€â‚¬ DEBUG TOOL: in-game quick-tune panel (spec 2026-07-05) Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 
 void FileRogerArtProvider::markTunePanelDirty() {
 	if (!_compositor)
@@ -3032,13 +3032,13 @@ void FileRogerArtProvider::tuneApplyStagedPasses() {
 		                       ConfMan.hasKey("roger_omyac_passes") ? ConfMan.get("roger_omyac_passes") : "");
 	if (Roger::tunePassesEqual(_tunePanel.stagedPasses, configPasses)) {
 		// Back at the launch config: restore the pre-tuning mode so room loads
-		// return to cache speed. (The variant never flips the mode â€” spec Â§3.)
+		// return to cache speed. (The variant never flips the mode Ã¢â‚¬â€ spec Ã‚Â§3.)
 		if (_tuneModeRemembered) {
 			_assetGen->setMode(_tunePreTuneMode);
 			_tuneModeRemembered = false;
 		}
 	} else if (_assetGen->mode() != Roger::kGenMemory) {
-		// Tuned passes must generate in memory â€” never churn the disk cache.
+		// Tuned passes must generate in memory Ã¢â‚¬â€ never churn the disk cache.
 		_tunePreTuneMode = _assetGen->mode();
 		_tuneModeRemembered = true;
 		_assetGen->setMode(Roger::kGenMemory);
@@ -3189,11 +3189,11 @@ void FileRogerArtProvider::onTransition(int sciType, const Common::Rect & /*picR
 		from.fillRect(Common::Rect(0, 0, (int16)OW, (int16)OH), rgba.ARGBToColor(255, 0, 0, 0));
 	// `to` = the new room background + the frame-1 cast. Native kernelAnimate
 	// draws the cast (drawCels) BEFORE animateShowPic runs the transition, so the
-	// native reveal already contains every frame-1 draw â€” revealing a sprite-less
+	// native reveal already contains every frame-1 draw Ã¢â‚¬â€ revealing a sprite-less
 	// plate here is the enhanced-only room-entry flash. At this point in the same
 	// cycle the Feeder-A hooks have captured exactly that set: _staticSprites
 	// (addToPic) + _initCels (every cast draw during _picNotValid, live actors
-	// included â€” the steady-state live-owner promotion filter deliberately does
+	// included Ã¢â‚¬â€ the steady-state live-owner promotion filter deliberately does
 	// NOT apply to this one transient frame). renderFromAnimateList recomposes
 	// from the real animate list on the very next frame.
 	Common::Array<Roger::Sprite> frame1;
@@ -3232,7 +3232,7 @@ void FileRogerArtProvider::onTransition(int sciType, const Common::Rect & /*picR
 			// Blackout form (SCI0 raw IDs 11-17): the original animates old -> BLACK
 			// with the mirror type from blackoutTransitionIDs, then black -> new with
 			// the requested type. A direct old->new morph here read as a foreign
-			// "soft wipe" â€” the black interstitial is what gives the original its
+			// "soft wipe" Ã¢â‚¬â€ the black interstitial is what gives the original its
 			// pop. A kFxNone phase is an instant cut to/from black, exactly native.
 			Graphics::ManagedSurface black(OW, OH, rgba);
 			black.fillRect(Common::Rect(0, 0, (int16)OW, (int16)OH), rgba.ARGBToColor(255, 0, 0, 0));
@@ -3258,7 +3258,7 @@ void FileRogerArtProvider::onTransition(int sciType, const Common::Rect & /*picR
 
 	// composeRoomScene() above pre-warmed the compositor's static-bg cache, which would let
 	// the first post-transition renderFrame take the bounded-seed + dirty-present path using
-	// dirty-rect history left over from the PREVIOUS room â€” the QFG1 fresh-start town
+	// dirty-rect history left over from the PREVIOUS room Ã¢â‚¬â€ the QFG1 fresh-start town
 	// breakage (a real transition into pic 300; save-load reaches it via an instant cut and
 	// is fine). Reset the compositor to a clean first frame (full seed + full present, stale
 	// dirty rects dropped) so a transition-entry matches a save-restore/instant-cut entry.
@@ -3268,7 +3268,7 @@ void FileRogerArtProvider::onTransition(int sciType, const Common::Rect & /*picR
 void FileRogerArtProvider::onShake(int shakeCount, int directions) {
 	if (!_transitionsEnabled || !overlayShown() || _mode == Roger::kModeSideBySide ||
 	        !_compositor || !_haveScene || !_sceneCache)
-		return; // side-by-side: pure FX, would present the non-split layout â€” skip
+		return; // side-by-side: pure FX, would present the non-split layout Ã¢â‚¬â€ skip
 	const int OW = g_system->getOverlayWidth(), OH = g_system->getOverlayHeight();
 	if (OW <= 0 || OH <= 0 || _sceneCache->w != OW || _sceneCache->h != OH)
 		return;

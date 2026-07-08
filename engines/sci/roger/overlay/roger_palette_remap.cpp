@@ -18,7 +18,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "sci/roger/roger_palette_remap.h"
+#include "sci/roger/overlay/roger_palette_remap.h"
 #include "sci/roger/gen/roger_ega_blend.h"
 #include "graphics/surface.h"
 #include "common/util.h"

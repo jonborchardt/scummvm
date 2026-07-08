@@ -18,11 +18,11 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "sci/roger/roger_compositor.h"
-#include "sci/roger/roger_tokens.h"
-#include "sci/roger/view_cache.h"
-#include "sci/roger/roger_coords.h"
-#include "sci/roger/roger_text.h"
+#include "sci/roger/overlay/roger_compositor.h"
+#include "sci/roger/overlay/roger_tokens.h"
+#include "sci/roger/overlay/view_cache.h"
+#include "sci/roger/overlay/roger_coords.h"
+#include "sci/roger/overlay/roger_text.h"
 #include "graphics/managed_surface.h"
 #include "graphics/surface.h"
 #include "common/system.h"
@@ -195,16 +195,16 @@ void blendScaleBlitNearest(Graphics::ManagedSurface &dest, const Graphics::Surfa
 	// Fallback for formats the fast path can't take (never hit in practice: the scene
 	// and all cel sources are RGBA32). blendBlitFrom scales with the truncated step,
 	// but on a mismatched-format path exact geometry is already lost to conversion.
-	// (`clip` is not honored here — acceptable on a path that never runs.)
+	// (`clip` is not honored here â€” acceptable on a path that never runs.)
 	if (d->format != cel.format || d->format.bytesPerPixel != 4) {
 		dest.blendBlitFrom(cel, Common::Rect(0, 0, cel.w, cel.h), destRect,
 		                   flipH ? Graphics::FLIP_H : Graphics::FLIP_NONE);
 		return;
 	}
 	// EXACT rational mapping (sx = dx*celW/dstW) so the cel's content occupies exactly
-	// the dest rect the caller computed with the same rational math — matching the
+	// the dest rect the caller computed with the same rational math â€” matching the
 	// plate's scaleBlitNearest. Src-over per pixel (cel alpha is 0/255 in practice).
-	// The paint window is the dest surface ∩ `clip`; source coords stay relative to
+	// The paint window is the dest surface âˆ© `clip`; source coords stay relative to
 	// the FULL destRect, so off-window extent is cropped, never squished.
 	int cl = 0, ct = 0, cr = d->w, cb = d->h;
 	if (clip) {
@@ -396,7 +396,7 @@ RogerCompositor::~RogerCompositor() {
 // colours are correct by construction. Used instead of Surface::convertTo for the
 // per-frame overlay conversion: convertTo allocates+frees a full-overlay surface every
 // frame (~21 MB at this resolution), which dominated present cost. This writes into a
-// persistent buffer in a flat loop — no allocation, no per-pixel function calls.
+// persistent buffer in a flat loop â€” no allocation, no per-pixel function calls.
 static void convert32(byte *dstP, const byte *srcP, int dstPitch, int srcPitch,
                       int w, int h, const Graphics::PixelFormat &df, const Graphics::PixelFormat &sf) {
 	const int sR = sf.rShift, sG = sf.gShift, sB = sf.bShift, sA = sf.aShift;
@@ -432,7 +432,7 @@ void RogerCompositor::setRoom(Graphics::Surface *cleanPlate, ViewCache *views) {
 	_views = views;
 	// Invalidate the static-background cache so the new room rebuilds it. (The plate
 	// pointer can be freed+reallocated to the same address across rooms, so an identity
-	// check alone could go stale — null it here on every room load to be safe.)
+	// check alone could go stale â€” null it here on every room load to be safe.)
 	_bgPlate = nullptr;
 }
 
@@ -452,16 +452,16 @@ void RogerCompositor::renderScene(Graphics::ManagedSurface &dest, const Common::
                                   const Common::Rect &gameRect) {
 	const int W = dest.w, H = dest.h;
 
-	// Roll the sprite dirty set at renderScene (scene) granularity — NOT present granularity.
+	// Roll the sprite dirty set at renderScene (scene) granularity â€” NOT present granularity.
 	// A UI-only present (presentWithUi: cursor/dialog, no renderScene) must not discard these,
 	// or a sprite that moves across that present leaves a stale "shadow." presentToOverlay's
-	// dirtyUnion adds _sceneDirtyCur ∪ _sceneDirtyPrev, so the vacated position is repainted.
+	// dirtyUnion adds _sceneDirtyCur âˆª _sceneDirtyPrev, so the vacated position is repainted.
 	_sceneDirtyPrev.clear();
 	for (uint i = 0; i < _sceneDirtyCur.size(); i++)
 		_sceneDirtyPrev.push_back(_sceneDirtyCur[i]);
 	_sceneDirtyCur.clear();
 
-	// The picture (plate + sprites) is drawn into _pictureDest — the overlay-space
+	// The picture (plate + sprites) is drawn into _pictureDest â€” the overlay-space
 	// rect the caller computed (via roger_coords::computeGameRect/computePictureRect)
 	// to coincide with the native game's on-screen PICTURE region, i.e. below the
 	// status bar. The overlay is alpha-blended over the still-rendered native game,
@@ -481,7 +481,7 @@ void RogerCompositor::renderScene(Graphics::ManagedSurface &dest, const Common::
 	//      so the native render/cursor can't leak there; the status strip inside it stays
 	//      transparent for the native Sierra menu icon) + the clean plate scaled into the
 	//      game rect. None of this changes within a room, so build it ONCE per geometry
-	//      into _bgCache and seed each frame with a straight copy — re-scaling the
+	//      into _bgCache and seed each frame with a straight copy â€” re-scaling the
 	//      1920x1140 plate every frame was wasted work on SCI's kAnimate (game-clock) path.
 	//      Output is byte-identical to the old per-frame clear+letterbox+scale.
 	//      SAFETY: only cache once the plate is actually present and blitted, so a
@@ -495,7 +495,7 @@ void RogerCompositor::renderScene(Graphics::ManagedSurface &dest, const Common::
 
 	// Pre-pass: compute each sprite's overlay dest-rect BEFORE seeding, so the seed can be
 	// bounded to the union of where sprites are now plus where they were last frame. The dst
-	// math (and the empty/skip rules) is IDENTICAL to the draw loop below — the loop reuses
+	// math (and the empty/skip rules) is IDENTICAL to the draw loop below â€” the loop reuses
 	// these exact values (see spriteDst), so _sceneDirtyCur and the drawn pixels are unchanged.
 	const int PIC_W2 = _picW, PIC_H2 = _picH;
 	Common::Array<Common::Rect> spriteDst; // parallel to `sprites`; empty rect == skipped
@@ -515,7 +515,7 @@ void RogerCompositor::renderScene(Graphics::ManagedSurface &dest, const Common::
 			// Game view cels sit flush in plate openings whose omyac-smoothed
 			// boundary can poke 1-2 px past the exact edge (the SQ3 pod-door cyan
 			// seam through the cel's transparent margin). Draw them a few px larger
-			// so the opaque content covers the fringe on every side — a <1% content
+			// so the opaque content covers the fringe on every side â€” a <1% content
 			// stretch on normal cels. Capped to 1/8 of the dest size so tiny cels
 			// (projectiles, sparks) don't visibly fatten. Feeder B stamps and
 			// exact-geometry tests keep coverGrow off.
@@ -536,7 +536,7 @@ void RogerCompositor::renderScene(Graphics::ManagedSurface &dest, const Common::
 	}
 
 	// fullSeed: re-seed the WHOLE game region (current behavior) on a static-background
-	// rebuild (room/geometry change), the no-geometry test path, or a periodic heal —
+	// rebuild (room/geometry change), the no-geometry test path, or a periodic heal â€”
 	// otherwise the persistent scratch background outside the seed union is stale. Each layer
 	// self-heals independently of presentToOverlay's present heal.
 	static const int kSceneHealFrames = 300; // ~5s at 60fps; cheap insurance
@@ -550,8 +550,8 @@ void RogerCompositor::renderScene(Graphics::ManagedSurface &dest, const Common::
 	// Coalesced union (clamped to the game rect by coalesceDirtyRects) of everything that may
 	// hold stale DYNAMIC pixels in the persistent scratch surface and must be re-seeded with
 	// clean background this frame:
-	//   - current + just-vacated sprite rects (_sceneDirtyCur ∪ _sceneDirtyPrev), and
-	//   - the previous present's UI/cursor/generic-region rects (_dirtyPrev) — under the
+	//   - current + just-vacated sprite rects (_sceneDirtyCur âˆª _sceneDirtyPrev), and
+	//   - the previous present's UI/cursor/generic-region rects (_dirtyPrev) â€” under the
 	//     SOFTWARE cursor (the default), compositeCursor paints the cursor into this same
 	//     scratch surface AFTER renderScene, so last present's cursor position sits here and
 	//     would trail if not re-seeded. _dirtyCur (this present's) is excluded: those pixels
@@ -585,7 +585,7 @@ void RogerCompositor::renderScene(Graphics::ManagedSurface &dest, const Common::
 		// now and where they were last frame. The static black letterbox AND the untouched
 		// interior of the persistent scratch surface stay correct between frames (this scratch
 		// is reused, the static bg outside the union does not change, and sprites only draw
-		// inside their own dst ⊆ union), so a bounded seed is pixel-identical to the full one.
+		// inside their own dst âŠ† union), so a bounded seed is pixel-identical to the full one.
 		// Empty gameRect (tests) -> full copy. fullSeed -> whole game region (rebuild/heal).
 		if (_bgGameRect.isEmpty()) {
 			dest.copyFrom(*_bgCache);
@@ -615,14 +615,14 @@ void RogerCompositor::renderScene(Graphics::ManagedSurface &dest, const Common::
 			if (gr < W) dest.fillRect(Common::Rect(gr, gt, (int16)W, gb), black);
 		}
 		// Clean plate, scaled into the game rect (aspect preserved). EXACT nearest
-		// scale — NOT ManagedSurface::blitFrom, whose truncated 8.8 fixed-point step
+		// scale â€” NOT ManagedSurface::blitFrom, whose truncated 8.8 fixed-point step
 		// (scaleX = 256*srcW/dstW) drifted plate content down-right by up to ~12
 		// overlay px across the screen while cel dest rects use exact rational math
 		// (the SQ3 pod-door "cyan gap" misalignment).
 		if (_plate)
 			scaleBlitNearest(*dest.surfacePtr(), picRect, *_plate);
 
-		// Snapshot this fully-drawn background into the cache for subsequent frames —
+		// Snapshot this fully-drawn background into the cache for subsequent frames â€”
 		// but only when a plate was actually drawn, so we never cache an empty picRect.
 		if (_plate) {
 			if (!_bgCache || _bgCache->w != W || _bgCache->h != H || _bgCache->format != fmt) {
@@ -659,7 +659,7 @@ void RogerCompositor::renderScene(Graphics::ManagedSurface &dest, const Common::
 		// Alpha-aware blit: respects each pixel's alpha so transparent non-black
 		// pixels (common in exported spritesheets) do not render opaque (halos).
 		// Exact-rational scaling (blendScaleBlitNearest), matching the plate's
-		// scaleBlitNearest — blendBlitFrom's truncated 8.8 step squished large cels
+		// scaleBlitNearest â€” blendBlitFrom's truncated 8.8 step squished large cels
 		// by a few px toward their top-left.
 		// No FLIP_H here: GfxView::getBitmap() already mirrors a mirrored loop's pixels,
 		// and BOTH cel sources (renderNativeCel + the hires ViewCache's generateViewCel)
@@ -676,11 +676,11 @@ void RogerCompositor::renderScene(Graphics::ManagedSurface &dest, const Common::
 			const int y1 = MIN<int>(dst.bottom, picRect.bottom);
 
 			// CRITICAL: sample the plate with the SAME mapping the compositor's
-			// scaleBlitNearest used to draw the background plate above — the exact
+			// scaleBlitNearest used to draw the background plate above â€” the exact
 			// rational `i*srcW/dstW`. (Historically this matched blitFrom's truncated
 			// 8.8 fixed-point step instead; that kept the splat consistent with the
 			// displayed background but baked blitFrom's ~12px down-right content drift
-			// into the scene — the plate-vs-cel misalignment. Both now use exact math.)
+			// into the scene â€” the plate-vs-cel misalignment. Both now use exact math.)
 			// With the hires priority map, _priorityW/_priorityH == _plate->w/h, so
 			// the overlay->plate->priority mapping below collapses to a 1:1 lookup at
 			// the displayed plate pixel. The math still generalises if they differ.
@@ -689,9 +689,9 @@ void RogerCompositor::renderScene(Graphics::ManagedSurface &dest, const Common::
 
 			// Hot path (runs for every pixel of every sprite, every frame): when the
 			// scene and plate share the exact RGBA32 layout, an occluded pixel is a raw
-			// 32-bit word copy via row pointers — no per-pixel virtual getPixel/setPixel
+			// 32-bit word copy via row pointers â€” no per-pixel virtual getPixel/setPixel
 			// (each of those does format dispatch + bounds checks). The plate column is
-			// advanced incrementally (accX += pw, plX = accX/GW — exact rational, no
+			// advanced incrementally (accX += pw, plX = accX/GW â€” exact rational, no
 			// per-pixel multiply), and picX collapses to plX when the priority map
 			// matches the plate resolution (the normal hires case). Falls back to
 			// getPixel/setPixel if the formats ever differ. Same priority>sprite rule.
@@ -834,7 +834,7 @@ void RogerCompositor::presentToOverlay(Graphics::ManagedSurface &scene) {
 	}
 
 	// Roll this present's UI/cursor dirty set into "previous" for the next present. (Sprite
-	// rects roll separately, in renderScene — see _sceneDirtyCur.)
+	// rects roll separately, in renderScene â€” see _sceneDirtyCur.)
 	rollPresentDirty();
 
 	if (_diag)
@@ -896,7 +896,7 @@ void RogerCompositor::renderUiLayer(Graphics::ManagedSurface &dest,
 		fits[i].idealPx = tr->scaledIdealPx(targetPx);
 		fits[i].fitPx = tr->fitPx(e.text, textRect.width(), textRect.height(),
 		                          fits[i].idealPx, wCap, &e.glyphs);
-		// Per-text-element sizing trace: the decisive tool for dialog-text-size faults —
+		// Per-text-element sizing trace: the decisive tool for dialog-text-size faults â€”
 		// shows each element's namespace token, native metric (font height + width cap),
 		// sizing group and the chosen fit. Two rows for the same rect with different tokens
 		// = a control/generic duplicate (the dialog-text-size-flip class).
@@ -924,7 +924,7 @@ void RogerCompositor::renderUiLayer(Graphics::ManagedSurface &dest,
 				}
 			}
 			// SCI dialog/message windows (GfxPorts windows, token bit 0x40000000) reserve
-			// more vertical space than their text needs — SCI's window dims sit well above
+			// more vertical space than their text needs â€” SCI's window dims sit well above
 			// the text, leaving a large empty band. Shrink-wrap the box to its actual
 			// content so it hugs the text like a native SCI message window. The status/menu
 			// bar (token 0x10000000) keeps its full SCI dims (it must span the screen), and
@@ -936,7 +936,7 @@ void RogerCompositor::renderUiLayer(Graphics::ManagedSurface &dest,
 			    windowShouldHugContent(e.nativeRect, 320, rows))
 				nr = content;          // hug the controls; ignore SCI's oversized window dims
 			else if (haveContent)
-				nr.extend(content);    // status/menu bar etc.: window dims ∪ controls
+				nr.extend(content);    // status/menu bar etc.: window dims âˆª controls
 			nr.grow(2); // a little padding so controls are not flush against the border
 		}
 		const Common::Rect d = sciRectToDest(nr, gameRect);
@@ -1105,7 +1105,7 @@ void expandRegionsToElements(Common::Array<Common::Rect> &regions,
 				continue;
 			// Select the whole token group so the window-border content union is
 			// computed from the same set a full redraw would see. Grouping is by raw
-			// token equality — including a default 0 token — deliberately mirroring
+			// token equality â€” including a default 0 token â€” deliberately mirroring
 			// renderUiLayer's own unconditional token match; a zero-token guard here
 			// would diverge from the border logic and break byte-identity.
 			for (uint j = 0; j < elems.size(); j++) {
@@ -1159,7 +1159,7 @@ void RogerCompositor::patchCompositeRegions(Graphics::ManagedSurface &composite,
 	for (uint i = 0; i < idx.size(); i++)
 		subset.push_back(elems[idx[i]]);
 	// Side-effect: renderUiLayer calls addDirtyRect for each rendered element, so
-	// the patched rects also land in _dirtyCur — callers get them pushed for free.
+	// the patched rects also land in _dirtyCur â€” callers get them pushed for free.
 	renderUiLayer(composite, subset, palette, gameRect, text, altText);
 }
 
