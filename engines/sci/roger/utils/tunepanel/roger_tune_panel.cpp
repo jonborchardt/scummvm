@@ -18,8 +18,9 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "sci/roger/roger_tune_panel.h"
+#include "sci/roger/utils/tunepanel/roger_tune_panel.h"
 #include "sci/roger/roger_view_scaler.h"
+#include "common/util.h"
 #include "graphics/fontman.h"
 #include "graphics/font.h"
 #include "graphics/managed_surface.h"
@@ -95,7 +96,7 @@ void buildTunePanel(const TunePanelState &st, Common::Array<StudioWidget> &out) 
 		{ kTuneChipAddL, "+l", true }, { kTuneChipAddA, "+a", true },
 	};
 	cx = x0;
-	for (int i = 0; i < 6; i++) {
+	for (int i = 0; i < ARRAYSIZE(ops); i++) {
 		addTuneWidget(out, ops[i].kind, 0, Common::Rect(cx, yOps, cx + 13, yOps + 10),
 		              ops[i].lbl, false, ops[i].en);
 		cx += 14;

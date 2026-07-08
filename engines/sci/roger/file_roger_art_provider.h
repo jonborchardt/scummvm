@@ -28,7 +28,7 @@
 #include "sci/roger/roger_compositor.h"
 #include "sci/roger/roger_journal.h"
 #include "sci/roger/roger_input.h"
-#include "sci/roger/roger_tune_panel.h"
+#include "sci/roger/utils/tunepanel/roger_tune_panel.h" // quarantined dev utility (F12 tune panel)
 #include "common/array.h"
 #include "common/str.h"
 #include "common/path.h"

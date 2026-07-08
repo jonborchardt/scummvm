@@ -1,6 +1,6 @@
 #include <cxxtest/TestSuite.h>
 #include "common/util.h"
-#include "engines/sci/roger/roger_tune_panel.h"
+#include "engines/sci/roger/utils/tunepanel/roger_tune_panel.h"
 #include "engines/sci/roger/roger_view_scaler.h"
 
 using namespace Sci::Roger;

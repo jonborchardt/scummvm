@@ -18,16 +18,28 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef SCI_ROGER_ROGER_TUNE_PANEL_H
-#define SCI_ROGER_ROGER_TUNE_PANEL_H
+#ifndef SCI_ROGER_UTILS_TUNEPANEL_ROGER_TUNE_PANEL_H
+#define SCI_ROGER_UTILS_TUNEPANEL_ROGER_TUNE_PANEL_H
 
-// DEBUG TOOL — the in-game quick-tune panel (F12), spec
+// TUNE PANEL (kept dev utility, quarantined 2026-07-07) — the in-game
+// quick-tune debug dialog (F12 / Ctrl+Shift+T), spec
 // docs/superpowers/specs/2026-07-05-roger-tune-panel-design.md. Session-only
 // staged omyac pass edits behind Apply, plus view-scaler module selection
 // (registry-driven; a single module — the shipping 6x — is registered today,
 // so exactly one variant row shows). The MMPX judging this panel was built
 // for concluded 2026-07-06 (s2>s3 won); the panel stays as the pass-tuning
 // debug tool. Everything here is engine-free and unit-testable.
+//
+// QUARANTINE CONTRACT — see utils/tunepanel/README.md. The only permitted
+// references to utils/tunepanel/ are: the F12 integration block in
+// file_roger_art_provider.{h,cpp} (state member + draw/toggle/mouse glue),
+// engines/sci/module.mk, and build_tests.ps1's test registration
+// (test/sci/roger/test_tune_panel.h). Everything else — including
+// event.cpp's key/mouse routing — must go through the plain virtuals on the
+// abstract provider (roger_art_provider.h), which name no tunepanel types.
+// This module may only consume stable SCI-free roger seams
+// (roger_studio_render.h, roger_view_scaler.h, roger_coords.h) — never
+// provider/compositor internals, and never SCI engine state.
 //
 // All layout/hit-testing is in GAME space (320x200): the panel rect is fixed
 // so .rin scripts can click widgets at window-size-independent coordinates.
@@ -97,4 +109,4 @@ void drawTunePanel(Graphics::ManagedSurface &scene, const Common::Rect &gameRect
 } // namespace Roger
 } // namespace Sci
 
-#endif // SCI_ROGER_ROGER_TUNE_PANEL_H
+#endif // SCI_ROGER_UTILS_TUNEPANEL_ROGER_TUNE_PANEL_H

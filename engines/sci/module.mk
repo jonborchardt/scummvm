@@ -126,7 +126,7 @@ MODULE_OBJS += \
 	roger/roger_launcher_dialog.o \
 	roger/roger_selftest.o \
 	roger/roger_studio_render.o \
-	roger/roger_tune_panel.o \
+	roger/utils/tunepanel/roger_tune_panel.o \
 	roger/roger_studio.o \
 	roger/utils/eyeexam/roger_eyetest_search.o \
 	roger/utils/eyeexam/roger_eyetest.o \
