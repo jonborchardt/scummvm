@@ -222,7 +222,9 @@ void blendWipe(const Graphics::Surface &from, const Graphics::Surface &to,
 				threshold = 1.0f - (float)x / W;
 				break;
 			}
-			out.setPixel(x, y, (t >= threshold) ? to.getPixel(x, y) : from.getPixel(x, y));
+			// t > 0: the reveal-origin pixels have threshold exactly 0, which must
+			// still show 'from' at t=0 (endpoints exact, same contract as blendDissolve).
+			out.setPixel(x, y, (t > 0.0f && t >= threshold) ? to.getPixel(x, y) : from.getPixel(x, y));
 		}
 	}
 }
@@ -284,7 +286,8 @@ void blendSplitVertical(const Graphics::Surface &from, const Graphics::Surface &
 		for (int x = 0; x < out.w; x++) {
 			const float d = fabsf(2.0f * x / fW - 1.0f);
 			const float threshold = fromCenter ? d : 1.0f - d;
-			out.setPixel(x, y, (t >= threshold) ? to.getPixel(x, y) : from.getPixel(x, y));
+			// t > 0: threshold is exactly 0 where the reveal starts; t=0 must stay 'from'.
+			out.setPixel(x, y, (t > 0.0f && t >= threshold) ? to.getPixel(x, y) : from.getPixel(x, y));
 		}
 	}
 }
@@ -298,8 +301,9 @@ void blendSplitHorizontal(const Graphics::Surface &from, const Graphics::Surface
 	for (int y = 0; y < out.h; y++) {
 		const float d = fabsf(2.0f * y / fH - 1.0f);
 		const float threshold = fromCenter ? d : 1.0f - d;
+		// t > 0: threshold is exactly 0 where the reveal starts; t=0 must stay 'from'.
 		for (int x = 0; x < out.w; x++)
-			out.setPixel(x, y, (t >= threshold) ? to.getPixel(x, y) : from.getPixel(x, y));
+			out.setPixel(x, y, (t > 0.0f && t >= threshold) ? to.getPixel(x, y) : from.getPixel(x, y));
 	}
 }
 
@@ -316,7 +320,8 @@ void blendDiagonal(const Graphics::Surface &from, const Graphics::Surface &to,
 			const float dx = fabsf(2.0f * x / fW - 1.0f);
 			const float L = dx > dy ? dx : dy;  // Lâˆž norm from center
 			const float threshold = fromCenter ? L : 1.0f - L;
-			out.setPixel(x, y, (t >= threshold) ? to.getPixel(x, y) : from.getPixel(x, y));
+			// t > 0: threshold is exactly 0 where the reveal starts; t=0 must stay 'from'.
+			out.setPixel(x, y, (t > 0.0f && t >= threshold) ? to.getPixel(x, y) : from.getPixel(x, y));
 		}
 	}
 }

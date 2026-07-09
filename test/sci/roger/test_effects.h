@@ -225,11 +225,17 @@ public:
 		Graphics::Surface out;  out.create(16, 32, rgba);
 		uint8 a, r, g, b;
 
-		// Endpoints
+		// Endpoints (both variants; the toCenter edge row has threshold exactly 0 at t=0)
 		blendSplitHorizontal(*from, *to, out, 0.0f, true);
 		out.format.colorToARGB(out.getPixel(0, 0), a, r, g, b);
 		TS_ASSERT_EQUALS((int)r, 255); TS_ASSERT_EQUALS((int)b, 0);
 		blendSplitHorizontal(*from, *to, out, 1.0f, true);
+		out.format.colorToARGB(out.getPixel(0, 0), a, r, g, b);
+		TS_ASSERT_EQUALS((int)r, 0);   TS_ASSERT_EQUALS((int)b, 255);
+		blendSplitHorizontal(*from, *to, out, 0.0f, false);
+		out.format.colorToARGB(out.getPixel(0, 0), a, r, g, b);
+		TS_ASSERT_EQUALS((int)r, 255); TS_ASSERT_EQUALS((int)b, 0);
+		blendSplitHorizontal(*from, *to, out, 1.0f, false);
 		out.format.colorToARGB(out.getPixel(0, 0), a, r, g, b);
 		TS_ASSERT_EQUALS((int)r, 0);   TS_ASSERT_EQUALS((int)b, 255);
 
@@ -260,11 +266,18 @@ public:
 		Graphics::Surface out;  out.create(32, 32, rgba);
 		uint8 a, r, g, b;
 
-		// Endpoints: t=0 -> all from, t=1 -> all to
+		// Endpoints: t=0 -> all from, t=1 -> all to (both variants; the toCenter
+		// corner has threshold exactly 0 at t=0)
 		blendDiagonal(*from, *to, out, 0.0f, true);
 		out.format.colorToARGB(out.getPixel(0, 0), a, r, g, b);
 		TS_ASSERT_EQUALS((int)r, 255); TS_ASSERT_EQUALS((int)b, 0);
 		blendDiagonal(*from, *to, out, 1.0f, true);
+		out.format.colorToARGB(out.getPixel(0, 0), a, r, g, b);
+		TS_ASSERT_EQUALS((int)r, 0);   TS_ASSERT_EQUALS((int)b, 255);
+		blendDiagonal(*from, *to, out, 0.0f, false);
+		out.format.colorToARGB(out.getPixel(0, 0), a, r, g, b);
+		TS_ASSERT_EQUALS((int)r, 255); TS_ASSERT_EQUALS((int)b, 0);
+		blendDiagonal(*from, *to, out, 1.0f, false);
 		out.format.colorToARGB(out.getPixel(0, 0), a, r, g, b);
 		TS_ASSERT_EQUALS((int)r, 0);   TS_ASSERT_EQUALS((int)b, 255);
 
