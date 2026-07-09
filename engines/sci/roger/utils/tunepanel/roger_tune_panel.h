@@ -22,7 +22,7 @@
 #define SCI_ROGER_UTILS_TUNEPANEL_ROGER_TUNE_PANEL_H
 
 // TUNE PANEL (kept dev utility, quarantined 2026-07-07) — the in-game
-// quick-tune debug dialog (F12 / Ctrl+Shift+T), spec
+// quick-tune debug dialog (F12), spec
 // docs/superpowers/specs/2026-07-05-roger-tune-panel-design.md. Session-only
 // staged omyac pass edits behind Apply, plus view-scaler module selection
 // (registry-driven; a single module — the shipping 6x — is registered today,
@@ -59,6 +59,8 @@ namespace Roger {
 enum TuneWidKind {
 	kTuneNone = 0,
 	kTuneClose,
+	kTuneDisplayMode, // F10 mirror: click cycles enhanced/original/side-by-side
+	kTuneDebugLog,    // F11 mirror: click toggles per-frame Roger diagnostic logging
 	kTuneVariantRow, // index = viewScaler() registry index
 	kTuneChip,       // index = chip position in stagedPasses
 	kTuneChipX, kTuneChipLeft, kTuneChipRight,
@@ -71,6 +73,8 @@ enum TuneWidKind {
 struct TunePanelState {
 	bool open = false;
 	bool leftSide = false;            // panel docks right by default; kTuneSide flips
+	int displayMode = 0;              // F10 mirror: 0=enhanced 1=original 2=side-by-side
+	bool debugLog = false;            // F11 mirror: per-frame Roger diagnostic logging on
 	int variant = 0;                  // applied view-scaler preset index
 	Common::Array<int> stagedPasses;  // chip edits accumulate here (NOT applied)
 	Common::Array<int> appliedPasses; // last applied — pending marker compares

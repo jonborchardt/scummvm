@@ -42,10 +42,10 @@ cache is generated automatically; later launches load from the cache.
 
 In-game:
 
-- **F10** (or Ctrl+Shift+U) cycles display modes:
+- **F10** cycles display modes:
   **Enhanced** → **Original** (native 320×200) → **Side-by-Side** comparison.
-- **Ctrl+Shift+F** cycles the dialog/body font through a shortlist.
-- **Ctrl+Shift+[ ] / ; '** tune the enhancement passes live.
+- **F11** toggles per-frame Roger diagnostic logging.
+- **F12** opens the quick-tune debug panel (display-mode / log toggles, pass edits, view-scaler presets).
 
 See the [user documentation](../../../docs/roger.md) for the launcher,
 display modes, and every configuration knob.

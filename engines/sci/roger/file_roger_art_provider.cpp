@@ -2842,44 +2842,8 @@ void FileRogerArtProvider::toggleDebugLog() {
 	warning("ROGER: debug logging %s", _debugLog ? "ON" : "OFF");
 }
 
-// Period-appropriate body fonts, all shipping in ScummVM's fonts.dat. Ctrl+Shift+F
-// rotates through these live so candidates can be judged in-game; the header/menu
-// font stays config-only (roger_ui_header_font). See docs/roger.md.
-static const char *const kBodyFontShortlist[] = {
-	"ms_sans_serif.ttf",            // clean Win9x UI sans (period feel)
-	"LiberationSans-Regular.ttf",   // neutral sans
-	"NotoSans-Regular.ttf",         // neutral sans
-	"LiberationSerif-Regular.ttf",  // storybook / manual feel
-	"GoMono-Regular.ttf",           // DOS/terminal monospace (current default)
-	"LiberationMono-Regular.ttf",   // DOS/terminal monospace (Courier-metric)
-	"SourceCodeVariable-Roman.ttf", // monospace
-};
-static const int kBodyFontShortlistLen =
-	(int)(sizeof(kBodyFontShortlist) / sizeof(kBodyFontShortlist[0]));
-
-void FileRogerArtProvider::cycleBodyFont() {
-	_bodyFontIdx = (_bodyFontIdx + 1) % kBodyFontShortlistLen;
-	const char *next = kBodyFontShortlist[_bodyFontIdx];
-
-	int scale = 150;
-	if (ConfMan.hasKey("roger_ui_font_scale"))
-		scale = ConfMan.getInt("roger_ui_font_scale");
-
-	Roger::RogerTextRenderer *rebuilt = new Roger::RogerTextRenderer(Common::String(next));
-	rebuilt->setGlobalScale(scale);
-	delete _textRenderer;
-	_textRenderer = rebuilt;
-
-	warning("ROGER: body font -> '%s' (%d/%d)%s", next, _bodyFontIdx + 1,
-	        kBodyFontShortlistLen, _textRenderer->ttfLoaded() ? "" : " [FAILED -> bitmap fallback]");
-
-	// Redraw any open dialog/list with the new font, and restore the banner.
-	if (_haveScene) { markFullDirty(); presentBarrier(); }
-	reapplyStatus();
-}
-
 // ---------------------------------------------------------------------------
-// Live enhance-pass tuning helpers
+// Live enhance-pass tuning helpers (used by the F12 tune panel's Apply)
 // ---------------------------------------------------------------------------
 
 void FileRogerArtProvider::regenInPlace() {
@@ -2911,71 +2875,7 @@ void FileRogerArtProvider::regenInPlace() {
 	presentBarrier();
 }
 
-void FileRogerArtProvider::tuneEnhancePasses(int delta, int which) {
-	if (!_assetGen)
-		return;
-
-	// Map which Ã¢â€ â€™ pass int: 0(fill)Ã¢â€ â€™2, 1(line)Ã¢â€ â€™1, 2(all)Ã¢â€ â€™0
-	const int passType = (which == 0) ? 2 : (which == 1) ? 1 : 0;
-
-	// Count current passes by type.
-	const Common::Array<int> &cur = _assetGen->enhancePasses();
-	int fillCount = 0, lineCount = 0, allCount = 0;
-	for (uint i = 0; i < cur.size(); ++i) {
-		if (cur[i] == 2) fillCount++;
-		else if (cur[i] == 1) lineCount++;
-		else if (cur[i] == 0) allCount++;
-	}
-
-	// Apply delta to the targeted type, clamped to >= 0.
-	if (passType == 2) fillCount = MAX(0, fillCount + delta);
-	else if (passType == 1) lineCount = MAX(0, lineCount + delta);
-	else if (passType == 0) allCount  = MAX(0, allCount  + delta);
-
-	// Rebuild in canonical grouped order: fill (2), line (1), all (0).
-	Common::Array<int> newPasses;
-	for (int i = 0; i < fillCount; ++i) newPasses.push_back(2);
-	for (int i = 0; i < lineCount; ++i) newPasses.push_back(1);
-	for (int i = 0; i < allCount;  ++i) newPasses.push_back(0);
-	_assetGen->setEnhancePasses(newPasses);
-
-	// Tuning must generate in memory Ã¢â‚¬â€ avoid disk-cache churn. Switch out of
-	// prebuilt/cache mode if needed (the user can re-set roger_gen_mode to
-	// restore their preferred mode or call reloadGenConfig() to persist the
-	// chosen sequence).
-	if (_assetGen->mode() != Roger::kGenMemory)
-		_assetGen->setMode(Roger::kGenMemory); // tune in memory; never churn the disk cache (incl. kGenAlways)
-
-	// Log the active sequence unconditionally so tuning feedback is always visible
-	// (not gated on _debugLog).
-	debug("ROGER tuneEnhancePasses: fill=%d line=%d all=%d  (fill=pass2, line=pass1, all=pass0)",
-	      fillCount, lineCount, allCount);
-
-	regenInPlace();
-}
-
-void FileRogerArtProvider::reloadGenConfig() {
-	if (!_assetGen)
-		return;
-
-	// Re-parse roger_omyac_passes from ConfMan using the same three-state logic
-	// as the constructor. The user edits the config file and presses Ctrl+Shift+R.
-	_assetGen->setEnhancePasses(
-		Roger::effectivePasses(ConfMan.hasKey("roger_omyac_passes"),
-		                       ConfMan.hasKey("roger_omyac_passes") ? ConfMan.get("roger_omyac_passes") : "")
-	);
-
-	// Keep in a generating mode so the reload actually produces a new plate.
-	if (_assetGen->mode() != Roger::kGenMemory)
-		_assetGen->setMode(Roger::kGenMemory); // tune in memory; never churn the disk cache (incl. kGenAlways)
-
-	debug("ROGER reloadGenConfig: roger_omyac_passes re-read; passes count=%u",
-	      (unsigned)_assetGen->enhancePasses().size());
-
-	regenInPlace();
-}
-
-// Ã¢â€â‚¬Ã¢â€â‚¬ DEBUG TOOL: in-game quick-tune panel (spec 2026-07-05) Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+// -- DEBUG TOOL: in-game quick-tune panel (spec 2026-07-05) ------------------
 
 void FileRogerArtProvider::markTunePanelDirty() {
 	if (!_compositor)
@@ -2996,6 +2896,8 @@ void FileRogerArtProvider::toggleTunePanel() {
 		return;
 	_tunePanel.open = !_tunePanel.open;
 	if (_tunePanel.open) {
+		_tunePanel.displayMode = (int)_mode; // always enhanced here, but keep in sync
+		_tunePanel.debugLog = _debugLog;
 		_tunePanel.variant = _assetGen->viewVariant();
 		// enhancePasses() is always concrete here (the ctor seeds it from config).
 		_tunePanel.stagedPasses = _assetGen->enhancePasses();
@@ -3061,6 +2963,17 @@ bool FileRogerArtProvider::tunePanelMouse(bool buttonDown, const Common::Point &
 	const uint32 id = Roger::hitTestWidgets(_tuneWidgets, gamePos.x, gamePos.y);
 	switch (Roger::widKind(id)) {
 	case Roger::kTuneClose:     _tunePanel.open = false; break;
+	case Roger::kTuneDisplayMode:
+		// F10 mirror: cycle display mode. Leaving enhanced hides the panel
+		// (drawTunePanel is gated on kModeEnhanced); it reappears when F10
+		// cycles back. toggleOverlay() does its own present/dirty handling.
+		toggleOverlay();
+		_tunePanel.displayMode = (int)_mode;
+		return true;
+	case Roger::kTuneDebugLog:  // F11 mirror
+		toggleDebugLog();
+		_tunePanel.debugLog = _debugLog;
+		break;
 	case Roger::kTuneSide:
 		markTunePanelDirty(); // vacate the CURRENT side before flipping
 		_tunePanel.leftSide = !_tunePanel.leftSide;

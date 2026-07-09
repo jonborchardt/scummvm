@@ -247,18 +247,9 @@ public:
 	// No-op unless in side-by-side.
 	virtual void remapComparisonMouse(Common::Point &mousePos) {}
 
-	// Live enhance-pass tuning (roger_omyac generation): adjust the count of a
-	// pass type (which: 0=fill, 1=line, 2=all) by delta and regenerate in place.
-	virtual void tuneEnhancePasses(int delta, int which) {}
-	virtual void reloadGenConfig() {}
-
-	// Ctrl+Shift+F: rotate the dialog/body font through the in-engine shortlist and
-	// rebuild the body text renderer live (for judging fonts in-game). No-op in base.
-	virtual void cycleBodyFont() {}
-
 	// DEBUG TOOL — tune-panel provider seams (spec 2026-07-05). MMPX judging
 	// concluded 2026-07-06 (s2>s3 shipped); the panel is kept (no scheduled
-	// deletion). F12 / Ctrl+Shift+T toggles the in-game quick-tune panel;
+	// deletion). F12 toggles the in-game quick-tune panel;
 	// tunePanelMouse routes a button event at gamePos (320x200 game space) and
 	// returns true when the panel consumed it (event.cpp then swallows it so
 	// the game never sees clicks on the panel). No-ops in the base.

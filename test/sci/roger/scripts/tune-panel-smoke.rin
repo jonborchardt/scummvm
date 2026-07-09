@@ -4,9 +4,11 @@
 # Geometry locked by test_tune_panel.h::test_script_geometry_lock (panel rect,
 # variant row 0, preset rows 0/1, clear/apply). Ops-row clicks derive from the
 # same layout: +f center (278,165), +a center (306,165).
-# NOTE: preset-row and chip-strip click coordinates depend on the variant-row
-# count (rows flow down 11 px per registered scaler; presets sit between the
-# variants and the chips). Ops-row and clear/reset/apply clicks are
+# NOTE: the F10/F11 mirror rows (display mode at y=31, debug log at y=42) flow
+# above the variant rows, so the variant row now sits at y=53 and the preset
+# rows at y=66/77. Preset-row and chip-strip click coordinates also depend on
+# the variant-row count (rows flow down 11 px per registered scaler; presets sit
+# between the variants and the chips). Ops-row and clear/reset/apply clicks are
 # bottom-anchored and safe. Re-derive preset/chip coordinates if a second
 # scaler module ever registers.
 # Passes are STAGED via +f/+a rather than relying on Reset-to-config: a config
@@ -17,12 +19,12 @@ snap tune-baseline
 key f12
 wait 500
 snap tune-open
-click 273 31
+click 273 53
 wait 500
 snap tune-variant-6x
-# Known-good preset row 1 (273,55): stages + applies that pattern in one click
+# Known-good preset row 1 (273,77): stages + applies that pattern in one click
 # (regen in memory, so allow apply-scale settle time).
-click 273 55
+click 273 77
 wait 5000
 snap tune-preset-applied
 click 278 165

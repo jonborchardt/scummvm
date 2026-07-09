@@ -29,7 +29,7 @@ picture. This is a permanent decision, not a deferred feature.
 - Game data: `…\Space Quest Collection\sq3`
 - Roger art: `…\Space Quest Collection\sq3-roger` (sibling of the game dir)
 
-**F10** (or Ctrl+Shift+U) cycles three display modes: **Enhanced** (hires overlay) →
+**F10** cycles three display modes: **Enhanced** (hires overlay) →
 **Original** (native 320×200) → **Side-by-Side** → Enhanced. In side-by-side the **left
 panel shows the enhanced view** (backgrounds, upscaled cels, dialogs, live screen updates)
 and the **right panel is a passive native mirror** of the original pics, views, and
@@ -39,8 +39,8 @@ pointer over either panel, and clicks through either panel are remapped to game
 coordinates, so the game stays playable while comparing. The status banner and overlay
 follow the toggle.
 
-**F12** (or Ctrl+Shift+T) toggles the quick-tune panel (pass-tuning debug tool:
-session-only staged omyac pass edits behind Apply, plus view-scaler module selection
+**F12** toggles the quick-tune panel (pass-tuning debug tool:
+session-only staged omyac pass edits behind Apply, view-scaler module selection, and clickable rows mirroring the F10 display-mode and F11 diagnostic-log toggles,
 (a single module — the shipping 6x — is registered today)).
 
 The startup mode is `roger_display_mode` (default `enhanced`); for a single launch use
@@ -85,7 +85,7 @@ For each game, the launcher shows:
 - **Per-game settings** that update when a different game is selected:
   - **Pre-cache** (Off/Pictures/All) — controls what is generated on demand before launch
   - **Passes** (the raw `roger_omyac_passes` string, round-tripped verbatim to the ini; shows `ffflffaaaa` when the key is unset). Inis written by the old picker carry `roger_omyac_passes=2 1` (the old auto-written "balanced" default) — the Passes field shows it verbatim; edit it to `ffflffaaaa` (or delete the key) to get the current default.
-  - **Font** (cycles through the same shortlist as Ctrl+Shift+F in-game)
+  - **Font** (a shortlist of period-appropriate faces)
   - **Fallback** (hardware cursor / cursor size)
 
 The **Delete** button (right of the game list) removes the selected game from ScummVM's config.
@@ -105,8 +105,8 @@ All are optional `scummvm.ini` keys (only read when present).
 | `roger_omyac_passes` | unset (= `ffflffaaaa`) | enhance-pass list for the omyac pipeline. Canonical form is a compact character string, one char per pass: `f`=fill, `l`=line, `a`=all (digits `2`/`1`/`0` also accepted) — the default is `ffflffaaaa`. Legacy space/comma-separated tokens (`fill`/`f`/`2`, `line`/`l`/`1`, `all`/`a`/`0`) still parse. Unset = the default sequence; empty string = wireframe (zero passes); unknown tokens warn and are skipped. The launcher's Passes field shows and saves this string verbatim. Tunable live with Ctrl+Shift+[ ] / ; ' |
 | `roger_no_launcher` | off | skip the Roger game-picker dialog at startup (also env `ROGER_NO_LAUNCHER`; `build_and_run.ps1 -SkipPicker`, auto-set by `-Game`) |
 | `roger_ui_font_scale` | `150` | nudge multiplier (percent) on the native-metric text-size baseline; 100 = no nudge |
-| `roger_ui_font` | `GoMono-Regular.ttf` | dialog/body font (from ScummVM's `fonts.dat`); can be cycled live with Ctrl+Shift+F. Per-game: set it on a game target to give each game its own font |
-| `roger_ui_header_font` | `NotoSans-Regular.ttf` | header/menu/banner font (config + restart only; not affected by Ctrl+Shift+F) |
+| `roger_ui_font` | `GoMono-Regular.ttf` | dialog/body font (from ScummVM's `fonts.dat`). Per-game: set it on a game target to give each game its own font |
+| `roger_ui_header_font` | `NotoSans-Regular.ttf` | header/menu/banner font (config + restart only) |
 | `roger_hw_cursor` | `false` | opt back into the native hardware cursor (not visibly rendered over the overlay — experimental); `false` = Roger's composited arrow |
 | `roger_cursor_size` | `44` | composited-arrow size (applies with `roger_hw_cursor=false`, the default) |
 | `roger_dirty_present` | on | re-draw only changed regions each frame (dirty-rectangle present); off = full-region present |
@@ -150,7 +150,7 @@ Hires UI text size derives from each element's **native SCI font metrics** — t
 
 ### Body font shortlist
 
-Press **Ctrl+Shift+F** in-game to cycle the dialog/body font live through a seven-entry shortlist (good for in-game A/B judging). Cycle order:
+Set the dialog/body font via ``roger_ui_font`` (or the launcher's **Font** setting). The shortlist of period-appropriate faces:
 
 1. `ms_sans_serif.ttf` — clean Win9x UI sans
 2. `LiberationSans-Regular.ttf` — neutral sans

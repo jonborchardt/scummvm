@@ -80,12 +80,9 @@ public:
 	void onCursorHidden(bool hidden) override;
 	void onCursorView(int viewId, int loopNo, int celNo) override;
 	void remapComparisonMouse(Common::Point &mousePos) override;
-	void toggleOverlay() override;   // Ctrl+Shift+U: upscaled overlay <-> original native
-	void toggleDebugLog() override;  // Ctrl+Shift+L: per-frame Roger diagnostic logging
-	void tuneEnhancePasses(int delta, int which) override; // Ctrl+Shift+]/[ add/remove fill; '/; add/remove all
-	void reloadGenConfig() override; // Ctrl+Shift+R: re-read roger_omyac_passes from ConfMan
-	void cycleBodyFont() override; // Ctrl+Shift+F: rotate dialog font through the shortlist
-	void toggleTunePanel() override;  // F12 / Ctrl+Shift+T (debug tool Ã¢â‚¬â€ kept)
+	void toggleOverlay() override;   // F10: upscaled overlay <-> original native (display mode)
+	void toggleDebugLog() override;  // F11: per-frame Roger diagnostic logging
+	void toggleTunePanel() override;  // F12 (debug tool Ã¢â‚¬â€ kept)
 	bool tunePanelMouse(bool buttonDown, const Common::Point &gamePos) override;
 
 	// UI display-list capture (Roger hires dialogs) Ã¢â‚¬â€ see roger_art_provider.h.
@@ -135,7 +132,6 @@ private:
 	// Shared room-(re)entry body behind pushHiresBackground / ...AddTo /
 	// regenInPlace: generates from _picStack; does NOT touch the stack itself.
 	void pushHiresBackgroundInternal(GuiResourceId pictureId);
-	int _bodyFontIdx = -1; // index into the body-font shortlist (-1 = config/default font)
 	Roger::RogerCapabilities _caps;   // probed once on first room load; read-only after
 	bool _capsProbed = false;
 	Roger::CompareDisplayMode _mode = Roger::kModeEnhanced; // F10 cycles enhanced/original/side-by-side

@@ -99,18 +99,22 @@ public:
 		Common::Array<PanelWidget> w;
 		buildTunePanel(st, w);
 		// Clicks used by test/sci/roger/scripts/tune-panel-smoke.rin:
-		TS_ASSERT_EQUALS(widKind(hitTestWidgets(w, 273, 31)), (int)kTuneVariantRow);
-		TS_ASSERT_EQUALS(widIndex(hitTestWidgets(w, 273, 31)), 0);
+		// The F10/F11 mirror rows sit above the variants (top-flowing), so the
+		// variant/preset rows all shifted down 22 px vs the pre-mirror layout.
+		TS_ASSERT_EQUALS(widKind(hitTestWidgets(w, 273, 31)), (int)kTuneDisplayMode);
+		TS_ASSERT_EQUALS(widKind(hitTestWidgets(w, 273, 42)), (int)kTuneDebugLog);
+		TS_ASSERT_EQUALS(widKind(hitTestWidgets(w, 273, 53)), (int)kTuneVariantRow);
+		TS_ASSERT_EQUALS(widIndex(hitTestWidgets(w, 273, 53)), 0);
 		TS_ASSERT_EQUALS(widKind(hitTestWidgets(w, 244, 177)), (int)kTuneClear);
 		TS_ASSERT_EQUALS(widKind(hitTestWidgets(w, 274, 177)), (int)kTuneReset);
 		TS_ASSERT_EQUALS(widKind(hitTestWidgets(w, 303, 177)), (int)kTuneApply);
 		// Preset row coordinates flow below the variant rows, so (unlike the
 		// bottom-anchored rows) they move if a second scaler module registers â€”
 		// same caveat as the chip strip, documented in the smoke script.
-		TS_ASSERT_EQUALS(widKind(hitTestWidgets(w, 273, 44)), (int)kTunePreset);
-		TS_ASSERT_EQUALS(widIndex(hitTestWidgets(w, 273, 44)), 0);
-		TS_ASSERT_EQUALS(widKind(hitTestWidgets(w, 273, 55)), (int)kTunePreset);
-		TS_ASSERT_EQUALS(widIndex(hitTestWidgets(w, 273, 55)), 1);
+		TS_ASSERT_EQUALS(widKind(hitTestWidgets(w, 273, 66)), (int)kTunePreset);
+		TS_ASSERT_EQUALS(widIndex(hitTestWidgets(w, 273, 66)), 0);
+		TS_ASSERT_EQUALS(widKind(hitTestWidgets(w, 273, 77)), (int)kTunePreset);
+		TS_ASSERT_EQUALS(widIndex(hitTestWidgets(w, 273, 77)), 1);
 	}
 
 	// Known-good preset rows: one per goodPassPattern() registry entry, labeled
@@ -143,6 +147,40 @@ public:
 			if (widKind(w[i].id) != kTunePreset)
 				continue;
 			TS_ASSERT_EQUALS(w[i].on, widIndex(w[i].id) == 0);
+		}
+	}
+
+	// F10/F11 mirror rows: exactly one of each, the display-mode label follows
+	// the state's displayMode and the log row lights only while debugLog is set.
+	void test_mirror_rows() {
+		TunePanelState st;
+		Common::Array<PanelWidget> w;
+		buildTunePanel(st, w);
+		int modeRows = 0, logRows = 0;
+		for (uint i = 0; i < w.size(); i++) {
+			if (widKind(w[i].id) == kTuneDisplayMode) {
+				modeRows++;
+				TS_ASSERT(w[i].label.contains("enhanced")); // displayMode 0
+			}
+			if (widKind(w[i].id) == kTuneDebugLog) {
+				logRows++;
+				TS_ASSERT(!w[i].on);                 // debugLog false
+				TS_ASSERT(w[i].label.contains("off"));
+			}
+		}
+		TS_ASSERT_EQUALS(modeRows, 1);
+		TS_ASSERT_EQUALS(logRows, 1);
+
+		st.displayMode = 2; // side-by-side
+		st.debugLog = true;
+		buildTunePanel(st, w);
+		for (uint i = 0; i < w.size(); i++) {
+			if (widKind(w[i].id) == kTuneDisplayMode)
+				TS_ASSERT(w[i].label.contains("sbs"));
+			if (widKind(w[i].id) == kTuneDebugLog) {
+				TS_ASSERT(w[i].on);
+				TS_ASSERT(w[i].label.contains("on"));
+			}
 		}
 	}
 

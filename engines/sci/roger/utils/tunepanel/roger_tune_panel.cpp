@@ -64,6 +64,18 @@ void buildTunePanel(const TunePanelState &st, Common::Array<PanelWidget> &out) {
 	addTuneWidget(out, kTuneClose, 0, Common::Rect(x1 - 10, y, x1, y + 10), "x", false);
 	y += 12;
 
+	// F10 / F11 mirrored as clickable rows (the former keyboard-only toggles):
+	// display-mode cycle and per-frame diagnostic-log toggle. Top-flowing, above
+	// the variant rows. The mode row's label reflects the live display mode; the
+	// log row lights while logging is on.
+	static const char *const kModeShort[] = { "enhanced", "original", "sbs" };
+	addTuneWidget(out, kTuneDisplayMode, 0, Common::Rect(x0, y, x1, y + 10),
+	              Common::String::format("mode: %s", kModeShort[CLIP(st.displayMode, 0, 2)]), false);
+	y += 11;
+	addTuneWidget(out, kTuneDebugLog, 0, Common::Rect(x0, y, x1, y + 10),
+	              st.debugLog ? "log: on" : "log: off", st.debugLog);
+	y += 11;
+
 	// Variant rows (top-flowing): one per registered view-scaler module.
 	for (int i = 0; i < viewScalerCount(); i++) {
 		addTuneWidget(out, kTuneVariantRow, i, Common::Rect(x0, y, x1, y + 10),

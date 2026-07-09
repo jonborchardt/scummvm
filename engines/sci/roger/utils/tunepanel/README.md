@@ -2,7 +2,7 @@
 
 A quarantined dev utility: a mouse-driven, in-game debug dialog for tuning the
 OMYAC enhance-pass sequence and the view-scaler module while actually playing.
-Toggle it with **F12** (or **Ctrl+Shift+T**) in Enhanced display mode — a fixed
+Toggle it with **F12** in Enhanced display mode — a fixed
 90×184 game-space panel docks on the right (a `<`/`>` title button flips it to
 the left edge).
 
