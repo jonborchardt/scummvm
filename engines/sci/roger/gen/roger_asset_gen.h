@@ -26,6 +26,8 @@
 
 #include "common/str.h"
 #include "common/array.h"
+#include "common/hashmap.h"
+#include "common/hash-str.h"
 #include "sci/roger/gen/roger_omyac.h"
 #include "sci/roger/gen/roger_scale.h"
 
@@ -120,12 +122,21 @@ public:
 	RogerAssetGen(const Common::String &gameId,
 	              const Common::String &cacheDir,
 	              GenMode mode);
+	~RogerAssetGen(); // frees the in-memory generation cache
 
 	/**
 	 * Override the enhance-pass sequence fed to renderOmyac().
 	 * Empty array means "use defaultPasses()" (not "zero passes").
 	 */
 	void setEnhancePasses(const Common::Array<int> &passes);
+
+	// Session "nearest plate" mode (the pic-enhance A/B "before"): while set,
+	// plate generation returns the native pre-render replicated x6 with zero
+	// enhancement instead of running the omyac pipeline. Never reads or writes
+	// the disk cache; callers keep it kGenMemory (it is off-config by
+	// definition, same juggling as tuned passes).
+	void setPlateNearest(bool nearest) { _plateNearest = nearest; }
+	bool plateNearest() const { return _plateNearest; }
 	const Common::Array<int> &enhancePasses() const { return _passes; }
 	GenMode mode() const { return _mode; }
 	void setMode(GenMode m) { _mode = m; }
@@ -198,6 +209,13 @@ public:
 	 * Studio-only; never cached. Caller owns (->free() then delete).
 	 */
 	Graphics::Surface *generatePlateNearest(int id, uint32 &outMs);
+
+	// Pic-STACK nearest plate (see generatePlateStackWithIndex for stack
+	// semantics): the concatenated native pre-render replicated x6. The
+	// in-game "pic enhance: nearest" path (generatePlateCore delegates here
+	// while setPlateNearest is on) and the Studio's nearest slots share it.
+	// Memory-cached under kGenMemory; never touches the disk cache.
+	Graphics::Surface *generatePlateNearestStack(const Common::Array<int> &ids, uint32 &outMs);
 
 	/**
 	 * Generate a scale6x RGBA cel from the native GfxView cel.
@@ -273,12 +291,41 @@ private:
 	Graphics::Surface *generatePlateCore(const Common::Array<int> &ids, Common::Array<byte> &outIndex,
 	                                     Common::Array<byte> &outBackfill, uint32 &outMs);
 
+	// In-memory generation cache (kGenMemory only): plates (+ index/backfill
+	// side buffers) and priority bands, keyed by content hash + passes + params
+	// (nearest plates by content hash alone - passes/params don't touch them).
+	// Lets the debug tools' "pic enhance:" mode cycling reuse computed results
+	// instead of re-running omyac (~600 ms) per revisit. Bounded FIFO; surfaces
+	// owned by the cache (callers always receive copies).
+	struct MemPlate {
+		Graphics::Surface *plate = nullptr;
+		Common::Array<byte> index;
+		Common::Array<byte> backfill;
+	};
+	static const int kMemCacheCap = 6; // ~13 MB/plate entry, ~2 MB/prio entry
+	Common::String memKey(const char *transform, uint32 resourceHash) const; // cacheKey + params
+	const MemPlate *memPlateGet(const Common::String &key) const;
+	void memPlatePut(const Common::String &key, const Graphics::Surface &plate,
+	                 const Common::Array<byte> &index, const Common::Array<byte> &backfill);
+	Graphics::Surface *memPlateCopy(const MemPlate &e) const; // caller owns
+	typedef Common::HashMap<Common::String, MemPlate,
+	                        Common::CaseSensitiveString_Hash,
+	                        Common::CaseSensitiveString_EqualTo> MemPlateMap;
+	typedef Common::HashMap<Common::String, Common::Array<byte>,
+	                        Common::CaseSensitiveString_Hash,
+	                        Common::CaseSensitiveString_EqualTo> MemPrioMap;
+	MemPlateMap _memPlates;
+	Common::Array<Common::String> _memPlateOrder; // FIFO eviction order
+	MemPrioMap _memPrio;
+	Common::Array<Common::String> _memPrioOrder;
+
 	GenMode        _mode;
 	Common::String _gameId;
 	Common::String _cacheDir;
 	Common::Array<int> _passes; // empty => use defaultPasses() at generation time
 	OmyacParams _omyacParams; // default-constructed == today's constants
 	int _viewVariant = 0; // viewScaler registry index; 0 = shipping scale6x
+	bool _plateNearest = false; // pic-enhance "nearest" plate mode (session, debug tools)
 	// Shared tail for native-font glyph rendering: nearest-upscale 6x + palette->RGBA.
 	// `ck` is the transparent clear-key index. Caller owns.
 	Graphics::Surface *finishGlyphSurface(const IndexImage &idx, int penColor, byte ck);

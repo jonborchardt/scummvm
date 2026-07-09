@@ -72,6 +72,7 @@ enum TuneWidKind {
 
 // Number of selectable "view enhance" modes: every registered view-scaler plus
 // the synthetic nearest ("before") option, which is always the LAST index.
+// Thin wrappers over the neutral viewEnhanceMode* helpers (roger_view_scaler.h).
 int tuneViewModeCount();
 bool tuneViewModeIsNearest(int viewMode); // true when viewMode == the nearest slot
 
@@ -82,7 +83,8 @@ struct TunePanelState {
 	int viewMode = 0;                 // 0..N-1 = view-scaler registry idx; N = nearest
 	// Available "pic enhance" pass modes (seeded from the goodPassPattern
 	// registry; kTuneAdd appends the built sequence). picModeSel indexes it and
-	// drives the pic-enhance row label.
+	// drives the pic-enhance row label; picModeSel == picModes.size() selects
+	// the trailing "nearest" plate (see tunePicModeIsNearest).
 	Common::Array<Common::Array<int> > picModes;
 	int picModeSel = 0;
 	Common::Array<int> stagedPasses;  // the sequence being built (chips); NOT applied until Add/cycle
@@ -94,6 +96,16 @@ struct TunePanelState {
 bool tunePassesEqual(const Common::Array<int> &a, const Common::Array<int> &b);
 inline bool tunePending(const TunePanelState &st) {
 	return !tunePassesEqual(st.stagedPasses, st.appliedPasses);
+}
+
+// Pic-enhance cycle = the session mode list + a trailing "nearest" slot (the
+// zero-enhancement native plate) - the same trailing-nearest rule as the view
+// modes. picModeSel == picModes.size() selects nearest.
+inline int tunePicModeCount(const TunePanelState &st) {
+	return (int)st.picModes.size() + 1;
+}
+inline bool tunePicModeIsNearest(const TunePanelState &st) {
+	return st.picModeSel >= (int)st.picModes.size();
 }
 
 // Seed picModes from the goodPassPattern registry (best-first) if empty; a

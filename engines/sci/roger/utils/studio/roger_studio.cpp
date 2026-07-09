@@ -55,8 +55,15 @@ RogerStudio::RogerStudio(const Common::String &gameId)
 	: _gen(gameId, "", kGenMemory) {
 	_iniPasses = effectivePasses(ConfMan.hasKey("roger_omyac_passes"),
 	                             ConfMan.hasKey("roger_omyac_passes") ? ConfMan.get("roger_omyac_passes") : "");
+	// Pic-enhance mode list: the curated registry (best-first), with the
+	// ini-effective passes select-or-added so both slots open on the config.
+	for (int i = 0; i < goodPassPatternCount(); i++)
+		_picModes.push_back(parsePassString(goodPassPattern(i).compact));
+	const int iniSel = selectOrAddPicMode(_iniPasses);
+	_slots[0].picSel = _slots[1].picSel = iniSel;
 	_slots[0].passes = _iniPasses;
 	_slots[1].passes = _iniPasses;
+	_buildPasses = _iniPasses;
 #ifdef ENABLE_SCI
 	if (g_sci && g_sci->getResMan()) {
 		ResourceManager *resMan = g_sci->getResMan();
@@ -78,6 +85,29 @@ RogerStudio::RogerStudio(const Common::String &gameId)
 	if (d.viewId >= 0)
 		for (uint i = 0; i < _viewIds.size(); i++)
 			if (_viewIds[i] == d.viewId) { _viewIdx = (int)i; _loopNo = d.loopNo; _celNo = d.celNo; break; }
+}
+
+// Point picSel at the _picModes entry equal to `passes`, appending it as a
+// new mode when absent (the "add" contract, same as the tune panel's
+// tuneSelectOrAddMode). Returns the selected index.
+int RogerStudio::selectOrAddPicMode(const Common::Array<int> &passes) {
+	for (uint i = 0; i < _picModes.size(); i++)
+		if (passesEqual(_picModes[i], passes))
+			return (int)i;
+	_picModes.push_back(passes);
+	return (int)_picModes.size() - 1;
+}
+
+// Derive the render inputs from the slot's pic-enhance selection: the trailing
+// slot is the nearest plate (passes untouched - it has no pass list); a pass
+// mode loads its sequence and returns to the omyac pipeline.
+void RogerStudio::applyPicSel(Slot &slot) {
+	if (picSelIsNearest(slot.picSel)) {
+		slot.plateMode = kPlateNearestRef;
+	} else {
+		slot.plateMode = kPlateOmyac;
+		slot.passes = _picModes[slot.picSel];
+	}
 }
 
 RogerStudio::~RogerStudio() {
@@ -153,10 +183,11 @@ void RogerStudio::renderSlot(Slot &slot) {
 		IndexImage cel;
 		byte clearKey = 0;
 		if (_gen.nativeCelIndexImage(_viewIds[_viewIdx], _loopNo, _celNo, cel, clearKey)) {
-			// applyViewScalerTo6x lands every module on the 6x plate grid
-			// (exact-rational resample for non-6x factors) so the 1:1 blit
-			// below and the Diff view stay pixel-exact.
-			IndexImage scaled = applyViewScalerTo6x(slot.variant, cel, clearKey);
+			// applyViewEnhanceMode6x lands every mode on the 6x plate grid
+			// (registry modules via applyViewScalerTo6x, nearest via a plain
+			// exact-rational resample) so the 1:1 blit below and the Diff
+			// view stay pixel-exact.
+			IndexImage scaled = applyViewEnhanceMode6x(slot.viewMode, cel, clearKey);
 			Graphics::Surface *celSurf = _gen.surfaceFromIndex(scaled, clearKey);
 			if (celSurf) {
 				// Bottom-centre anchor at (_celX, _celY) native.
@@ -216,12 +247,19 @@ void RogerStudio::ensureGridCels() {
 	}
 	_gcW = cel.w; _gcH = cel.h;
 	for (int i = 0; i < gridTileCount(); i++) {
-		const int slot = gridPresetSlot(i);
-		if (slot < 0)
-			continue; // registry drift; tile stays empty
-		IndexImage scaled = applyViewScaler(slot, cel, clearKey);
-		_gcSurf[i] = _gen.surfaceFromIndex(scaled, clearKey);
-		_gcFactor[i] = viewScaler(slot).factor;
+		const int mode = gridPresetSlot(i);
+		if (mode < 0)
+			continue; // past the modes; tile stays empty
+		if (viewEnhanceModeIsNearest(mode)) {
+			// Nearest tile: plain 6x resample, no enhancement (the "before").
+			IndexImage scaled = resampleNearestExact(cel, cel.w * 6, cel.h * 6);
+			_gcSurf[i] = _gen.surfaceFromIndex(scaled, clearKey);
+			_gcFactor[i] = 6;
+		} else {
+			IndexImage scaled = applyViewScaler(mode, cel, clearKey);
+			_gcSurf[i] = _gen.surfaceFromIndex(scaled, clearKey);
+			_gcFactor[i] = viewScaler(mode).factor;
+		}
 	}
 	_gcView = viewId; _gcLoop = _loopNo; _gcCel = _celNo;
 #endif
@@ -250,7 +288,7 @@ Common::String RogerStudio::slotStamp(const Slot &slot) const {
 	if (slot.plateMode == kPlateNearestRef)
 		s += "-nref";
 	if (_showView)
-		s += Common::String("-") + viewScaler(slot.variant).id;
+		s += Common::String("-") + viewEnhanceModeId(slot.viewMode);
 	return s;
 }
 
@@ -536,7 +574,7 @@ void RogerStudio::drawGrid(const Common::Rect &area) {
 		_display->frameRect(tile, border);
 		const int slot = gridPresetSlot(i);
 		if (lf && slot >= 0)
-			lf->drawString(_display, viewScaler(slot).label,
+			lf->drawString(_display, viewEnhanceModeLabel(slot),
 			               tile.left + 4, tile.top + 2, tile.width() - 8, white);
 
 		if (!_gcSurf[i])
@@ -683,8 +721,9 @@ void RogerStudio::drawPanel() {
 	st.viewId = _viewIds.empty() ? -1 : _viewIds[_viewIdx];
 	st.loopNo = _loopNo; st.celNo = _celNo;
 	st.celX = _celX; st.celY = _celY;
-	st.variantName = viewScaler(s.variant).label;
-	st.plateNearest = s.plateMode == kPlateNearestRef;
+	st.viewEnhanceLabel = viewEnhanceModeLabel(s.viewMode);
+	st.picEnhanceLabel = picSelIsNearest(s.picSel)
+	                     ? Common::String("nearest") : omyacPassStamp(s.passes);
 	st.showView = _showView;
 	st.showBackfill = _showBackfill;
 	st.showGrid = _showGrid;
@@ -692,8 +731,10 @@ void RogerStudio::drawPanel() {
 	st.animMs = animSpeedMs(_animSpeedIdx);
 	st.activeSlot = _activeSlot;
 	st.displayMode = _displayMode;
-	st.selectedChip = _selectedChip;
-	st.passes = s.passes;
+	st.buildPasses = _buildPasses;
+	// "add" would change the active slot: it is on nearest, or its passes
+	// differ from the built sequence.
+	st.addPending = picSelIsNearest(s.picSel) || !passesEqual(_buildPasses, s.passes);
 	for (int i = 0; i < omyacParamCount(); i++)
 		st.paramValues.push_back(omyacParamGet(s.params, i));
 	buildStudioPanel(Common::Rect(0, 0, smallW, smallH - kStudioRowH), st, _widgets);
@@ -717,22 +758,20 @@ void RogerStudio::drawPanel() {
 		const char *hoverHelp = nullptr;
 		if (hk == kWidParamMinus || hk == kWidParamPlus || hk == kWidParamToggle) {
 			hoverHelp = omyacParamDesc(hi2).help;
+		} else if (hk == kWidViewEnhance) {
+			hoverHelp = "cycle the view-cel upscaler (scaler modules + nearest)";
+		} else if (hk == kWidPicEnhance) {
+			hoverHelp = "cycle the plate mode (known pass sequences + nearest)";
 		} else if (hk == kWidChipAddF) {
-			hoverHelp = "insert fill pass at caret";
+			hoverHelp = "append a fill pass to the built sequence";
 		} else if (hk == kWidChipAddL) {
-			hoverHelp = "insert line pass at caret";
+			hoverHelp = "append a line pass to the built sequence";
 		} else if (hk == kWidChipAddA) {
-			hoverHelp = "insert anti-alias pass at caret";
-		} else if (hk == kWidChipX) {
-			hoverHelp = "remove this pass";
-		} else if (hk == kWidChipLeft) {
-			hoverHelp = "move selected pass left";
-		} else if (hk == kWidChipRight) {
-			hoverHelp = "move selected pass right";
+			hoverHelp = "append an anti-alias pass to the built sequence";
 		} else if (hk == kWidChipClear) {
-			hoverHelp = "remove all passes (wireframe)";
-		} else if (hk == kWidChipReset) {
-			hoverHelp = "restore default pass list";
+			hoverHelp = "empty the built sequence (add -> wireframe)";
+		} else if (hk == kWidChipAdd) {
+			hoverHelp = "register the built sequence as a pic-enhance mode and use it";
 		} else if (hk == kWidShowBackfill) {
 			hoverHelp = "recolour hot pink the pixels nothing drew (backfilled)";
 		} else if (hk == kWidShowGrid) {
@@ -768,14 +807,18 @@ void RogerStudio::dispatchWidget(uint32 id) {
 	case kWidLoopNext: _loopNo++; _celNo = 0; invalidateCelOnly(); break; // clamped in renderSlot
 	case kWidCelPrev: _celNo = MAX(0, _celNo - 1); invalidateCelOnly(); break;
 	case kWidCelNext: _celNo++; invalidateCelOnly(); break;              // clamped in renderSlot
-	case kWidVariantCycle:
-		// One registered module today -> stays at 0; starts cycling again
-		// the moment a second module registers (non-6x factors land on
-		// the 6x plate grid via applyViewScalerTo6x).
-		s.variant = (s.variant + 1) % viewScalerCount();
-		invalidateActive(); break;
-	case kWidPlateMode:
-		s.plateMode = (s.plateMode == kPlateOmyac) ? kPlateNearestRef : kPlateOmyac;
+	case kWidViewEnhance:
+		// Cycle the view-enhance modes (registry scalers + trailing nearest).
+		// The cel recomposites over the cached plate: cel-only tier (the old
+		// variant cycle needlessly regenerated the plate - fixed here).
+		s.viewMode = (s.viewMode + 1) % viewEnhanceModeCount();
+		invalidateCelOnly(); break;
+	case kWidPicEnhance:
+		// Cycle the pic-enhance modes (shared pass-mode list + trailing
+		// nearest plate); the gen-level memory cache makes a revisited mode a
+		// copy instead of an omyac regen.
+		s.picSel = (s.picSel + 1) % picModeCount();
+		applyPicSel(s);
 		invalidateActive(); break;
 	case kWidShowView: _showView = !_showView; invalidateCelOnly(); break;
 	// Pink recolour happens at compose time over the cached plate -> cel-only tier.
@@ -783,8 +826,8 @@ void RogerStudio::dispatchWidget(uint32 id) {
 	// Grid is drawn at display time only -> redraw, no render regen.
 	case kWidShowGrid: _showGrid = !_showGrid; markDirty(); break;
 	case kWidFit: fitView(); break;
-	case kWidTabA: _activeSlot = 0; _selectedChip = -1; markDirty(); break;
-	case kWidTabB: _activeSlot = 1; _selectedChip = -1; markDirty(); break;
+	case kWidTabA: _activeSlot = 0; markDirty(); break;
+	case kWidTabB: _activeSlot = 1; markDirty(); break;
 	case kWidShowA: _displayMode = kShowA; _offsetReadout.clear(); markDirty(); break;
 	case kWidShowB: _displayMode = kShowB; _offsetReadout.clear(); markDirty(); break;
 	case kWidSplit: _displayMode = kShowSplit; _offsetReadout.clear(); markDirty(); break;
@@ -799,7 +842,8 @@ void RogerStudio::dispatchWidget(uint32 id) {
 	case kWidCopyAB: {
 		Slot &b = _slots[1];
 		b.params = _slots[0].params; b.passes = _slots[0].passes;
-		b.variant = _slots[0].variant; b.plateMode = _slots[0].plateMode;
+		b.picSel = _slots[0].picSel; b.plateMode = _slots[0].plateMode;
+		b.viewMode = _slots[0].viewMode;
 		b.stale = b.plateStale = true; // settings differ -> plate genuinely changes
 		_diffStale = true;
 		_status = "copied A settings to B";
@@ -815,17 +859,17 @@ void RogerStudio::dispatchWidget(uint32 id) {
 	case kWidParamToggle:
 		omyacParamSet(s.params, idx, omyacParamGet(s.params, idx) ? 0 : 1);
 		invalidateActive(); break;
-	case kWidChip: _selectedChip = idx; markDirty(); break;
-	case kWidChipX: { int sel = idx; passRemoveAt(s.passes, sel); _selectedChip = sel; invalidateActive(); break; }
-	case kWidChipLeft:  if (passMove(s.passes, _selectedChip, -1)) invalidateActive(); break;
-	case kWidChipRight: if (passMove(s.passes, _selectedChip, +1)) invalidateActive(); break;
-	case kWidChipAddF: passInsertAfter(s.passes, _selectedChip, 2); invalidateActive(); break;
-	case kWidChipAddL: passInsertAfter(s.passes, _selectedChip, 1); invalidateActive(); break;
-	case kWidChipAddA: passInsertAfter(s.passes, _selectedChip, 0); invalidateActive(); break;
-	case kWidChipClear:
-		s.passes.clear(); _selectedChip = -1; invalidateActive(); break;
-	case kWidChipReset:
-		s.passes = _iniPasses; _selectedChip = -1; invalidateActive(); break;
+	// Builder ops touch only the built sequence, never a render: display tier.
+	case kWidChipAddF: _buildPasses.push_back(2); markDirty(); break;
+	case kWidChipAddL: _buildPasses.push_back(1); markDirty(); break;
+	case kWidChipAddA: _buildPasses.push_back(0); markDirty(); break;
+	case kWidChipClear: _buildPasses.clear(); markDirty(); break;
+	case kWidChipAdd:
+		// Register the built sequence as a pic-enhance mode, select it in the
+		// active slot, and apply (the F12 panel's "add" contract).
+		s.picSel = selectOrAddPicMode(_buildPasses);
+		applyPicSel(s);
+		invalidateActive(); break;
 	default: break;
 	}
 }
@@ -855,7 +899,7 @@ void RogerStudio::exportShown() {
 			if (lf) {
 				const int slot = gridPresetSlot(i);
 				if (slot >= 0)
-					lf->drawString(&gridOut, viewScaler(slot).label,
+					lf->drawString(&gridOut, viewEnhanceModeLabel(slot),
 					               tx + kPad, ty + 2, tw - 2 * kPad, white);
 			}
 			const Common::Rect d(tx + kPad, ty + labelH + kPad,

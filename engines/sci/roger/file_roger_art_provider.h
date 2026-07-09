@@ -327,7 +327,7 @@ private:
 	bool _tuneModeRemembered = false;
 	void markTunePanelDirty();           // dirty ONLY the panel rect + presentBarrier arm
 	void tuneApplyViewMode();            // immediate: map _tunePanel.viewMode -> variant, flush ViewCache, full dirty
-	void tuneApplyStagedPasses();        // Add/cycle: setEnhancePasses + mode juggling + regenInPlace
+	void tuneApplyPicMode();             // Add/cycle: pass mode or nearest plate + mode juggling + regenInPlace
 
 	// Render each unique non-ASCII byte of `text` as a glyph surface from the game's
 	// SCI font (fontId, penColor), own it in _uiIcons, and append {byte,surface} to

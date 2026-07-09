@@ -60,6 +60,28 @@ public:
 		TS_ASSERT(tunePassesEqual(st.picModes[st.picModeSel], novel));
 	}
 
+	// Pic-enhance nearest: the cycle is the mode list + one trailing nearest
+	// slot; selecting it flips tunePicModeIsNearest and labels the row.
+	void test_pic_mode_nearest_slot() {
+		TunePanelState st;
+		tuneSeedPicModes(st);
+		TS_ASSERT_EQUALS(tunePicModeCount(st), (int)st.picModes.size() + 1);
+		TS_ASSERT(!tunePicModeIsNearest(st)); // sel 0 = a pass mode
+		st.picModeSel = (int)st.picModes.size();
+		TS_ASSERT(tunePicModeIsNearest(st));
+
+		Common::Array<PanelWidget> w;
+		buildTunePanel(st, w);
+		bool found = false;
+		for (uint i = 0; i < w.size(); i++) {
+			if (widKind(w[i].id) != kTunePicEnhance)
+				continue;
+			found = true;
+			TS_ASSERT(w[i].label.contains("nearest"));
+		}
+		TS_ASSERT(found);
+	}
+
 	// Layout invariants: every widget inside the panel rect; the three toggle
 	// rows and the build row (+f +l +a clear add) are present; one chip per
 	// staged pass, drawn non-interactive.

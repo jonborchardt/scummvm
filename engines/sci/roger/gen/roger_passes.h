@@ -76,11 +76,9 @@ Common::String omyacPassStamp(const Common::Array<int> &passes);
 //   hasKey=true, s tokens -> parsePassString(s)
 Common::Array<int> effectivePasses(bool hasKey, const Common::String &s);
 
-// Pass-list edit ops shared by the chip editors (tune panel, Studio). All keep
-// `selected` (the chip cursor, -1 = none) consistent with the mutated list.
-void passInsertAfter(Common::Array<int> &passes, int &selected, int passVal);
-void passRemoveAt(Common::Array<int> &passes, int &selected);
-bool passMove(Common::Array<int> &passes, int &selected, int dir); // dir in {-1,+1}
+// Element-wise equality of two pass lists (the pending/mode-match test both
+// debug tools' pass builders share).
+bool passesEqual(const Common::Array<int> &a, const Common::Array<int> &b);
 
 } // namespace Roger
 } // namespace Sci

@@ -43,9 +43,13 @@ follow the toggle.
 a `log:` row mirroring the F11 diagnostic-log toggle, a `view enhance:` toggle
 cycling the view-scaler modes (the shipping **6x (s2>s3)** and a plain
 **nearest** A/B "before"), a `pic enhance:` toggle cycling the available OMYAC
-pass modes, and a linear pass builder (`+f`/`+l`/`+a`/`clear`) whose **add**
-registers the built sequence as a new pic-enhance mode and applies it. Nothing
-is written to `scummvm.ini` or the generation cache.
+pass modes **plus a trailing `nearest`** (the unenhanced native plate), and a
+linear pass builder (`+f`/`+l`/`+a`/`clear`) whose **add** registers the built
+sequence as a new pic-enhance mode and applies it. Computed modes are
+memory-cached, so cycling back to one is instant. Nothing is written to
+`scummvm.ini` or the generation cache. The Roger Studio (`-Studio`) shares the
+same control language (`view enhance:` / `pic enhance:` / build row) per A/B
+slot.
 
 The startup mode is `roger_display_mode` (default `enhanced`); for a single launch use
 `build_and_run.ps1 -Mode enhanced|original|sbs` (env `ROGER_DISPLAY_MODE` — never touches

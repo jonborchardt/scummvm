@@ -31,12 +31,7 @@ namespace Sci {
 namespace Roger {
 
 bool tunePassesEqual(const Common::Array<int> &a, const Common::Array<int> &b) {
-	if (a.size() != b.size())
-		return false;
-	for (uint i = 0; i < a.size(); i++)
-		if (a[i] != b[i])
-			return false;
-	return true;
+	return passesEqual(a, b); // neutral helper in roger_passes
 }
 
 static void addTuneWidget(Common::Array<PanelWidget> &out, int kind, int index,
@@ -52,21 +47,21 @@ static void addTuneWidget(Common::Array<PanelWidget> &out, int kind, int index,
 }
 
 int tuneViewModeCount() {
-	return viewScalerCount() + 1; // registry scalers + the synthetic "nearest"
+	return viewEnhanceModeCount(); // registry scalers + the trailing "nearest"
 }
 
 bool tuneViewModeIsNearest(int viewMode) {
-	return viewMode >= viewScalerCount(); // last slot is nearest
+	return viewEnhanceModeIsNearest(viewMode);
 }
 
 static Common::String tuneViewModeLabel(int viewMode) {
-	if (tuneViewModeIsNearest(viewMode))
-		return "nearest";
-	return viewScaler(viewMode).label;
+	return viewEnhanceModeLabel(viewMode);
 }
 
 static Common::String tunePicModeLabel(const TunePanelState &st) {
-	if (st.picModeSel < 0 || st.picModeSel >= (int)st.picModes.size())
+	if (tunePicModeIsNearest(st))
+		return "nearest"; // the trailing zero-enhancement plate slot
+	if (st.picModeSel < 0)
 		return "-";
 	return omyacPassStamp(st.picModes[st.picModeSel]);
 }

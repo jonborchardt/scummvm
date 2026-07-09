@@ -84,33 +84,34 @@ enum WidKind {
 	kWidNone = 0,
 	kWidPicPrev, kWidPicNext, kWidViewPrev, kWidViewNext,
 	kWidLoopPrev, kWidLoopNext, kWidCelPrev, kWidCelNext,
-	kWidVariantCycle, kWidPlateMode, kWidShowView, kWidFit,
+	kWidViewEnhance, // cycles the view-enhance modes (registry scalers + nearest), applies
+	kWidPicEnhance,  // cycles the pic-enhance modes (pass modes + nearest plate), applies
+	kWidShowView, kWidFit,
 	kWidTabA, kWidTabB, kWidShowA, kWidShowB, kWidSplit, kWidDiff,
 	kWidCopyAB, kWidExport,
 	kWidParamMinus, kWidParamPlus, kWidParamToggle,   // indexed by param
-	kWidChip, kWidChipX,                              // indexed by chip
-	kWidChipLeft, kWidChipRight,
-	kWidChipAddF, kWidChipAddL, kWidChipAddA, kWidChipReset,
-	kWidChipClear,
+	kWidChipAddF, kWidChipAddL, kWidChipAddA,         // build: append fill/line/all
+	kWidChipClear,                                    // build: empty the sequence
+	kWidChipAdd,                                      // register built sequence as a pic mode + apply
 	kWidShowBackfill, kWidShowGrid,  // shared scene toggles (pink / pixel grid)
-	kWidGrid6,                       // 6-pipeline comparison grid display mode
+	kWidGrid6,                       // per-mode cel comparison grid display mode
 	kWidAnimPlay, kWidAnimSlower, kWidAnimFaster   // global cel playback
 };
 
 struct StudioPanelState {
 	int picId, viewId, loopNo, celNo;
 	int celX, celY;          // native coords for position readout @(x,y)
-	const char *variantName;
-	bool plateNearest;      // active slot's plate mode
+	Common::String viewEnhanceLabel; // active slot's view-enhance mode (scaler label / "nearest")
+	Common::String picEnhanceLabel;  // active slot's pic-enhance mode (pass stamp / "nearest")
 	bool showView;
 	int activeSlot;         // 0 = A, 1 = B
 	int displayMode;        // 0 ShowA, 1 ShowB, 2 Split, 3 Diff
-	int selectedChip;       // -1 = none
 	bool showBackfill;      // recolour fillNullPixels ("unfilled") pixels hot pink
 	bool showGrid;          // draw light plate-pixel grid when zoomed in
 	bool animPlaying = false;  // global cel playback running
 	int animMs = 150;          // current playback period (ms per cel)
-	Common::Array<int> passes;      // active slot's
+	bool addPending = false;   // "add" would change the active slot (highlight it)
+	Common::Array<int> buildPasses; // the sequence being built (display-only chips)
 	Common::Array<int> paramValues; // active slot's, omyacParamCount() entries
 };
 
@@ -139,11 +140,12 @@ bool estimateOffsetSAD(const byte *a, const byte *b, int w, int h, int radius,
 
 // â”€â”€ Grid mode + animation helpers (pure; unit-tested) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-// One comparison tile per registered view-scaler module (row-major 2x3 grid,
-// max 6 tiles). gridPresetSlot returns the viewScaler registry index for
-// tile 0..gridTileCount()-1, or -1 for tiles past the registry (left empty).
+// One comparison tile per view-enhance MODE - every registered scaler module
+// plus the trailing "nearest" (row-major 2x3 grid, max 6 tiles). gridPresetSlot
+// returns the view-enhance mode index for tile 0..gridTileCount()-1 (the last
+// in-range tile is nearest), or -1 for tiles past the modes (left empty).
 int gridPresetSlot(int tile);
-int gridTileCount(); // MIN(viewScalerCount(), 6)
+int gridTileCount(); // MIN(viewEnhanceModeCount(), 6)
 
 // Tile rect for the 2x3 grid inside `area`, 2 px gutters, row-major.
 Common::Rect gridTileRect(const Common::Rect &area, int tile);

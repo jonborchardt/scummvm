@@ -186,8 +186,8 @@ void buildStudioPanel(const Common::Rect &panel, const StudioPanelState &st,
 	c.text(Common::String::format("%d", st.celNo));
 	c.btn(">", widId(kWidCelNext));
 	c.text(Common::String::format("@(%d,%d)", st.celX, st.celY));
-	c.btn(Common::String::format("variant: %s", st.variantName), widId(kWidVariantCycle));
-	c.btn(st.plateNearest ? "plate: nearest" : "plate: omyac", widId(kWidPlateMode), st.plateNearest);
+	c.btn(Common::String("view enhance: ") + st.viewEnhanceLabel, widId(kWidViewEnhance));
+	c.btn(Common::String("pic enhance: ") + st.picEnhanceLabel, widId(kWidPicEnhance));
 	c.btn(st.showView ? "view: on" : "view: off", widId(kWidShowView), st.showView);
 	c.btn("Fit", widId(kWidFit));
 	c.newRow();
@@ -230,35 +230,25 @@ void buildStudioPanel(const Common::Rect &panel, const StudioPanelState &st,
 		c.newRow();
 	}
 
-	// Chip row
-	// The caret "^" (kWidNone, on=true so it draws highlighted) marks the
-	// insertion point: after the selected chip's x-button when selection is
-	// valid, else after the last chip's x-button (or right after the label
-	// when the list is empty).
-	const int caretAfter = (st.selectedChip >= 0 && st.selectedChip < (int)st.passes.size())
-	                       ? st.selectedChip
-	                       : (int)st.passes.size() - 1; // -1 = no chips
-	c.text("passes:");
-	if (st.passes.empty()) {
+	// Build row: display-only chips of the sequence being built (same linear
+	// builder as the F12 tune panel - no selection, no caret), then the ops
+	// on the same line: +f/+l/+a append, clear empties, "add" registers the
+	// built sequence as a new pic-enhance mode, selects it in the active slot,
+	// and applies. "add" highlights while it would change the active slot.
+	c.text("build:");
+	if (st.buildPasses.empty()) {
 		c.text("(none - wireframe)");
-		// Caret at end (after the empty-list label, before the nav buttons).
-		c.emit("^", kWidNone, true, false);
 	} else {
-		for (uint i = 0; i < st.passes.size(); i++) {
-			const char ch = st.passes[i] == 2 ? 'f' : st.passes[i] == 1 ? 'l' : 'a';
-			c.btn(Common::String::format("%c", ch), widId(kWidChip, (int)i), (int)i == st.selectedChip);
-			c.btn("x", widId(kWidChipX, (int)i));
-			if ((int)i == caretAfter)
-				c.emit("^", kWidNone, true, false);
+		for (uint i = 0; i < st.buildPasses.size(); i++) {
+			const char ch = st.buildPasses[i] == 2 ? 'f' : st.buildPasses[i] == 1 ? 'l' : 'a';
+			c.text(Common::String::format("%c", ch));
 		}
 	}
-	c.btn("<", widId(kWidChipLeft));
-	c.btn(">", widId(kWidChipRight));
 	c.btn("+f", widId(kWidChipAddF));
 	c.btn("+l", widId(kWidChipAddL));
 	c.btn("+a", widId(kWidChipAddA));
-	c.btn("Clear", widId(kWidChipClear));
-	c.btn("Reset", widId(kWidChipReset));
+	c.btn("clear", widId(kWidChipClear));
+	c.btn("add", widId(kWidChipAdd), st.addPending);
 }
 
 void diffMapRGBA(const byte *a, const byte *b, int w, int h, byte *out) {
@@ -322,10 +312,11 @@ bool estimateOffsetSAD(const byte *a, const byte *b, int w, int h, int radius,
 // â”€â”€ Grid mode + animation helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 int gridTileCount() {
-	return MIN(viewScalerCount(), 6);
+	return MIN(viewEnhanceModeCount(), 6); // registry scalers + trailing nearest
 }
 
 int gridPresetSlot(int tile) {
+	// Tile index == view-enhance mode index (the last in-range tile = nearest).
 	return (tile >= 0 && tile < gridTileCount()) ? tile : -1;
 }
 

@@ -138,33 +138,12 @@ Common::Array<int> effectivePasses(bool hasKey, const Common::String &s) {
 	return parsePassString(s);
 }
 
-void passInsertAfter(Common::Array<int> &passes, int &selected, int passVal) {
-	int at = (selected < 0 || selected >= (int)passes.size())
-	         ? (int)passes.size() : selected + 1;
-	passes.insert_at(at, passVal);
-	selected = at;
-}
-
-void passRemoveAt(Common::Array<int> &passes, int &selected) {
-	if (selected < 0 || selected >= (int)passes.size())
-		return;
-	passes.remove_at(selected);
-	if (passes.empty())
-		selected = -1;
-	else if (selected >= (int)passes.size())
-		selected = (int)passes.size() - 1;
-}
-
-bool passMove(Common::Array<int> &passes, int &selected, int dir) {
-	if (dir != -1 && dir != 1)
+bool passesEqual(const Common::Array<int> &a, const Common::Array<int> &b) {
+	if (a.size() != b.size())
 		return false;
-	if (selected < 0 || selected >= (int)passes.size())
-		return false;
-	const int to = selected + dir;
-	if (to < 0 || to >= (int)passes.size())
-		return false;
-	SWAP(passes[selected], passes[to]);
-	selected = to;
+	for (uint i = 0; i < a.size(); i++)
+		if (a[i] != b[i])
+			return false;
 	return true;
 }
 

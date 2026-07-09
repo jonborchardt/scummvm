@@ -66,6 +66,20 @@ IndexImage applyViewScaler(int i, const IndexImage &in, byte clearKey);
 // cel geometry plate-aligned).
 IndexImage applyViewScalerTo6x(int i, const IndexImage &in, byte clearKey);
 
+// -- View-enhance modes -------------------------------------------------------
+// The selectable "view enhance" cycle both debug tools share (F12 tune panel,
+// Roger Studio): every registered scaler module plus a trailing synthetic
+// "nearest" - plain no-enhancement upscale onto the 6x grid, the blocky
+// "before" for A/B comparison. Mode index in [0, viewScalerCount()]; the LAST
+// index is always nearest.
+int viewEnhanceModeCount();                 // viewScalerCount() + 1
+bool viewEnhanceModeIsNearest(int m);       // m >= viewScalerCount()
+const char *viewEnhanceModeLabel(int m);    // registry label, or "nearest"
+const char *viewEnhanceModeId(int m);       // registry id, or "nearest" (export stamps)
+// Registry modes route through applyViewScalerTo6x; nearest resamples straight
+// onto the 6x grid with no enhancement.
+IndexImage applyViewEnhanceMode6x(int m, const IndexImage &in, byte clearKey);
+
 // Exact-rational nearest resample: out(x,y) = in(x*in.w/outW, y*in.h/outH).
 // Brings a non-6x module result onto the 6x plate grid without the
 // truncated 8.8 fixed-point drift of ManagedSurface's blit scaler (the

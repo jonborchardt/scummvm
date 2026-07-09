@@ -28,10 +28,14 @@ kept afterwards as the standing pass-tuning tool.
   comparison (cache-bypassed by the generator). More scalers registering just
   adds more stops to the cycle.
 - **`pic enhance:` toggle**: one row that cycles the available OMYAC pass modes
-  and applies on click; the label shows the selected mode's compact string
-  (e.g. `ffffffflff`). The list is seeded from the `goodPassPattern()` registry
-  in `roger_passes.cpp` (curated, best-first — shared with the picker's
-  suggestion buttons and the Eye Exam seed) and grows via **add** (below).
+  **plus a trailing `nearest`** (the zero-enhancement native plate replicated
+  ×6 — the "before" for plate A/B) and applies on click; the label shows the
+  selected mode's compact string (e.g. `ffffffflff`) or `nearest`. The list is
+  seeded from the `goodPassPattern()` registry in `roger_passes.cpp` (curated,
+  best-first — shared with the picker's suggestion buttons and the Eye Exam
+  seed) and grows via **add** (below). Cycling is cheap to revisit: the
+  generator memory-caches plates + priority maps per mode (bounded FIFO,
+  kGenMemory only), so returning to a computed mode is a copy, not a regen.
 - **Pass chips**: DISPLAY-ONLY view of the sequence being built, one dim chip
   per pass (`f`/`l`/`a`), 7 per row. Not clickable.
 - **Build row** (bottom-anchored, one line): `+f` `+l` `+a` append a pass to the
@@ -42,11 +46,11 @@ kept afterwards as the standing pass-tuning tool.
 - **Status line** (bottom): compact pass stamp of the built sequence + `*`
   pending marker + last apply's regen wall-clock, e.g. `ffl * 812ms`.
 
-Everything is **session-only**: cycling `pic enhance:` off-config or adding a
-custom mode regenerates in memory (`kGenMemory`); returning to the config passes
-restores the prior gen mode. The ini and the generation disk cache are never
-written. `view enhance: nearest` and any non-zero view-scaler index likewise
-bypass the disk cache.
+Everything is **session-only**: cycling `pic enhance:` off-config (including
+`nearest`) or adding a custom mode regenerates in memory (`kGenMemory`);
+returning to the config passes restores the prior gen mode. The ini and the
+generation disk cache are never written. `view enhance: nearest` and any
+non-zero view-scaler index likewise bypass the disk cache.
 
 All layout and hit-testing are in **game space (320×200)** with a fixed panel
 rect and bottom-anchored button rows, so `.rin` automation clicks stay valid at

@@ -97,4 +97,28 @@ public:
 				                 in.pixels[(size_t)(y * 8 / 6) * 8 + (x * 8 / 6)]);
 		TS_ASSERT(sameImageVS(resampleNearestExact(in, 16, 16), scaleNearest(in, 2)));
 	}
+
+	// View-enhance modes: every registered scaler plus the trailing nearest.
+	// Registry modes route through applyViewScalerTo6x; nearest is a plain 6x
+	// nearest resample (blocky "before"), and every mode lands on the 6x grid.
+	void test_view_enhance_modes() {
+		TS_ASSERT_EQUALS(viewEnhanceModeCount(), viewScalerCount() + 1);
+		TS_ASSERT(!viewEnhanceModeIsNearest(0));
+		TS_ASSERT(viewEnhanceModeIsNearest(viewScalerCount()));
+		TS_ASSERT_EQUALS(strcmp(viewEnhanceModeLabel(viewScalerCount()), "nearest"), 0);
+		TS_ASSERT_EQUALS(strcmp(viewEnhanceModeId(viewScalerCount()), "nearest"), 0);
+		TS_ASSERT_EQUALS(strcmp(viewEnhanceModeLabel(0), viewScaler(0).label), 0);
+		TS_ASSERT_EQUALS(strcmp(viewEnhanceModeId(0), viewScaler(0).id), 0);
+
+		IndexImage in = synthImgVS(5, 4);
+		for (int m = 0; m < viewEnhanceModeCount(); m++) {
+			IndexImage out = applyViewEnhanceMode6x(m, in, 0xFF);
+			TS_ASSERT_EQUALS(out.w, in.w * 6);
+			TS_ASSERT_EQUALS(out.h, in.h * 6);
+		}
+		// Mode 0 == the shipping scaler; the nearest mode == scaleNearest x6.
+		TS_ASSERT(sameImageVS(applyViewEnhanceMode6x(0, in, 0xFF), scale6x(in)));
+		TS_ASSERT(sameImageVS(applyViewEnhanceMode6x(viewScalerCount(), in, 0xFF),
+		                      scaleNearest(in, 6)));
+	}
 };

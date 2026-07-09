@@ -2855,6 +2855,8 @@ void FileRogerArtProvider::toggleTunePanel() {
 		_tunePanel.appliedPasses = _tunePanel.stagedPasses;
 		Roger::tuneSeedPicModes(_tunePanel);                            // registry modes (once per session)
 		Roger::tuneSelectOrAddMode(_tunePanel, _tunePanel.stagedPasses); // reflect the applied config
+		if (_assetGen->plateNearest()) // nearest survives a close/reopen
+			_tunePanel.picModeSel = (int)_tunePanel.picModes.size();
 		_tunePanel.hoverId = 0;
 		Roger::buildTunePanel(_tunePanel, _tuneWidgets);
 	}
@@ -2884,22 +2886,34 @@ void FileRogerArtProvider::tuneApplyViewMode() {
 	markFullDirty();
 }
 
-void FileRogerArtProvider::tuneApplyStagedPasses() {
-	if (!_assetGen || Roger::tunePassesEqual(_tunePanel.stagedPasses, _tunePanel.appliedPasses))
-		return; // Apply with nothing pending is a no-op
-	_assetGen->setEnhancePasses(_tunePanel.stagedPasses);
+void FileRogerArtProvider::tuneApplyPicMode() {
+	if (!_assetGen)
+		return;
+	const bool nearest = Roger::tunePicModeIsNearest(_tunePanel);
+	const bool wasNearest = _assetGen->plateNearest();
+	// A pass-mode slot loads its sequence into the staged list (the nearest
+	// slot has no pass list and leaves the builder alone).
+	if (!nearest && _tunePanel.picModeSel >= 0 && _tunePanel.picModeSel < (int)_tunePanel.picModes.size())
+		_tunePanel.stagedPasses = _tunePanel.picModes[_tunePanel.picModeSel];
+	const bool passesChanged = Roger::tunePending(_tunePanel);
+	if (nearest == wasNearest && !passesChanged)
+		return; // nothing to regenerate
+	_assetGen->setPlateNearest(nearest);
+	if (passesChanged)
+		_assetGen->setEnhancePasses(_tunePanel.stagedPasses);
+	// Mode juggling: nearest or off-config passes generate in memory - never
+	// churn the disk cache. Back at the launch config (and not nearest):
+	// restore the pre-tuning mode so room loads return to cache speed.
 	const Common::Array<int> configPasses =
 		Roger::effectivePasses(ConfMan.hasKey("roger_omyac_passes"),
 		                       ConfMan.hasKey("roger_omyac_passes") ? ConfMan.get("roger_omyac_passes") : "");
-	if (Roger::tunePassesEqual(_tunePanel.stagedPasses, configPasses)) {
-		// Back at the launch config: restore the pre-tuning mode so room loads
-		// return to cache speed. (The variant never flips the mode Ã¢â‚¬â€ spec Ã‚Â§3.)
+	const bool offConfig = nearest || !Roger::tunePassesEqual(_tunePanel.stagedPasses, configPasses);
+	if (!offConfig) {
 		if (_tuneModeRemembered) {
 			_assetGen->setMode(_tunePreTuneMode);
 			_tuneModeRemembered = false;
 		}
 	} else if (_assetGen->mode() != Roger::kGenMemory) {
-		// Tuned passes must generate in memory Ã¢â‚¬â€ never churn the disk cache.
 		_tunePreTuneMode = _assetGen->mode();
 		_tuneModeRemembered = true;
 		_assetGen->setMode(Roger::kGenMemory);
@@ -2908,7 +2922,8 @@ void FileRogerArtProvider::tuneApplyStagedPasses() {
 	regenInPlace();
 	_tunePanel.lastGenMs = g_system->getMillis() - t0;
 	_tunePanel.appliedPasses = _tunePanel.stagedPasses;
-	debug("ROGER tunePanel: applied %u passes in %ums",
+	debug("ROGER tunePanel: applied %s (%u passes) in %ums",
+	      nearest ? "nearest" : "pass mode",
 	      (unsigned)_tunePanel.appliedPasses.size(), _tunePanel.lastGenMs);
 }
 
@@ -2934,12 +2949,9 @@ bool FileRogerArtProvider::tunePanelMouse(bool buttonDown, const Common::Point &
 		_tunePanel.viewMode = (_tunePanel.viewMode + 1) % Roger::tuneViewModeCount();
 		tuneApplyViewMode();
 		break;
-	case Roger::kTunePicEnhance:  // cycle the available pass modes; load + apply
-		if (!_tunePanel.picModes.empty()) {
-			_tunePanel.picModeSel = (_tunePanel.picModeSel + 1) % (int)_tunePanel.picModes.size();
-			_tunePanel.stagedPasses = _tunePanel.picModes[_tunePanel.picModeSel];
-			tuneApplyStagedPasses();
-		}
+	case Roger::kTunePicEnhance:  // cycle pass modes + trailing nearest; apply
+		_tunePanel.picModeSel = (_tunePanel.picModeSel + 1) % Roger::tunePicModeCount(_tunePanel);
+		tuneApplyPicMode();
 		break;
 	case Roger::kTuneChipAddF:  _tunePanel.stagedPasses.push_back(2); break; // append fill
 	case Roger::kTuneChipAddL:  _tunePanel.stagedPasses.push_back(1); break; // append line
@@ -2947,7 +2959,7 @@ bool FileRogerArtProvider::tunePanelMouse(bool buttonDown, const Common::Point &
 	case Roger::kTuneClear:     _tunePanel.stagedPasses.clear(); break;
 	case Roger::kTuneAdd: // register the built sequence as a pic-enhance mode + apply
 		Roger::tuneSelectOrAddMode(_tunePanel, _tunePanel.stagedPasses);
-		tuneApplyStagedPasses();
+		tuneApplyPicMode();
 		break;
 	default: break; // display-only chip / panel background: consumed, no action
 	}

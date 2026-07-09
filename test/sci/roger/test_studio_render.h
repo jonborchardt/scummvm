@@ -77,35 +77,15 @@ public:
 		TS_ASSERT_EQUALS(other.celY, 150);
 	}
 
-	void test_pass_list_ops() {
-		Common::Array<int> p; // empty
-		int sel = -1;
-		passInsertAfter(p, sel, 2);          // [f], sel 0
-		TS_ASSERT_EQUALS(p.size(), 1u);
-		TS_ASSERT_EQUALS(sel, 0);
-		passInsertAfter(p, sel, 1);          // [f l], sel 1
-		passInsertAfter(p, sel, 0);          // [f l a], sel 2
-		TS_ASSERT_EQUALS(p[0], 2); TS_ASSERT_EQUALS(p[1], 1); TS_ASSERT_EQUALS(p[2], 0);
-		sel = 0;
-		passInsertAfter(p, sel, 2);          // [f f l a], sel 1
-		TS_ASSERT_EQUALS(sel, 1);
-		TS_ASSERT_EQUALS(p[1], 2);
-		TS_ASSERT(passMove(p, sel, +1));     // [f l f a], sel 2
-		TS_ASSERT_EQUALS(sel, 2);
-		TS_ASSERT_EQUALS(p[2], 2);
-		TS_ASSERT(!passMove(p, sel, +2));    // invalid dir -> no-op? dir is -1/+1 only; +2 out of contract
-		sel = (int)p.size() - 1;
-		TS_ASSERT(!passMove(p, sel, +1));    // at right end -> false
-		passRemoveAt(p, sel);                // remove last, sel pulls back
-		TS_ASSERT_EQUALS(p.size(), 3u);
-		TS_ASSERT_EQUALS(sel, 2);
-		sel = 5;                             // out of range -> no-op
-		passRemoveAt(p, sel);
-		TS_ASSERT_EQUALS(p.size(), 3u);
-		sel = 0;
-		passRemoveAt(p, sel); passRemoveAt(p, sel); passRemoveAt(p, sel);
-		TS_ASSERT(p.empty());
-		TS_ASSERT_EQUALS(sel, -1);           // empty list -> no selection
+	void test_passes_equal() {
+		Common::Array<int> a, b;
+		TS_ASSERT(passesEqual(a, b));        // both empty
+		a.push_back(2);
+		TS_ASSERT(!passesEqual(a, b));       // size differs
+		b.push_back(2);
+		TS_ASSERT(passesEqual(a, b));
+		a.push_back(1); b.push_back(0);
+		TS_ASSERT(!passesEqual(a, b));       // element differs
 	}
 
 	void test_v2_export_names() {
@@ -121,15 +101,15 @@ public:
 		StudioPanelState st;
 		st.picId = 2; st.viewId = 12; st.loopNo = 1; st.celNo = 0;
 		st.celX = 160; st.celY = 150;
-		st.variantName = "s2>s3 6x (ship)";
-		st.plateNearest = false;
+		st.viewEnhanceLabel = "6x (s2>s3)";
+		st.picEnhanceLabel = "ffl";
 		st.showView = true;
 		st.activeSlot = 0;
 		st.displayMode = 0;
-		st.selectedChip = 1;
 		st.showBackfill = true;
 		st.showGrid = false;
-		st.passes.push_back(2); st.passes.push_back(2); st.passes.push_back(1);
+		st.addPending = true;
+		st.buildPasses.push_back(2); st.buildPasses.push_back(2); st.buildPasses.push_back(1);
 		OmyacParams p;
 		for (int i = 0; i < omyacParamCount(); i++)
 			st.paramValues.push_back(omyacParamGet(p, i));
@@ -153,11 +133,11 @@ public:
 		static const int MUST[] = {
 			kWidPicPrev, kWidPicNext, kWidViewPrev, kWidViewNext,
 			kWidLoopPrev, kWidLoopNext, kWidCelPrev, kWidCelNext,
-			kWidVariantCycle, kWidPlateMode, kWidShowView, kWidFit,
+			kWidViewEnhance, kWidPicEnhance, kWidShowView, kWidFit,
 			kWidTabA, kWidTabB, kWidShowA, kWidShowB, kWidSplit, kWidDiff,
-			kWidCopyAB, kWidExport, kWidChipLeft, kWidChipRight,
-			kWidChipAddF, kWidChipAddL, kWidChipAddA, kWidChipReset,
-			kWidChipClear, kWidShowBackfill, kWidShowGrid };
+			kWidCopyAB, kWidExport,
+			kWidChipAddF, kWidChipAddL, kWidChipAddA,
+			kWidChipClear, kWidChipAdd, kWidShowBackfill, kWidShowGrid };
 		for (uint m = 0; m < ARRAYSIZE(MUST); m++) {
 			bool found = false;
 			for (uint i = 0; i < w.size(); i++)
@@ -177,14 +157,22 @@ public:
 		TS_ASSERT_EQUALS(minus, intParams);
 		TS_ASSERT_EQUALS(plus, intParams);
 		TS_ASSERT_EQUALS(toggles, boolParams);
-		// Chips: one kWidChip + one kWidChipX per pass.
-		int chips = 0, xs = 0;
+		// Build chips are DISPLAY-ONLY (kWidNone texts, one per built pass:
+		// buildPasses ffl -> two "f" texts + one "l"); "add" highlights while
+		// pending; the toggle rows carry their labels.
+		int chipF = 0, chipL = 0;
+		bool addOn = false, viewLbl = false, picLbl = false;
 		for (uint i = 0; i < w.size(); i++) {
-			if (widKind(w[i].id) == kWidChip) chips++;
-			if (widKind(w[i].id) == kWidChipX) xs++;
+			if (w[i].id == (uint32)kWidNone && w[i].label == "f") chipF++;
+			if (w[i].id == (uint32)kWidNone && w[i].label == "l") chipL++;
+			if (widKind(w[i].id) == kWidChipAdd) addOn = w[i].on;
+			if (widKind(w[i].id) == kWidViewEnhance && w[i].label.contains("6x (s2>s3)")) viewLbl = true;
+			if (widKind(w[i].id) == kWidPicEnhance && w[i].label.contains("ffl")) picLbl = true;
 		}
-		TS_ASSERT_EQUALS(chips, 3);
-		TS_ASSERT_EQUALS(xs, 3);
+		TS_ASSERT_EQUALS(chipF, 2);
+		TS_ASSERT_EQUALS(chipL, 1);
+		TS_ASSERT(addOn); // samplePanelState sets addPending
+		TS_ASSERT(viewLbl && picLbl);
 		// Geometry: inside panel; enabled widgets pairwise non-overlapping.
 		for (uint i = 0; i < w.size(); i++) {
 			TS_ASSERT(w[i].rect.left >= panel.left && w[i].rect.top >= panel.top);
@@ -292,86 +280,24 @@ public:
 
 	// â”€â”€ New tests for polish wave â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-	void test_chip_caret_with_selection() {
-		// selectedChip=1, 3 passes: caret must appear immediately after chip 1's
-		// x-button (i.e. left >= that button's right) and before chip 2's rect.
-		const Common::Rect panel(0, 0, 1400, 280);
-		Common::Array<PanelWidget> w;
-		buildStudioPanel(panel, samplePanelState(), w);
-
-		// Find chip 1's x-button rect.
-		int xBtnRight = -1;
-		for (uint i = 0; i < w.size(); i++) {
-			if (widKind(w[i].id) == kWidChipX && widIndex(w[i].id) == 1)
-				xBtnRight = w[i].rect.right;
-		}
-		TS_ASSERT(xBtnRight >= 0); // chip 1 x-button must exist
-
-		// Find chip 2's rect left.
-		int chip2Left = 99999;
-		for (uint i = 0; i < w.size(); i++) {
-			if (widKind(w[i].id) == kWidChip && widIndex(w[i].id) == 2)
-				chip2Left = w[i].rect.left;
-		}
-		TS_ASSERT(chip2Left < 99999); // chip 2 must exist
-
-		// Caret: exactly one kWidNone widget with label "^" in the chip row.
-		int caretCount = 0;
-		int caretLeft = -1;
-		for (uint i = 0; i < w.size(); i++) {
-			if (w[i].id == (uint32)kWidNone && w[i].label == "^") {
-				caretCount++;
-				caretLeft = w[i].rect.left;
-			}
-		}
-		TS_ASSERT_EQUALS(caretCount, 1);
-		// Caret sits between x-button and next chip.
-		TS_ASSERT(caretLeft >= xBtnRight);
-		TS_ASSERT(caretLeft < chip2Left);
-		// Caret must be inside the panel.
-		for (uint i = 0; i < w.size(); i++) {
-			if (w[i].id == (uint32)kWidNone && w[i].label == "^") {
-				TS_ASSERT(w[i].rect.left >= panel.left && w[i].rect.right <= panel.right);
-				TS_ASSERT(w[i].rect.top >= panel.top && w[i].rect.bottom <= panel.bottom);
-			}
-		}
-	}
-
-	void test_chip_caret_no_selection() {
-		// selectedChip = -1: caret sits after the last chip's x-button.
+	// Empty builder: the "(none - wireframe)" placeholder shows and no chip
+	// texts are emitted; add stays clickable.
+	void test_build_row_empty() {
 		const Common::Rect panel(0, 0, 1400, 280);
 		StudioPanelState st = samplePanelState();
-		st.selectedChip = -1; // no selection
+		st.buildPasses.clear();
+		st.addPending = false;
 		Common::Array<PanelWidget> w;
 		buildStudioPanel(panel, st, w);
-
-		// Find the last chip x-button (index 2).
-		int lastXRight = -1;
+		bool placeholder = false, addFound = false, addOn = true;
 		for (uint i = 0; i < w.size(); i++) {
-			if (widKind(w[i].id) == kWidChipX && widIndex(w[i].id) == (int)st.passes.size() - 1)
-				lastXRight = w[i].rect.right;
+			if (w[i].id == (uint32)kWidNone && w[i].label.contains("wireframe"))
+				placeholder = true;
+			if (widKind(w[i].id) == kWidChipAdd) { addFound = true; addOn = w[i].on; }
 		}
-		TS_ASSERT(lastXRight >= 0);
-
-		// Find the kWidChipLeft nav button.
-		int navLeft = 99999;
-		for (uint i = 0; i < w.size(); i++) {
-			if (widKind(w[i].id) == kWidChipLeft)
-				navLeft = w[i].rect.left;
-		}
-		TS_ASSERT(navLeft < 99999);
-
-		int caretCount = 0;
-		int caretLeft = -1;
-		for (uint i = 0; i < w.size(); i++) {
-			if (w[i].id == (uint32)kWidNone && w[i].label == "^") {
-				caretCount++;
-				caretLeft = w[i].rect.left;
-			}
-		}
-		TS_ASSERT_EQUALS(caretCount, 1);
-		TS_ASSERT(caretLeft >= lastXRight);
-		TS_ASSERT(caretLeft < navLeft);
+		TS_ASSERT(placeholder);
+		TS_ASSERT(addFound);
+		TS_ASSERT(!addOn); // nothing pending
 	}
 
 	void test_all_params_have_nonempty_help() {
@@ -432,16 +358,20 @@ public:
 			}
 	}
 
-	// Grid tiles map 1:1 onto the scaler registry (max 6); tiles past the
-	// registry resolve to -1. Tile 0 is the shipping 6x module.
+	// Grid tiles map 1:1 onto the view-enhance modes (registry scalers +
+	// trailing nearest, max 6); tiles past the modes resolve to -1. Tile 0 is
+	// the shipping 6x module; the last in-range tile is nearest.
 	void test_grid_preset_slots() {
-		TS_ASSERT_EQUALS(gridTileCount(), MIN(viewScalerCount(), 6));
+		TS_ASSERT_EQUALS(gridTileCount(), MIN(viewEnhanceModeCount(), 6));
 		for (int i = 0; i < gridTileCount(); i++)
 			TS_ASSERT_EQUALS(gridPresetSlot(i), i);
 		TS_ASSERT_EQUALS(gridPresetSlot(gridTileCount()), -1);
 		TS_ASSERT_EQUALS(gridPresetSlot(-1), -1);
 		TS_ASSERT_EQUALS(strcmp(viewScaler(gridPresetSlot(0)).id, "s2-s3"), 0);
 		TS_ASSERT_EQUALS(viewScaler(gridPresetSlot(0)).factor, 6);
+		// With one registered scaler the grid finally shows a real comparison:
+		// tile 1 = nearest.
+		TS_ASSERT(viewEnhanceModeIsNearest(gridPresetSlot(gridTileCount() - 1)));
 	}
 
 	// Speed table + clamped stepping.
@@ -473,9 +403,10 @@ public:
 		StudioPanelState st;
 		st.picId = 1; st.viewId = 1; st.loopNo = 0; st.celNo = 0;
 		st.celX = 10; st.celY = 10;
-		st.variantName = "6x (s2>s3)";
-		st.plateNearest = false; st.showView = true;
-		st.activeSlot = 0; st.displayMode = 4; st.selectedChip = -1;
+		st.viewEnhanceLabel = "6x (s2>s3)";
+		st.picEnhanceLabel = "ffl";
+		st.showView = true;
+		st.activeSlot = 0; st.displayMode = 4;
 		st.showBackfill = false; st.showGrid = false;
 		st.animPlaying = true; st.animMs = 150;
 		Common::Array<PanelWidget> w;

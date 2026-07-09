@@ -107,6 +107,68 @@ RogerAssetGen::RogerAssetGen(const Common::String &gameId,
 	: _mode(mode), _gameId(gameId), _cacheDir(cacheDir) {
 }
 
+RogerAssetGen::~RogerAssetGen() {
+	for (MemPlateMap::iterator it = _memPlates.begin(); it != _memPlates.end(); ++it) {
+		if (it->_value.plate) {
+			it->_value.plate->free();
+			delete it->_value.plate;
+		}
+	}
+}
+
+// -------------------------------------------------------------------------
+// In-memory generation cache (kGenMemory) - see the header for the policy.
+// -------------------------------------------------------------------------
+
+// Compact serialization of the tunable omyac params for the memory-cache key.
+// The disk cacheKey() deliberately excludes params (the game never varies
+// them); the memory cache MUST include them or two Studio slots with the same
+// passes but different params would collide.
+static Common::String omyacParamsKey(const OmyacParams &p) {
+	return Common::String::format("p%d%d%d%d%d%d%d",
+		p.minVotesLine, p.minVotesFillAll, p.fillSuppressLineNeighbours,
+		p.endpointMaxSame, p.isolatedPixelPass ? 1 : 0,
+		p.tieBreakBlend ? 1 : 0, p.diagFlankSuppress ? 1 : 0);
+}
+
+Common::String RogerAssetGen::memKey(const char *transform, uint32 resourceHash) const {
+	return cacheKey(transform, resourceHash) + "." + omyacParamsKey(_omyacParams);
+}
+
+const RogerAssetGen::MemPlate *RogerAssetGen::memPlateGet(const Common::String &key) const {
+	MemPlateMap::const_iterator it = _memPlates.find(key);
+	return (it != _memPlates.end()) ? &it->_value : nullptr;
+}
+
+Graphics::Surface *RogerAssetGen::memPlateCopy(const MemPlate &e) const {
+	if (!e.plate)
+		return nullptr;
+	Graphics::Surface *copy = new Graphics::Surface();
+	copy->copyFrom(*e.plate);
+	return copy;
+}
+
+void RogerAssetGen::memPlatePut(const Common::String &key, const Graphics::Surface &plate,
+                                const Common::Array<byte> &index, const Common::Array<byte> &backfill) {
+	if (_memPlates.contains(key))
+		return; // only called after a miss; keep the first copy
+	while ((int)_memPlateOrder.size() >= kMemCacheCap) {
+		MemPlateMap::iterator it = _memPlates.find(_memPlateOrder[0]);
+		if (it != _memPlates.end()) {
+			if (it->_value.plate) { it->_value.plate->free(); delete it->_value.plate; }
+			_memPlates.erase(it);
+		}
+		_memPlateOrder.remove_at(0);
+	}
+	MemPlate e;
+	e.plate = new Graphics::Surface();
+	e.plate->copyFrom(plate);
+	e.index = index;
+	e.backfill = backfill;
+	_memPlates[key] = e;
+	_memPlateOrder.push_back(key);
+}
+
 void RogerAssetGen::setEnhancePasses(const Common::Array<int> &passes) {
 	_passes = passes;
 }
@@ -303,12 +365,28 @@ Graphics::Surface *RogerAssetGen::generatePlateCore(const Common::Array<int> &id
 		return nullptr;
 
 #ifdef ENABLE_SCI
+	// Nearest plate mode ("pic enhance: nearest"): the zero-enhancement
+	// reference. Index/backfill stay empty (no omyac ran); never disk-cached.
+	if (_plateNearest)
+		return generatePlateNearestStack(ids, outMs);
+
 	// Hash all contributing pics' raw bytes for the cache key.
 	uint32 hash = 0;
 	if (!hashPicStack(ids, hash))
 		return nullptr;
 	Common::String key = cacheKey("omyac", hash);
 	Common::String cachePath = _cacheDir + "/" + key + ".png";
+
+	// kGenMemory: serve from the in-memory cache first, so cycling the debug
+	// tools' pass modes back to a computed result is a copy, not an omyac run.
+	const Common::String mkey = memKey("omyac", hash);
+	if (_mode == kGenMemory) {
+		if (const MemPlate *hit = memPlateGet(mkey)) {
+			outIndex = hit->index;
+			outBackfill = hit->backfill;
+			return memPlateCopy(*hit); // outMs stays 0 (memory hit)
+		}
+	}
 
 	// kGenCache: check disk first. Index is NOT available from a PNG cache hit;
 	// outIndex stays empty so callers fall back to regeneration (Task 9 policy).
@@ -355,6 +433,9 @@ Graphics::Surface *RogerAssetGen::generatePlateCore(const Common::Array<int> &id
 		ensureCacheDir(_cacheDir);
 		dumpSurfacePng(*plate, cachePath);
 	}
+	// kGenMemory: remember the result (plate copy + side buffers) for mode cycling.
+	if (_mode == kGenMemory)
+		memPlatePut(mkey, *plate, outIndex, outBackfill);
 
 	return plate;
 #else
@@ -364,28 +445,42 @@ Graphics::Surface *RogerAssetGen::generatePlateCore(const Common::Array<int> &id
 }
 
 // -------------------------------------------------------------------------
-// generatePlateNearest â€” zero-shift reference plate for shift diagnosis.
-// The native 320x190 pre-render (NativeRef.refPixel) replicated x6 via
+// generatePlateNearest(Stack) â€” zero-shift reference plate ("pic enhance:
+// nearest"). The native pre-render (NativeRef.refPixel) replicated x6 via
 // nearest-neighbour: every native pixel maps to exactly one 6x6 block.
-// Studio-only; never cached; never reads or writes the disk cache.
+// Shared by the Studio's nearest slots and the in-game tune panel (via the
+// _plateNearest delegate in generatePlateCore). Memory-cached under
+// kGenMemory; never reads or writes the disk cache.
 // -------------------------------------------------------------------------
 
 Graphics::Surface *RogerAssetGen::generatePlateNearest(int id, uint32 &outMs) {
+	Common::Array<int> ids;
+	ids.push_back(id);
+	return generatePlateNearestStack(ids, outMs);
+}
+
+Graphics::Surface *RogerAssetGen::generatePlateNearestStack(const Common::Array<int> &ids, uint32 &outMs) {
 	outMs = 0;
 	if (_mode == kGenPrebuilt)
 		return nullptr;
 #ifdef ENABLE_SCI
-	if (!g_sci)
-		return nullptr;
-	ResourceManager *resMan = g_sci->getResMan();
-	if (!resMan)
-		return nullptr;
-	Resource *res = resMan->findResource(ResourceId(kResourceTypePic, (uint16)id), false);
-	if (!res || res->size() == 0)
+	uint32 hash = 0;
+	if (!hashPicStack(ids, hash))
 		return nullptr;
 
+	// Memory-cached by content hash alone: neither passes nor params touch the
+	// nearest render, so the key deliberately excludes them (a pass-mode cycle
+	// must not orphan the nearest entry).
+	const Common::String mkey = Common::String::format("%s.omyacnear.%08x", _gameId.c_str(), hash);
+	if (_mode == kGenMemory) {
+		if (const MemPlate *hit = memPlateGet(mkey))
+			return memPlateCopy(*hit); // outMs stays 0 (memory hit)
+	}
+
 	uint32 t0 = g_system->getMillis();
-	Common::Array<DrawCommand> cmds = parsePic(res->data(), (uint32)res->size());
+	Common::Array<DrawCommand> cmds;
+	if (!parsePicStack(ids, cmds))
+		return nullptr;
 	NativeRef ref = nativePreRender(cmds);
 
 	// refPixel is 320x190 doubled-nibble bytes (0xff init == EGA white, which
@@ -398,9 +493,13 @@ Graphics::Surface *RogerAssetGen::generatePlateNearest(int id, uint32 &outMs) {
 
 	Graphics::Surface *plate = blendToSurface(big.pixels, OMYAC_HYBRID_W, OMYAC_HYBRID_H);
 	outMs = g_system->getMillis() - t0;
+	if (plate && _mode == kGenMemory) {
+		const Common::Array<byte> none;
+		memPlatePut(mkey, *plate, none, none);
+	}
 	return plate;
 #else
-	(void)id;
+	(void)ids;
 	return nullptr;
 #endif
 }
@@ -663,6 +762,17 @@ bool RogerAssetGen::generatePriorityMapStack(const Common::Array<int> &ids, Comm
 
 	const uint32 hiresCount = (uint32)(OMYAC_HYBRID_W * OMYAC_HYBRID_H);
 
+	// kGenMemory: bands memo (pass-mode cycling regenerates prio otherwise).
+	const Common::String mkey = memKey("omyacprio", hash);
+	if (_mode == kGenMemory) {
+		MemPrioMap::const_iterator it = _memPrio.find(mkey);
+		if (it != _memPrio.end()) {
+			outBands = it->_value;
+			outW = OMYAC_HYBRID_W; outH = OMYAC_HYBRID_H;
+			return true; // memory hit, outMs stays 0
+		}
+	}
+
 	// kGenCache: the PNG is the colour priority picture (EGA colours). Recover the
 	// occlusion bands by mapping each pixel's colour back to its priority code.
 	if (_mode == kGenCache) {
@@ -707,6 +817,15 @@ bool RogerAssetGen::generatePriorityMapStack(const Common::Array<int> &ids, Comm
 	if (_mode == kGenCache || _mode == kGenAlways) {
 		ensureCacheDir(_cacheDir);
 		dumpSurfacePng(*plate, cachePath);
+	}
+	// kGenMemory: remember the bands for mode cycling.
+	if (_mode == kGenMemory) {
+		while ((int)_memPrioOrder.size() >= kMemCacheCap) {
+			_memPrio.erase(_memPrioOrder[0]);
+			_memPrioOrder.remove_at(0);
+		}
+		_memPrio[mkey] = outBands;
+		_memPrioOrder.push_back(mkey);
 	}
 
 	plate->free();

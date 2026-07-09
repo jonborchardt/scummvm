@@ -83,5 +83,29 @@ IndexImage applyViewScalerTo6x(int i, const IndexImage &in, byte clearKey) {
 	return out;
 }
 
+// -- View-enhance modes (registry + trailing nearest) -------------------------
+
+int viewEnhanceModeCount() {
+	return viewScalerCount() + 1;
+}
+
+bool viewEnhanceModeIsNearest(int m) {
+	return m >= viewScalerCount();
+}
+
+const char *viewEnhanceModeLabel(int m) {
+	return viewEnhanceModeIsNearest(m) ? "nearest" : viewScaler(m).label;
+}
+
+const char *viewEnhanceModeId(int m) {
+	return viewEnhanceModeIsNearest(m) ? "nearest" : viewScaler(m).id;
+}
+
+IndexImage applyViewEnhanceMode6x(int m, const IndexImage &in, byte clearKey) {
+	if (viewEnhanceModeIsNearest(m))
+		return resampleNearestExact(in, in.w * 6, in.h * 6);
+	return applyViewScalerTo6x(m, in, clearKey);
+}
+
 } // End of namespace Roger
 } // End of namespace Sci

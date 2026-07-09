@@ -50,18 +50,31 @@ overlay). Only two keys exist, for automation convenience: **Esc** quits,
 
 Each slot independently holds:
 
-- an **omyac pass list** (chip editor, same `f`/`l`/`a` vocabulary as
-  `roger_omyac_passes`),
+- a **`pic enhance:` mode** — one toggle that cycles the shared pass-mode
+  list (seeded from the curated `goodPassPattern()` registry + the
+  ini-effective passes) **plus a trailing `nearest`** (the nearest-neighbour
+  reference plate, the "before" picture — the old separate `plate:` toggle is
+  folded in here). Each click applies immediately; the generator's in-memory
+  cache makes a revisited mode a copy instead of a fresh omyac run.
+- a **`view enhance:` mode** — one toggle that cycles the `roger_view_scaler.h`
+  registry (the shipping 6x today) **plus a trailing `nearest`** (plain
+  blocky upscale) for the cel. Cel-tier: cycling never regenerates the plate.
 - the **7 registered OmyacParams** (vote thresholds, endpoint rule, isolated
   pixel pass, tie-break blend, diagonal flank suppression — each row has
   `-`/`+` or an on/off toggle, with a plain-English hover help line),
-- a **view-scaler variant** (cycles through the `roger_view_scaler.h`
-  registry; one module — the shipping 6x — is registered today),
-- a **plate mode**: `omyac` (the real pipeline) or `nearest` (nearest-neighbour
-  reference, the "before" picture).
 
-`edit: A B` picks which slot the param/chip widgets edit. **Copy A>B** clones
+`edit: A B` picks which slot the toggles/params edit. **Copy A>B** clones
 A's settings into B — set up a baseline in A, copy, then nudge B.
+
+### The pass builder (build row)
+
+Same linear builder as the F12 tune panel: display-only chips show the
+sequence being built; **`+f` `+l` `+a`** append a pass, **`clear`** empties it
+(add → wireframe), and **`add`** registers the built sequence as a new
+`pic enhance:` mode, selects it in the active slot, and applies. `add`
+highlights while it would change the active slot. The old caret/selection
+editing (`x`, `<`, `>`, Reset) is gone — the ini-effective passes are always
+one of the cycle's modes, which replaces Reset.
 
 ### Display modes
 
@@ -70,7 +83,7 @@ A's settings into B — set up a baseline in A, copy, then nudge B.
 | **Show A** / **Show B** | one slot full-frame |
 | **Split** | A left, B right, shared pan/zoom, stamped labels |
 | **Diff** | per-pixel white-on-black difference of A vs B, plus an automatic **alignment readout** — a ±3 px SAD search prints `best align: dx=… dy=…` (and logs `ROGER-STUDIO diff offset`), the sub-pixel-shift detector |
-| **Grid** | one tile per registered view-scaler module: the current cel through every module at a shared native footprint — the module-comparison view |
+| **Grid** | one tile per view-enhance mode — every registered scaler module plus the trailing `nearest` — the current cel through each at a shared native footprint (with one scaler registered this is the 6x-vs-nearest comparison) |
 
 Diff/SAD rebuilds are skipped while dragging the cel (they'd stall the drag)
 and rebuilt on release.
@@ -105,10 +118,12 @@ a desktop-level screen grab) for captures.
 ## Regen cost model (why it feels fast)
 
 Three invalidation tiers, cheapest first: display-only (pan/zoom/pixel-grid —
-redraw), **cel-only** (place/drag/loop/cel/view/pink — recomposite over the
-cached plate), and **plate** (pic/params/passes/plate-mode/variant — full
-omyac regen, the `<n>ms` readout in the status line). Only the last one is
-expensive; everything interactive sits in the first two.
+redraw), **cel-only** (place/drag/loop/cel/view/pink/**view enhance** —
+recomposite over the cached plate), and **plate** (pic/params/**pic enhance** —
+full omyac regen, the `<n>ms` readout in the status line). Only the last one
+is expensive, and the generator's in-memory cache (kGenMemory, bounded FIFO)
+takes the sting out of it: cycling `pic enhance:` back to a mode you've
+already rendered for this pic+params is a surface copy, not a regen.
 
 ## Quarantine contract
 

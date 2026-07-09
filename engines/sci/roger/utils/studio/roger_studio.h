@@ -68,9 +68,17 @@ private:
 
 	struct Slot {
 		OmyacParams        params;
+		// Pic-enhance selection: picSel indexes the SHARED _picModes list;
+		// picSel == _picModes.size() selects the trailing "nearest" plate
+		// (same trailing-nearest rule as the F12 tune panel). passes and
+		// plateMode are the DERIVED state renderSlot consumes - applyPicSel
+		// keeps them in sync with picSel.
+		int                picSel = 0;
 		Common::Array<int> passes;               // starts = ini-effective passes (_iniPasses)
-		int                variant = 0;          // viewScaler() registry index; 0 = the shipping 6x module
 		PlateMode          plateMode = kPlateOmyac;
+		// View-enhance mode: viewEnhanceMode index (registry scalers +
+		// trailing nearest, see roger_view_scaler.h).
+		int                viewMode = 0;
 		Graphics::Surface *render = nullptr;     // cached scene render (1920x1140 RGBA)
 		Graphics::Surface *plateCache = nullptr; // cached plate (no cel); reused while !plateStale
 		Common::Array<byte> backfillMask;        // fillNullPixels mask for plateCache; empty = no pink (nearest-ref)
@@ -127,10 +135,20 @@ private:
 	bool  _dirty = true;
 	bool  _quit = false;
 
-	// roger_omyac_passes resolved once at startup (default when unset). Slot
-	// seeds and the Default chip button both reset to this â€” "default" means
-	// the effective ini value, matching the tune panel's Reset.
+	// roger_omyac_passes resolved once at startup (default when unset). Seeds
+	// both slots, the pic-enhance mode list (select-or-added), and the builder.
 	Common::Array<int> _iniPasses;
+
+	// Shared pic-enhance mode list (seeded from the goodPassPattern registry +
+	// the ini-effective passes; "add" appends the built sequence). Both slots'
+	// picSel index into it; the +1 trailing slot is the nearest plate.
+	Common::Array<Common::Array<int> > _picModes;
+	Common::Array<int> _buildPasses;  // the sequence being built (display chips)
+	// picModes.size()-aware helpers (mirror the tune panel's semantics).
+	int picModeCount() const { return (int)_picModes.size() + 1; }
+	bool picSelIsNearest(int sel) const { return sel >= (int)_picModes.size(); }
+	void applyPicSel(Slot &slot);     // derive slot.passes/plateMode from slot.picSel
+	int selectOrAddPicMode(const Common::Array<int> &passes); // index (appends when novel)
 
 	Slot _slots[2];
 	int  _activeSlot = 0;            // 0 = A, 1 = B
@@ -175,7 +193,6 @@ private:
 
 	// Panel (Task 6)
 	Common::Array<PanelWidget> _widgets;    // panel-local small coords
-	int _selectedChip = -1;
 	uint32 _hoverWid = 0;
 
 	Common::String _status;
