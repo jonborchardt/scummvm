@@ -248,6 +248,16 @@ foreach ($d in $dataSrc) {
     }
 }
 
+# Roger picker background: deploy the committed placeholder ONLY if the user
+# hasn't dropped their own roger-picker-bg.png next to the exe (never clobber).
+# Real art: replace <ExeDir>\roger-picker-bg.png, recommended 2560x1600
+# (scaled-to-cover + center-cropped to the picker dialog).
+$pickerBg = Join-Path $ExeDir "roger-picker-bg.png"
+if ((Test-Path "$Root\dists\roger\roger-picker-bg.png") -and -not (Test-Path $pickerBg)) {
+    Copy-Item "$Root\dists\roger\roger-picker-bg.png" $pickerBg
+    Write-Host "  deployed roger-picker-bg.png (placeholder)" -ForegroundColor DarkGray
+}
+
 # ── Launch SQ3 ────────────────────────────────────────────────────────────────
 Write-Host "`nBuild OK  : $Exe" -ForegroundColor Green
 Write-Host "Game      : $GameDir"
