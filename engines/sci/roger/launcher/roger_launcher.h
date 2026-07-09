@@ -11,25 +11,19 @@ class RogerArtProvider;
 
 namespace Roger {
 
-struct CacheStatus {
-	int picCount  = 0;   // .omyac.* files in cache/
-	int viewCount = 0;   // .scale6x.* files in cache/
-};
-
 struct GameEntry {
 	Common::String targetName;   // ConfMan domain key (e.g. "sq3-1")
-	Common::String description;  // human-readable (e.g. "Space Quest III")
+	Common::String description;  // title without the trailing "(...)" group
+	Common::String subtitle;     // e.g. "DOS/English" (may be empty)
 	Common::String gameId;       // ConfMan "gameid" (e.g. "sq3")
 	Common::Path   gamePath;
 	Common::Path   rogerPath;    // <gamepath>/../<gameid>-roger/
-	CacheStatus    cache;
+	bool           cached = false; // roger_cache_stamp matches version + passes
 };
 
 struct LauncherSettings {
-	Common::String precache;     // "off"|"pics"|"views"|"all"
-	Common::String passes;       // roger_omyac_passes raw string (verbatim ini round-trip)
-	Common::String font;         // roger_ui_font value
-	Common::String fallback;     // "prebuilt"|"cache"|"memory"|"always"
+	Common::String passes;       // effective (ini value, or kDefaultPassString)
+	bool           debugLog = false; // roger_debug
 };
 
 struct LauncherState {
@@ -61,15 +55,27 @@ public:
 	// Accessors for the dialog.
 	LauncherState &state() { return _state; }
 	void loadSettingsForSelected();
-	void flushSettingsForSelected();
 	void selectGame(int index);
 	void buildPrecacheQueues();
 
 	// Returns false and pushes EVENT_RETURN_TO_LAUNCHER if switching games.
 	bool handleLaunch();
 
-	// Public so the dialog can refresh counts after precaching.
-	void inspectCacheStatus(GameEntry &entry) const;
+	// Recompute entry.cached from its domain's roger_cache_stamp vs. the
+	// current kTransformVersion + its effective roger_omyac_passes.
+	void refreshCacheState(GameEntry &entry) const;
+
+	// Immediate write-through settings (selected game's ini section + flush).
+	void setPassesForSelected(const Common::String &raw); // empty -> remove key (= default)
+	void setDebugLogForSelected(bool on);
+
+	// Write a one-shot key (roger_picker_launch / roger_picker_precache) into
+	// games[index]'s domain and switch engines to it via ChainedGamesMan.
+	void requestCrossGame(int index, bool launchAfter);
+
+	// One-shot keys consumed from the ACTIVE domain at run() start.
+	bool autoLaunchPending() const { return _autoLaunch; }
+	bool autoPrecachePending() const { return _autoPrecache; }
 
 	// Public so Task 5 Add Game can trigger re-discovery.
 	void discoverGames();
@@ -78,6 +84,8 @@ private:
 	RogerArtProvider   *_provider;
 	LauncherState       _state;
 	bool                _switchTriggered = false;
+	bool                _autoLaunch = false;
+	bool                _autoPrecache = false;
 
 	// Add one game to _state.games, creating the roger dir if needed.
 	void tryAddEntry(const Common::String &dom, const Common::Path &gamePath,

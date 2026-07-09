@@ -1,9 +1,8 @@
-#include "sci/roger/launcher/roger_launcher_dialog.h"
+﻿#include "sci/roger/launcher/roger_launcher_dialog.h"
 #include "sci/roger/gen/roger_passes.h"
 #include "gui/gui-manager.h"
 #include "gui/widget.h"
 #include "gui/widgets/list.h"
-#include "gui/widgets/popup.h"
 #include "gui/widgets/edittext.h"
 #include "common/util.h"  // CLIP
 #include "gui/browser.h"
@@ -30,27 +29,9 @@ public:
 	void handleMouseWheel(int, int, int) override {}
 };
 
-static const char *kPrecacheVals[] = { "off", "pics", "views", "all" };
-static const char *kFontVals[]     = {
-	"ms_sans_serif.ttf", "LiberationSans-Regular.ttf", "NotoSans-Regular.ttf",
-	"LiberationSerif-Regular.ttf", "GoMono-Regular.ttf",
-	"LiberationMono-Regular.ttf", "SourceCodeVariable-Roman.ttf"
-};
-static const char *kFallbackVals[] = { "prebuilt", "cache", "memory", "always" };
-
 // Layout helpers: all coordinates are overlay pixels.
 static int gW() { return g_system->getOverlayWidth(); }
 static int gH() { return g_system->getOverlayHeight(); }
-
-GUI::PopUpWidget *RogerLauncherDialog::addSettingsRow(int y, int M, int LH,
-                                                       const char *label, uint32 cmd) {
-	const int labelW = _w / 5;
-	const int popW   = _w / 4;
-	new GUI::StaticTextWidget(this, M, y, labelW, LH,
-	                          Common::U32String(label), Graphics::kTextAlignLeft);
-	return new GUI::PopUpWidget(this, M + labelW + M/2, y, popW, LH,
-	                            Common::U32String(), cmd);
-}
 
 RogerLauncherDialog::RogerLauncherDialog(RogerLauncher &launcher)
 	: GUI::Dialog(gW() / 10, gH() / 10, gW() * 8 / 10, gH() * 8 / 10),
@@ -60,11 +41,11 @@ RogerLauncherDialog::RogerLauncherDialog(RogerLauncher &launcher)
 	const int M  = W / 30;   // margin
 	const int LH = H / 20;   // line height
 
-	// â”€â”€ Title â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+	// â"€â"€ Title â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
 	new GUI::StaticTextWidget(this, M, M, W / 4, LH,
 	                          Common::U32String("ROGER"), Graphics::kTextAlignLeft);
 
-	// â”€â”€ Games section â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+	// â"€â"€ Games section â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
 	const int listTop = M + LH + M;
 	const int listH   = H * 2 / 5;
 	const int btnColW = W / 5;                       // width of Add/Delete buttons
@@ -85,14 +66,13 @@ RogerLauncherDialog::RogerLauncherDialog(RogerLauncher &launcher)
 	                                    Common::U32String("Delete"),
 	                                    Common::U32String(), kDeleteCmd);
 
-	// â”€â”€ Settings section â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+	// â"€â"€ Settings section â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
 	const int settTop = listTop + listH + M;
 	new GUI::StaticTextWidget(this, M, settTop, W - 2*M, LH,
 	                          Common::U32String("SETTINGS"), Graphics::kTextAlignLeft);
 
-	_precachePop = addSettingsRow(settTop + LH + 0*(LH + M/3), M, LH, "Pre-cache",   kPrecachePopCmd);
 	{
-		const int y = settTop + LH + 1*(LH + M/3);
+		const int y = settTop + LH;
 		const int labelW = _w / 5;
 		new GUI::StaticTextWidget(this, M, y, labelW, LH,
 		                          Common::U32String("Passes"), Graphics::kTextAlignLeft);
@@ -112,10 +92,8 @@ RogerLauncherDialog::RogerLauncherDialog(RogerLauncher &launcher)
 			bx += bw + M/4;
 		}
 	}
-	_fontPop     = addSettingsRow(settTop + LH + 2*(LH + M/3), M, LH, "Font",        kFontPopCmd);
-	_fallbackPop = addSettingsRow(settTop + LH + 3*(LH + M/3), M, LH, "Fallback",    kFallbackPopCmd);
 
-	// â”€â”€ Bottom row â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+	// â"€â"€ Bottom row â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
 	const int btnY = H - M - LH;
 
 	// Progress label sits in its own row above the buttons.
@@ -141,20 +119,6 @@ RogerLauncherDialog::RogerLauncherDialog(RogerLauncher &launcher)
 	                                     Common::U32String("Launch"),
 	                                     Common::U32String(), kLaunchCmd);
 
-	// â”€â”€ Populate popup options â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-	_precachePop->appendEntry(Common::U32String("off"),   0);
-	_precachePop->appendEntry(Common::U32String("pics"),  1);
-	_precachePop->appendEntry(Common::U32String("views"), 2);
-	_precachePop->appendEntry(Common::U32String("all"),   3);
-
-	for (int i = 0; i < 7; ++i)
-		_fontPop->appendEntry(Common::U32String(kFontVals[i]), (uint32)i);
-
-	_fallbackPop->appendEntry(Common::U32String("native (prebuilt)"), 0);
-	_fallbackPop->appendEntry(Common::U32String("cache"),             1);
-	_fallbackPop->appendEntry(Common::U32String("memory"),            2);
-	_fallbackPop->appendEntry(Common::U32String("always"),            3);
-
 	// Launch and Delete start disabled; enabled on game selection.
 	_launchBtn->setEnabled(false);
 	_deleteBtn->setEnabled(false);
@@ -167,19 +131,25 @@ void RogerLauncherDialog::open() {
 	bool hasGames = !_state.games.empty();
 	_launchBtn->setEnabled(hasGames);
 	_deleteBtn->setEnabled(hasGames);
+	if (_launcher.autoLaunchPending()) {
+		_launchAfterPrecache = true;
+		_launcher.buildPrecacheQueues();
+		_precacheBtn->setLabel(Common::U32String("Cancel"));
+		updateProgress();
+		g_gui.scheduleTopDialogRedraw();
+	} else if (_launcher.autoPrecachePending()) {
+		_launcher.buildPrecacheQueues();
+		_precacheBtn->setLabel(Common::U32String("Cancel"));
+		updateProgress();
+		g_gui.scheduleTopDialogRedraw();
+	}
 }
 
 void RogerLauncherDialog::rebuildGameList() {
 	Common::U32StringArray entries;
 	for (uint i = 0; i < _state.games.size(); ++i) {
 		const GameEntry &g = _state.games[i];
-		Common::String status;
-		if (g.cache.picCount == 0 && g.cache.viewCount == 0)
-			status = "not cached";
-		else if (g.cache.viewCount == 0)
-			status = Common::String::format("%d pics cached", g.cache.picCount);
-		else
-			status = Common::String::format("%d pics + %d views", g.cache.picCount, g.cache.viewCount);
+		Common::String status = g.cached ? "cached (current passes)" : "not cached";
 		entries.push_back(Common::U32String(
 			Common::String::format("%-30s  %s", g.description.c_str(), status.c_str())));
 	}
@@ -188,22 +158,13 @@ void RogerLauncherDialog::rebuildGameList() {
 }
 
 void RogerLauncherDialog::rebuildSettings() {
-	const LauncherSettings &s = _state.settings;
-
-	for (int i = 0; i < 4; ++i)
-		if (s.precache == kPrecacheVals[i]) { _precachePop->setSelectedTag((uint32)i); break; }
-	_passesEdit->setEditString(Common::U32String(s.passes));
-	for (int i = 0; i < 7; ++i)
-		if (s.font == kFontVals[i]) { _fontPop->setSelectedTag((uint32)i); break; }
-	for (int i = 0; i < 4; ++i)
-		if (s.fallback == kFallbackVals[i]) { _fallbackPop->setSelectedTag((uint32)i); break; }
+	_passesEdit->setEditString(Common::U32String(_state.settings.passes));
 }
 
 // EditTextWidget doesn't push per-keystroke commands the way the popups do;
 // pull its text into the settings at the moments they are consumed.
 void RogerLauncherDialog::syncPassesFromField() {
-	if (_passesEdit)
-		_state.settings.passes = _passesEdit->getEditString().encode();
+	if (_passesEdit) _launcher.setPassesForSelected(_passesEdit->getEditString().encode());
 }
 
 void RogerLauncherDialog::handleCommand(GUI::CommandSender *sender, uint32 cmd, uint32 data) {
@@ -218,7 +179,6 @@ void RogerLauncherDialog::handleCommand(GUI::CommandSender *sender, uint32 cmd, 
 			_passesEdit->setEditString(Common::U32String(p.compact));
 			_passesEdit->markAsDirty();
 		}
-		_state.settings.passes = p.compact;
 		break;
 	}
 	case kLaunchCmd: {
@@ -226,7 +186,7 @@ void RogerLauncherDialog::handleCommand(GUI::CommandSender *sender, uint32 cmd, 
 		if (_state.games.empty()) break;
 		const GameEntry &g    = _state.games[_state.selectedIndex];
 		const bool isCurrent  = (g.targetName == ConfMan.getActiveDomainName());
-		const bool noCache    = (g.cache.picCount == 0 && g.cache.viewCount == 0);
+		const bool noCache    = !g.cached;
 		if (isCurrent && noCache) {
 			_launchAfterPrecache = true;
 			_launcher.buildPrecacheQueues();
@@ -400,21 +360,6 @@ void RogerLauncherDialog::handleCommand(GUI::CommandSender *sender, uint32 cmd, 
 		}
 		break;
 	}
-	case kPrecachePopCmd: {
-		uint32 tag = _precachePop->getSelectedTag();
-		if (tag < 4) _state.settings.precache = kPrecacheVals[tag];
-		break;
-	}
-	case kFontPopCmd: {
-		uint32 tag = _fontPop->getSelectedTag();
-		if (tag < 7) _state.settings.font = kFontVals[tag];
-		break;
-	}
-	case kFallbackPopCmd: {
-		uint32 tag = _fallbackPop->getSelectedTag();
-		if (tag < 4) _state.settings.fallback = kFallbackVals[tag];
-		break;
-	}
 	default:
 		GUI::Dialog::handleCommand(sender, cmd, data);
 	}
@@ -428,7 +373,7 @@ void RogerLauncherDialog::handleTickle() {
 		if (!more) {
 			_precacheBtn->setLabel(Common::U32String("Precache Now"));
 			for (uint i = 0; i < _state.games.size(); ++i)
-				_launcher.inspectCacheStatus(_state.games[i]);
+				_launcher.refreshCacheState(_state.games[i]);
 			rebuildGameList();
 			g_gui.scheduleTopDialogRedraw();
 			if (_launchAfterPrecache) {

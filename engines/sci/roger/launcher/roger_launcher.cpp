@@ -1,6 +1,8 @@
-#include "sci/roger/launcher/roger_launcher.h"
+﻿#include "sci/roger/launcher/roger_launcher.h"
 #include "sci/roger/launcher/roger_launcher_dialog.h"
+#include "sci/roger/launcher/roger_picker_model.h"
 #include "sci/roger/roger_art_provider.h"
+#include "sci/roger/gen/roger_asset_gen.h"
 #include "sci/roger/gen/roger_passes.h"
 #include "sci/sci.h"
 #include "sci/resource/resource.h"
@@ -35,12 +37,15 @@ void RogerLauncher::tryAddEntry(const Common::String &dom,
 		rogerNode.createDirectory();
 
 	GameEntry entry;
-	entry.targetName  = dom;
-	entry.gameId      = gameId;
-	entry.gamePath    = gamePath;
-	entry.rogerPath   = rogerPath;
-	entry.description = desc.empty() ? gameId : desc;
-	inspectCacheStatus(entry);
+	entry.targetName = dom;
+	entry.gameId     = gameId;
+	entry.gamePath   = gamePath;
+	entry.rogerPath  = rogerPath;
+	Common::String title, subtitle;
+	splitGameDescription(desc.empty() ? gameId : desc, title, subtitle);
+	entry.description = title;
+	entry.subtitle    = subtitle;
+	refreshCacheState(entry);
 	_state.games.push_back(entry);
 }
 
@@ -74,7 +79,7 @@ void RogerLauncher::discoverGames() {
 		                ConfMan.hasKey("description", dom) ? ConfMan.get("description", dom) : ""));
 	}
 
-	// Also check the active domain â€” handles command-line games not persisted in scummvm.ini.
+	// Also check the active domain â€" handles command-line games not persisted in scummvm.ini.
 	// When launched as "scummvm -p /path gameid", getGameDomains() returns empty because
 	// the domain only exists in memory; ConfMan.hasKey("path") reads from the active chain.
 	{
@@ -100,54 +105,52 @@ void RogerLauncher::discoverGames() {
 	_state.selectedIndex = 0;
 }
 
-void RogerLauncher::inspectCacheStatus(GameEntry &entry) const {
-	entry.cache.picCount = entry.cache.viewCount = 0;
-	Common::FSNode cacheNode(entry.rogerPath.appendComponent("cache"));
-	if (!cacheNode.exists() || !cacheNode.isDirectory()) return;
-	Common::FSList children;
-	if (!cacheNode.getChildren(children, Common::FSNode::kListFilesOnly)) return;
-	for (uint i = 0; i < children.size(); ++i) {
-		const Common::String name = children[i].getName();
-		if (name.contains(".omyac."))    ++entry.cache.picCount;
-		else if (name.contains(".scale6x.")) ++entry.cache.viewCount;
-	}
+void RogerLauncher::refreshCacheState(GameEntry &entry) const {
+	const Common::String &dom = entry.targetName;
+	const bool hasKey = ConfMan.hasKey("roger_omyac_passes", dom);
+	const Common::String passes = stampPasses(
+		hasKey, hasKey ? ConfMan.get("roger_omyac_passes", dom) : Common::String(),
+		kDefaultPassString);
+	const Common::String stamp = ConfMan.hasKey("roger_cache_stamp", dom)
+		? ConfMan.get("roger_cache_stamp", dom) : Common::String();
+	entry.cached = cacheStampMatches(stamp, kTransformVersion, passes);
 }
 
 void RogerLauncher::loadSettingsForSelected() {
 	if (_state.games.empty()) return;
 	const Common::String &dom = _state.games[_state.selectedIndex].targetName;
 	LauncherSettings &s = _state.settings;
-	s.precache    = ConfMan.hasKey("roger_precache",   dom) ? ConfMan.get("roger_precache",   dom) : "all";
-	s.fallback    = ConfMan.hasKey("roger_gen_mode",   dom) ? ConfMan.get("roger_gen_mode",   dom) : "cache";
-	s.font        = ConfMan.hasKey("roger_ui_font",    dom) ? ConfMan.get("roger_ui_font",    dom) : "GoMono-Regular.ttf";
-	s.passes      = ConfMan.hasKey("roger_omyac_passes", dom)
+	s.passes = ConfMan.hasKey("roger_omyac_passes", dom)
 		? ConfMan.get("roger_omyac_passes", dom)
 		: Common::String(kDefaultPassString);
+	s.debugLog = ConfMan.hasKey("roger_debug", dom) && ConfMan.getBool("roger_debug", dom);
 }
 
-void RogerLauncher::flushSettingsForSelected() {
+// Verbatim passthrough (see the old flushSettingsForSelected comment): the
+// engine parser warns about unknown tokens at load. Empty -> key removed
+// (unset -> defaultPasses()); wireframe (explicit "") stays ini-only.
+void RogerLauncher::setPassesForSelected(const Common::String &raw) {
 	if (_state.games.empty()) return;
-	const Common::String &dom = _state.games[_state.selectedIndex].targetName;
-	const LauncherSettings &s = _state.settings;
-	ConfMan.set("roger_precache",  s.precache,    dom);
-	ConfMan.set("roger_gen_mode",  s.fallback,     dom);
-	ConfMan.set("roger_ui_font",   s.font,         dom);
-	// Verbatim passthrough: whatever the Passes field holds is what the ini
-	// gets â€” the engine parser warns about unknown tokens at load. An unset
-	// key becomes explicit (kDefaultPassString) after the first launch;
-	// effective behavior is identical. An EMPTIED field means "use the
-	// default": the key is removed (unset -> defaultPasses()). Wireframe
-	// (explicit "") is no longer expressible from the picker â€” hand-edit the
-	// ini for that debug state.
-	Common::String trimmedPasses = s.passes;
-	trimmedPasses.trim();
-	if (trimmedPasses.empty()) {
-		if (ConfMan.hasKey("roger_omyac_passes", dom))
-			ConfMan.removeKey("roger_omyac_passes", dom);
+	GameEntry &g = _state.games[_state.selectedIndex];
+	Common::String v = raw;
+	v.trim();
+	if (v.empty()) {
+		if (ConfMan.hasKey("roger_omyac_passes", g.targetName))
+			ConfMan.removeKey("roger_omyac_passes", g.targetName);
 	} else {
-		ConfMan.set("roger_omyac_passes", s.passes, dom);
+		ConfMan.set("roger_omyac_passes", v, g.targetName);
 	}
 	ConfMan.flushToDisk();
+	_state.settings.passes = v.empty() ? Common::String(kDefaultPassString) : v;
+	refreshCacheState(g);
+}
+
+void RogerLauncher::setDebugLogForSelected(bool on) {
+	if (_state.games.empty()) return;
+	const Common::String &dom = _state.games[_state.selectedIndex].targetName;
+	ConfMan.setBool("roger_debug", on, dom);
+	ConfMan.flushToDisk();
+	_state.settings.debugLog = on;
 }
 
 void RogerLauncher::selectGame(int index) {
@@ -156,22 +159,26 @@ void RogerLauncher::selectGame(int index) {
 	loadSettingsForSelected();
 }
 
+void RogerLauncher::requestCrossGame(int index, bool launchAfter) {
+	if (index < 0 || index >= (int)_state.games.size()) return;
+	const Common::String &dom = _state.games[index].targetName;
+	// One-shot: consumed (removed + flushed) by the picker on the other side
+	// BEFORE acting, so a crash mid-precache cannot loop the trigger.
+	ConfMan.setBool(launchAfter ? "roger_picker_launch" : "roger_picker_precache",
+	                true, dom);
+	ConfMan.flushToDisk();
+	ChainedGamesMan.push(dom);
+	Common::Event e;
+	e.type = Common::EVENT_RETURN_TO_LAUNCHER;
+	g_system->getEventManager()->pushEvent(e);
+	_switchTriggered = true;
+}
+
 bool RogerLauncher::handleLaunch() {
 	if (_state.games.empty()) return true;
-	const Common::String &active   = ConfMan.getActiveDomainName();
-	const Common::String &selected = _state.games[_state.selectedIndex].targetName;
-	flushSettingsForSelected();
-	if (selected != active) {
-		// Switch to a different game. setActiveDomain() alone does NOT work here:
-		// after this engine returns, base/main.cpp's post-run cleanup calls
-		// setActiveDomain("") and drops to the GUI launcher. The engine-initiated
-		// switch path is ChainedGamesMan â€” main.cpp pops it (after the
-		// return-to-launcher event) and runs it as the next game.
-		ChainedGamesMan.push(selected);
-		Common::Event e;
-		e.type = Common::EVENT_RETURN_TO_LAUNCHER;
-		g_system->getEventManager()->pushEvent(e);
-		_switchTriggered = true;
+	const Common::String &active = ConfMan.getActiveDomainName();
+	if (_state.games[_state.selectedIndex].targetName != active) {
+		requestCrossGame(_state.selectedIndex, true);
 		return false; // caller returns Common::kNoError
 	}
 	return true;
@@ -187,16 +194,12 @@ void RogerLauncher::buildPrecacheQueues() {
 	ResourceManager *resMan = g_sci->getResMan();
 	if (!resMan) return;
 
-	const LauncherSettings &s = _state.settings;
-	const bool doPics  = (s.precache == "all" || s.precache == "pics");
-	const bool doViews = (s.precache == "all" || s.precache == "views");
-
-	if (doPics) {
+	{
 		Common::List<ResourceId> pics = resMan->listResources(kResourceTypePic);
 		for (Common::List<ResourceId>::const_iterator it = pics.begin(); it != pics.end(); ++it)
 			_state.picQueue.push_back((GuiResourceId)it->getNumber());
 	}
-	if (doViews) {
+	{
 		Common::List<ResourceId> views = resMan->listResources(kResourceTypeView);
 		for (Common::List<ResourceId>::const_iterator it = views.begin(); it != views.end(); ++it)
 			_state.viewQueue.push_back((int)it->getNumber());
@@ -239,6 +242,20 @@ bool RogerLauncher::precacheStep() {
 		return true;
 	}
 	_state.precaching = false;
+	if (!_state.cancelPrecache) {
+		const Common::String dom = ConfMan.getActiveDomainName();
+		const bool hasKey = ConfMan.hasKey("roger_omyac_passes", dom);
+		ConfMan.set("roger_cache_stamp",
+		            cacheStamp(kTransformVersion,
+		                       stampPasses(hasKey,
+		                                   hasKey ? ConfMan.get("roger_omyac_passes", dom)
+		                                          : Common::String(),
+		                                   kDefaultPassString)),
+		            dom);
+		ConfMan.flushToDisk();
+		if (!_state.games.empty())
+			refreshCacheState(_state.games[0]); // row 0 == active game
+	}
 	_state.precacheStatus = Common::String::format(
 		"Caching complete: %d items", _state.precacheDone);
 	warning("ROGER launcher precache: complete (%d items)", _state.precacheDone);
@@ -247,12 +264,27 @@ bool RogerLauncher::precacheStep() {
 
 bool RogerLauncher::run() {
 	discoverGames();
-	if (_state.games.empty()) return true;
 	loadSettingsForSelected();
+
+	// Consume one-shot cross-game keys written by a previous picker instance.
+	const Common::String active = ConfMan.getActiveDomainName();
+	if (!active.empty()) {
+		if (ConfMan.hasKey("roger_picker_launch", active)) {
+			ConfMan.removeKey("roger_picker_launch", active);
+			ConfMan.flushToDisk();
+			_autoLaunch = true;
+		} else if (ConfMan.hasKey("roger_picker_precache", active)) {
+			ConfMan.removeKey("roger_picker_precache", active);
+			ConfMan.flushToDisk();
+			_autoPrecache = true;
+		}
+	}
+	// Cross-game launch of an already-cached game: straight in, no dialog.
+	if (_autoLaunch && !_state.games.empty() && _state.games[0].cached)
+		return true;
 
 	RogerLauncherDialog dialog(*this);
 	dialog.runModal();
-
 	return !_switchTriggered;
 }
 

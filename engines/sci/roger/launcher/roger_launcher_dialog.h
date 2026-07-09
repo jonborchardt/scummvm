@@ -34,10 +34,7 @@ private:
 	GUI::ButtonWidget    *_precacheBtn  = nullptr;
 	GUI::ButtonWidget    *_addGameBtn   = nullptr;
 	GUI::ButtonWidget    *_deleteBtn    = nullptr;
-	GUI::PopUpWidget     *_precachePop  = nullptr;
 	GUI::EditTextWidget  *_passesEdit   = nullptr;
-	GUI::PopUpWidget     *_fontPop      = nullptr;
-	GUI::PopUpWidget     *_fallbackPop  = nullptr;
 	GUI::StaticTextWidget *_progressLbl = nullptr;
 	GUI::SliderWidget     *_progressBar = nullptr;
 
@@ -47,7 +44,6 @@ private:
 	void rebuildSettings();
 	void syncPassesFromField();
 	void updateProgress();
-	GUI::PopUpWidget *addSettingsRow(int y, int M, int LH, const char *label, uint32 cmd);
 
 	enum {
 		kLaunchCmd   = 'RLNC',
@@ -55,9 +51,6 @@ private:
 		kPrecacheCmd = 'RPRC',
 		kAddGameCmd  = 'RADG',
 		kGameSelCmd  = 'RGSL',
-		kPrecachePopCmd  = 'RPCP',
-		kFontPopCmd      = 'RFCP',
-		kFallbackPopCmd  = 'RBCP',
 		kGoodPass0Cmd    = 'RGP0', // +i for goodPassPattern(i), i < 4
 	};
 };
