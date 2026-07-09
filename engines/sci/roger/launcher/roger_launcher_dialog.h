@@ -1,58 +1,61 @@
+/* ScummVM - Graphic Adventure Engine
+ *
+ * ScummVM is the legal property of its developers, whose names
+ * are too numerous to list here. Please refer to the COPYRIGHT
+ * file distributed with this source distribution.
+ *
+ * This program is free software: you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 3 of
+ * the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+
 #ifndef SCI_ROGER_LAUNCHER_ROGER_LAUNCHER_DIALOG_H
 #define SCI_ROGER_LAUNCHER_ROGER_LAUNCHER_DIALOG_H
 
 #include "gui/dialog.h"
 #include "sci/roger/launcher/roger_launcher.h"
-
-namespace GUI {
-	class ListWidget;
-	class ButtonWidget;
-	class StaticTextWidget;
-	class PopUpWidget;
-	class SliderWidget;
-	class EditTextWidget;
-}
+#include "sci/roger/launcher/roger_picker_view.h"
 
 namespace Sci {
 namespace Roger {
 
-class RogerLauncherDialog : public GUI::Dialog {
+// Modal shell for the custom-drawn picker: PickerViewWidget paints and
+// hit-tests everything; this class owns the flows (precache tickle, add,
+// remove-confirm, custom-passes input, cross-game switch, auto-actions).
+class RogerLauncherDialog : public GUI::Dialog, public PickerActionListener {
 public:
 	explicit RogerLauncherDialog(RogerLauncher &launcher);
 
 	void open() override;
 	void handleTickle() override;
-	void handleCommand(GUI::CommandSender *sender, uint32 cmd, uint32 data) override;
-	void reflowLayout() override;
+
+	// PickerActionListener
+	void pickerSelectRow(int row) override;
+	void pickerPrecacheRow(int row) override;
+	void pickerRemoveRow(int row) override;
+	void pickerAddGame() override;
+	void pickerPassOption(int optionIndex) override;
+	void pickerToggleDebug() override;
+	void pickerLaunch() override;
 
 private:
 	RogerLauncher    &_launcher;
 	LauncherState    &_state;   // alias for _launcher.state()
-
-	GUI::ListWidget      *_gameList     = nullptr;
-	GUI::ButtonWidget    *_launchBtn    = nullptr;
-	GUI::ButtonWidget    *_precacheBtn  = nullptr;
-	GUI::ButtonWidget    *_addGameBtn   = nullptr;
-	GUI::ButtonWidget    *_deleteBtn    = nullptr;
-	GUI::EditTextWidget  *_passesEdit   = nullptr;
-	GUI::StaticTextWidget *_progressLbl = nullptr;
-	GUI::SliderWidget     *_progressBar = nullptr;
-
+	PickerViewWidget *_view = nullptr;
+	Common::Array<PassOption> _passOptions;
 	bool _launchAfterPrecache = false;
 
-	void rebuildGameList();
-	void rebuildSettings();
-	void syncPassesFromField();
-	void updateProgress();
-
-	enum {
-		kLaunchCmd   = 'RLNC',
-		kDeleteCmd   = 'RDEL',
-		kPrecacheCmd = 'RPRC',
-		kAddGameCmd  = 'RADG',
-		kGameSelCmd  = 'RGSL',
-		kGoodPass0Cmd    = 'RGP0', // +i for goodPassPattern(i), i < 4
-	};
+	void rebuildPassOptions();
+	void startPrecache(bool launchAfter);
 };
 
 } // namespace Roger
