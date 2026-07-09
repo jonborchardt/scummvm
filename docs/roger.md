@@ -87,22 +87,51 @@ Captured generic regions are intentionally blocky (nearest-neighbour upscale) be
 
 ## Launcher
 
-The Roger launcher dialog appears at engine startup (before the game is loaded). It displays a list of detected SCI games from ScummVM's config, showing the cache status for each (e.g., "55 pics cached"). Select a game and click **Launch** to proceed. The dialog has no Skip button, but it can be bypassed entirely with `roger_no_launcher=true` in `scummvm.ini` or the `ROGER_NO_LAUNCHER` env var — `build_and_run.ps1 -SkipPicker` sets the env var for one launch, and passing `-Game <target>` skips the picker automatically. With the picker skipped, a synchronous startup warm-up runs instead, governed by `roger_precache` (default `off`, so normally a no-op).
+The Roger game picker appears at engine startup (before the game is loaded). It
+displays a custom-drawn list of detected EGA SCI0 games from ScummVM's config.
+Select a game and click **Launch** to proceed. The picker can be bypassed with
+`roger_no_launcher=true` in `scummvm.ini` or the `ROGER_NO_LAUNCHER` env var —
+`build_and_run.ps1 -SkipPicker` sets the env var for one launch, and passing
+`-Game <target>` skips it automatically.
 
-For each game, the launcher shows:
-- **Game name** (from the domain or script fallback)
-- **Cache status** (number of cached pics/views)
-- **Per-game settings** that update when a different game is selected:
-  - **Pre-cache** (Off/Pictures/All) — controls what is generated on demand before launch
-  - **Passes** (the raw `roger_omyac_passes` string, round-tripped verbatim to the ini; shows `affffflaaa` when the key is unset). Inis written by the old picker carry `roger_omyac_passes=2 1` (the old auto-written "balanced" default) — the Passes field shows it verbatim; edit it to `affffflaaa` (or delete the key) to get the current default.
-  - **Font** (a shortlist of period-appropriate faces)
-  - **Fallback** (hardware cursor / cursor size)
+**Background art:** Place a `roger-picker-bg.png` next to `scummvm.exe` (or in
+the `extrapath` dir) for a custom background image. Recommended size 2560×1600;
+it is scale-to-cover center-cropped to fit. If missing, a procedural dark-navy
+gradient is used instead. The placeholder `dists/roger/roger-picker-bg.png` is
+deployed by `build_and_run.ps1` on first run (never clobbers user art).
 
-The **Delete** button (right of the game list) removes the selected game from ScummVM's config.
+**Card rows:** each game shows a title, a subtitle with the target path, and a
+badge — green **Cached** (a precache stamp is present and current) or amber
+**Not Cached**. A **Precache** button and a per-row **Remove** button appear on
+each row (Remove is disabled for the currently running game). The running game
+sorts first. Double-clicking a row launches the game.
 
-**Auto-precache on first launch:** If the selected game has no cache files and Pre-cache is not Off, the launcher will precache automatically before launching. Progress is shown in the dialog (e.g., "Caching pic 23/87...").
+**Per-game settings** (write-through to the selected game's ini section
+immediately):
+- **Passes** — a dropdown: Default (engine default) + entries from the
+  `goodPassPattern()` registry + the current ini value if not in the registry +
+  a **Custom…** option that opens a text-input sub-dialog. Selecting any entry
+  writes `roger_omyac_passes` to the game's section at once. Selecting Default
+  removes the key (= engine default).
+- **Debug log** — toggles `roger_debug` on/off for the selected game.
 
-The **Precache Now** button is always available for manual precaching, regardless of whether the game already has a cache.
+**Precache** (inline, row 0 / the running game): runs a full all-pics-and-views
+precache in-dialog with a progress bar and Cancel button. When complete, writes
+a stamp key `roger_cache_stamp = v<kTransformVersion>:<passes>` to the game's
+section so the badge reflects current cache state. Launching a *different* game
+that already has a current stamp skips the precache dialog entirely and launches
+immediately via the one-shot self-consuming keys `roger_picker_precache` and
+`roger_picker_launch` (written then flushed before acting at `run()` start).
+
+**Add Game** (`+ Add Game`): opens a directory browser, runs engine-level MD5
+detection, and refuses VGA games (Roger is EGA SCI0 only).
+
+**Remove** per row: removes the ConfMan domain (game files and cache are
+untouched). Disabled on row 0 (the running game).
+
+The picker does **not** read or write `roger_precache`, `roger_gen_mode`, or
+`roger_ui_font` — those keys are managed directly in `scummvm.ini` and their
+engine defaults are unchanged.
 
 ## Config knobs
 
@@ -111,8 +140,11 @@ All are optional `scummvm.ini` keys (only read when present).
 | Key | Default | Meaning |
 |-----|---------|---------|
 | `roger_gen_mode` | `cache` | in-engine art generation mode: `cache` = generate on a miss, load from the content cache on a hit; `memory` = generate, never write; `always` = regenerate + overwrite; `prebuilt` = the off-switch (native-only render, no Roger overlay) |
-| `roger_precache` | `off` | scope of the synchronous startup warm-up: `all`, `pics`, `views`, `off`. The Roger launcher's per-game settings are the normal opt-in path (it sets this key); the warm-up only runs when the launcher is skipped |
-| `roger_omyac_passes` | unset (= `affffflaaa`) | enhance-pass list for the omyac pipeline. Canonical form is a compact character string, one char per pass: `f`=fill, `l`=line, `a`=all (digits `2`/`1`/`0` also accepted) — the default is `affffflaaa`. Legacy space/comma-separated tokens (`fill`/`f`/`2`, `line`/`l`/`1`, `all`/`a`/`0`) still parse. Unset = the default sequence; empty string = wireframe (zero passes); unknown tokens warn and are skipped. The launcher's Passes field shows and saves this string verbatim. Tunable live (session-only) via the F12 quick-tune panel |
+| `roger_precache` | `off` | scope of the synchronous startup warm-up: `all`, `pics`, `views`, `off`. Only active when the picker is skipped; the picker manages precaching directly (see "Launcher") |
+| `roger_omyac_passes` | unset (= `affffflaaa`) | enhance-pass list for the omyac pipeline. Canonical form is a compact character string, one char per pass: `f`=fill, `l`=line, `a`=all (digits `2`/`1`/`0` also accepted) — the default is `affffflaaa`. Legacy space/comma-separated tokens (`fill`/`f`/`2`, `line`/`l`/`1`, `all`/`a`/`0`) still parse. Unset = the default sequence; empty string = wireframe (zero passes); unknown tokens warn and are skipped. The picker's Passes dropdown writes this key immediately to the selected game's section. Tunable live (session-only) via the F12 quick-tune panel |
+| `roger_cache_stamp` | unset | Written by the picker on a completed precache run: `v<kTransformVersion>:<passes>`. The picker uses this to show the green Cached badge and to decide whether a cross-game launch can skip the precache dialog |
+| `roger_picker_precache` | unset | One-shot self-consuming key: if present at `run()` start, triggers a full precache before launch and is then removed |
+| `roger_picker_launch` | unset | One-shot self-consuming key: if present at `run()` start, names the game target to launch and is then removed (used for cross-game launch from the picker) |
 | `roger_no_launcher` | off | skip the Roger game-picker dialog at startup (also env `ROGER_NO_LAUNCHER`; `build_and_run.ps1 -SkipPicker`, auto-set by `-Game`) |
 | `roger_ui_font_scale` | `150` | nudge multiplier (percent) on the native-metric text-size baseline; 100 = no nudge |
 | `roger_ui_font` | `GoMono-Regular.ttf` | dialog/body font (from ScummVM's `fonts.dat`). Per-game: set it on a game target to give each game its own font |
@@ -158,7 +190,7 @@ Hires UI text size derives from each element's **native SCI font metrics** — t
 
 ### Body font shortlist
 
-Set the dialog/body font via ``roger_ui_font`` (or the launcher's **Font** setting). The shortlist of period-appropriate faces:
+Set the dialog/body font via ``roger_ui_font`` in `scummvm.ini`. The shortlist of period-appropriate faces:
 
 1. `ms_sans_serif.ttf` — clean Win9x UI sans
 2. `LiberationSans-Regular.ttf` — neutral sans
