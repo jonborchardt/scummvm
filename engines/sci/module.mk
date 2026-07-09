@@ -127,6 +127,7 @@ MODULE_OBJS += \
 	roger/launcher/roger_launcher.o \
 	roger/launcher/roger_launcher_dialog.o \
 	roger/launcher/roger_picker_model.o \
+	roger/launcher/roger_picker_view.o \
 	roger/roger_selftest.o \
 	roger/roger_widgets.o \
 	roger/utils/tunepanel/roger_tune_panel.o \
