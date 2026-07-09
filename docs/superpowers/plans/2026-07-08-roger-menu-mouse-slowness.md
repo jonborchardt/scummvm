@@ -481,3 +481,40 @@ Captures (`roger-300-m-open-overlay.png`, `roger-300-m-after-overlay.png`, `roge
 - **m-open**: Information dropdown fully drawn — white box with frame, all 5 items (Inventory, Char Sheet, Time/Day, Ask about, Look at) visible; menu titles (File / Game / Action / Information) on the bar strip. PASS.
 - **m-after**: Dropdown dismissed; "Quest for Glory I  [score 1 of 500]" score banner restored on the top strip; no dropdown remnant stamped in the scene. PASS.
 - **m-afterhover**: Same clean state as m-after; score banner still showing, no stale overlay fragment. PASS.
+
+### Task 3 after (skip no-op re-push) — 2026-07-08
+
+Run: `.\build_and_run.ps1 -Game qfg1 -SaveSlot 1 -Script screenshots\menu-drag-perf.rin -Diag -TimeoutSec 180`
+Exit code: 0 (script completed cleanly).
+
+#### (a) Idle window
+
+```
+ROGER-DIAG[present]: n=5 ms=40  window=3271
+ROGER-DIAG[present]: n=5 ms=52  window=1207
+ROGER-DIAG[present]: n=3 ms=29  window=1600
+```
+
+3–5 presents/s — identical to Task 2 idle. Guard has zero cost on the warm path.
+
+#### (b) Menu-drag windows
+
+```
+ROGER-DIAG[present]: n=13 ms=274 window=1147   ← first window in drag
+ROGER-DIAG[present]: n=8  ms=316 window=1228
+ROGER-DIAG[present]: n=8  ms=260 window=1005   ← last window before drag-end
+```
+
+Task 2 drag: `n=10–13 ms=201–395`. Task 3 drag: `n=8–13 ms=260–316`.
+The lower-end `n` dropped from 10 to 8 (one fewer push per crossing for most moves).
+The peak `n=13` window did not shrink — the first drag window captures the initial
+menu open + first crossing (drawMenu reset + first highlight push, both fire), plus
+cursor-move presents between crossings. Overall ms range tightened (260–316 vs
+201–395), showing the removed re-pushes eliminated some costlier batches. The
+remaining presents are per-move cursor updates and real highlight changes — correct.
+
+#### (c) Visual sanity — m-open capture (qfg1-menu-cycle rerun)
+
+`roger-300-m-open-overlay.png`: Information dropdown open with white box + frame,
+all 5 items visible (Inventory, Char Sheet, Time/Day, Ask about, Look at), cursor
+at the title bar (no row highlighted yet — correct for the capture moment). PASS.

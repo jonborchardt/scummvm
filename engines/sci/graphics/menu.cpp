@@ -845,7 +845,9 @@ void GfxMenu::invertMenuSelection(uint16 itemId) {
 
 	// Roger: track the highlighted row and re-push the dropdown so the overlay's
 	// selection follows the cursor (the native invert is hidden under the overlay).
-	if (itemId != 0) {
+	// interactiveWithMouse inverts the OLD row then the NEW one; the old-row call
+	// arrives with the highlight it already holds — skip that no-op re-push.
+	if (itemId != 0 && itemId != _rogerMenuHighlight) {
 		_rogerMenuHighlight = itemId;
 		rogerPushMenuOverlay();
 	}
