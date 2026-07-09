@@ -94,6 +94,12 @@ int RogerStudio::selectOrAddPicMode(const Common::Array<int> &passes) {
 	for (uint i = 0; i < _picModes.size(); i++)
 		if (passesEqual(_picModes[i], passes))
 			return (int)i;
+	// Appending shifts the trailing "nearest" position up by one; re-point any
+	// slot parked on it first, or its picSel would alias the new mode (wrong
+	// label, dead cycling - the cached plateMode masks it until the next apply).
+	for (int i = 0; i < 2; i++)
+		if (picSelIsNearest(_slots[i].picSel))
+			_slots[i].picSel = (int)_picModes.size() + 1;
 	_picModes.push_back(passes);
 	return (int)_picModes.size() - 1;
 }

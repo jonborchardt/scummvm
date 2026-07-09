@@ -367,6 +367,10 @@ Graphics::Surface *RogerAssetGen::generatePlateCore(const Common::Array<int> &id
 #ifdef ENABLE_SCI
 	// Nearest plate mode ("pic enhance: nearest"): the zero-enhancement
 	// reference. Index/backfill stay empty (no omyac ran); never disk-cached.
+	// Deliberately plate-only: generatePriorityMapStack has no nearest branch,
+	// so sprite occlusion still uses the omyac-derived bands (and first-time
+	// nearest still pays one prio regen) - fine for a debug reference mode,
+	// not a bug.
 	if (_plateNearest)
 		return generatePlateNearestStack(ids, outMs);
 

@@ -9,7 +9,9 @@ the left edge).
 It is **session-only**: nothing it does is written to `scummvm.ini` or the
 generation disk cache. Applying off-config passes forces `kGenMemory`
 (regenerate in RAM, cache untouched); returning to the config passes restores
-the prior gen mode. Close the panel or restart, and the config wins again.
+the prior gen mode. Closing the panel does NOT revert — applied settings stay
+live for the session; restart (or cycle back to the config passes) to get the
+config again.
 
 Spec: `docs/superpowers/specs/2026-07-05-roger-tune-panel-design.md`. Built for
 the 2026 MMPX view-scaler judging (concluded 2026-07-06 — the shipping 6x won);

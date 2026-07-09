@@ -37,9 +37,9 @@ namespace Roger {
 // (one char per pass: f=fill, l=line, a=all). The single source of truth —
 // defaultPasses() parses this, the picker shows it when the ini key is unset,
 // and the Eye Exam starts its search from it. THE swap point for promoting a
-// new best: point its definition (roger_passes.cpp) at another
-// goodPassPattern entry's compact.
-extern const char *const kDefaultPassString; // "ffflffaaaa"
+// new best: change the string literal in roger_passes.cpp (keep it matching
+// a goodPassPattern entry).
+extern const char *const kDefaultPassString; // "affffflaaa"
 
 // Curated known-good pass sequences (judged with the Eye Exam, best-first).
 // The picker shows them as one-click suggestions; kDefaultPassString should

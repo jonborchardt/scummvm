@@ -14,7 +14,7 @@ surfaces; `roger_compositor` and `file_roger_art_provider` consume them.
 | `roger_scale.{h,cpp}` | scale2x/3x/6x nearest scalers |
 | `roger_view_scaler.{h,cpp}` | Registry of VIEW-cel upscaler modules (entry 0 = shipping 6x) |
 | `roger_ega_blend.{h,cpp}` | Precomputed okLab-mixed EGA color table |
-| `roger_passes.{h,cpp}` | Pass-string parse/stamp + pass-edit ops; `kDefaultPassString` |
+| `roger_passes.{h,cpp}` | Pass-string parse/stamp + passesEqual; `kDefaultPassString` |
 | `slice_set.{h,cpp}` | SCI0 EGA priority-band helpers |
 | `roger_byte_reader.h` | Big-endian byte cursor over the pic bitstream |
 | `roger_draw_command.h` | Decoded pic/cel command structs |

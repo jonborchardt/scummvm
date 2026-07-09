@@ -111,14 +111,23 @@ public:
 			uint8 a, r, g, b;
 
 			blendWipe(*from, *to, out, 0.0f, dir);
-			// At t=0 all pixels should be 'from' (red)
+			// At t=0 all pixels should be 'from' (red). Check both corners:
+			// (0,0) has threshold exactly 0 for the left/top directions (the
+			// pixel class the t > 0 endpoint gate exists for); (15,15) is the
+			// reveal-origin corner (minimum threshold) for right/bottom.
 			out.format.colorToARGB(out.getPixel(0, 0), a, r, g, b);
+			TS_ASSERT_EQUALS((int)r, 255);
+			TS_ASSERT_EQUALS((int)b, 0);
+			out.format.colorToARGB(out.getPixel(15, 15), a, r, g, b);
 			TS_ASSERT_EQUALS((int)r, 255);
 			TS_ASSERT_EQUALS((int)b, 0);
 
 			blendWipe(*from, *to, out, 1.0f, dir);
-			// At t=1 all pixels should be 'to' (blue)
+			// At t=1 all pixels should be 'to' (blue), incl. the last-revealed corner
 			out.format.colorToARGB(out.getPixel(0, 0), a, r, g, b);
+			TS_ASSERT_EQUALS((int)r, 0);
+			TS_ASSERT_EQUALS((int)b, 255);
+			out.format.colorToARGB(out.getPixel(15, 15), a, r, g, b);
 			TS_ASSERT_EQUALS((int)r, 0);
 			TS_ASSERT_EQUALS((int)b, 255);
 
@@ -187,6 +196,10 @@ public:
 		blendSplitVertical(*from, *to, out, 0.0f, true);
 		out.format.colorToARGB(out.getPixel(0, 0), a, r, g, b);
 		TS_ASSERT_EQUALS((int)r, 255); TS_ASSERT_EQUALS((int)b, 0);
+		// fromCenter reveal origin: the center column has threshold exactly 0,
+		// so it is the pixel a bare t >= threshold leaked at t=0.
+		out.format.colorToARGB(out.getPixel(16, 0), a, r, g, b);
+		TS_ASSERT_EQUALS((int)r, 255); TS_ASSERT_EQUALS((int)b, 0);
 		blendSplitVertical(*from, *to, out, 1.0f, true);
 		out.format.colorToARGB(out.getPixel(0, 0), a, r, g, b);
 		TS_ASSERT_EQUALS((int)r, 0);   TS_ASSERT_EQUALS((int)b, 255);
@@ -196,6 +209,10 @@ public:
 		TS_ASSERT_EQUALS((int)r, 255); TS_ASSERT_EQUALS((int)b, 0);
 		blendSplitVertical(*from, *to, out, 1.0f, false);
 		out.format.colorToARGB(out.getPixel(0, 0), a, r, g, b);
+		TS_ASSERT_EQUALS((int)r, 0);   TS_ASSERT_EQUALS((int)b, 255);
+		// toCenter last-revealed pixel: center threshold is exactly 1.0 (the
+		// t=1 float-equality edge, 1.0f >= 1.0f must select 'to').
+		out.format.colorToARGB(out.getPixel(16, 0), a, r, g, b);
 		TS_ASSERT_EQUALS((int)r, 0);   TS_ASSERT_EQUALS((int)b, 255);
 
 		// fromCenter=true at t=0.5:
@@ -229,6 +246,9 @@ public:
 		blendSplitHorizontal(*from, *to, out, 0.0f, true);
 		out.format.colorToARGB(out.getPixel(0, 0), a, r, g, b);
 		TS_ASSERT_EQUALS((int)r, 255); TS_ASSERT_EQUALS((int)b, 0);
+		// fromCenter reveal origin: center row threshold is exactly 0 at t=0.
+		out.format.colorToARGB(out.getPixel(0, 16), a, r, g, b);
+		TS_ASSERT_EQUALS((int)r, 255); TS_ASSERT_EQUALS((int)b, 0);
 		blendSplitHorizontal(*from, *to, out, 1.0f, true);
 		out.format.colorToARGB(out.getPixel(0, 0), a, r, g, b);
 		TS_ASSERT_EQUALS((int)r, 0);   TS_ASSERT_EQUALS((int)b, 255);
@@ -237,6 +257,9 @@ public:
 		TS_ASSERT_EQUALS((int)r, 255); TS_ASSERT_EQUALS((int)b, 0);
 		blendSplitHorizontal(*from, *to, out, 1.0f, false);
 		out.format.colorToARGB(out.getPixel(0, 0), a, r, g, b);
+		TS_ASSERT_EQUALS((int)r, 0);   TS_ASSERT_EQUALS((int)b, 255);
+		// toCenter last-revealed pixel: center row threshold exactly 1.0 at t=1.
+		out.format.colorToARGB(out.getPixel(0, 16), a, r, g, b);
 		TS_ASSERT_EQUALS((int)r, 0);   TS_ASSERT_EQUALS((int)b, 255);
 
 		// fromCenter=true at t=0.5:
@@ -271,6 +294,9 @@ public:
 		blendDiagonal(*from, *to, out, 0.0f, true);
 		out.format.colorToARGB(out.getPixel(0, 0), a, r, g, b);
 		TS_ASSERT_EQUALS((int)r, 255); TS_ASSERT_EQUALS((int)b, 0);
+		// fromCenter reveal origin: the center has threshold exactly 0 at t=0.
+		out.format.colorToARGB(out.getPixel(16, 16), a, r, g, b);
+		TS_ASSERT_EQUALS((int)r, 255); TS_ASSERT_EQUALS((int)b, 0);
 		blendDiagonal(*from, *to, out, 1.0f, true);
 		out.format.colorToARGB(out.getPixel(0, 0), a, r, g, b);
 		TS_ASSERT_EQUALS((int)r, 0);   TS_ASSERT_EQUALS((int)b, 255);
@@ -279,6 +305,9 @@ public:
 		TS_ASSERT_EQUALS((int)r, 255); TS_ASSERT_EQUALS((int)b, 0);
 		blendDiagonal(*from, *to, out, 1.0f, false);
 		out.format.colorToARGB(out.getPixel(0, 0), a, r, g, b);
+		TS_ASSERT_EQUALS((int)r, 0);   TS_ASSERT_EQUALS((int)b, 255);
+		// toCenter last-revealed pixel: center threshold exactly 1.0 at t=1.
+		out.format.colorToARGB(out.getPixel(16, 16), a, r, g, b);
 		TS_ASSERT_EQUALS((int)r, 0);   TS_ASSERT_EQUALS((int)b, 255);
 
 		// fromCenter=true at t=0.5:

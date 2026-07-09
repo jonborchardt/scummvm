@@ -1,6 +1,6 @@
 #include <cxxtest/TestSuite.h>
 #include "sci/roger/utils/studio/roger_studio_render.h"
-#include "sci/roger/gen/roger_passes.h" // omyacPassStamp + pass-edit ops (moved there)
+#include "sci/roger/gen/roger_passes.h" // omyacPassStamp + passesEqual (the caret edit ops were deleted)
 #include "sci/roger/gen/roger_view_scaler.h"
 using namespace Sci::Roger;
 

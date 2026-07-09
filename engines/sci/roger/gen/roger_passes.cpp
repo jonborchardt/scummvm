@@ -48,8 +48,12 @@ const GoodPassPattern &goodPassPattern(int i) {
 // THE default best â€” the single swap point. Everything that renders with an
 // unset roger_omyac_passes key follows this: the game (defaultPasses()), the
 // picker's shown value, Studio slot seeds, and the Eye Exam's base sequence.
-// To promote a new winner, change this to another kGoodPassPatterns compact.
-const char *const kDefaultPassString = kGoodPassPatterns[1].compact;
+// To promote a new winner, change this literal (it should match a
+// kGoodPassPatterns entry). Pinned by string, never by table index â€” an
+// index made insertion order load-bearing, and inserting a suggestion once
+// silently moved the default. Changing it orphans every cached plate (the
+// passes are in the cache key); the next precache launch re-warms all pics.
+const char *const kDefaultPassString = "affffflaaa"; // shootout1, qfg11 (2026-07-08)
 
 // True when every char is in the compact vocabulary. Separators are not in
 // the set, so a separated legacy string can never read as compact.
