@@ -2595,8 +2595,16 @@ void FileRogerArtProvider::patchNativeBaseline(const Common::Rect &r) {
 	// shown/restored rect from the live visual buffer. Gated on !_inAnimateCycle:
 	// mid-cycle shows are the cast's own draw/erase churn, owned by the next
 	// cycle's full snapshot - patching those would bake cast-erased background
-	// into the baseline. O(rect), no present triggered here (the dialog's own
-	// UI-path present re-reads the patched baseline).
+	// into the baseline. O(rect), single pass.
+	//
+	// A frozen cycle has no later present (the last present fired mid-draw, before
+	// the window's final bitsShow), so patched pixels sit unseen until some
+	// unrelated present occurs. If real pixels changed, set _barrierDirty and call
+	// presentBarrier() to flush the right panel immediately. Gating on real change
+	// (not unconditional) keeps no-op re-blits (e.g. the per-cycle score-row
+	// bitsShow that writes identical bytes) from presenting - the "gate the present
+	// on real change" performance rule. presentBarrier() respects _uiBatchDepth and
+	// _inAnimateCycle, so the call is safe here.
 	if (_mode != Roger::kModeSideBySide || !_haveBaseline || _inAnimateCycle)
 		return;
 	if (!g_sci || !g_sci->_gfxScreen)
@@ -2607,9 +2615,21 @@ void FileRogerArtProvider::patchNativeBaseline(const Common::Rect &r) {
 		return;
 	Common::Rect c = r;
 	c.clip(Common::Rect(0, 0, (int16)sw, (int16)sh));
-	for (int y = c.top; y < c.bottom; y++)
-		for (int x = c.left; x < c.right; x++)
-			_nativeBaseline[(uint)y * sw + x] = screen->getVisual((int16)x, (int16)y);
+	bool changed = false;
+	for (int y = c.top; y < c.bottom; y++) {
+		for (int x = c.left; x < c.right; x++) {
+			const byte v = screen->getVisual((int16)x, (int16)y);
+			byte &stored = _nativeBaseline[(uint)y * sw + x];
+			if (v != stored) {
+				stored = v;
+				changed = true;
+			}
+		}
+	}
+	if (changed) {
+		_barrierDirty = true;
+		presentBarrier();
+	}
 }
 
 bool FileRogerArtProvider::drawGenericRegions(Graphics::ManagedSurface &scene,
