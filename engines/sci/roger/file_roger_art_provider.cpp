@@ -1542,7 +1542,24 @@ void FileRogerArtProvider::presentBarrier() {
 	if (!_barrierDirty && !_compositor->hasPendingDirty() && !cursorMoved && !capture)
 		return;
 	_barrierDirty = false;
-	presentWithUi();
+	if (_diag) {
+		const uint32 t0 = g_system->getMillis();
+		presentWithUi();
+		const uint32 t1 = g_system->getMillis();
+		_presentTelCount++;
+		_presentTelMs += t1 - t0;
+		if (_presentTelWindowStart == 0)
+			_presentTelWindowStart = t1;
+		if (t1 - _presentTelWindowStart >= 1000) {
+			warning("ROGER-DIAG[present]: n=%u ms=%u window=%u",
+			        _presentTelCount, _presentTelMs, t1 - _presentTelWindowStart);
+			_presentTelWindowStart = t1;
+			_presentTelCount = 0;
+			_presentTelMs = 0;
+		}
+	} else {
+		presentWithUi();
+	}
 }
 
 void FileRogerArtProvider::presentComparison() {

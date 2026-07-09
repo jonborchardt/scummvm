@@ -290,6 +290,13 @@ private:
 	bool _inAnimateCycle = false;    // set at snapshotNativeBaseline, cleared at cycle end
 	bool _frameJustComposed = false; // renderFrame composed this cycle (Task 4 uses it)
 
+	// Frozen-cycle present telemetry (diag-gated, permanent): counts barrier-flushed
+	// presentWithUi calls and their cumulative cost, aggregated to one
+	// ROGER-DIAG[present] line per second. Zero-cost when _diag is off.
+	uint32 _presentTelWindowStart = 0;
+	uint32 _presentTelCount = 0;
+	uint32 _presentTelMs = 0;
+
 	// Last status/title banner so it can be re-applied on room load / F10 enable
 	// (the game only redraws it on score/text change).
 	bool _haveStatus = false;
