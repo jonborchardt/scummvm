@@ -31,6 +31,7 @@ namespace Roger {
 // best-first. The picker offers these as one-click suggestions.
 static const GoodPassPattern kGoodPassPatterns[] = {
 	{"fffflffaaa", "eye-exam finalist (2026-07-07)"},
+	{"affffflaaa", "shootout1, qfg11 (2026-07-07)"},
 	{"ffffffflff", "sq3 multi-scene winner (2026-07-07)"},
 	{"fffffflaaa", "run-1 winner, pic 2 (2026-07-06)"},
 	{"ffflffaaaa", "original hand-tuned default"},
