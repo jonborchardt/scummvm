@@ -1,0 +1,29 @@
+# SBS smoke: exercises the 2026-07-08 Side-by-Side fixes in one SQ3 boot.
+# Run: .\build_and_run.ps1 -Game sq3-1 -SaveSlot 1 -Mode sbs -Script test\sci\roger\scripts\sbs-smoke.rin -TimeoutSec 240
+# Key-only (scripted clicks do not land in SBS mode).
+wait 4000
+# Claim 1: both panels 8:5, same content height (left-panel aspect fix).
+snap sbs-room
+type "look"
+key ENTER
+wait 2500
+# Claim 2: blocking Print dialog visible on BOTH panels (frozen-draw baseline patch).
+snap sbs-dialog
+key ENTER
+wait 1500
+# Claim 2b: dialog gone from both panels after dismissal (no right-panel ghost).
+snap sbs-dismissed
+type "abcdefghij"
+wait 600
+move 200 120
+wait 400
+type "klmn"
+wait 600
+move 210 130
+wait 400
+# Claim 3: 14-char typed input intact on both panels, with mouse moves interleaved
+# (frozen-loop composite stays fresh; input window mirrored natively).
+snap sbs-typed14
+state
+assert pic 2
+quit

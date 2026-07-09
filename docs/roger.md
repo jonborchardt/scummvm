@@ -32,8 +32,10 @@ picture. This is a permanent decision, not a deferred feature.
 **F10** cycles three display modes: **Enhanced** (hires overlay) →
 **Original** (native 320×200) → **Side-by-Side** → Enhanced. In side-by-side the **left
 panel shows the enhanced view** (backgrounds, upscaled cels, dialogs, live screen updates)
-and the **right panel is a passive native mirror** of the original pics, views, and
-animations. It's a comparison / screenshot view for testing intros and old-vs-new art — a
+and the **right panel is a passive native mirror** of the original pics, views,
+animations, dialogs, and menu screens (frozen-loop draws like Print windows and the QFG1
+inventory/char sheet are patched into the mirror as they draw). It's a comparison /
+screenshot view for testing intros and old-vs-new art — a
 screenshot grabs both panels in one image. A single composited cursor floats under the
 pointer over either panel, and clicks through either panel are remapped to game
 coordinates, so the game stays playable while comparing. The status banner and overlay
