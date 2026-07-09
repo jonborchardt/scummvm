@@ -105,6 +105,8 @@ public:
 	                  int nativeFontH, int nativeTextW) override;
 	void uiClearToken(uint32 token) override;
 	void uiClearAll() override;
+	void beginUiBatch() override;
+	void endUiBatch() override;
 	void uiPushFrameBox(const Common::Rect &globalRect, int penColor) override;
 
 	// Compose and present the current room to the OSystem overlay.
@@ -289,6 +291,7 @@ private:
 	bool _barrierDirty = false;      // any mark since the last barrier present
 	bool _inAnimateCycle = false;    // set at snapshotNativeBaseline, cleared at cycle end
 	bool _frameJustComposed = false; // renderFrame composed this cycle (Task 4 uses it)
+	int _uiBatchDepth = 0; // presentBarrier defers while > 0; endUiBatch flushes
 
 	// Frozen-cycle present telemetry (diag-gated, permanent): counts barrier-flushed
 	// presentWithUi calls and their cumulative cost, aggregated to one

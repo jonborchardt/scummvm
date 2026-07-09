@@ -231,6 +231,13 @@ public:
 	                          int nativeFontH = 0, int nativeTextW = 0) {}
 	virtual void uiClearToken(uint32 token) {}
 	virtual void uiClearAll() {}
+	// Bracket a multi-element UI re-push (e.g. a menu dropdown: clear + window + one
+	// text per row) so the per-push present barrier coalesces into ONE present at
+	// endUiBatch. Without this, each push during a FROZEN cycle (blocking menu/dialog
+	// loop, which never ticks kernelAnimate) flushes its own full present — a present
+	// storm per menu highlight change. Depth-counted; no-op in the base provider.
+	virtual void beginUiBatch() {}
+	virtual void endUiBatch() {}
 	// kGraphFrameBox selection highlight: frame-only (no fill), room-scoped.
 	// globalRect is already in global 320x200 screen space. Any previous frame
 	// pushed under the same token is replaced so the highlight tracks movement.

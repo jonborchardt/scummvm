@@ -445,3 +445,39 @@ ROGER-DIAG[present]: n=33 ms=888  window=1003
 ```
 
 ~27–34 presents/second; 515–910 ms of present cost per 1000 ms wall-clock second (51–91% of wall time consumed by overlay presents during menu drag). Storm confirmed — H1 stands, proceed to Task 2.
+
+### Task 2 after (batch bracket) — 2026-07-08
+
+Run: `.\build_and_run.ps1 -Game qfg1 -SaveSlot 1 -Script screenshots\menu-drag-perf.rin -Diag -TimeoutSec 180`
+Exit code: 0 (script completed cleanly).
+
+#### (a) Idle window (unchanged from baseline)
+
+```
+ROGER-DIAG[present]: n=5 ms=53  window=3295
+ROGER-DIAG[present]: n=4 ms=48  window=1070
+ROGER-DIAG[present]: n=4 ms=57  window=1716
+```
+
+4–5 presents/s, 48–57 ms total — identical to baseline. Batch guard has zero cost on the warm animate path.
+
+#### (b) Menu-drag windows (after batch bracket)
+
+```
+ROGER-DIAG[present]: n=13 ms=201 window=1034   ← first full second in drag
+ROGER-DIAG[present]: n=12 ms=395 window=1042
+ROGER-DIAG[present]: n=11 ms=331 window=1025
+ROGER-DIAG[present]: n=10 ms=321 window=1005   ← last window
+```
+
+Baseline peak: `n=34 ms=910 window=1004`. After: `n=10–13 ms=201–395 window=~1025`.
+Count dropped ~3× (34→10–13); ms dropped ~2.3–4.5× (910→201–395); wall fraction dropped from ~91% to ~20–38%.
+Remaining presents are per-move cursor updates outside the batch — expected and correct; these are the `onMouseMoved → presentBarrier` calls that fire between row crossings.
+
+#### (c) Visual sanity — qfg1-menu-cycle regression script
+
+Captures (`roger-300-m-open-overlay.png`, `roger-300-m-after-overlay.png`, `roger-300-m-afterhover-overlay.png`):
+
+- **m-open**: Information dropdown fully drawn — white box with frame, all 5 items (Inventory, Char Sheet, Time/Day, Ask about, Look at) visible; menu titles (File / Game / Action / Information) on the bar strip. PASS.
+- **m-after**: Dropdown dismissed; "Quest for Glory I  [score 1 of 500]" score banner restored on the top strip; no dropdown remnant stamped in the scene. PASS.
+- **m-afterhover**: Same clean state as m-after; score banner still showing, no stale overlay fragment. PASS.

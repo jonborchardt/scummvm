@@ -1518,6 +1518,8 @@ void FileRogerArtProvider::presentBarrier() {
 	// The single gated present (spec Ã‚Â§3.2). Every skip path below is O(1).
 	if (_inAnimateCycle)
 		return; // mid-cycle marks accumulate; the end-of-cycle call flushes them
+	if (_uiBatchDepth > 0)
+		return; // batched UI re-push: marks accumulate; endUiBatch flushes once
 	if (!overlayShown() || !_compositor || !_haveScene || !_sceneCache)
 		return;
 	if (_frameJustComposed && _scratchScene) {
@@ -1914,6 +1916,15 @@ void FileRogerArtProvider::reapplyStatus() {
 // mid-room, so it persists until room change. kGenericTextTokenNs is the namespace base
 // (matches picture-port id 0 fallback and is the value passed to the namespace helpers).
 static inline bool isGenericTextToken(uint32 t) { return (t & Roger::kTokenNamespaceMask) == Roger::kGenericTextTokenNs; }
+
+void FileRogerArtProvider::beginUiBatch() {
+	_uiBatchDepth++;
+}
+
+void FileRogerArtProvider::endUiBatch() {
+	if (_uiBatchDepth > 0 && --_uiBatchDepth == 0)
+		presentBarrier();
+}
 
 void FileRogerArtProvider::uiClearToken(uint32 token) {
 	// The save-under restore path (bitsRestore) now goes through onNativeRestoreRect
