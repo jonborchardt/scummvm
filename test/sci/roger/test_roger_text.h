@@ -65,6 +65,21 @@ public:
 		TS_ASSERT_EQUALS(firstLineTop(10, 20, 3, 20, /*centre*/false), 10);
 	}
 
+	void test_first_line_always_draws_despite_ink_overflow() {
+		// The QFG1 parser-box bug: fitPx sizes by nominal cell height, but a
+		// descender's ink extent exceeds the cell (TTF ascent+descent > em size),
+		// so the old ink-bottom clip dropped the ONLY line and the field rendered
+		// empty the moment a g/j/p/q/y was typed. First line must always draw.
+		TS_ASSERT(lineDrawsWithinBox(0, 0, 70, 61));  // ink past bottom: still draws
+		TS_ASSERT(lineDrawsWithinBox(0, 0, 55, 61));  // fits: draws
+	}
+
+	void test_later_lines_still_clip_at_box_bottom() {
+		// Multi-line re-wrap drift class: lines after the first keep clipping.
+		TS_ASSERT(!lineDrawsWithinBox(1, 61, 70, 61)); // second line ink overflows: clips
+		TS_ASSERT(lineDrawsWithinBox(1, 0, 55, 61));   // second line fits: draws
+	}
+
 	void test_fit_by_height_and_width_respects_both_caps() {
 		const Graphics::Font *small = FontMan.getFontByUsage(Graphics::FontManager::kGUIFont);
 		const Graphics::Font *big   = FontMan.getFontByUsage(Graphics::FontManager::kBigGUIFont);

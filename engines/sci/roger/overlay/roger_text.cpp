@@ -96,6 +96,12 @@ int opticalBlockTop(int top, int boxH, int lineCount, int lineH, int inkTop, int
 	return y;
 }
 
+bool lineDrawsWithinBox(uint lineIndex, int y, int inkBottom, int rectBottom) {
+	if (lineIndex == 0)
+		return true; // the only/first line always draws; overhang beats an empty field
+	return y + inkBottom <= rectBottom;
+}
+
 uint32 textScaleGroup(uint32 token, bool useAltFont, bool multiLine, uint elemIndex) {
 	// Group labels only need uniqueness, not meaning. Window/port ids live in the low
 	// bits of tokens and are small; the 0x0A/0x06 prefixes cannot collide with them.
@@ -388,11 +394,12 @@ void RogerTextRenderer::drawAtPx(Graphics::ManagedSurface &dst, const Common::St
 		y = opticalBlockTop(rect.top, rect.height(), (int)lines.size(), lh,
 		                    inkFirst.top, inkLast.bottom);
 	// Clip guard uses the ink bottom, not the cell bottom: an ink-centred cell may
-	// legitimately overhang the box with empty descent/leading rows.
+	// legitimately overhang the box with empty descent/leading rows. The first line
+	// is exempt (see lineDrawsWithinBox): descender ink can exceed the fitted cell.
 	const int inkBot = inkLast.bottom > 0 ? inkLast.bottom : lh;
 	for (uint i = 0; i < lines.size(); i++) {
-		if (y + inkBot > rect.bottom)
-			break; // line's ink would pass the box bottom â€” clip silently
+		if (!lineDrawsWithinBox(i, y, inkBot, rect.bottom))
+			break; // later line's ink would pass the box bottom â€” clip silently
 		if (lineHasGlyph(lines[i], glyphs)) {
 			// Mixed TTF + native-glyph layout: lay out left->right, drawing ASCII runs
 			// with the TTF font and blitting each non-ASCII glyph scaled to the line

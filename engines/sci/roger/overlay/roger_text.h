@@ -69,6 +69,14 @@ int firstLineTop(int top, int boxH, int lineCount, int lineH, bool vAlignTop);
 // Degenerate ink (inkBottom <= inkTop) falls back to cell centring. Pure.
 int opticalBlockTop(int top, int boxH, int lineCount, int lineH, int inkTop, int inkBottom);
 
+// Whether wrapped line `lineIndex` (0-based, laid out from line top `y` with ink
+// extending to `inkBottom` below it) may draw against the box bottom `rectBottom`.
+// The FIRST line always draws: a descender's ink extent can exceed the fitted font
+// cell (TTF ascent+descent > nominal em size), and silently dropping the only line
+// rendered the QFG1 parser input box empty the moment a g/j/p/q/y was typed. Later
+// lines clip as before (the multi-line re-wrap drift class). Pure: unit-testable.
+bool lineDrawsWithinBox(uint lineIndex, int y, int inkBottom, int rectBottom);
+
 // One text element's sizing inputs/outputs for the shared type-scale pass.
 struct TextSizeFit {
 	uint32 group;  // sizing group (window id + font namespace); scale is shared per group

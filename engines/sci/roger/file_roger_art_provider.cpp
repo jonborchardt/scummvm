@@ -1595,6 +1595,10 @@ void FileRogerArtProvider::presentComparison() {
 	// Fall back to _sceneCache (scene, no UI) when the composite cache isn't valid.
 	Graphics::ManagedSurface *leftSrc = (_compositeCacheValid && _compositeCache) ? _compositeCache
 	                                  : (_haveScene ? _sceneCache : nullptr);
+	if (_diag)
+		warning("ROGER-DIAG[sbsLeft]: src=%s frameJustComposed=%d",
+		        leftSrc == _compositeCache ? "composite" : (leftSrc ? "sceneFallback" : "none"),
+		        _frameJustComposed ? 1 : 0);
 	if (leftSrc) {
 		// The composite is overlay-sized and carries its own letterbox (aspect =
 		// window aspect, not 8:5); scaling the WHOLE surface into the 8:5 panel
