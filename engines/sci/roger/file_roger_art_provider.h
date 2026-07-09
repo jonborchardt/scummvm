@@ -145,9 +145,7 @@ public:
 	bool diagEnabled() const override { return _diag; }
 	bool cycleLogEnabled() const override { return _cycleLog; }
 private:
-	bool _autoshot = false;      // roger_autoshot: dump the composited scene to PNG on room load (verification harness)
 	bool _selfTest = false;      // roger_selftest: log structural invariant PASS/FAIL per room (off by default)
-	bool _diffBackstop = false;  // roger_diff_backstop: Feeder B pixel-diff backstop (default off; per-frame full-buffer diff is costly and can stamp blocky native pixels over the plate around moving sprites)
 	bool _diffCheck = false;     // roger_diff_check: gated in-engine native-vs-overlay diff (off by default; once per pic; never on steady-state path)
 	bool _truthCapture = false; // .rin captures grab the REAL overlay pixels (grabOverlay) instead of forcing a full recompose Ã¢â‚¬â€ evidence mode, default off; stale never-pushed regions are visible
 	// Roger::ScriptHost Ã¢â‚¬â€ game-side services for the .rin loop commands
@@ -165,10 +163,8 @@ private:
 	void maybeScriptCapture(Graphics::ManagedSurface &scene, const Common::Rect &gameRect);
 	bool _useHwCursor = false;   // roger_hw_cursor: try the native HW cursor over the overlay (invisible in practice); default false = composited arrow
 	bool _debugCapture = false;  // roger_debug_capture: write manifest + PNGs to screenshots/ once per pic (off by default; inspection only)
-	int _autoshotPicId = -1;     // last pic id already auto-shot (so we dump once per room, not per frame)
 	int _debugDumpedPic = -1;    // last pic id whose capture was dumped (once-per-pic guard for dumpCaptureDebug)
 	int _diffCheckedPic = -1;    // last pic id whose diff was run (once-per-pic guard for runDiffCheck)
-	uint32 _lastUiSig = 0;       // signature of the last -ui autoshot's UI layer (throttle: dump only on change)
 	int _statusBarH = 10;        // SCI0 status/menu bar height in screen rows (of 200); reserved at the top of the game rect (may change)
 	Common::Array<byte> _priorityMap; // 1920x1140 omyac-aligned priority bands (from RogerAssetGen::generatePriorityMap), for overlay occlusion
 
@@ -232,7 +228,7 @@ private:
 	uint32 _stampSeqCounter = 0; // seq tags for Feeder B stamps (rollback scope)
 	int _nativeDrawDepth = 0;                 // >0 => inside a Roger-handled draw
 	Common::Array<Common::Rect> _genRegions;  // Feeder B native rects captured this frame
-	Common::Array<byte> _nativeBaseline;      // last "known" native visual buffer (Feeder B diff)
+	Common::Array<byte> _nativeBaseline;      // whole-frame native visual snapshot for the side-by-side native panel
 	bool _haveBaseline = false;
 	// Ã¢â€â‚¬Ã¢â€â‚¬ Cycle-diff backstop net (spec Phase 2) Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 	bool _diffNet = false;               // roger_diff_net; default ON (escape hatch: =false)
@@ -304,9 +300,9 @@ private:
 	int _statusFont = 0;                       // SCI font id the game drew the banner with
 	int _statusNativeFontH = 0, _statusNativeTextW = 0; // native font metrics captured at push time
 	void reapplyStatus(); // re-push the cached banner (no-op if none)
-	// roger_autoshot helper: dump <screenshotpath>/roger-<id><suffix>-overlay.png and
-	// -preview.png for the given composited scene (suffix "" = per-room scene, "-ui" =
-	// dialog re-present). Verification harness only; no-op unless roger_autoshot is set.
+	// PNG dump helper: writes <screenshotpath>/roger-<id><suffix>-overlay.png and
+	// -preview.png for the given composited scene. The shared writer behind the .rin
+	// capture / snap commands (maybeScriptCapture / dumpOverlaySnap); suffix = "-<label>".
 	void dumpAutoshot(Graphics::ManagedSurface &scene, const Common::Rect &gameRect, const char *suffix);
 	// roger_debug_capture helper: write a per-pic manifest (captured TEXT strings+rects and
 	// GFX rects) plus a PNG per pixel-captured graphic to the gitignored screenshots/ folder.
@@ -330,8 +326,8 @@ private:
 	Roger::GenMode _tunePreTuneMode = Roger::kGenCache; // mode before Apply first forced kGenMemory
 	bool _tuneModeRemembered = false;
 	void markTunePanelDirty();           // dirty ONLY the panel rect + presentBarrier arm
-	void tuneApplyVariant(int preset);   // immediate: set variant, flush ViewCache, full dirty
-	void tuneApplyStagedPasses();        // Apply: setEnhancePasses + mode juggling + regenInPlace
+	void tuneApplyViewMode();            // immediate: map _tunePanel.viewMode -> variant, flush ViewCache, full dirty
+	void tuneApplyStagedPasses();        // Add/cycle: setEnhancePasses + mode juggling + regenInPlace
 
 	// Render each unique non-ASCII byte of `text` as a glyph surface from the game's
 	// SCI font (fontId, penColor), own it in _uiIcons, and append {byte,surface} to

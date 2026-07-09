@@ -180,7 +180,7 @@ project.xcworkspace
 
 /snapshots
 
-# Roger dev/verification screenshots (roger_autoshot output, manual captures) —
+# Roger dev/verification screenshots (.rin capture output, manual captures) —
 # never commit these; point screenshotpath here and keep them out of the repo root.
 /screenshots/
 

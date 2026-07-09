@@ -112,7 +112,6 @@ All are optional `scummvm.ini` keys (only read when present).
 | `roger_dirty_present` | on | re-draw only changed regions each frame (dirty-rectangle present); off = full-region present |
 | `roger_transitions` | on | Mirror SCI screen transitions (fade/dissolve/wipe/scroll) and shake in the overlay. Off = hard cut (old behavior). |
 | `roger_palette_live` | on | Re-apply the live SCI palette to the hires plate (cycling/fade/flash) via the preserved index map. Off = static plate colors. |
-| `roger_autoshot` | off | dump the composited scene to PNG on room load (verification harness) |
 | `roger_debug` | off | per-frame Roger diagnostic logging |
 | `roger_selftest` | off | logs per-room structural invariant PASS/FAIL to the debug output (one line per room loaded; use with `roger_debug=true` to see output). Asserts: EGA, overlay active, plate generated + non-empty, priority map present |
 | `roger_display_mode` | `enhanced` | Startup display mode: `enhanced`, `original` (native), or `sbs` (side-by-side enhanced\|native). F10 still cycles from it. Per-launch override: env `ROGER_DISPLAY_MODE` / `build_and_run.ps1 -Mode <m>` — never touches the ini. `-Mode sbs` makes every scripted capture an enhanced-vs-native comparison shot. |
@@ -121,8 +120,7 @@ All are optional `scummvm.ini` keys (only read when present).
 | `roger_cycle_log`    | off   | Per-kernelAnimate `ROGER-CYCLE period=<ms> busy=<ms>` telemetry line (also env `ROGER_CYCLE_LOG`). |
 | `roger_diag`          | off   | Structured `ROGER-DIAG` overlay-state trace at room-load/present/cel-draw seams (also env `ROGER_DIAG` / `build_and_run.ps1 -Diag` for a single launch — preferred over editing the ini). |
 | `roger_truth_capture` | off | Evidence mode: `.rin` captures dump the REAL overlay pixels via `grabOverlay` (the presented pixels — what the player actually sees) instead of forcing a full clean recompose. Required for fault-injection evidence — with it off, missing invalidation marks are invisible in captures (the scratch buffer self-heals every cycle). Per-launch: `build_and_run.ps1 -TruthCap` (env `ROGER_TRUTH_CAPTURE`). |
-| `roger_diff_net` | on | Cycle-diff backstop net: each cycle, diff the native visual buffer against the previous cycle and invalidate changed regions — heals any missed invalidation within one cycle. Runtime escape hatch: set to `false` (env `ROGER_DIFF_NET=0` per-launch). Cost telemetry: `ROGER-NET sum32=<ms> boxes=<n>` under `-CycleLog` (budget: sum32 ≤ 32 ≈ 1 ms/cycle). Distinct from `roger_diff_backstop` (Feeder B *compositing* of unhooked draws); the net only *invalidates*. |
-| `roger_diff_backstop` | off | Feeder B per-frame full-buffer pixel diff that *composites* unhooked native draws. Off by default: the diff is costly and can stamp blocky native pixels around moving sprites. The bitsShow-hook path and addToPic capture stay on regardless. |
+| `roger_diff_net` | on | Cycle-diff backstop net: each cycle, diff the native visual buffer against the previous cycle and invalidate changed regions — heals any missed invalidation within one cycle. Runtime escape hatch: set to `false` (env `ROGER_DIFF_NET=0` per-launch). Cost telemetry: `ROGER-NET sum32=<ms> boxes=<n>` under `-CycleLog` (budget: sum32 ≤ 32 ≈ 1 ms/cycle). The net only *invalidates* (never stamps pixels); the always-on bitsShow-hook path (Feeder B) and addToPic capture (Feeder A) handle compositing of unhooked draws. |
 | `roger_debug_capture` | off | Write a per-pic manifest + a PNG per pixel-captured graphic sprite to the screenshot dir (missing-graphics forensics). |
 | `roger_diff_check` | off | Gated in-engine native-vs-overlay diff, once per pic (never on the steady-state path); logs `ROGER-DIAG[diff]` boxes for the missing-graphics audit. |
 
@@ -215,8 +213,8 @@ regression testing and verification. The driver is a registered backend
 so events arrive through the normal `pollEvent` path, including during blocking
 dialogs.
 
-**Captures** reuse the autoshot writer: `capture <label>` fires at the next overlay
-present and writes `roger-<pic>-<label>-{overlay,preview}.png` in `screenshotpath`.
+**Captures**: `capture <label>` fires at the next overlay present and writes
+`roger-<pic>-<label>-{overlay,preview}.png` in `screenshotpath`.
 Captures work in **Enhanced** (the default) and **Side-by-Side** modes — launch with
 `-Mode sbs` to make every capture an enhanced-vs-native comparison shot; an
 Original-mode capture misses the composited scene. With `roger_truth_capture` on
@@ -310,4 +308,5 @@ and stamped PNG export. Everything is button-driven; Esc quits and E exports
 
 Unit tests for the SCI-type-free Roger units live in `test/sci/roger/` (CxxTest).
 On Windows: `.\build_tests.ps1` (reports `TESTS PASSED`). Headless visual capture:
-`.\roger_run.ps1 -ShotDir <dir>` writes `roger-<id>-*.png` autoshots.
+`.\build_and_run.ps1 -Script <file.rin>` drives the game and writes
+`roger-<pic>-<label>-{overlay,preview}.png` captures to `screenshotpath`.

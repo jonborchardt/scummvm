@@ -92,17 +92,7 @@ FileRogerArtProvider::FileRogerArtProvider(const Common::String &gameId,
 	// generation both the visual and the occlusion bands are produced from the SCI
 	// resource, so these knobs are obsolete and are no longer read.
 
-	// roger_autoshot: a verification-harness flag (off by default). When set, the
-	// first composited frame of each room is dumped to a PNG (see renderFrame).
-	// This is how the dev loop captures the hires overlay deterministically without
-	// keystrokes/focus Ã¢â‚¬â€ injected Alt+s/F10 never reach SDL (Win32 menu keys).
-	_autoshot = ConfMan.hasKey("roger_autoshot") && ConfMan.getBool("roger_autoshot");
 	_selfTest = ConfMan.hasKey("roger_selftest") && ConfMan.getBool("roger_selftest");
-	// roger_diff_backstop: Feeder B per-frame full-buffer pixel diff (default off). When off
-	// snapshotNativeBaseline() returns immediately, keeping _haveBaseline false so the costly
-	// 320x200 buffer read + 64K diff never runs. The bitsShow-hook path (onNativeShowRect) and
-	// addToPic capture (Feeder A) remain on regardless.
-	_diffBackstop = ConfMan.hasKey("roger_diff_backstop") && ConfMan.getBool("roger_diff_backstop");
 	// roger_debug: per-frame + per-UI-element diagnostic logging (also toggled in-game
 	// with Ctrl+Shift+L). Read it here so the documented config knob actually works.
 	_debugLog = ConfMan.hasKey("roger_debug") && ConfMan.getBool("roger_debug");
@@ -925,7 +915,7 @@ void FileRogerArtProvider::dumpAutoshot(Graphics::ManagedSurface &scene,
 	const Common::String base = dir + Common::String::format("roger-%d%s", _loadedPicId, suffix);
 
 	if (Roger::dumpSurfacePng(*scene.surfacePtr(), base + "-overlay.png"))
-		warning("ROGER: autoshot wrote %s-overlay.png", base.c_str());
+		warning("ROGER: capture wrote %s-overlay.png", base.c_str());
 
 	Graphics::Surface *nativeScreen = g_system->lockScreen();
 	if (nativeScreen) {
@@ -940,7 +930,7 @@ void FileRogerArtProvider::dumpAutoshot(Graphics::ManagedSurface &scene,
 			preview.blendBlitFrom(*scene.surfacePtr(), Common::Rect(0, 0, scene.w, scene.h),
 			                      Common::Rect(0, 0, (int16)OW, (int16)OH));
 			if (Roger::dumpSurfacePng(*preview.surfacePtr(), base + "-preview.png"))
-				warning("ROGER: autoshot wrote %s-preview.png", base.c_str());
+				warning("ROGER: capture wrote %s-preview.png", base.c_str());
 			nativeRGBA->free();
 			delete nativeRGBA;
 		}
@@ -992,7 +982,7 @@ void FileRogerArtProvider::dumpCaptureDebug() {
 	}
 
 	// PNG per pixel-captured graphic sprite (reuses Roger::dumpSurfacePng from png_loader.h,
-	// the same helper used by roger_autoshot via dumpAutoshot).
+	// the same helper used by the .rin capture path via dumpAutoshot).
 	for (uint i = 0; i < _textSprites.size(); i++) {
 		if (!_textSprites[i].celOverride) continue;
 		const Common::Rect &r = _textSprites[i].celRect;
@@ -1343,7 +1333,7 @@ void FileRogerArtProvider::presentWithUi() {
 	Graphics::ManagedSurface &scene = *scratchScene(_sceneCache->w, _sceneCache->h);
 	const Common::Rect fullR(0, 0, (int16)OW, (int16)OH);
 
-	// The -ui autoshot dump reads the WHOLE present source, and a present that
+	// A present that
 	// presentToOverlay will decide to push FULL (heal frame / dirty-present off /
 	// bg rebuild) needs a fully composed frame: the bounded path only makes the
 	// pushed regions valid. A pending .rin capture also forces the full source Ã¢â‚¬â€
@@ -1353,8 +1343,7 @@ void FileRogerArtProvider::presentWithUi() {
 	// fully recomposes it), so scratch-sourced captures can never witness a
 	// missing invalidation mark.
 	const bool captureForcesFull = _inputDriver && _inputDriver->capturePending() && !_truthCapture;
-	const bool needFullSource = captureForcesFull || _autoshot ||
-	                            _compositor->nextPresentIsFull();
+	const bool needFullSource = captureForcesFull || _compositor->nextPresentIsFull();
 
 	if (_compositeCacheValid && !needFullSource && _mode != Roger::kModeSideBySide) {
 		// Ã‚Â§3.3 region-bounded recompose: patch the composite cache only inside the
@@ -1400,7 +1389,7 @@ void FileRogerArtProvider::presentWithUi() {
 	}
 
 	// Legacy full path: rebuild scene+UI wholesale. Runs on room/geometry/F10/font
-	// changes, resize, sbs mode, hw-cursor-invalidated caches, capture/autoshot.
+	// changes, resize, sbs mode, hw-cursor-invalidated caches, capture.
 	scene.copyFrom(*_sceneCache); // fully overwrites the scratch buffer
 	if (_journal && !_journal->empty() && _textRenderer) {
 		// Diagnostic dump of the UI element rects (roger_debug or -Diag), throttled to one
@@ -1441,27 +1430,6 @@ void FileRogerArtProvider::presentWithUi() {
 	compositeCursor(scene, _lastGameRect);
 	_compositor->presentToOverlay(scene);
 	maybeScriptCapture(scene, _lastGameRect);
-
-	// Verification harness: when a dialog is composited, also dump a -ui snapshot.
-	// Throttled to one dump per distinct UI state (a cheap signature over the layer)
-	// so a banner/dialog that re-presents every frame doesn't rewrite the PNG in a
-	// tight loop. The -ui preview overlays the native dialog under the hires one.
-	if (_autoshot && _journal && !_journal->empty()) {
-		uint32 sig = 2166136261u; // FNV-1a over the element fields that affect the image
-		const Common::Array<Roger::UiElement> &els = _journal->ops();
-		for (uint i = 0; i < els.size(); i++) {
-			const Roger::UiElement &e = els[i];
-			sig = (sig ^ (uint32)e.token) * 16777619u;
-			sig = (sig ^ (uint32)(e.nativeRect.left * 31 + e.nativeRect.top)) * 16777619u;
-			sig = (sig ^ (uint32)(e.type * 7 + e.textRole)) * 16777619u;
-			for (uint c = 0; c < e.text.size(); c++)
-				sig = (sig ^ (byte)e.text[c]) * 16777619u;
-		}
-		if (sig != _lastUiSig) {
-			_lastUiSig = sig;
-			dumpAutoshot(scene, _lastGameRect, "-ui");
-		}
-	}
 }
 
 void FileRogerArtProvider::markUiDirty(const Common::Rect &nativeRect) {
@@ -1563,10 +1531,6 @@ void FileRogerArtProvider::presentBarrier() {
 		} else {
 			compositeCursor(scene, _lastGameRect);
 			_compositor->presentToOverlay(scene);
-		}
-		if (_autoshot && _autoshotPicId != _loadedPicId) {
-			dumpAutoshot(scene, _lastGameRect, "");
-			_autoshotPicId = _loadedPicId;
 		}
 		maybeScriptCapture(scene, _lastGameRect);
 		if (_diffCheck)
@@ -2574,7 +2538,7 @@ void FileRogerArtProvider::snapshotNativeBaseline() {
 	// the native visual buffer holds the WHOLE frame (pic + addToPic + animate cast),
 	// just before restoreAndDelete() erases the animating cast (ego/moving views). The
 	// live buffer read later in presentComparison has that cast already erased.
-	if (!_diffBackstop && _mode != Roger::kModeSideBySide) return; // else skip the costly per-frame snapshot
+	if (_mode != Roger::kModeSideBySide) return; // else skip the costly per-frame snapshot (SBS panel only)
 	if (!overlayShown() || !g_sci || !g_sci->_gfxScreen)
 		return;
 	GfxScreen *screen = g_sci->_gfxScreen;
@@ -2590,10 +2554,9 @@ bool FileRogerArtProvider::drawGenericRegions(Graphics::ManagedSurface &scene,
                                               const Common::Rect &picRect) {
 	if (!g_sci || !g_sci->_gfxScreen)
 		return false;
-	// Need either hook-recorded regions or a baseline to diff against; bail cheaply.
-	if (_genRegions.empty() && !_haveBaseline) {
+	// Feeder B composites only the bitsShow-hook regions recorded this frame; bail cheaply.
+	if (_genRegions.empty())
 		return false;
-	}
 	GfxScreen *screen = g_sci->_gfxScreen;
 	const int sw = screen->getWidth();    // 320 (SCI0)
 	const int sh = screen->getHeight();   // 200
@@ -2606,20 +2569,6 @@ bool FileRogerArtProvider::drawGenericRegions(Graphics::ManagedSurface &scene,
 	for (int y = 0; y < sh; y++)
 		for (int x = 0; x < sw; x++)
 			vis[(uint)y * sw + x] = screen->getVisual((int16)x, (int16)y);
-
-	// Diff backstop: any native pixels that differ from the last known baseline and were
-	// not already recorded by a bitsShow hook this frame are captured too.
-	// Belt-and-suspenders: _diffBackstop must be on (snapshotNativeBaseline also guards it,
-	// keeping _haveBaseline false when the knob is off, but guard explicitly here too).
-	if (_diffBackstop && _haveBaseline && _nativeBaseline.size() == vis.size()) {
-		Common::Array<Common::Rect> changed;
-		Roger::extractChangedBoxes(_nativeBaseline.begin(), vis.begin(), sw, sh, changed);
-		for (uint i = 0; i < changed.size(); i++)
-			_genRegions.push_back(changed[i]);
-	}
-
-	if (_genRegions.empty())
-		return false;
 
 	bool drewAny = false;
 	const int picScreenTop = _compositor->picScreenTop();
@@ -2822,7 +2771,7 @@ void FileRogerArtProvider::toggleOverlay() {
 	} else if (prev == Roger::kModeOriginal) {
 		// Original -> SideBySide: overlay comes back. _nativeBaseline went stale while
 		// the overlay was off (snapshotNativeBaseline early-returns when hidden); force a
-		// fresh snapshot on the next kernelAnimate before any Feeder-B diff runs.
+		// fresh snapshot on the next kernelAnimate before the SBS native panel reads it.
 		_haveBaseline = false;
 		if (_haveScene) { markFullDirty(); presentBarrier(); }
 		reapplyStatus();
@@ -2896,13 +2845,16 @@ void FileRogerArtProvider::toggleTunePanel() {
 		return;
 	_tunePanel.open = !_tunePanel.open;
 	if (_tunePanel.open) {
-		_tunePanel.displayMode = (int)_mode; // always enhanced here, but keep in sync
 		_tunePanel.debugLog = _debugLog;
-		_tunePanel.variant = _assetGen->viewVariant();
+		// Map the asset gen's current view variant to a panel slot (the nearest
+		// sentinel -> the last slot).
+		const int vv = _assetGen->viewVariant();
+		_tunePanel.viewMode = (vv < 0) ? Roger::viewScalerCount() : vv;
 		// enhancePasses() is always concrete here (the ctor seeds it from config).
 		_tunePanel.stagedPasses = _assetGen->enhancePasses();
 		_tunePanel.appliedPasses = _tunePanel.stagedPasses;
-		_tunePanel.selectedChip = -1;
+		Roger::tuneSeedPicModes(_tunePanel);                            // registry modes (once per session)
+		Roger::tuneSelectOrAddMode(_tunePanel, _tunePanel.stagedPasses); // reflect the applied config
 		_tunePanel.hoverId = 0;
 		Roger::buildTunePanel(_tunePanel, _tuneWidgets);
 	}
@@ -2911,15 +2863,22 @@ void FileRogerArtProvider::toggleTunePanel() {
 	presentBarrier();
 }
 
-void FileRogerArtProvider::tuneApplyVariant(int preset) {
-	_tunePanel.variant = preset;
-	if (!_assetGen || preset == _assetGen->viewVariant())
+void FileRogerArtProvider::tuneApplyViewMode() {
+	if (!_assetGen)
 		return;
-	_assetGen->setViewVariant(preset);
+	// The last panel slot is the nearest sentinel; earlier slots are registry
+	// view-scaler indices.
+	const int variant = Roger::tuneViewModeIsNearest(_tunePanel.viewMode)
+	                        ? Roger::kViewScalerNearest
+	                        : _tunePanel.viewMode;
+	if (variant == _assetGen->viewVariant())
+		return;
+	_assetGen->setViewVariant(variant);
 	if (_viewCache)
 		_viewCache->clear();
-	debug("ROGER tunePanel: view variant -> %d (%s)", preset,
-	      Roger::viewScaler(preset).id);
+	debug("ROGER tunePanel: view enhance -> %s (variant %d)",
+	      Roger::tuneViewModeIsNearest(_tunePanel.viewMode) ? "nearest" : Roger::viewScaler(variant).id,
+	      variant);
 	// Sprites re-pull cels through the ViewCache next animate cycle; a full
 	// present then restyles everything on screen (event-driven, not per-cycle).
 	markFullDirty();
@@ -2963,13 +2922,6 @@ bool FileRogerArtProvider::tunePanelMouse(bool buttonDown, const Common::Point &
 	const uint32 id = Roger::hitTestWidgets(_tuneWidgets, gamePos.x, gamePos.y);
 	switch (Roger::widKind(id)) {
 	case Roger::kTuneClose:     _tunePanel.open = false; break;
-	case Roger::kTuneDisplayMode:
-		// F10 mirror: cycle display mode. Leaving enhanced hides the panel
-		// (drawTunePanel is gated on kModeEnhanced); it reappears when F10
-		// cycles back. toggleOverlay() does its own present/dirty handling.
-		toggleOverlay();
-		_tunePanel.displayMode = (int)_mode;
-		return true;
 	case Roger::kTuneDebugLog:  // F11 mirror
 		toggleDebugLog();
 		_tunePanel.debugLog = _debugLog;
@@ -2978,28 +2930,26 @@ bool FileRogerArtProvider::tunePanelMouse(bool buttonDown, const Common::Point &
 		markTunePanelDirty(); // vacate the CURRENT side before flipping
 		_tunePanel.leftSide = !_tunePanel.leftSide;
 		break; // post-switch markTunePanelDirty covers the new side
-	case Roger::kTuneVariantRow: tuneApplyVariant(Roger::widIndex(id)); break;
-	case Roger::kTuneChip:      _tunePanel.selectedChip = Roger::widIndex(id); break;
-	case Roger::kTuneChipX:     Roger::passRemoveAt(_tunePanel.stagedPasses, _tunePanel.selectedChip); break;
-	case Roger::kTuneChipLeft:  Roger::passMove(_tunePanel.stagedPasses, _tunePanel.selectedChip, -1); break;
-	case Roger::kTuneChipRight: Roger::passMove(_tunePanel.stagedPasses, _tunePanel.selectedChip, +1); break;
-	case Roger::kTuneChipAddF:  Roger::passInsertAfter(_tunePanel.stagedPasses, _tunePanel.selectedChip, 2); break;
-	case Roger::kTuneChipAddL:  Roger::passInsertAfter(_tunePanel.stagedPasses, _tunePanel.selectedChip, 1); break;
-	case Roger::kTuneChipAddA:  Roger::passInsertAfter(_tunePanel.stagedPasses, _tunePanel.selectedChip, 0); break;
-	case Roger::kTuneClear:     _tunePanel.stagedPasses.clear(); _tunePanel.selectedChip = -1; break;
-	case Roger::kTuneReset:
-		_tunePanel.stagedPasses =
-			Roger::effectivePasses(ConfMan.hasKey("roger_omyac_passes"),
-			                       ConfMan.hasKey("roger_omyac_passes") ? ConfMan.get("roger_omyac_passes") : "");
-		_tunePanel.selectedChip = -1;
+	case Roger::kTuneViewEnhance: // cycle view-scaler modes (registry + nearest); apply
+		_tunePanel.viewMode = (_tunePanel.viewMode + 1) % Roger::tuneViewModeCount();
+		tuneApplyViewMode();
 		break;
-	case Roger::kTuneApply:     tuneApplyStagedPasses(); break;
-	case Roger::kTunePreset: // known-good registry row: stage + apply in one click
-		_tunePanel.stagedPasses = Roger::parsePassString(Roger::goodPassPattern(Roger::widIndex(id)).compact);
-		_tunePanel.selectedChip = -1;
+	case Roger::kTunePicEnhance:  // cycle the available pass modes; load + apply
+		if (!_tunePanel.picModes.empty()) {
+			_tunePanel.picModeSel = (_tunePanel.picModeSel + 1) % (int)_tunePanel.picModes.size();
+			_tunePanel.stagedPasses = _tunePanel.picModes[_tunePanel.picModeSel];
+			tuneApplyStagedPasses();
+		}
+		break;
+	case Roger::kTuneChipAddF:  _tunePanel.stagedPasses.push_back(2); break; // append fill
+	case Roger::kTuneChipAddL:  _tunePanel.stagedPasses.push_back(1); break; // append line
+	case Roger::kTuneChipAddA:  _tunePanel.stagedPasses.push_back(0); break; // append all
+	case Roger::kTuneClear:     _tunePanel.stagedPasses.clear(); break;
+	case Roger::kTuneAdd: // register the built sequence as a pic-enhance mode + apply
+		Roger::tuneSelectOrAddMode(_tunePanel, _tunePanel.stagedPasses);
 		tuneApplyStagedPasses();
 		break;
-	default: break; // click on panel background: consumed, no action
+	default: break; // display-only chip / panel background: consumed, no action
 	}
 	Roger::buildTunePanel(_tunePanel, _tuneWidgets);
 	markTunePanelDirty();

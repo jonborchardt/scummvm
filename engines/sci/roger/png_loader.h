@@ -42,7 +42,7 @@ Graphics::Surface *loadSurfaceRGBA(const Common::String &path);
 // Write a Graphics::Surface to a PNG file at `path`. Returns false on failure
 // (could not open the file, or the PNG encoder failed). Accepts any format
 // Image::writePNG supports (CLUT8 / RGB24 / RGBA32, or others via conversion).
-// Used by the `roger_autoshot` capture path to dump the composited scene.
+// Used by the .rin capture path (dumpAutoshot) to dump the composited scene.
 bool dumpSurfacePng(const Graphics::Surface &surf, const Common::String &path);
 
 // True when a file exists and is readable at `path` (absolute or relative,

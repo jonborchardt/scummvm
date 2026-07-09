@@ -37,7 +37,7 @@ Targets, in priority order:
 3. The generic `.rin` input driver (`common/events`-adjacent code in `event.cpp`, `gui/EventRecorder.h`) — held to the *stricter* common-code bar (Doxygen required)
 4. `test/sci/roger/**` (CxxTest sources)
 
-Exempt: downstream-only dev tooling (build_and_run.ps1, build_tests.ps1, roger_run.ps1, CLAUDE.md, .claude/, .gitignore, docs/superpowers/) — the C++ rules don't apply and these never go upstream.
+Exempt: downstream-only dev tooling (build_and_run.ps1, build_tests.ps1, CLAUDE.md, .claude/, .gitignore, docs/superpowers/) — the C++ rules don't apply and these never go upstream.
 
 ## Conformance checklist
 

@@ -46,7 +46,7 @@ public:
 	}
 
 	// dumpSurfacePng writes a PNG that loadSurfaceRGBA reads back identically.
-	// This is the capture primitive behind roger_autoshot (Stage 0 / H1).
+	// This is the capture primitive behind the .rin capture path (Stage 0 / H1).
 	void test_dump_png_roundtrip() {
 		const Graphics::PixelFormat rgba(4, 8, 8, 8, 8, 24, 16, 8, 0);
 		Graphics::Surface src;
