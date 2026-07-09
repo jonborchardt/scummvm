@@ -275,6 +275,9 @@ private:
 	// Side-by-side compare mode: build enhanced(left)|original(right) into the overlay and
 	// present full. Gated by _mode == kModeSideBySide; called from renderFrame/presentWithUi.
 	void presentComparison();
+	// SBS right panel: patch _nativeBaseline in-place for rects drawn while the cycle is
+	// frozen (blocking Print/Display/menu). Gated on !_inAnimateCycle + kModeSideBySide.
+	void patchNativeBaseline(const Common::Rect &r);
 
 	// Ã¢â€â‚¬Ã¢â€â‚¬ Present barrier (spec Ã‚Â§3.2) Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 	// The ONLY entry point that pushes to the overlay outside transitions. O(1)

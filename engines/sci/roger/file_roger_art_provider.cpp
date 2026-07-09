@@ -2046,6 +2046,7 @@ void FileRogerArtProvider::onNativeRestoreRect(uint32 handleToken, const Common:
 	// Ã‚Â§3.1 invalidation first, exactly like onNativeEraseRect (the barrier defers
 	// mid-cycle; a frozen cycle flushes the mark).
 	markNativeDirty(rect);
+	patchNativeBaseline(rect); // SBS: patch frozen-cycle draws into the native right-panel baseline
 	if (!overlayShown() || !_plate || !_journal) { presentBarrier(); return; }
 	Common::Array<Common::Rect> removed;
 	bool did = _journal->rollback(handleToken, rect, &removed);
@@ -2406,6 +2407,7 @@ void FileRogerArtProvider::onNativeShowRect(const Common::Rect &screenRect, uint
 	// NOT gated on _nativeDrawDepth: invalidation is dumb and exact; only the
 	// content capture below is scoped. O(1); never presents.
 	markNativeDirty(screenRect);
+	patchNativeBaseline(screenRect); // SBS: patch frozen-cycle draws into the native right-panel baseline
 	if (!overlayShown() || _nativeDrawDepth > 0 || !_plate)
 		return; // overlay off, inside a Roger-handled draw, or no hires plate
 	if (screenRect.isEmpty())
@@ -2584,6 +2586,30 @@ void FileRogerArtProvider::snapshotNativeBaseline() {
 		for (int x = 0; x < sw; x++)
 			_nativeBaseline[(uint)y * sw + x] = screen->getVisual((int16)x, (int16)y);
 	_haveBaseline = true;
+}
+
+void FileRogerArtProvider::patchNativeBaseline(const Common::Rect &r) {
+	// SBS right panel: _nativeBaseline is snapshotted once per animate cycle. A
+	// blocking Print/Display/menu loop draws AFTER the last snapshot and then
+	// freezes the cycle, so its window never reaches the panel. Patch exactly the
+	// shown/restored rect from the live visual buffer. Gated on !_inAnimateCycle:
+	// mid-cycle shows are the cast's own draw/erase churn, owned by the next
+	// cycle's full snapshot - patching those would bake cast-erased background
+	// into the baseline. O(rect), no present triggered here (the dialog's own
+	// UI-path present re-reads the patched baseline).
+	if (_mode != Roger::kModeSideBySide || !_haveBaseline || _inAnimateCycle)
+		return;
+	if (!g_sci || !g_sci->_gfxScreen)
+		return;
+	GfxScreen *screen = g_sci->_gfxScreen;
+	const int sw = screen->getWidth(), sh = screen->getHeight();
+	if ((int)_nativeBaseline.size() != sw * sh)
+		return;
+	Common::Rect c = r;
+	c.clip(Common::Rect(0, 0, (int16)sw, (int16)sh));
+	for (int y = c.top; y < c.bottom; y++)
+		for (int x = c.left; x < c.right; x++)
+			_nativeBaseline[(uint)y * sw + x] = screen->getVisual((int16)x, (int16)y);
 }
 
 bool FileRogerArtProvider::drawGenericRegions(Graphics::ManagedSurface &scene,
