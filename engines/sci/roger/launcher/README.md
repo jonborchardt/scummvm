@@ -53,7 +53,7 @@ in the normal game path and writes real, persistent settings to `scummvm.ini`.
   consumed and flushed at `run()` start, before any action.
 - **Launch / switch games**: launching the already-active game closes the dialog
   and proceeds. Launching a different game pushes it through `ChainedGamesMan` +
-  a return-to-launcher event. Double-click or Enter on a row selects and launches.
+  a return-to-launcher event. Double-click on a row selects and launches.
 
 ## Ini keys owned by the picker
 
@@ -63,7 +63,7 @@ in the normal game path and writes real, persistent settings to `scummvm.ini`.
 | `roger_debug` | Debug toggle (per-game section) | `true`/`false` or absent |
 | `roger_cache_stamp` | Precache completes without cancel (per-game section) | `v<kTransformVersion>:<passes>` |
 | `roger_picker_precache` | Cross-game launch that needs precache (per-game section) | `true` (consumed at next `run()`) |
-| `roger_picker_launch` | Cross-game launch (per-game section) | target domain name (consumed at next `run()`) |
+| `roger_picker_launch` | Cross-game launch (per-game section) | `true` — boolean one-shot written into the target game's ini section (consumed at next `run()`) |
 
 ## Skipping the picker
 

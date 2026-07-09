@@ -1,4 +1,4 @@
-﻿#include "sci/roger/launcher/roger_launcher.h"
+#include "sci/roger/launcher/roger_launcher.h"
 #include "sci/roger/launcher/roger_launcher_dialog.h"
 #include "sci/roger/launcher/roger_picker_model.h"
 #include "sci/roger/roger_art_provider.h"
@@ -79,7 +79,7 @@ void RogerLauncher::discoverGames() {
 		                ConfMan.hasKey("description", dom) ? ConfMan.get("description", dom) : ""));
 	}
 
-	// Also check the active domain â€" handles command-line games not persisted in scummvm.ini.
+	// Also check the active domain -- handles command-line games not persisted in scummvm.ini.
 	// When launched as "scummvm -p /path gameid", getGameDomains() returns empty because
 	// the domain only exists in memory; ConfMan.hasKey("path") reads from the active chain.
 	{

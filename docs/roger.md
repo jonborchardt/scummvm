@@ -100,7 +100,7 @@ it is scale-to-cover center-cropped to fit. If missing, a procedural dark-navy
 gradient is used instead. The placeholder `dists/roger/roger-picker-bg.png` is
 deployed by `build_and_run.ps1` on first run (never clobbers user art).
 
-**Card rows:** each game shows a title, a subtitle with the target path, and a
+**Card rows:** each game shows a title, a subtitle with the platform/language group (e.g. "DOS/English"), and a
 badge — green **Cached** (a precache stamp is present and current) or amber
 **Not Cached**. A **Precache** button and a per-row **Remove** button appear on
 each row (Remove is disabled for the currently running game). The running game
@@ -144,7 +144,7 @@ All are optional `scummvm.ini` keys (only read when present).
 | `roger_omyac_passes` | unset (= `affffflaaa`) | enhance-pass list for the omyac pipeline. Canonical form is a compact character string, one char per pass: `f`=fill, `l`=line, `a`=all (digits `2`/`1`/`0` also accepted) — the default is `affffflaaa`. Legacy space/comma-separated tokens (`fill`/`f`/`2`, `line`/`l`/`1`, `all`/`a`/`0`) still parse. Unset = the default sequence; empty string = wireframe (zero passes); unknown tokens warn and are skipped. The picker's Passes dropdown writes this key immediately to the selected game's section. Tunable live (session-only) via the F12 quick-tune panel |
 | `roger_cache_stamp` | unset | Written by the picker on a completed precache run: `v<kTransformVersion>:<passes>`. The picker uses this to show the green Cached badge and to decide whether a cross-game launch can skip the precache dialog |
 | `roger_picker_precache` | unset | One-shot self-consuming key: if present at `run()` start, triggers a full precache before launch and is then removed |
-| `roger_picker_launch` | unset | One-shot self-consuming key: if present at `run()` start, names the game target to launch and is then removed (used for cross-game launch from the picker) |
+| `roger_picker_launch` | unset | One-shot self-consuming boolean key written into the target game's ini section: if present at `run()` start, triggers an immediate launch and is then removed (used for cross-game launch from the picker) |
 | `roger_no_launcher` | off | skip the Roger game-picker dialog at startup (also env `ROGER_NO_LAUNCHER`; `build_and_run.ps1 -SkipPicker`, auto-set by `-Game`) |
 | `roger_ui_font_scale` | `150` | nudge multiplier (percent) on the native-metric text-size baseline; 100 = no nudge |
 | `roger_ui_font` | `GoMono-Regular.ttf` | dialog/body font (from ScummVM's `fonts.dat`). Per-game: set it on a game target to give each game its own font |

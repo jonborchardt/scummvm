@@ -290,7 +290,7 @@ void PickerViewWidget::drawRow(int visIdx, int row) {
 		Common::Rect line1(r.badge.left, r.badge.top, r.badge.right,
 		                   r.badge.top + r.badge.height() / 2);
 		Common::Rect line2(r.badge.left, line1.bottom, r.badge.right, r.badge.bottom);
-		drawTextIn(kFBody, g.cached ? "\xE2\x9C\x93 Cached" : "! Not Cached", line1,
+		drawTextIn(kFBody, g.cached ? "Cached" : "! Not Cached", line1,
 		           c.r, c.g, c.b, Graphics::kTextAlignLeft);
 		drawTextIn(kFSmall, g.cached ? "Ready" : "Not ready", line2,
 		           kTextDim.r, kTextDim.g, kTextDim.b, Graphics::kTextAlignLeft);
