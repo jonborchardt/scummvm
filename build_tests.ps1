@@ -109,7 +109,14 @@ $RogerTestHeaders = @(
     "test_roger_journal.h",
     "test_tune_panel.h",
     "test_eyetest_search.h",
-    "test_roger_passes.h"
+    "test_roger_passes.h",
+    "test_present_barrier.h",
+    "test_foreground_capture.h",
+    "test_window_stamp_filter.h",
+    "test_charscreen_fidelity.h",
+    "test_compare_mode.h",
+    "test_effects.h",
+    "test_roger_capabilities.h"
 )
 
 # ── Locate MSBuild via vswhere ────────────────────────────────────────────────
