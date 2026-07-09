@@ -23,6 +23,7 @@
 
 #include "common/array.h"
 #include "common/str.h"
+#include "common/stream.h"
 #include "graphics/surface.h"
 
 namespace Sci {
@@ -35,7 +36,13 @@ namespace Roger {
 // Width x height pixels returned in row-major order (left-to-right, top-to-bottom).
 Common::Array<byte> loadGrayscale8(const Common::String &path);
 
-// Decode a PNG to a newly-allocated 32-bit RGBA Graphics::Surface.
+// Decode a PNG from an open stream to a newly-allocated 32-bit RGBA
+// Graphics::Surface. Caller owns the result: call ->free() then delete.
+// Returns nullptr on failure.
+Graphics::Surface *loadSurfaceRGBA(Common::SeekableReadStream &stream);
+
+// Decode a PNG file at `path` to a newly-allocated 32-bit RGBA
+// Graphics::Surface. Delegates to the stream overload above.
 // Caller owns the result: call ->free() then delete. Returns nullptr on failure.
 Graphics::Surface *loadSurfaceRGBA(const Common::String &path);
 

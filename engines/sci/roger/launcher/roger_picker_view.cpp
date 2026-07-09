@@ -24,6 +24,7 @@
 #include "gui/ThemeEngine.h"
 #include "graphics/fontman.h"
 #include "graphics/font.h"
+#include "common/archive.h"
 #include "common/system.h"
 #include "common/util.h"
 #ifdef USE_FREETYPE2
@@ -86,7 +87,19 @@ void PickerViewWidget::loadFonts() {
 
 void PickerViewWidget::bakeBackground() {
 	_bgBaked.create(_w, _h, _canvas.format);
-	Graphics::Surface *src = loadSurfaceRGBA("roger-picker-bg.png");
+	// Resolution order: SearchMan first (finds files next to scummvm.exe via the
+	// same mechanism as fonts.dat / loadTTFFontFromArchive), then CWD-relative
+	// (works for dev launches from the repo root), then the procedural gradient.
+	Graphics::Surface *src = nullptr;
+	{
+		Common::SeekableReadStream *s = SearchMan.createReadStreamForMember("roger-picker-bg.png");
+		if (s) {
+			src = loadSurfaceRGBA(*s);
+			delete s;
+		}
+	}
+	if (!src)
+		src = loadSurfaceRGBA("roger-picker-bg.png");
 	if (src) {
 		// Scale-to-cover: crop the source to the widget's aspect, centered.
 		int cropW = src->w, cropH = src->w * (int)_h / MAX(1, (int)_w);
@@ -116,6 +129,11 @@ void PickerViewWidget::blendFill(const Common::Rect &rIn, byte cr, byte cg, byte
 	r.clip(Common::Rect(0, 0, _w, _h));
 	if (r.isEmpty()) return;
 	const Graphics::PixelFormat &f = _canvas.format;
+	// Non-32bpp overlay: skip alpha blend; fill opaque with the nearest color.
+	if (f.bytesPerPixel != 4) {
+		_canvas.fillRect(r, f.RGBToColor(cr, cg, cb));
+		return;
+	}
 	for (int yy = r.top; yy < r.bottom; ++yy) {
 		for (int xx = r.left; xx < r.right; ++xx) {
 			uint32 *px = (uint32 *)_canvas.getBasePtr(xx, yy);
