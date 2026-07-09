@@ -1595,8 +1595,16 @@ void FileRogerArtProvider::presentComparison() {
 	// Fall back to _sceneCache (scene, no UI) when the composite cache isn't valid.
 	Graphics::ManagedSurface *leftSrc = (_compositeCacheValid && _compositeCache) ? _compositeCache
 	                                  : (_haveScene ? _sceneCache : nullptr);
-	if (leftSrc)
-		Roger::scaleBlitNearest(*out.surfacePtr(), leftF, *leftSrc->surfacePtr());
+	if (leftSrc) {
+		// The composite is overlay-sized and carries its own letterbox (aspect =
+		// window aspect, not 8:5); scaling the WHOLE surface into the 8:5 panel
+		// distorted the content vertically. Blit only the game-content subrect so
+		// the left panel is exactly 8:5, matching the native right panel.
+		Common::Rect srcGame = _lastGameRect;
+		if (srcGame.isEmpty() || srcGame.right > leftSrc->w || srcGame.bottom > leftSrc->h)
+			srcGame = Common::Rect(0, 0, (int16)leftSrc->w, (int16)leftSrc->h);
+		Roger::scaleBlitNearest(*out.surfacePtr(), leftF, *leftSrc->surfacePtr(), srcGame);
+	}
 
 	// Right panel: the ORIGINAL native frame. Read the pre-erase snapshot (_nativeBaseline,
 	// captured at kernelAnimate's snapshot point before restoreAndDelete) so the animating

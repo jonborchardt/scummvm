@@ -154,21 +154,28 @@ void comparePanelRects(int overlayW, int overlayH,
 
 void scaleBlitNearest(Graphics::Surface &dest, const Common::Rect &destRect,
                       const Graphics::Surface &src) {
+	scaleBlitNearest(dest, destRect, src, Common::Rect(0, 0, (int16)src.w, (int16)src.h));
+}
+
+void scaleBlitNearest(Graphics::Surface &dest, const Common::Rect &destRect,
+                      const Graphics::Surface &src, const Common::Rect &srcRect) {
 	const int dw = destRect.width(), dh = destRect.height();
-	if (dw <= 0 || dh <= 0 || src.w <= 0 || src.h <= 0)
+	const int sw = srcRect.width(), sh = srcRect.height();
+	if (dw <= 0 || dh <= 0 || sw <= 0 || sh <= 0)
 		return;
-	// EXACT rational mapping (sx = dx*srcW/dstW), deliberately NOT ManagedSurface's
-	// truncated 8.8 fixed-point step (scaleX = 256*srcW/dstW): that truncation drifts
-	// by up to ~1 src px per 256 dest px (~12 overlay px across a 2862-wide plate),
-	// which visibly skewed the plate down-right relative to the exactly-placed cels.
+	// EXACT rational mapping (sx = srcRect.left + dx*srcW/dstW), deliberately NOT
+	// ManagedSurface's truncated 8.8 fixed-point step (scaleX = 256*srcW/dstW): that
+	// truncation drifts by up to ~1 src px per 256 dest px (~12 overlay px across a
+	// 2862-wide plate), which visibly skewed the plate down-right relative to the
+	// exactly-placed cels.
 	// Fast path: same 32bpp format -> row pointers + a precomputed column map.
 	if (dest.format == src.format && dest.format.bytesPerPixel == 4) {
 		Common::Array<int> colMap;
 		colMap.resize(dw);
 		for (int dx = 0; dx < dw; dx++)
-			colMap[dx] = dx * src.w / dw;
+			colMap[dx] = srcRect.left + dx * sw / dw;
 		for (int dy = 0; dy < dh; dy++) {
-			const int sy = dy * src.h / dh;
+			const int sy = srcRect.top + dy * sh / dh;
 			const uint32 *srcRow = (const uint32 *)src.getBasePtr(0, sy);
 			uint32 *destRow = (uint32 *)dest.getBasePtr(destRect.left, destRect.top + dy);
 			for (int dx = 0; dx < dw; dx++)
@@ -177,9 +184,9 @@ void scaleBlitNearest(Graphics::Surface &dest, const Common::Rect &destRect,
 		return;
 	}
 	for (int dy = 0; dy < dh; dy++) {
-		const int sy = dy * src.h / dh;
+		const int sy = srcRect.top + dy * sh / dh;
 		for (int dx = 0; dx < dw; dx++) {
-			const int sx = dx * src.w / dw;
+			const int sx = srcRect.left + dx * sw / dw;
 			dest.setPixel(destRect.left + dx, destRect.top + dy, src.getPixel(sx, sy));
 		}
 	}

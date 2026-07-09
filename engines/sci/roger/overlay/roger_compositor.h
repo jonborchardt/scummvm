@@ -183,6 +183,10 @@ void comparePanelRects(int overlayW, int overlayH,
 // side-by-side compare mode for both the downscaled plate and the upscaled native capture.
 void scaleBlitNearest(Graphics::Surface &dest, const Common::Rect &destRect,
                       const Graphics::Surface &src);
+// srcRect variant: sample only `srcRect` of src (sx = srcRect.left + dx*srcW/dstW).
+// The 3-arg form is exactly this with the full surface rect.
+void scaleBlitNearest(Graphics::Surface &dest, const Common::Rect &destRect,
+                      const Graphics::Surface &src, const Common::Rect &srcRect);
 
 // Alpha-aware nearest scale-blit of a cel into dest's destRect, with the SAME exact
 // rational mapping as scaleBlitNearest (sx = dx*srcW/dstW) so cel content aligns with
