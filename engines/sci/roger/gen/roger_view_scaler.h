@@ -49,6 +49,13 @@ struct ViewScaler {
 	IndexImage (*scale)(const IndexImage &in, byte clearKey);
 };
 
+// Sentinel view-scaler selection: plain nearest-neighbour upscale onto the 6x
+// grid with NO enhancement (the blocky "before" for A/B comparison). Not a
+// registry entry - handled directly by the generator (cache-bypassed), so it
+// never participates in viewScalerCount()/viewScaler(). Used by the F12 tune
+// panel's "view enhance" toggle.
+static const int kViewScalerNearest = -1;
+
 int viewScalerCount();                   // >= 1; entry 0 = shipping module
 const ViewScaler &viewScaler(int i);     // i clamped to the valid range
 int viewScalerIndexById(const char *id); // -1 when unknown (or id == null)

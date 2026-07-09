@@ -23,12 +23,13 @@
 
 // TUNE PANEL (kept dev utility, quarantined 2026-07-07) — the in-game
 // quick-tune debug dialog (F12), spec
-// docs/superpowers/specs/2026-07-05-roger-tune-panel-design.md. Session-only
-// staged omyac pass edits behind Apply, plus view-scaler module selection
-// (registry-driven; a single module — the shipping 6x — is registered today,
-// so exactly one variant row shows). The MMPX judging this panel was built
-// for concluded 2026-07-06 (s2>s3 won); the panel stays as the pass-tuning
-// debug tool. Everything here is engine-free and unit-testable.
+// docs/superpowers/specs/2026-07-05-roger-tune-panel-design.md. Session-only.
+// Three toggle rows (log mirror, "view enhance:" cycling the view-scaler modes
+// + a synthetic nearest, "pic enhance:" cycling the available OMYAC pass modes)
+// plus a linear pass builder (+f/+l/+a/clear) whose "add" registers the built
+// sequence as a new pic-enhance mode and applies it. The MMPX judging this
+// panel was built for concluded 2026-07-06 (s2>s3 won); the panel stays as the
+// pass-tuning debug tool. Everything here is engine-free and unit-testable.
 //
 // QUARANTINE CONTRACT — see utils/tunepanel/README.md. The only permitted
 // references to utils/tunepanel/ are: the F12 integration block in
@@ -59,34 +60,48 @@ namespace Roger {
 enum TuneWidKind {
 	kTuneNone = 0,
 	kTuneClose,
-	kTuneDisplayMode, // F10 mirror: click cycles enhanced/original/side-by-side
 	kTuneDebugLog,    // F11 mirror: click toggles per-frame Roger diagnostic logging
-	kTuneVariantRow, // index = viewScaler() registry index
-	kTuneChip,       // index = chip position in stagedPasses
-	kTuneChipX, kTuneChipLeft, kTuneChipRight,
-	kTuneChipAddF, kTuneChipAddL, kTuneChipAddA,
-	kTuneClear, kTuneReset, kTuneApply,
-	kTuneSide,       // send the panel to the other screen side
-	kTunePreset      // index = goodPassPattern() registry index (one-click swap)
+	kTuneViewEnhance, // single toggle: cycles view-scaler modes (+ nearest), applies
+	kTunePicEnhance,  // single toggle: cycles the available pass modes, applies
+	kTuneChip,        // display-only chip (one per staged pass; not clickable)
+	kTuneChipAddF, kTuneChipAddL, kTuneChipAddA, // build: append fill/line/all
+	kTuneClear,       // empty the built sequence
+	kTuneAdd,         // register the built sequence as a pic-enhance mode + apply
+	kTuneSide         // send the panel to the other screen side
 };
+
+// Number of selectable "view enhance" modes: every registered view-scaler plus
+// the synthetic nearest ("before") option, which is always the LAST index.
+int tuneViewModeCount();
+bool tuneViewModeIsNearest(int viewMode); // true when viewMode == the nearest slot
 
 struct TunePanelState {
 	bool open = false;
 	bool leftSide = false;            // panel docks right by default; kTuneSide flips
-	int displayMode = 0;              // F10 mirror: 0=enhanced 1=original 2=side-by-side
 	bool debugLog = false;            // F11 mirror: per-frame Roger diagnostic logging on
-	int variant = 0;                  // applied view-scaler preset index
-	Common::Array<int> stagedPasses;  // chip edits accumulate here (NOT applied)
-	Common::Array<int> appliedPasses; // last applied — pending marker compares
-	int selectedChip = -1;
+	int viewMode = 0;                 // 0..N-1 = view-scaler registry idx; N = nearest
+	// Available "pic enhance" pass modes (seeded from the goodPassPattern
+	// registry; kTuneAdd appends the built sequence). picModeSel indexes it and
+	// drives the pic-enhance row label.
+	Common::Array<Common::Array<int> > picModes;
+	int picModeSel = 0;
+	Common::Array<int> stagedPasses;  // the sequence being built (chips); NOT applied until Add/cycle
+	Common::Array<int> appliedPasses; // currently rendered — pending marker compares
 	uint32 hoverId = 0;               // widId under the mouse (0 = none)
-	uint32 lastGenMs = 0;             // last Apply's regen wall-clock (ms)
+	uint32 lastGenMs = 0;             // last apply's regen wall-clock (ms)
 };
 
 bool tunePassesEqual(const Common::Array<int> &a, const Common::Array<int> &b);
 inline bool tunePending(const TunePanelState &st) {
 	return !tunePassesEqual(st.stagedPasses, st.appliedPasses);
 }
+
+// Seed picModes from the goodPassPattern registry (best-first) if empty; a
+// no-op once populated so session-added modes survive a panel close/reopen.
+void tuneSeedPicModes(TunePanelState &st);
+// Point picModeSel at the picModes entry equal to `passes`, appending it as a
+// new mode when absent. Used on open (current config) and by kTuneAdd.
+void tuneSelectOrAddMode(TunePanelState &st, const Common::Array<int> &passes);
 
 // Fixed GAME-space panel rect (below the status strip). Docks on the right by
 // default; `leftSide` mirrors it to the left edge (same size). The RIGHT-side

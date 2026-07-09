@@ -45,7 +45,7 @@ In-game:
 - **F10** cycles display modes:
   **Enhanced** → **Original** (native 320×200) → **Side-by-Side** comparison.
 - **F11** toggles per-frame Roger diagnostic logging.
-- **F12** opens the quick-tune debug panel (display-mode / log toggles, pass edits, view-scaler presets).
+- **F12** opens the quick-tune debug panel (log toggle, `view enhance:` 6x/nearest, `pic enhance:` pass-mode cycle, and a +f/+l/+a/clear/add pass builder).
 
 See the [user documentation](../../../docs/roger.md) for the launcher,
 display modes, and every configuration knob.

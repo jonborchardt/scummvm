@@ -18,6 +18,7 @@ public:
 		b[0] = 1;
 		TS_ASSERT(!tunePassesEqual(a, b));
 
+		// pending = staged sequence differs from what is applied.
 		TunePanelState st;
 		TS_ASSERT(!tunePending(st));
 		st.stagedPasses.push_back(0);
@@ -26,162 +27,137 @@ public:
 		TS_ASSERT(!tunePending(st));
 	}
 
-	// Layout invariants: every widget inside the panel rect, one row per
-	// variant preset, one chip per staged pass, ops/apply rows present,
-	// chip-op enablement follows selection.
+	// View-enhance modes: every registered scaler plus the synthetic nearest,
+	// which is always the last slot.
+	void test_view_modes() {
+		TS_ASSERT_EQUALS(tuneViewModeCount(), viewScalerCount() + 1);
+		TS_ASSERT(!tuneViewModeIsNearest(0));                    // registry entry 0 (6x)
+		TS_ASSERT(tuneViewModeIsNearest(viewScalerCount()));     // last slot = nearest
+	}
+
+	// Pic-enhance mode list: seeded from the goodPassPattern registry (once);
+	// selectOrAdd points at an existing match, or appends a novel sequence.
+	void test_pic_modes_seed_and_select() {
+		TunePanelState st;
+		tuneSeedPicModes(st);
+		TS_ASSERT_EQUALS((int)st.picModes.size(), goodPassPatternCount());
+		// Seeding is idempotent (session-added modes survive a reopen).
+		tuneSeedPicModes(st);
+		TS_ASSERT_EQUALS((int)st.picModes.size(), goodPassPatternCount());
+
+		// Selecting an existing registry pattern points picModeSel at it.
+		Common::Array<int> reg1 = parsePassString(goodPassPattern(1).compact);
+		tuneSelectOrAddMode(st, reg1);
+		TS_ASSERT_EQUALS(st.picModeSel, 1);
+		TS_ASSERT_EQUALS((int)st.picModes.size(), goodPassPatternCount());
+
+		// A novel sequence is appended and selected.
+		Common::Array<int> novel;
+		novel.push_back(2); novel.push_back(2); novel.push_back(1); // ffl
+		tuneSelectOrAddMode(st, novel);
+		TS_ASSERT_EQUALS((int)st.picModes.size(), goodPassPatternCount() + 1);
+		TS_ASSERT_EQUALS(st.picModeSel, goodPassPatternCount());
+		TS_ASSERT(tunePassesEqual(st.picModes[st.picModeSel], novel));
+	}
+
+	// Layout invariants: every widget inside the panel rect; the three toggle
+	// rows and the build row (+f +l +a clear add) are present; one chip per
+	// staged pass, drawn non-interactive.
 	void test_layout_invariants() {
 		TunePanelState st;
+		tuneSeedPicModes(st);
 		st.stagedPasses.push_back(2);
 		st.stagedPasses.push_back(1);
-		st.selectedChip = 1;
 		Common::Array<PanelWidget> w;
 		buildTunePanel(st, w);
 		const Common::Rect p = tunePanelRect();
-		int variantRows = 0, chips = 0;
-		bool haveApply = false, haveClose = false, xEnabled = false;
+		int chips = 0;
+		bool haveLog = false, haveView = false, havePic = false;
+		bool haveAdd = false, haveClear = false, haveClose = false;
+		bool haveF = false, haveL = false, haveA = false;
+		bool chipsInert = true;
 		for (uint i = 0; i < w.size(); i++) {
 			TS_ASSERT(p.contains(w[i].rect.left, w[i].rect.top));
 			TS_ASSERT(w[i].rect.right <= p.right && w[i].rect.bottom <= p.bottom);
 			switch (widKind(w[i].id)) {
-			case kTuneVariantRow: variantRows++; break;
-			case kTuneChip: chips++; break;
-			case kTuneApply: haveApply = true; TS_ASSERT(w[i].on); break; // pending
+			case kTuneDebugLog:   haveLog = true; break;
+			case kTuneViewEnhance: haveView = true; break;
+			case kTunePicEnhance:  havePic = true; break;
+			case kTuneChip: chips++; if (w[i].enabled) chipsInert = false; break;
+			case kTuneChipAddF: haveF = true; break;
+			case kTuneChipAddL: haveL = true; break;
+			case kTuneChipAddA: haveA = true; break;
+			case kTuneClear: haveClear = true; break;
+			case kTuneAdd: haveAdd = true; TS_ASSERT(w[i].on); break; // pending (staged != applied)
 			case kTuneClose: haveClose = true; break;
-			case kTuneChipX: xEnabled = w[i].enabled; break;
 			default: break;
 			}
 		}
-		TS_ASSERT_EQUALS(variantRows, viewScalerCount());
 		TS_ASSERT_EQUALS(chips, 2);
-		TS_ASSERT(haveApply && haveClose && xEnabled);
+		TS_ASSERT(chipsInert); // chips are display-only
+		TS_ASSERT(haveLog && haveView && havePic);
+		TS_ASSERT(haveF && haveL && haveA && haveClear && haveAdd && haveClose);
 
-		// No selection -> chip ops disabled; no pending -> apply not highlighted.
-		st.selectedChip = -1;
+		// No pending edits -> Add not highlighted.
 		st.appliedPasses = st.stagedPasses;
 		buildTunePanel(st, w);
-		for (uint i = 0; i < w.size(); i++) {
-			if (widKind(w[i].id) == kTuneChipX || widKind(w[i].id) == kTuneChipLeft ||
-			    widKind(w[i].id) == kTuneChipRight)
-				TS_ASSERT(!w[i].enabled);
-			if (widKind(w[i].id) == kTuneApply)
+		for (uint i = 0; i < w.size(); i++)
+			if (widKind(w[i].id) == kTuneAdd)
 				TS_ASSERT(!w[i].on);
-		}
 	}
 
-	// The single registered module's row is marked on for variant 0;
-	// hit-testing the row center returns that row.
-	void test_variant_rows_and_hittest() {
+	// View/pic toggle labels reflect state; log row lights only while on.
+	void test_toggle_labels() {
 		TunePanelState st;
-		st.variant = 0;
+		tuneSeedPicModes(st);
 		Common::Array<PanelWidget> w;
 		buildTunePanel(st, w);
-		int rows = 0;
 		for (uint i = 0; i < w.size(); i++) {
-			if (widKind(w[i].id) != kTuneVariantRow)
-				continue;
-			rows++;
-			TS_ASSERT_EQUALS(w[i].on, widIndex(w[i].id) == 0);
-			const int cx = (w[i].rect.left + w[i].rect.right) / 2;
-			const int cy = (w[i].rect.top + w[i].rect.bottom) / 2;
-			TS_ASSERT_EQUALS(hitTestWidgets(w, cx, cy), w[i].id);
+			if (widKind(w[i].id) == kTuneViewEnhance)
+				TS_ASSERT(w[i].label.contains(viewScaler(0).label)); // viewMode 0
+			if (widKind(w[i].id) == kTunePicEnhance)
+				TS_ASSERT(w[i].label.contains("pic enhance"));
+			if (widKind(w[i].id) == kTuneDebugLog) {
+				TS_ASSERT(w[i].label.contains("off"));
+				TS_ASSERT(!w[i].on);
+			}
 		}
-		TS_ASSERT_EQUALS(rows, viewScalerCount());
+
+		st.viewMode = viewScalerCount(); // nearest
+		st.debugLog = true;
+		buildTunePanel(st, w);
+		for (uint i = 0; i < w.size(); i++) {
+			if (widKind(w[i].id) == kTuneViewEnhance)
+				TS_ASSERT(w[i].label.contains("nearest"));
+			if (widKind(w[i].id) == kTuneDebugLog) {
+				TS_ASSERT(w[i].label.contains("on"));
+				TS_ASSERT(w[i].on);
+			}
+		}
 	}
 
-	// Geometry lock for the .rin verification script: the panel rect and the
-	// bottom-anchored rows must not drift or scripted clicks miss.
+	// Geometry lock for the .rin verification script: panel rect and the fixed
+	// toggle-row / bottom-anchored build-row centers must not drift or scripted
+	// clicks miss.
 	void test_script_geometry_lock() {
 		TS_ASSERT_EQUALS(tunePanelRect().left, 228);
 		TS_ASSERT_EQUALS(tunePanelRect().top, 12);
 		TS_ASSERT_EQUALS(tunePanelRect().right, 318);
 		TS_ASSERT_EQUALS(tunePanelRect().bottom, 196);
 		TunePanelState st;
+		tuneSeedPicModes(st);
 		Common::Array<PanelWidget> w;
 		buildTunePanel(st, w);
-		// Clicks used by test/sci/roger/scripts/tune-panel-smoke.rin:
-		// The F10/F11 mirror rows sit above the variants (top-flowing), so the
-		// variant/preset rows all shifted down 22 px vs the pre-mirror layout.
-		TS_ASSERT_EQUALS(widKind(hitTestWidgets(w, 273, 31)), (int)kTuneDisplayMode);
-		TS_ASSERT_EQUALS(widKind(hitTestWidgets(w, 273, 42)), (int)kTuneDebugLog);
-		TS_ASSERT_EQUALS(widKind(hitTestWidgets(w, 273, 53)), (int)kTuneVariantRow);
-		TS_ASSERT_EQUALS(widIndex(hitTestWidgets(w, 273, 53)), 0);
-		TS_ASSERT_EQUALS(widKind(hitTestWidgets(w, 244, 177)), (int)kTuneClear);
-		TS_ASSERT_EQUALS(widKind(hitTestWidgets(w, 274, 177)), (int)kTuneReset);
-		TS_ASSERT_EQUALS(widKind(hitTestWidgets(w, 303, 177)), (int)kTuneApply);
-		// Preset row coordinates flow below the variant rows, so (unlike the
-		// bottom-anchored rows) they move if a second scaler module registers â€”
-		// same caveat as the chip strip, documented in the smoke script.
-		TS_ASSERT_EQUALS(widKind(hitTestWidgets(w, 273, 66)), (int)kTunePreset);
-		TS_ASSERT_EQUALS(widIndex(hitTestWidgets(w, 273, 66)), 0);
-		TS_ASSERT_EQUALS(widKind(hitTestWidgets(w, 273, 77)), (int)kTunePreset);
-		TS_ASSERT_EQUALS(widIndex(hitTestWidgets(w, 273, 77)), 1);
-	}
-
-	// Known-good preset rows: one per goodPassPattern() registry entry, labeled
-	// by its compact string, lit only while the staged list matches, and the
-	// one-click swap contract (registry order preserved, rows sit between the
-	// variant rows and the ops row).
-	void test_preset_rows() {
-		TunePanelState st;
-		Common::Array<PanelWidget> w;
-		buildTunePanel(st, w);
-		int presets = 0;
-		for (uint i = 0; i < w.size(); i++) {
-			if (widKind(w[i].id) != kTunePreset)
-				continue;
-			const int idx = widIndex(w[i].id);
-			TS_ASSERT_EQUALS(presets, idx); // registry order, best-first
-			presets++;
-			TS_ASSERT_EQUALS(w[i].label, Common::String(goodPassPattern(idx).compact));
-			TS_ASSERT(!w[i].on); // staged empty: no preset matches
-			const int cx = (w[i].rect.left + w[i].rect.right) / 2;
-			const int cy = (w[i].rect.top + w[i].rect.bottom) / 2;
-			TS_ASSERT_EQUALS(hitTestWidgets(w, cx, cy), w[i].id);
-		}
-		TS_ASSERT_EQUALS(presets, goodPassPatternCount());
-
-		// Staging a registry pattern lights exactly that row.
-		st.stagedPasses = parsePassString(goodPassPattern(0).compact);
-		buildTunePanel(st, w);
-		for (uint i = 0; i < w.size(); i++) {
-			if (widKind(w[i].id) != kTunePreset)
-				continue;
-			TS_ASSERT_EQUALS(w[i].on, widIndex(w[i].id) == 0);
-		}
-	}
-
-	// F10/F11 mirror rows: exactly one of each, the display-mode label follows
-	// the state's displayMode and the log row lights only while debugLog is set.
-	void test_mirror_rows() {
-		TunePanelState st;
-		Common::Array<PanelWidget> w;
-		buildTunePanel(st, w);
-		int modeRows = 0, logRows = 0;
-		for (uint i = 0; i < w.size(); i++) {
-			if (widKind(w[i].id) == kTuneDisplayMode) {
-				modeRows++;
-				TS_ASSERT(w[i].label.contains("enhanced")); // displayMode 0
-			}
-			if (widKind(w[i].id) == kTuneDebugLog) {
-				logRows++;
-				TS_ASSERT(!w[i].on);                 // debugLog false
-				TS_ASSERT(w[i].label.contains("off"));
-			}
-		}
-		TS_ASSERT_EQUALS(modeRows, 1);
-		TS_ASSERT_EQUALS(logRows, 1);
-
-		st.displayMode = 2; // side-by-side
-		st.debugLog = true;
-		buildTunePanel(st, w);
-		for (uint i = 0; i < w.size(); i++) {
-			if (widKind(w[i].id) == kTuneDisplayMode)
-				TS_ASSERT(w[i].label.contains("sbs"));
-			if (widKind(w[i].id) == kTuneDebugLog) {
-				TS_ASSERT(w[i].on);
-				TS_ASSERT(w[i].label.contains("on"));
-			}
-		}
+		// Top toggle rows (fixed: they flow from the title row, no variable rows above).
+		TS_ASSERT_EQUALS(widKind(hitTestWidgets(w, 273, 31)), (int)kTuneDebugLog);
+		TS_ASSERT_EQUALS(widKind(hitTestWidgets(w, 273, 42)), (int)kTuneViewEnhance);
+		TS_ASSERT_EQUALS(widKind(hitTestWidgets(w, 273, 53)), (int)kTunePicEnhance);
+		// Bottom-anchored build row (+f +l +a clear add) at y=177.
+		TS_ASSERT_EQUALS(widKind(hitTestWidgets(w, 236, 177)), (int)kTuneChipAddF);
+		TS_ASSERT_EQUALS(widKind(hitTestWidgets(w, 249, 177)), (int)kTuneChipAddL);
+		TS_ASSERT_EQUALS(widKind(hitTestWidgets(w, 262, 177)), (int)kTuneChipAddA);
+		TS_ASSERT_EQUALS(widKind(hitTestWidgets(w, 280, 177)), (int)kTuneClear);
+		TS_ASSERT_EQUALS(widKind(hitTestWidgets(w, 304, 177)), (int)kTuneAdd);
 	}
 
 	void test_status_line() {
@@ -197,12 +173,12 @@ public:
 		TS_ASSERT(tuneStatusLine(st).contains("*"));
 	}
 
-	// Side toggle: the side button exists on both sides with a label pointing
-	// at the side the panel will move TO, the left-side layout mirrors every
-	// widget into tunePanelRect(true), and hit-testing follows the mirror.
-	// The RIGHT-side default stays locked by test_script_geometry_lock.
+	// Side toggle: the side button exists on both sides with a label pointing at
+	// the side the panel will move TO; the left-side layout mirrors every widget
+	// into tunePanelRect(true). The RIGHT-side default stays locked above.
 	void test_side_toggle_layout() {
 		TunePanelState st;
+		tuneSeedPicModes(st);
 		Common::Array<PanelWidget> w;
 		buildTunePanel(st, w);
 		bool sideFound = false;
@@ -229,7 +205,7 @@ public:
 			}
 		}
 		TS_ASSERT(sideFound);
-		// Mirrored hit-test spot check: apply row lands at (64..90, 172..182).
-		TS_ASSERT_EQUALS(widKind(hitTestWidgets(w, 77, 177)), (int)kTuneApply);
+		// Mirrored hit-test spot check: Add lands at the right end of the build row.
+		TS_ASSERT_EQUALS(widKind(hitTestWidgets(w, 78, 177)), (int)kTuneAdd);
 	}
 };

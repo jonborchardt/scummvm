@@ -39,9 +39,13 @@ pointer over either panel, and clicks through either panel are remapped to game
 coordinates, so the game stays playable while comparing. The status banner and overlay
 follow the toggle.
 
-**F12** toggles the quick-tune panel (pass-tuning debug tool:
-session-only staged omyac pass edits behind Apply, view-scaler module selection, and clickable rows mirroring the F10 display-mode and F11 diagnostic-log toggles,
-(a single module — the shipping 6x — is registered today)).
+**F12** toggles the quick-tune panel (session-only pass-tuning debug tool):
+a `log:` row mirroring the F11 diagnostic-log toggle, a `view enhance:` toggle
+cycling the view-scaler modes (the shipping **6x (s2>s3)** and a plain
+**nearest** A/B "before"), a `pic enhance:` toggle cycling the available OMYAC
+pass modes, and a linear pass builder (`+f`/`+l`/`+a`/`clear`) whose **add**
+registers the built sequence as a new pic-enhance mode and applies it. Nothing
+is written to `scummvm.ini` or the generation cache.
 
 The startup mode is `roger_display_mode` (default `enhanced`); for a single launch use
 `build_and_run.ps1 -Mode enhanced|original|sbs` (env `ROGER_DISPLAY_MODE` — never touches

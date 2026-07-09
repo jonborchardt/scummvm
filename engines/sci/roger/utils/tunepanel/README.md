@@ -19,27 +19,34 @@ kept afterwards as the standing pass-tuning tool.
 
 ## The panel
 
-- **Variant rows** (top): one per registered view-scaler module
-  (`roger_view_scaler.h` registry). A single module — the shipping 6x — is
-  registered today, so exactly one row shows; clicking a row applies that
-  scaler immediately (non-zero registry indices bypass the disk cache).
-- **Known-good preset rows** (below the variants): one per `goodPassPattern()`
-  entry in `roger_passes.cpp` — the curated, best-first registry the picker's
-  suggestion buttons and the Eye Exam seed share. Labels are the compact
-  strings (provenance notes live in the registry; no room for tooltips here).
-  Clicking a row stages **and applies** that pattern in one click — the
-  easy-swap path — and the row stays lit while the staged list matches it.
-  Session-only like everything else here (regen in memory; the ini is never
-  written).
-- **Pass chips**: the staged OMYAC pass sequence, one chip per pass
-  (`f`/`l`/`a`), 7 per row. Click a chip to select it, then use the ops row:
-  `x` delete, `<`/`>` move, `+f`/`+l`/`+a` insert after the selection.
-- **clear / reset / apply** (bottom-anchored): clear empties the staged list,
-  reset restores the applied list, **apply** regenerates the current scene with
-  the staged passes (highlights while edits are pending). Chip edits do
-  NOTHING until Apply — that's the point.
-- **Status line** (bottom): compact pass stamp + `*` pending marker + last
-  Apply's regen wall-clock, e.g. `ffl * 812ms`.
+- **`log:` toggle** (top): mirrors the F11 per-frame Roger diagnostic-log
+  toggle as a clickable row (lights while on).
+- **`view enhance:` toggle**: one row that cycles the view-scaler modes and
+  applies immediately. The known modes are the `roger_view_scaler.h` registry
+  scalers (the shipping **6x (s2>s3)** is the only one today) plus a synthetic
+  **nearest** — a plain no-enhancement upscale, the blocky "before" for an A/B
+  comparison (cache-bypassed by the generator). More scalers registering just
+  adds more stops to the cycle.
+- **`pic enhance:` toggle**: one row that cycles the available OMYAC pass modes
+  and applies on click; the label shows the selected mode's compact string
+  (e.g. `ffffffflff`). The list is seeded from the `goodPassPattern()` registry
+  in `roger_passes.cpp` (curated, best-first — shared with the picker's
+  suggestion buttons and the Eye Exam seed) and grows via **add** (below).
+- **Pass chips**: DISPLAY-ONLY view of the sequence being built, one dim chip
+  per pass (`f`/`l`/`a`), 7 per row. Not clickable.
+- **Build row** (bottom-anchored, one line): `+f` `+l` `+a` append a pass to the
+  built sequence, `clear` empties it, **`add`** registers the built sequence as
+  a new `pic enhance:` mode, selects it, and applies (regenerates the scene).
+  `add` highlights while there are edits to commit. The built sequence does
+  NOTHING to the scene until **add** — that's the point.
+- **Status line** (bottom): compact pass stamp of the built sequence + `*`
+  pending marker + last apply's regen wall-clock, e.g. `ffl * 812ms`.
+
+Everything is **session-only**: cycling `pic enhance:` off-config or adding a
+custom mode regenerates in memory (`kGenMemory`); returning to the config passes
+restores the prior gen mode. The ini and the generation disk cache are never
+written. `view enhance: nearest` and any non-zero view-scaler index likewise
+bypass the disk cache.
 
 All layout and hit-testing are in **game space (320×200)** with a fixed panel
 rect and bottom-anchored button rows, so `.rin` automation clicks stay valid at

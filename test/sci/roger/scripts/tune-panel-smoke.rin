@@ -1,45 +1,42 @@
-# Tune panel (F12) smoke: single 6x variant row + staged passes.
-# MMPX judging concluded 2026-07-06 (s2>s3 shipped); panel is kept as the
-# pass-tuning debug tool (no scheduled deletion).
+# Tune panel (F12) smoke: toggle rows + linear pass builder.
 # Geometry locked by test_tune_panel.h::test_script_geometry_lock (panel rect,
-# variant row 0, preset rows 0/1, clear/apply). Ops-row clicks derive from the
-# same layout: +f center (278,165), +a center (306,165).
-# NOTE: the F10/F11 mirror rows (display mode at y=31, debug log at y=42) flow
-# above the variant rows, so the variant row now sits at y=53 and the preset
-# rows at y=66/77. Preset-row and chip-strip click coordinates also depend on
-# the variant-row count (rows flow down 11 px per registered scaler; presets sit
-# between the variants and the chips). Ops-row and clear/reset/apply clicks are
-# bottom-anchored and safe. Re-derive preset/chip coordinates if a second
-# scaler module ever registers.
-# Passes are STAGED via +f/+a rather than relying on Reset-to-config: a config
-# whose roger_omyac_passes tokens don't parse (e.g. numeric "2 1") yields an
-# empty live pass list, which would make Clear/Reset/Apply all no-ops.
+# log/view/pic toggle rows, bottom-anchored build row).
+#   log toggle       (273,31)
+#   view enhance     (273,42)   cycles 6x (s2>s3) <-> nearest, applies
+#   pic enhance      (273,53)   cycles the available pass modes, applies
+#   build row @ y=177: +f (236)  +l (249)  +a (262)  clear (280)  add (304)
+# The three toggle rows flow straight from the title row (no variable rows
+# above them) and the build row is bottom-anchored, so every click here is
+# stable regardless of how many view-scaler / pass modes are registered.
 wait 4500
 snap tune-baseline
 key f12
 wait 500
 snap tune-open
+# view enhance -> nearest (blocky A/B "before"), then back to 6x.
+click 273 42
+wait 1500
+snap tune-view-nearest
+click 273 42
+wait 1500
+snap tune-view-6x
+# pic enhance: cycle to the next known pass mode (regen in memory; settle time).
 click 273 53
-wait 500
-snap tune-variant-6x
-# Known-good preset row 1 (273,77): stages + applies that pattern in one click
-# (regen in memory, so allow apply-scale settle time).
-click 273 77
 wait 5000
-snap tune-preset-applied
-click 278 165
+snap tune-pic-cycled
+# Build a custom sequence with +f/+a, then Add it (registers + applies).
+click 236 177
 wait 300
-click 306 165
+click 262 177
 wait 300
-snap tune-staged
-click 303 177
+snap tune-built
+click 304 177
 wait 5000
-snap tune-applied
-click 244 177
+snap tune-added
+# clear empties the built sequence.
+click 280 177
 wait 300
-click 303 177
-wait 5000
-snap tune-wireframe
+snap tune-cleared
 key f12
 wait 500
 snap tune-closed

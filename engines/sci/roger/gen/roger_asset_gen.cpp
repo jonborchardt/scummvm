@@ -577,8 +577,12 @@ Graphics::Surface *RogerAssetGen::generateViewCel(int viewId, int loopNo, int ce
 	uint32 t0 = g_system->getMillis();
 	// Registry entry 0 is byte-identical to scale6x (unit-test-locked), so
 	// the shipping path and cache contents are unchanged by routing through
-	// the registry uniformly.
-	IndexImage scaled = applyViewScalerTo6x(_viewVariant, idx, clearKey);
+	// the registry uniformly. The kViewScalerNearest sentinel (< 0) is the
+	// F12 "view enhance" A/B "before": plain nearest resample onto the 6x grid
+	// with no enhancement (cache-bypassed by the == 0 guards above/below).
+	IndexImage scaled = (_viewVariant < 0)
+	    ? resampleNearestExact(idx, idx.w * 6, idx.h * 6)
+	    : applyViewScalerTo6x(_viewVariant, idx, clearKey);
 	uint32 t1 = g_system->getMillis();
 	outMs = t1 - t0;
 

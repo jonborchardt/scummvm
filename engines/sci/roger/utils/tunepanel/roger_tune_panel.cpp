@@ -19,7 +19,7 @@
  */
 
 #include "sci/roger/utils/tunepanel/roger_tune_panel.h"
-#include "sci/roger/gen/roger_passes.h" // omyacPassStamp
+#include "sci/roger/gen/roger_passes.h" // omyacPassStamp, goodPassPattern, parsePassString
 #include "sci/roger/gen/roger_view_scaler.h"
 #include "common/util.h"
 #include "graphics/fontman.h"
@@ -51,6 +51,45 @@ static void addTuneWidget(Common::Array<PanelWidget> &out, int kind, int index,
 	out.push_back(w);
 }
 
+int tuneViewModeCount() {
+	return viewScalerCount() + 1; // registry scalers + the synthetic "nearest"
+}
+
+bool tuneViewModeIsNearest(int viewMode) {
+	return viewMode >= viewScalerCount(); // last slot is nearest
+}
+
+static Common::String tuneViewModeLabel(int viewMode) {
+	if (tuneViewModeIsNearest(viewMode))
+		return "nearest";
+	return viewScaler(viewMode).label;
+}
+
+static Common::String tunePicModeLabel(const TunePanelState &st) {
+	if (st.picModeSel < 0 || st.picModeSel >= (int)st.picModes.size())
+		return "-";
+	return omyacPassStamp(st.picModes[st.picModeSel]);
+}
+
+void tuneSeedPicModes(TunePanelState &st) {
+	if (!st.picModes.empty())
+		return; // already populated (session-added modes survive reopen)
+	for (int i = 0; i < goodPassPatternCount(); i++)
+		st.picModes.push_back(parsePassString(goodPassPattern(i).compact));
+	st.picModeSel = 0;
+}
+
+void tuneSelectOrAddMode(TunePanelState &st, const Common::Array<int> &passes) {
+	for (uint i = 0; i < st.picModes.size(); i++) {
+		if (tunePassesEqual(st.picModes[i], passes)) {
+			st.picModeSel = (int)i;
+			return;
+		}
+	}
+	st.picModes.push_back(passes);
+	st.picModeSel = (int)st.picModes.size() - 1;
+}
+
 void buildTunePanel(const TunePanelState &st, Common::Array<PanelWidget> &out) {
 	out.clear();
 	const Common::Rect p = tunePanelRect(st.leftSide);
@@ -64,76 +103,53 @@ void buildTunePanel(const TunePanelState &st, Common::Array<PanelWidget> &out) {
 	addTuneWidget(out, kTuneClose, 0, Common::Rect(x1 - 10, y, x1, y + 10), "x", false);
 	y += 12;
 
-	// F10 / F11 mirrored as clickable rows (the former keyboard-only toggles):
-	// display-mode cycle and per-frame diagnostic-log toggle. Top-flowing, above
-	// the variant rows. The mode row's label reflects the live display mode; the
-	// log row lights while logging is on.
-	static const char *const kModeShort[] = { "enhanced", "original", "sbs" };
-	addTuneWidget(out, kTuneDisplayMode, 0, Common::Rect(x0, y, x1, y + 10),
-	              Common::String::format("mode: %s", kModeShort[CLIP(st.displayMode, 0, 2)]), false);
-	y += 11;
+	// F11 mirror: per-frame diagnostic-log toggle (lights while on).
 	addTuneWidget(out, kTuneDebugLog, 0, Common::Rect(x0, y, x1, y + 10),
 	              st.debugLog ? "log: on" : "log: off", st.debugLog);
 	y += 11;
 
-	// Variant rows (top-flowing): one per registered view-scaler module.
-	for (int i = 0; i < viewScalerCount(); i++) {
-		addTuneWidget(out, kTuneVariantRow, i, Common::Rect(x0, y, x1, y + 10),
-		              viewScaler(i).label, i == st.variant);
-		y += 11;
-	}
+	// View-enhance toggle: one row that cycles the view-scaler modes (registry
+	// scalers + nearest) and applies on click; label shows the current mode.
+	addTuneWidget(out, kTuneViewEnhance, 0, Common::Rect(x0, y, x1, y + 10),
+	              Common::String("view enhance: ") + tuneViewModeLabel(st.viewMode), false);
+	y += 11;
 
-	// Known-good preset rows (goodPassPattern registry, best-first): one-click
-	// swap between curated pass sequences, labeled by their compact string
-	// (provenance notes live in the registry / picker tooltips Ã¢â‚¬â€ no room here).
-	// A row lights while the STAGED list matches it. The registry is curated
-	// and small; if it ever grows, stop before eating the chip strip's space.
-	y += 2;
-	for (int i = 0; i < goodPassPatternCount(); i++) {
-		if (y + 10 > p.bottom - 70)
-			break; // keep >=2 chip rows + ops/apply rows reachable
-		addTuneWidget(out, kTunePreset, i, Common::Rect(x0, y, x1, y + 10),
-		              goodPassPattern(i).compact,
-		              tunePassesEqual(st.stagedPasses, parsePassString(goodPassPattern(i).compact)));
-		y += 11;
-	}
+	// Pic-enhance toggle: one row that cycles the available pass modes and
+	// applies on click; label shows the selected mode's compact string.
+	addTuneWidget(out, kTunePicEnhance, 0, Common::Rect(x0, y, x1, y + 10),
+	              Common::String("pic enhance: ") + tunePicModeLabel(st), false);
+	y += 11;
 
-	// Bottom-anchored rows (fixed coordinates regardless of chip count):
-	//   ops row    at bottom-36, clear/reset/apply at bottom-24,
-	//   status text (drawn, not a widget) at bottom-12.
-	const int yOps = p.bottom - 36;
-	const int yCra = p.bottom - 24;
+	// Bottom-anchored build row (one line): +f +l +a clear add. Fixed
+	// coordinates regardless of chip count (script stability).
+	const int yBuild = p.bottom - 24;
 
-	// Chip strip flows between the variants and the ops row, 7 per row.
+	// Chip strip: DISPLAY-ONLY (the built sequence), non-interactive. Flows
+	// between the toggles and the build row, 7 per row.
 	int cx = x0, cy = y + 3;
 	for (uint i = 0; i < st.stagedPasses.size(); i++) {
 		if (cx + 11 > x1) { cx = x0; cy += 11; }
-		if (cy + 10 > yOps - 2)
-			break; // out of space; extra chips not clickable (debug tool)
+		if (cy + 10 > yBuild - 2)
+			break; // out of space; extra chips not shown (debug tool)
 		const char *lbl = st.stagedPasses[i] == 2 ? "f" : st.stagedPasses[i] == 1 ? "l" : "a";
 		addTuneWidget(out, kTuneChip, (int)i, Common::Rect(cx, cy, cx + 10, cy + 10),
-		              lbl, (int)i == st.selectedChip);
+		              lbl, false, false); // enabled=false -> no hover, drawn dim
 		cx += 11;
 	}
 
-	// Chip ops.
-	const bool sel = st.selectedChip >= 0 && st.selectedChip < (int)st.stagedPasses.size();
-	const struct { int kind; const char *lbl; bool en; } ops[] = {
-		{ kTuneChipX,    "x",  sel  }, { kTuneChipLeft, "<",  sel  },
-		{ kTuneChipRight, ">", sel  }, { kTuneChipAddF, "+f", true },
-		{ kTuneChipAddL, "+l", true }, { kTuneChipAddA, "+a", true },
+	// Build row: +f +l +a append, clear empties, add registers+applies.
+	int bx = x0;
+	const struct { int kind; const char *lbl; int w; } builds[] = {
+		{ kTuneChipAddF, "+f", 12 }, { kTuneChipAddL, "+l", 12 },
+		{ kTuneChipAddA, "+a", 12 }, { kTuneClear, "clear", 22 },
 	};
-	cx = x0;
-	for (int i = 0; i < ARRAYSIZE(ops); i++) {
-		addTuneWidget(out, ops[i].kind, 0, Common::Rect(cx, yOps, cx + 13, yOps + 10),
-		              ops[i].lbl, false, ops[i].en);
-		cx += 14;
+	for (int i = 0; i < ARRAYSIZE(builds); i++) {
+		addTuneWidget(out, builds[i].kind, 0,
+		              Common::Rect(bx, yBuild, bx + builds[i].w, yBuild + 10), builds[i].lbl, false);
+		bx += builds[i].w + 1;
 	}
-
-	// Clear / Reset / Apply. Apply highlights while edits are pending.
-	addTuneWidget(out, kTuneClear, 0, Common::Rect(x0, yCra, x0 + 28, yCra + 10), "clear", false);
-	addTuneWidget(out, kTuneReset, 0, Common::Rect(x0 + 30, yCra, x0 + 58, yCra + 10), "reset", false);
-	addTuneWidget(out, kTuneApply, 0, Common::Rect(x0 + 60, yCra, x1, yCra + 10), "apply", tunePending(st));
+	// Add fills the rest of the row and highlights while edits are pending.
+	addTuneWidget(out, kTuneAdd, 0, Common::Rect(bx, yBuild, x1, yBuild + 10), "add", tunePending(st));
 }
 
 Common::String tuneStatusLine(const TunePanelState &st) {
