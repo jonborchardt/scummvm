@@ -518,3 +518,47 @@ remaining presents are per-move cursor updates and real highlight changes — co
 `roger-300-m-open-overlay.png`: Information dropdown open with white box + frame,
 all 5 items visible (Inventory, Char Sheet, Time/Day, Ask about, Look at), cursor
 at the title bar (no row highlighted yet — correct for the capture moment). PASS.
+
+### Task 3 highlight-tracking evidence (controller, review gap closure) — 2026-07-08
+
+Run: `screenshots\menu-highlight-track.rin` (press-hold File title, slide to a row,
+snap, slide to a lower row, snap). `roger-300-hl-row1-overlay.png`: cursor on
+"Restore Game", that row drawn inverted (white-on-black). `roger-300-hl-row2-overlay.png`:
+cursor moved to "Quit", highlight moved with it. Highlight tracking with the
+skip-no-op guard: PASS. (Script nuance discovered: `mouseup` at new coords without a
+preceding `move` executes the still-highlighted item — the frozen menu loop tracks
+position via move events only.)
+
+### Task 4 wrap-up — 2026-07-08
+
+**Unit tests:** `.\build_tests.ps1` — 305/305 PASS (no change in count; no test
+files added, as planned).
+
+**Regression gate:** `test\sci\roger\run-regression.ps1` — 3 FAILs, all accounted for:
+
+1. `qfg1-menu-cycle presence:m-after` — "0 differing px": the documented KNOWN-STALE
+   manifest-region failure (since dcaa7e2625a). Expected; not re-debugged.
+2. `qfg1-walk-perf perf` busy=21/17 and 3. `sq3-walk-perf perf` busy=10/4 — **proven
+   pre-existing, NOT this plan's regression** by A/B at the pre-plan base: with the
+   plan's four files reverted to 8c034c31346 and rebuilt, busy measured 22 (qfg1) and
+   8 (sq3) — the same elevation without any of this plan's code. HEAD rebuilt measures
+   21–22 (qfg1) and 7–10 (sq3): identical within run noise. Period medians and p90 are
+   exactly at baseline (83/83, 84/84) in EVERY run, with and without the plan — cycle
+   time (walking speed) is intact; only the busy-ms floor drifted since the phase-0
+   baseline recording (ac04ef7af49, 2026-07-03), across many intervening batches.
+   Owner: whoever re-baselines perf next (`run-regression.ps1 -Record` on a quiet
+   machine), alongside the stale m-after band.
+
+**Cumulative numbers (drag window, presents per ~1 s):**
+
+| | n | ms |
+|---|---|---|
+| Baseline (Task 1) | 27–34 | 515–910 (up to ~91% of wall) |
+| Task 2 (batch bracket) | 10–13 | 201–395 |
+| Task 3 (skip no-op push) | 8–13 | 260–316 |
+
+Idle unchanged throughout (3–5 presents/s, ~40–57 ms).
+
+**Pending user soak (do not declare done before this):** scripted runs cannot prove
+subjective mouse feel. Please open a menu in-game and drag across items — the cursor
+should now track smoothly and the highlight should follow without lag.
