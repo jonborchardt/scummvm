@@ -126,9 +126,9 @@ void RogerLauncher::loadSettingsForSelected() {
 	s.debugLog = ConfMan.hasKey("roger_debug", dom) && ConfMan.getBool("roger_debug", dom);
 }
 
-// Verbatim passthrough (see the old flushSettingsForSelected comment): the
-// engine parser warns about unknown tokens at load. Empty -> key removed
-// (unset -> defaultPasses()); wireframe (explicit "") stays ini-only.
+// Verbatim passthrough: the engine parser warns about unknown tokens at load.
+// Empty -> key removed (unset -> defaultPasses()); wireframe (explicit "")
+// stays ini-only.
 void RogerLauncher::setPassesForSelected(const Common::String &raw) {
 	if (_state.games.empty()) return;
 	GameEntry &g = _state.games[_state.selectedIndex];
