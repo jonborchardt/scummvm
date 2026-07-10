@@ -241,6 +241,7 @@ void PickerViewWidget::drawRow(int visIdx, int row) {
 	           selected ? kBlue.b : kText.b, Graphics::kTextAlignLeft);
 
 	// Second line: join non-empty facts with "  |  " (ASCII, byte-safe).
+	// targetName leads so entries with the same description are distinguishable.
 	{
 		Common::String info;
 		auto append = [&](const Common::String &part) {
@@ -248,8 +249,10 @@ void PickerViewWidget::drawRow(int visIdx, int row) {
 			if (!info.empty()) info += "  |  ";
 			info += part;
 		};
+		append(g.targetName);
 		append(g.subtitle);
-		append(g.gameId);
+		// Skip gameId when it equals targetName to avoid "sq3 | sq3".
+		if (g.gameId != g.targetName) append(g.gameId);
 		if (g.ega) append("EGA");
 		append(g.sciVersion);
 		append(g.gamePath.toString());
