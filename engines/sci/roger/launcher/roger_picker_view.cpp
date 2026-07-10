@@ -34,17 +34,15 @@
 namespace Sci {
 namespace Roger {
 
-// Palette (mockup-derived). No theme dependence: the picker paints itself.
-namespace {
-struct Rgb { byte r, g, b; };
-const Rgb kText      = { 232, 236, 244 };
-const Rgb kTextDim   = { 154, 164, 184 };
-const Rgb kGreen     = {  76, 195, 138 };
-const Rgb kAmber     = { 229, 184,  75 };
-const Rgb kBlue      = { 100, 148, 237 };
-const Rgb kRed       = { 214,  86,  78 };
-const Rgb kPanelLine = {  42,  52,  80 };
-} // anonymous namespace
+// Pull palette constants into this scope from the shared PickerColors namespace.
+using PickerColors::Rgb;
+using PickerColors::kText;
+using PickerColors::kTextDim;
+using PickerColors::kGreen;
+using PickerColors::kAmber;
+using PickerColors::kBlue;
+using PickerColors::kRed;
+using PickerColors::kPanelLine;
 
 PickerViewWidget::PickerViewWidget(GUI::GuiObject *boss, int x, int y, int w, int h,
                                    const LauncherState &state, PickerActionListener *listener)

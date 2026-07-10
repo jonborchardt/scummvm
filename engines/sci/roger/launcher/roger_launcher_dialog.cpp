@@ -19,17 +19,26 @@
  */
 
 #include "sci/roger/launcher/roger_launcher_dialog.h"
+#include "sci/roger/launcher/roger_picker_view.h"
 #include "sci/roger/gen/roger_passes.h"
+#include "sci/roger/roger_widgets.h"
 #include "gui/gui-manager.h"
+#include "gui/ThemeEngine.h"
 #include "gui/widget.h"
-#include "gui/widgets/edittext.h"
 #include "gui/browser.h"
 #include "gui/message.h"
+#include "graphics/managed_surface.h"
+#include "graphics/font.h"
+#include "graphics/fontman.h"
 #include "common/system.h"
 #include "common/str.h"
 #include "common/config-manager.h"
 #include "common/fs.h"
+#include "common/util.h"
 #include "engines/metaengine.h"
+#ifdef USE_FREETYPE2
+#include "graphics/fonts/ttf.h"
+#endif
 
 namespace Sci {
 namespace Roger {
@@ -37,35 +46,354 @@ namespace Roger {
 static int gW() { return g_system->getOverlayWidth(); }
 static int gH() { return g_system->getOverlayHeight(); }
 
-// Minimal themed input box for the "Custom..." passes entry. Themed widgets
-// are fine here: it stacks above the custom-drawn picker like the browser
-// and message dialogs do.
-class PassInputDialog : public GUI::Dialog {
+// ---------------------------------------------------------------------------
+// PassBuilderWidget — custom-drawn, mouse-first pass builder in the picker's
+// own visual language (dark navy, blue accents, PanelWidget hit-testing).
+// Private to this translation unit.
+// ---------------------------------------------------------------------------
+namespace {
+
+// Widget kinds for the pass builder.
+enum PassBuilderKind {
+	kPBNone = 0,
+	kPBAppendF,
+	kPBAppendL,
+	kPBAppendA,
+	kPBDel,
+	kPBClear,
+	kPBOK,
+	kPBCancel,
+};
+
+} // anonymous namespace
+
+class PassBuilderWidget : public GUI::Widget {
 public:
-	explicit PassInputDialog(const Common::String &initial)
-		: GUI::Dialog(gW() / 3, gH() * 2 / 5, gW() / 3, gH() / 5) {
-		const int M = _w / 20, LH = _h / 5;
-		new GUI::StaticTextWidget(this, M, M, _w - 2 * M, LH,
-			Common::U32String("Passes (f/l/a per char; empty = default):"),
-			Graphics::kTextAlignLeft);
-		_edit = new GUI::EditTextWidget(this, M, M + LH + M / 2, _w - 2 * M, LH,
-			Common::U32String(initial));
-		new GUI::ButtonWidget(this, _w - 2 * (M + _w / 5), _h - M - LH, _w / 5, LH,
-			Common::U32String("Cancel"), Common::U32String(), kCancelCmd);
-		new GUI::ButtonWidget(this, _w - M - _w / 5, _h - M - LH, _w / 5, LH,
-			Common::U32String("OK"), Common::U32String(), kOkCmd);
-	}
-	void handleCommand(GUI::CommandSender *sender, uint32 cmd, uint32 data) override {
-		if (cmd == kOkCmd) { _accepted = true; close(); return; }
-		if (cmd == kCancelCmd) { close(); return; }
-		GUI::Dialog::handleCommand(sender, cmd, data);
-	}
+	PassBuilderWidget(GUI::GuiObject *boss, int x, int y, int w, int h,
+	                  const Common::String &initial);
+	~PassBuilderWidget() override;
+
 	bool accepted() const { return _accepted; }
-	Common::String value() const { return _edit->getEditString().encode(); }
+	Common::String value() const { return _working; }
+
+protected:
+	void drawWidget() override;
+	void handleMouseDown(int x, int y, int button, int clickCount) override;
+	void handleMouseMoved(int x, int y, int button) override;
+	void handleMouseLeft(int button) override;
+	bool handleKeyDown(Common::KeyState state) override;
+
 private:
-	enum { kOkCmd = 'POK ', kCancelCmd = 'PCAN' };
-	GUI::EditTextWidget *_edit = nullptr;
-	bool _accepted = false;
+	// Palette aliases (pulled from shared PickerColors).
+	using Rgb = PickerColors::Rgb;
+
+	enum FontRole { kFBody = 0, kFMono, kFontCount };
+
+	Graphics::ManagedSurface   _canvas;
+	Common::String             _working;     // the pass string being built
+	bool                       _accepted = false;
+	Common::Array<PanelWidget> _widgets;
+	uint32                     _hoverId = 0;
+	Graphics::Font            *_ttf[kFontCount] = {};
+	const Graphics::Font      *_use[kFontCount] = {};
+
+	void loadFonts();
+	void buildWidgets();
+	void render();
+
+	// Small local draw helpers (all into _canvas, 10-line each).
+	void blendFill(const Common::Rect &r, byte cr, byte cg, byte cb, byte ca);
+	void strokeRect(const Common::Rect &r, byte cr, byte cg, byte cb);
+	void drawTextIn(int fontRole, const Common::String &s, const Common::Rect &r,
+	                byte cr, byte cg, byte cb, Graphics::TextAlign align);
+	void drawButton(const Common::Rect &r, const Common::String &label,
+	                byte cr, byte cg, byte cb, bool filled, uint32 id);
+};
+
+PassBuilderWidget::PassBuilderWidget(GUI::GuiObject *boss, int x, int y, int w, int h,
+                                     const Common::String &initial)
+	: GUI::Widget(boss, x, y, w, h) {
+	setFlags(GUI::WIDGET_ENABLED | GUI::WIDGET_TRACK_MOUSE);
+	_canvas.create(w, h, g_system->getOverlayFormat());
+	// Canonicalize initial string to compact form so legacy "f f f" seeds don't
+	// mix separators with appended chars.
+	_working = passString(parsePassString(initial));
+	loadFonts();
+	buildWidgets();
+	render();
+}
+
+PassBuilderWidget::~PassBuilderWidget() {
+	for (int i = 0; i < kFontCount; ++i)
+		delete _ttf[i];
+}
+
+void PassBuilderWidget::loadFonts() {
+#ifdef USE_FREETYPE2
+	struct { const char *file; int size; } spec[kFontCount] = {
+		{ "LiberationSans-Regular.ttf", _h / 8 },  // kFBody
+		{ "GoMono-Regular.ttf",         _h / 9 },  // kFMono
+	};
+	for (int i = 0; i < kFontCount; ++i)
+		_ttf[i] = Graphics::loadTTFFontFromArchive(spec[i].file, spec[i].size,
+		                                           Graphics::kTTFSizeModeCell, 0, 0,
+		                                           Graphics::kTTFRenderModeLight);
+#endif
+	const Graphics::Font *gui = FontMan.getFontByUsage(Graphics::FontManager::kGUIFont);
+	for (int i = 0; i < kFontCount; ++i)
+		_use[i] = _ttf[i] ? _ttf[i] : gui;
+}
+
+void PassBuilderWidget::blendFill(const Common::Rect &rIn, byte cr, byte cg, byte cb, byte ca) {
+	Common::Rect r = rIn;
+	r.clip(Common::Rect(0, 0, _w, _h));
+	if (r.isEmpty()) return;
+	const Graphics::PixelFormat &f = _canvas.format;
+	if (f.bytesPerPixel != 4) {
+		_canvas.fillRect(r, f.RGBToColor(cr, cg, cb));
+		return;
+	}
+	for (int yy = r.top; yy < r.bottom; ++yy) {
+		for (int xx = r.left; xx < r.right; ++xx) {
+			uint32 *px = (uint32 *)_canvas.getBasePtr(xx, yy);
+			byte dr, dg, db;
+			f.colorToRGB(*px, dr, dg, db);
+			dr = (byte)((cr * ca + dr * (255 - ca)) / 255);
+			dg = (byte)((cg * ca + dg * (255 - ca)) / 255);
+			db = (byte)((cb * ca + db * (255 - ca)) / 255);
+			*px = f.RGBToColor(dr, dg, db);
+		}
+	}
+}
+
+void PassBuilderWidget::strokeRect(const Common::Rect &rIn, byte cr, byte cg, byte cb) {
+	Common::Rect r = rIn;
+	r.clip(Common::Rect(0, 0, _w, _h));
+	if (r.isEmpty()) return;
+	const uint32 c = _canvas.format.RGBToColor(cr, cg, cb);
+	_canvas.hLine(r.left, r.top, r.right - 1, c);
+	_canvas.hLine(r.left, r.bottom - 1, r.right - 1, c);
+	_canvas.vLine(r.left, r.top, r.bottom - 1, c);
+	_canvas.vLine(r.right - 1, r.top, r.bottom - 1, c);
+}
+
+void PassBuilderWidget::drawTextIn(int fontRole, const Common::String &s, const Common::Rect &r,
+                                   byte cr, byte cg, byte cb, Graphics::TextAlign align) {
+	const Graphics::Font *font = _use[fontRole];
+	if (!font || r.isEmpty()) return;
+	const int y = r.top + (r.height() - font->getFontHeight()) / 2;
+	font->drawString(&_canvas, s, r.left, MAX((int)r.top, y), r.width(),
+	                 _canvas.format.RGBToColor(cr, cg, cb), align);
+}
+
+void PassBuilderWidget::drawButton(const Common::Rect &r, const Common::String &label,
+                                   byte cr, byte cg, byte cb, bool filled, uint32 id) {
+	const bool hovered = (_hoverId == id);
+	const byte a = (byte)(filled ? 235 : 90);
+	if (filled)
+		blendFill(r, cr / 2, cg / 2, cb / 2, a);
+	else
+		blendFill(r, 10, 14, 24, hovered ? 200 : 160);
+	byte br = cr, bg2 = cg, bb = cb;
+	if (hovered) {
+		br  = (byte)MIN(255, cr + 40);
+		bg2 = (byte)MIN(255, cg + 40);
+		bb  = (byte)MIN(255, cb + 40);
+	}
+	strokeRect(r, br, bg2, bb);
+	const PickerColors::Rgb &tc = PickerColors::kText;
+	drawTextIn(kFBody, label, r, tc.r, tc.g, tc.b, Graphics::kTextAlignCenter);
+}
+
+void PassBuilderWidget::buildWidgets() {
+	_widgets.clear();
+	// Layout constants (all relative to widget-local coords).
+	const int M  = MAX(4, _h / 14);   // outer margin
+	const int BH = MAX(12, _h / 7);   // button height
+	const int BW = MAX(20, _w / 7);   // chip width (+f/+l/+a/del/clear)
+	const int gap = MAX(2, _w / 60);  // inter-button gap
+
+	// Row 3: builder chips (+f +l +a del clear)
+	const int chipY = _h / 2 - BH / 2;
+	// Center the 5 chips.
+	const int totalChips = 5 * BW + 4 * gap;
+	int chipX = (_w - totalChips) / 2;
+
+	struct { PassBuilderKind kind; const char *label; } chips[5] = {
+		{ kPBAppendF, "+f" },
+		{ kPBAppendL, "+l" },
+		{ kPBAppendA, "+a" },
+		{ kPBDel,     "del" },
+		{ kPBClear,   "clear" },
+	};
+	for (int i = 0; i < 5; ++i) {
+		PanelWidget pw;
+		pw.rect = Common::Rect(chipX, chipY, chipX + BW, chipY + BH);
+		pw.id = widId(chips[i].kind);
+		pw.label = chips[i].label;
+		pw.on = false;
+		pw.enabled = true;
+		_widgets.push_back(pw);
+		chipX += BW + gap;
+	}
+
+	// Row 4: Cancel (left) and OK (right).
+	const int btnY  = _h - M - BH;
+	const int btnW  = MAX(36, _w / 5);
+
+	PanelWidget cancel;
+	cancel.rect    = Common::Rect(M, btnY, M + btnW, btnY + BH);
+	cancel.id      = widId(kPBCancel);
+	cancel.label   = "Cancel";
+	cancel.on      = false;
+	cancel.enabled = true;
+	_widgets.push_back(cancel);
+
+	PanelWidget ok;
+	ok.rect    = Common::Rect(_w - M - btnW, btnY, _w - M, btnY + BH);
+	ok.id      = widId(kPBOK);
+	ok.label   = "OK";
+	ok.on      = false;
+	ok.enabled = true;
+	_widgets.push_back(ok);
+}
+
+void PassBuilderWidget::render() {
+	const PickerColors::Rgb &kText    = PickerColors::kText;
+	const PickerColors::Rgb &kTextDim = PickerColors::kTextDim;
+	const PickerColors::Rgb &kBlue    = PickerColors::kBlue;
+	const PickerColors::Rgb &kRed     = PickerColors::kRed;
+	const PickerColors::Rgb &kPanel   = PickerColors::kPanelLine;
+
+	// Background: same dark navy as the picker's panels.
+	_canvas.fillRect(Common::Rect(0, 0, _w, _h), _canvas.format.RGBToColor(16, 22, 36));
+	strokeRect(Common::Rect(0, 0, _w, _h), kPanel.r, kPanel.g, kPanel.b);
+
+	const int M  = MAX(4, _h / 14);
+	const int BH = MAX(12, _h / 7);
+	const int pad = MAX(3, _w / 60);
+
+	// Row 1: title.
+	{
+		Common::Rect titleR(M, M, _w - M, M + BH);
+		drawTextIn(kFBody, "Omyac passes", titleR, kBlue.r, kBlue.g, kBlue.b,
+		           Graphics::kTextAlignLeft);
+	}
+
+	// Row 2: current string display field.
+	{
+		const int fieldY = M + BH + pad;
+		const int fieldH = BH;
+		Common::Rect fieldR(M, fieldY, _w - M, fieldY + fieldH);
+		blendFill(fieldR, 10, 14, 24, 220);
+		strokeRect(fieldR, kPanel.r, kPanel.g, kPanel.b);
+		Common::Rect txtR = fieldR;
+		txtR.left += 2 * pad;
+		if (_working.empty())
+			drawTextIn(kFMono, "(empty = default)", txtR,
+			           kTextDim.r, kTextDim.g, kTextDim.b, Graphics::kTextAlignLeft);
+		else
+			drawTextIn(kFMono, _working, txtR,
+			           kText.r, kText.g, kText.b, Graphics::kTextAlignLeft);
+	}
+
+	// Row 3: builder chips (drawn from _widgets).
+	{
+		const PickerColors::Rgb &kAmber = PickerColors::kAmber;
+		for (uint i = 0; i < _widgets.size(); ++i) {
+			const PanelWidget &pw = _widgets[i];
+			const int kind = widKind(pw.id);
+			if (kind == kPBCancel || kind == kPBOK)
+				continue;
+			// del and clear in amber; append chips in blue.
+			const bool isDestructive = (kind == kPBDel || kind == kPBClear);
+			const PickerColors::Rgb &c = isDestructive ? kAmber : kBlue;
+			drawButton(pw.rect, pw.label, c.r, c.g, c.b, false, pw.id);
+		}
+	}
+
+	// Row 4: Cancel (red outline) and OK (blue filled).
+	for (uint i = 0; i < _widgets.size(); ++i) {
+		const PanelWidget &pw = _widgets[i];
+		const int kind = widKind(pw.id);
+		if (kind == kPBCancel)
+			drawButton(pw.rect, pw.label, kRed.r, kRed.g, kRed.b, false, pw.id);
+		else if (kind == kPBOK)
+			drawButton(pw.rect, pw.label, kBlue.r, kBlue.g, kBlue.b, true, pw.id);
+	}
+}
+
+void PassBuilderWidget::drawWidget() {
+	g_gui.theme()->drawManagedSurface(Common::Point(_x, _y), _canvas, Graphics::ALPHA_OPAQUE);
+}
+
+void PassBuilderWidget::handleMouseDown(int x, int y, int button, int clickCount) {
+	const uint32 id = hitTestWidgets(_widgets, x, y);
+	switch (widKind(id)) {
+	case kPBAppendF: _working += 'f'; break;
+	case kPBAppendL: _working += 'l'; break;
+	case kPBAppendA: _working += 'a'; break;
+	case kPBDel:
+		if (!_working.empty())
+			_working.deleteLastChar();
+		break;
+	case kPBClear:
+		_working.clear();
+		break;
+	case kPBOK:
+		_accepted = true;
+		((GUI::Dialog *)_boss)->close();
+		return;
+	case kPBCancel:
+		((GUI::Dialog *)_boss)->close();
+		return;
+	default:
+		break;
+	}
+	render();
+	markAsDirty();
+}
+
+void PassBuilderWidget::handleMouseMoved(int x, int y, int button) {
+	const uint32 id = hitTestWidgets(_widgets, x, y);
+	if (id != _hoverId) {
+		_hoverId = id;
+		render();
+		markAsDirty();
+	}
+}
+
+void PassBuilderWidget::handleMouseLeft(int button) {
+	if (_hoverId != 0) {
+		_hoverId = 0;
+		render();
+		markAsDirty();
+	}
+}
+
+bool PassBuilderWidget::handleKeyDown(Common::KeyState state) {
+	// Escape = cancel.
+	if (state.keycode == Common::KEYCODE_ESCAPE) {
+		((GUI::Dialog *)_boss)->close();
+		return true;
+	}
+	return false;
+}
+
+// ---------------------------------------------------------------------------
+// PassBuilderDialog — modal shell hosting PassBuilderWidget.
+// Same stacking as the old PassInputDialog (runModal from pickerPassOption).
+// ---------------------------------------------------------------------------
+class PassBuilderDialog : public GUI::Dialog {
+public:
+	explicit PassBuilderDialog(const Common::String &initial)
+		: GUI::Dialog(gW() / 4, gH() * 3 / 8, gW() / 2, gH() / 4) {
+		_widget = new PassBuilderWidget(this, 0, 0, _w, _h, initial);
+	}
+	bool accepted() const { return _widget->accepted(); }
+	Common::String value() const { return _widget->value(); }
+private:
+	PassBuilderWidget *_widget = nullptr;
 };
 
 RogerLauncherDialog::RogerLauncherDialog(RogerLauncher &launcher)
@@ -303,7 +631,7 @@ void RogerLauncherDialog::pickerPassOption(int optionIndex) {
 		return;
 	const PassOption &o = _passOptions[optionIndex];
 	if (o.isCustom) {
-		PassInputDialog input(_state.settings.passes);
+		PassBuilderDialog input(_state.settings.passes);
 		input.runModal();
 		if (input.accepted())
 			_launcher.setPassesForSelected(input.value());

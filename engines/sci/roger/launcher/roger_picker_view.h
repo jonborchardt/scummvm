@@ -40,6 +40,19 @@ class Font;
 namespace Sci {
 namespace Roger {
 
+// Palette shared by all Roger picker surfaces (picker view + pass builder).
+// No theme dependence: all Roger panels paint themselves.
+namespace PickerColors {
+struct Rgb { byte r, g, b; };
+const Rgb kText      = { 232, 236, 244 };
+const Rgb kTextDim   = { 154, 164, 184 };
+const Rgb kGreen     = {  76, 195, 138 };
+const Rgb kAmber     = { 229, 184,  75 };
+const Rgb kBlue      = { 100, 148, 237 };
+const Rgb kRed       = { 214,  86,  78 };
+const Rgb kPanelLine = {  42,  52,  80 };
+} // namespace PickerColors
+
 struct PassOption {
 	Common::String label;   // display text
 	Common::String value;   // roger_omyac_passes value; "" = Default (remove key)
