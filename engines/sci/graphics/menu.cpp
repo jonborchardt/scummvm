@@ -426,8 +426,8 @@ void GfxMenu::rogerPushBarOverlay() {
 	// mutually exclusive in time, so they use the SAME clear-token: pushing the bar
 	// replaces the banner, and the next kernelDrawStatus replaces the bar back.
 	const uint32 tok = 0x10000000u;
-	g_sciRogerProvider->beginUiBatch();
-	g_sciRogerProvider->uiClearToken(tok);
+	g_sciGfxObserver->beginBatch();
+	g_sciGfxObserver->onWindowClose(tok);
 	// Opaque white bar (matches the native white menu bar), no frame, spanning the FULL
 	// bar width. Earlier this started to the right of a leading graphical-glyph title so
 	// the native icon could show through the transparent gap — but that gap also let the
@@ -435,12 +435,12 @@ void GfxMenu::rogerPushBarOverlay() {
 	// titles. Covering the whole bar keeps it clean; the leftmost graphical menu is still
 	// clickable, it just renders as the white bar rather than its native glyph.
 	Common::Rect barRect = _ports->_menuBarRect;
-	g_sciRogerProvider->uiPushWindow(barRect, _screen->getColorWhite(), 0,
-	                                 2 /*SCI_WINDOWMGR_STYLE_NOFRAME*/, tok);
+	g_sciGfxObserver->onWindowOpen(barRect, 2 /*SCI_WINDOWMGR_STYLE_NOFRAME*/,
+	                               _screen->getColorWhite(), 0, "", tok);
 	// Mirror the black underline drawBar fills below the bar (_menuLine) so the
 	// whole reserved strip stays overlay-owned while the bar replaces the banner.
-	g_sciRogerProvider->uiPushWindow(_ports->_menuLine, 0, 0,
-	                                 2 /*SCI_WINDOWMGR_STYLE_NOFRAME*/, tok);
+	g_sciGfxObserver->onWindowOpen(_ports->_menuLine, 2 /*SCI_WINDOWMGR_STYLE_NOFRAME*/,
+	                               0, 0, "", tok);
 	for (uint i = 0; i < _rogerBarTitles.size(); i++) {
 		const RogerMenuRow &t = _rogerBarTitles[i];
 		if (!rogerTitleIsText(t.text))
@@ -451,7 +451,7 @@ void GfxMenu::rogerPushBarOverlay() {
 		                               SCI_TEXT16_ALIGNMENT_LEFT, tok, 1 /*heading*/, true /*alt font*/,
 		                               nfh, nfw);
 	}
-	g_sciRogerProvider->endUiBatch();
+	g_sciGfxObserver->endBatch();
 }
 
 // This helper calculates all text widths for all menus (only)
@@ -820,10 +820,10 @@ void GfxMenu::rogerPushMenuOverlay() {
 	const uint32 tok = 0x20000000u; // single open dropdown at a time
 	// One present for the whole re-push: the frozen menu loop means every push
 	// below would otherwise flush its own full present (a storm per highlight).
-	g_sciRogerProvider->beginUiBatch();
-	g_sciRogerProvider->uiClearToken(tok);
+	g_sciGfxObserver->beginBatch();
+	g_sciGfxObserver->onWindowClose(tok);
 	// Opaque white box with a frame (matches SCI's black-bordered white dropdown).
-	g_sciRogerProvider->uiPushWindow(_rogerMenuBox, _screen->getColorWhite(), 0, 0, tok);
+	g_sciGfxObserver->onWindowOpen(_rogerMenuBox, 0, _screen->getColorWhite(), 0, "", tok);
 	for (uint i = 0; i < _rogerMenuRows.size(); i++) {
 		const RogerMenuRow &r = _rogerMenuRows[i];
 		const bool sel = (r.id == _rogerMenuHighlight);
@@ -835,12 +835,12 @@ void GfxMenu::rogerPushMenuOverlay() {
 		                               SCI_TEXT16_ALIGNMENT_LEFT, tok, 0 /*body*/, true,
 		                               nfh, nfw);
 	}
-	g_sciRogerProvider->endUiBatch();
+	g_sciGfxObserver->endBatch();
 }
 
 void GfxMenu::rogerClearMenuOverlay() {
-	if (g_sciRogerProvider && g_sciRogerProvider->enabled)
-		g_sciRogerProvider->uiClearToken(0x20000000u);
+	if (g_sciGfxObserver)
+		g_sciGfxObserver->onWindowClose(0x20000000u);
 	_rogerMenuRows.clear();
 }
 

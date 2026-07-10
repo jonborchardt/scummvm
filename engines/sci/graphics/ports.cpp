@@ -521,46 +521,28 @@ void GfxPorts::drawWindow(Window *pWnd) {
 		if (!(wndStyle & SCI_WINDOWMGR_STYLE_TRANSPARENT))
 			_paint16->fillRect(r, GFX_SCREEN_MASK_VISUAL, pWnd->backClr);
 
-		if (g_sciRogerProvider && g_sciRogerProvider->enabled) {
-			const uint32 tok = 0x40000000u | (uint32)pWnd->id;
+		if (g_sciGfxObserver) {
 			// Provider rects are global 320x200 screen space; dims is _wmgrPort-local
-			// (the current port here), so globalize exactly like bitsShow below does.
+			// (the current port here), so globalize exactly like bitsShow does.
 			Common::Rect globalDims = pWnd->dims;
 			offsetRect(globalDims);
-			g_sciRogerProvider->uiPushWindow(globalDims, pWnd->backClr, pWnd->penClr,
-			                                 wndStyle, tok);
-			// A titled window (e.g. the inventory's "You are carrying:") draws its title in
-			// a titlebar strip that uiPushWindow does not reproduce. Capture it so the hires
-			// overlay shows the title too: a dark titlebar (grey for SCI0, black later) with
-			// centered white text, matching the native bar.
-			if ((wndStyle & SCI_WINDOWMGR_STYLE_TITLE) && !pWnd->title.empty()) {
-				Common::Rect titleRect(globalDims.left, globalDims.top,
-				                       globalDims.right, (int16)(globalDims.top + 10));
-				const int titleBack = (getSciVersion() <= SCI_VERSION_0_LATE) ? 8 : 0;
-				int16 nfw = 0, nfh = 0;
-				_text16->StringWidth(pWnd->title, 0, nfw, nfh);
-				g_sciRogerProvider->uiPushText(titleRect, pWnd->title.c_str(),
-				                               _screen->getColorWhite(), titleBack, 0,
-				                               SCI_TEXT16_ALIGNMENT_CENTER, tok,
-				                               0, false, nfh, nfw);
-			}
+			const char *title = ((wndStyle & SCI_WINDOWMGR_STYLE_TITLE) && !pWnd->title.empty())
+			                    ? pWnd->title.c_str() : "";
+			g_sciGfxObserver->onWindowOpen(globalDims, wndStyle, pWnd->backClr, pWnd->penClr,
+			                               title, gfxWindowToken((uint32)pWnd->id));
 		}
 
-		// Tag the show with the window's token: drawWindow runs with _wmgrPort current, so
-		// bitsShow cannot derive the owner itself. Roger drops the capture on removeWindow.
-		_paint16->bitsShow(pWnd->dims, 0x40000000u | (uint32)pWnd->id);
+		// The window content show. onWindowOpen fired first (above) with the window
+		// token; the observer attributes this show (which runs under _wmgrPort, so it
+		// self-derives owner 0) to that just-opened window.
+		_paint16->bitsShow(pWnd->dims);
 	}
 	setPort(oldport);
 }
 
 void GfxPorts::removeWindow(Window *pWnd, bool reanimate) {
-	if (g_sciRogerProvider && g_sciRogerProvider->enabled) {
-		g_sciRogerProvider->uiClearToken(0x40000000u | (uint32)pWnd->id);
-		// Drop generic text-out captures scoped to this window (0x60000000 | id) so dialog/
-		// message text drawn via GfxText16::Box vanishes with its window, matching the control
-		// clear above. Picture-port text (persistent port, never removed here) is untouched.
-		g_sciRogerProvider->uiClearToken(0x60000000u | (uint32)pWnd->id);
-	}
+	if (g_sciGfxObserver)
+		g_sciGfxObserver->onWindowClose(gfxWindowToken((uint32)pWnd->id));
 
 	setPort(_wmgrPort);
 	const bool hadNoSaveUnder = pWnd->hSaved1.isNull() && pWnd->hSaved2.isNull();
@@ -574,7 +556,7 @@ void GfxPorts::removeWindow(Window *pWnd, bool reanimate) {
 		// duty-3 exception — see SciGfxObserver::onRestore; do not delete).
 		if (g_sciGfxObserver && hadNoSaveUnder)
 			g_sciGfxObserver->onRestore(0, pWnd->restoreRect);
-		// The reveal gate in onNativeShowRect suppresses Feeder B capture of this
+		// The observer's reveal gate (onShow) suppresses pixel capture of this
 		// show: it blits the just-restored native background via bitsRestore (via
 		// hSaved1/hSaved2 above), which already pushed a _revealRect, so the
 		// subsequent bitsShow here is covered and not re-stamped.

@@ -332,7 +332,7 @@ void GfxPaint16::frameRect(const Common::Rect &rect) {
 	paintRect(r);
 }
 
-void GfxPaint16::bitsShow(const Common::Rect &rect, uint32 rogerOwner) {
+void GfxPaint16::bitsShow(const Common::Rect &rect) {
 	Common::Rect workerRect(rect.left, rect.top, rect.right, rect.bottom);
 
 	// WORKAROUND for vertically misplaced hires portraits in mixed speech+text mode in KQ6CD. The original interpreter
@@ -361,18 +361,15 @@ void GfxPaint16::bitsShow(const Common::Rect &rect, uint32 rogerOwner) {
 
 	_screen->copyRectToScreen(workerRect);
 
-	// Roger hires overlay (Feeder B): record this native show so unhooked draws (kGraph
-	// primitives, etc.) get composited. Ignored when inside a Roger-handled draw.
-	// Scope the capture to the owning window so it dies with it (removeWindow): explicit
-	// token from the caller (drawWindow knows its window but draws with _wmgrPort current),
-	// else the current port when it is a window (edit-control/caret updates drawn with the
-	// window as the active port). The picture window's token never gets a removeWindow, so
-	// picture-port shows keep their room-scoped lifetime.
-	if (g_sciRogerProvider && g_sciRogerProvider->enabled) {
-		uint32 owner = rogerOwner;
-		if (owner == 0 && _ports->_curPort && _ports->_curPort->isWindow())
-			owner = 0x40000000u | (uint32)_ports->_curPort->id;
-		g_sciRogerProvider->onNativeShowRect(workerRect, owner);
+	// A native show. Derive the owning window from the current port when it is a
+	// window (edit-control/caret updates draw with the window active); shows under a
+	// non-window port carry owner 0 and are attributed observer-side by a preceding
+	// onWindowOpen (the drawWindow terminal show runs under _wmgrPort).
+	if (g_sciGfxObserver) {
+		uint32 owner = 0;
+		if (_ports->_curPort && _ports->_curPort->isWindow())
+			owner = gfxWindowToken((uint32)_ports->_curPort->id);
+		g_sciGfxObserver->onShow(workerRect, owner);
 	}
 }
 reg_t GfxPaint16::bitsSave(const Common::Rect &rect, byte screenMask, bool hiresFlag) {

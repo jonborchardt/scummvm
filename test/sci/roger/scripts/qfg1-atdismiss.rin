@@ -25,7 +25,7 @@ wait 2500
 # The pending capture stays here until the dismiss present consumes it.
 capture atdismiss
 key enter
-# Dismiss fires bitsRestore/uiClearToken -> presentBarrier -> presentWithUi (bounded).
+# Dismiss fires bitsRestore/onWindowClose -> presentBarrier -> presentWithUi (bounded).
 # With marks: dialog rect in _dirtyCur -> full dialog cleared. Without: only text
 # area (from _dirtyPrev) cleared, border pixels stale -> sameRunDiff FAILS under injection.
 # maybeScriptCapture fires after presentToOverlay via grabOverlay (truth mode).

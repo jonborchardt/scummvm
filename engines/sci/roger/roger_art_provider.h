@@ -62,17 +62,6 @@ public:
 	// pointer (especially during blocking dialogs/menus that do not tick animate).
 	virtual void onMouseMoved() {}
 
-	// Generic native show (Feeder B): SCI is about to blit `screenRect` (320x200 screen
-	// coords) of its native visual buffer to the display through a path Roger does not
-	// hook semantically. Recorded for the per-frame generic composite. `ownerToken` scopes
-	// the capture to the window it was drawn in (controls namespace 0x40000000 | window id,
-	// 0 = no owning window): captures die with their window (GfxPorts::removeWindow), the
-	// same lifetime rule as text/control captures. Without it, a pixel stamp queued while a
-	// blocking window froze the game cycle is only processed AFTER the window is disposed —
-	// it then stamps the restored native background over the hires plate, permanently
-	// (the "un-enhanced band where the typed-command box was" bug). No-op in base.
-	virtual void onNativeShowRect(const Common::Rect &screenRect, uint32 ownerToken) {}
-
 	// Generic text-out capture (game-agnostic): SCI drew `text` at native `nativeRect`
 	// in font `fontId`, color `penColor`, alignment `align`. nativeFontH is the SCI font
 	// cell height (px) and nativeTextW is the single-line string width (0 = multi-line).
@@ -118,8 +107,6 @@ public:
 	// push resolution-independent elements (global 320x200 rects) here; the provider
 	// composites them over the cached hires scene. All default to no-op so the base
 	// provider (and null provider) are unaffected; FileRogerArtProvider overrides.
-	virtual void uiPushWindow(const Common::Rect &globalRect, int backColor, int penColor,
-	                          uint16 wndStyle, uint32 token) {}
 	// textRole: 0 = body (dialog/message/list text), 1 = heading (titles); see
 	// Roger::UiTextRole. useAltFont: render with the header/menu font.
 	// nativeFontH: SCI font cell height (px) for the line; 0 = unknown.
@@ -139,15 +126,6 @@ public:
 	virtual void uiPushStatus(const Common::Rect &globalRect, const char *text, int fontId,
 	                          int penColor, int backColor, uint32 token,
 	                          int nativeFontH = 0, int nativeTextW = 0) {}
-	virtual void uiClearToken(uint32 token) {}
-	virtual void uiClearAll() {}
-	// Bracket a multi-element UI re-push (e.g. a menu dropdown: clear + window + one
-	// text per row) so the per-push present barrier coalesces into ONE present at
-	// endUiBatch. Without this, each push during a FROZEN cycle (blocking menu/dialog
-	// loop, which never ticks kernelAnimate) flushes its own full present — a present
-	// storm per menu highlight change. Depth-counted; no-op in the base provider.
-	virtual void beginUiBatch() {}
-	virtual void endUiBatch() {}
 	// kGraphFrameBox selection highlight: frame-only (no fill), room-scoped.
 	// globalRect is already in global 320x200 screen space. Any previous frame
 	// pushed under the same token is replaced so the highlight tracks movement.

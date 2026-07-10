@@ -333,7 +333,7 @@ public:
 	}
 
 	void test_append_preserves_preset_window_id() {
-		// uiPushWindow pre-tags the window's own box op with its id; a surrounding
+		// onWindowOpen pre-tags the window's own box op with its id; a surrounding
 		// open bracket must not re-tag it (stated Phase 1 interface contract).
 		RogerJournal j;
 		j.openBracket(3, Common::Rect(0, 0, 320, 200));

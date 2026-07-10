@@ -51,7 +51,7 @@ public:
 		TS_ASSERT_EQUALS(gfxHandleToken(0x0012u, 0x0034u), 0x00120034u);
 	}
 	void test_owner_token_truncates_offset_to_16_bits() {
-		// Animate-owner identity: exact match for animate.cpp's rogerOwnerToken
+		// Animate-owner identity: exact match for animate.cpp's owner packing
 		// (SCI0 offsets fit 16 bits; the mask makes the packing well-defined).
 		TS_ASSERT_EQUALS(gfxOwnerToken(0x0002u, 0x1ABCDu), 0x0002ABCDu);
 	}

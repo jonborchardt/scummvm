@@ -79,7 +79,18 @@ public:
 	                        uint32 token);
 	void beginSelfDraw() override;
 	void endSelfDraw() override;
-	void onNativeShowRect(const Common::Rect &screenRect, uint32 ownerToken) override;
+	// R9 show: dispatcher applies the open->show owner attribution, then runs the
+	// internal capture body (ex onNativeShowRect).
+	void onShow(const Common::Rect &screenRect, uint32 owner) override;
+	void onShowInternal(const Common::Rect &screenRect, uint32 ownerToken); // ex onNativeShowRect
+	// R6 window family: onWindowOpen folds the old uiPushWindow body + the titlebar
+	// text push (title travels in the payload); onWindowClose is THE dispose signal
+	// (one call subsumes the old 0x40.. + 0x60.. clear pair; singleton tokens from
+	// menu.cpp route through the same clear path).
+	void onWindowOpen(const Common::Rect &globalRect, uint16 style, int backColor,
+	                  int penColor, const char *title, uint32 token) override;
+	void onWindowClose(uint32 token) override;
+	void clearWindowToken(uint32 token); // ex uiClearToken (internal clear body)
 	void onNativeText(const Common::Rect &nativeRect, const char *text,
 	                  int fontId, int penColor, int align,
 	                  int nativeFontH, int nativeTextW, uint32 winToken) override;
@@ -101,8 +112,6 @@ public:
 	bool tunePanelMouse(bool buttonDown, const Common::Point &gamePos) override;
 
 	// UI display-list capture (Roger hires dialogs) Ã¢â‚¬â€ see roger_art_provider.h.
-	void uiPushWindow(const Common::Rect &globalRect, int backColor, int penColor,
-	                  uint16 wndStyle, uint32 token) override;
 	void uiPushText(const Common::Rect &globalRect, const char *text, int penColor,
 	                int backColor, int fontId, int align, uint32 token,
 	                int textRole, bool useAltFont,
@@ -116,10 +125,11 @@ public:
 	void uiPushStatus(const Common::Rect &globalRect, const char *text, int fontId,
 	                  int penColor, int backColor, uint32 token,
 	                  int nativeFontH, int nativeTextW) override;
-	void uiClearToken(uint32 token) override;
-	void uiClearAll() override;
-	void beginUiBatch() override;
-	void endUiBatch() override;
+	void uiClearAll(); // internal (room teardown); no longer an observer virtual
+	// R13 batch brackets (renamed from beginUiBatch/endUiBatch; bodies unchanged —
+	// pure depth counting + coalesced present at depth 0):
+	void beginBatch() override;
+	void endBatch() override;
 	void uiPushFrameBox(const Common::Rect &globalRect, int penColor) override;
 
 	// Compose and present the current room to the OSystem overlay.
@@ -210,10 +220,10 @@ private:
 	// a disposed-after-baking prop promotes, a live actor (the ego) never does. See onInitCelInternal.
 	Common::Array<Roger::Sprite> _initCels;
 	// Native-foreground capture (QFG1 menu/character-creation stat labels, class buttons,
-	// software cursor): regions recorded by the bitsShow hook (onNativeShowRect), turned
-	// into persistent sprites so they survive past one frame (Feeder-A style). Each carries
-	// its owning window token (0x40000000 | id, 0 = none): pending regions AND stamped
-	// sprites owned by a window are dropped when that window is disposed (uiClearToken from
+	// software cursor): regions recorded by the bitsShow hook (onShow -> onShowInternal),
+	// turned into persistent sprites so they survive past one frame (Feeder-A style). Each
+	// carries its owning window token (0x40000000 | id, 0 = none): pending regions AND stamped
+	// sprites owned by a window are dropped when that window is disposed (onWindowClose from
 	// GfxPorts::removeWindow) Ã¢â‚¬â€ without this, a region queued while a blocking window froze
 	// the game cycle is processed only after dispose and stamps the restored native
 	// background over the plate for the rest of the room. Owner-less captures stay
@@ -313,7 +323,14 @@ private:
 	bool _barrierDirty = false;      // any mark since the last barrier present
 	bool _inAnimateCycle = false;    // set at onFrameEnd, cleared at cycle end
 	bool _frameJustComposed = false; // renderFrame composed this cycle (Task 4 uses it)
-	int _uiBatchDepth = 0; // presentBarrier defers while > 0; endUiBatch flushes
+	int _uiBatchDepth = 0; // presentBarrier defers while > 0; endBatch flushes
+	// R9 open->show attribution: onWindowOpen arms the just-opened window's token;
+	// the FIRST following onShow that self-derived owner 0 and is contained in the
+	// window rect adopts it (the drawWindow terminal show, which runs under
+	// _wmgrPort). Single-shot; reset at every frame boundary (onFrameStart) and at
+	// onWindowClose so a stale arm never leaks across cycles or past a dispose.
+	uint32 _pendingShowOwner = 0;
+	Common::Rect _pendingShowRect;
 
 	// Frozen-cycle present telemetry (diag-gated, permanent): counts barrier-flushed
 	// presentWithUi calls and their cumulative cost, aggregated to one

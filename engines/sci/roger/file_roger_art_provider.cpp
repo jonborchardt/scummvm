@@ -1589,7 +1589,7 @@ void FileRogerArtProvider::presentBarrier() {
 	if (_inAnimateCycle)
 		return; // mid-cycle marks accumulate; the end-of-cycle call flushes them
 	if (_uiBatchDepth > 0)
-		return; // batched UI re-push: marks accumulate; endUiBatch flushes once
+		return; // batched UI re-push: marks accumulate; endBatch flushes once
 	if (!overlayShown() || !_compositor || !_haveScene || !_sceneCache)
 		return;
 	if (_frameJustComposed && _scratchScene) {
@@ -1778,8 +1778,20 @@ void FileRogerArtProvider::buildGlyphs(const char *text, int fontId, int penColo
 	}
 }
 
-void FileRogerArtProvider::uiPushWindow(const Common::Rect &r, int backColor, int penColor,
-                                        uint16 wndStyle, uint32 token) {
+void FileRogerArtProvider::onWindowOpen(const Common::Rect &r, uint16 wndStyle,
+                                        int backColor, int penColor, const char *title,
+                                        uint32 token) {
+	if (!enabled)
+		return;
+	// Arm open->show attribution (R9): the window's content show follows immediately
+	// (GfxPorts::drawWindow emits onWindowOpen, then bitsShow(dims) under _wmgrPort,
+	// which self-derives owner 0 — see onShow). Only real windows (control namespace)
+	// arm; the menu.cpp singletons (status strip / dropdown) never route a content
+	// show this way. Armed even without a plate: attribution state, not rendering.
+	if ((token & Roger::kTokenNamespaceMask) == Roger::kControlTokenNs) {
+		_pendingShowOwner = token;
+		_pendingShowRect = r;
+	}
 	if (!overlayShown() || !_plate) return; // no hires scene -> leave native UI visible
 	ensureUi();
 	Roger::UiElement e;
@@ -1808,6 +1820,27 @@ void FileRogerArtProvider::uiPushWindow(const Common::Rect &r, int backColor, in
 	journalAppend(e);
 	markUiDirty(r);
 	presentBarrier();
+	// Folded-in titlebar text (was ports.cpp's title uiPushText): a titled window
+	// (e.g. the inventory's "You are carrying:") draws its title in a titlebar strip
+	// the window box above does not reproduce. Capture it so the hires overlay shows
+	// the title too: a dark titlebar (grey for SCI0, black later) with centered white
+	// text, matching the native bar. Role-sized (kRoleBody): the native font metrics
+	// the old seam computed via StringWidth are deliberately dropped — title text is
+	// short single-line, exactly what the role fallback renders.
+	if (title && *title &&
+	    (wndStyle & 4 /*SCI_WINDOWMGR_STYLE_TITLE*/) &&
+	    (token & Roger::kTokenNamespaceMask) == Roger::kControlTokenNs) {
+		Common::Rect titleRect(r.left, r.top, r.right, (int16)(r.top + 10));
+		const int titleBack = (getSciVersion() <= SCI_VERSION_0_LATE) ? 8 : 0;
+		Roger::UiElement t;
+		t.type = Roger::kUiText; t.nativeRect = titleRect; t.text = title;
+		t.penColor = 15 /*white (EGA)*/; t.backColor = titleBack; t.align = 1 /*center*/;
+		t.token = token; t.textRole = Roger::kRoleBody;
+		buildGlyphs(title, 0, 15, t.glyphs);
+		journalAppend(t);
+		markUiDirty(titleRect);
+		presentBarrier();
+	}
 }
 
 void FileRogerArtProvider::uiPushText(const Common::Rect &r, const char *text, int penColor,
@@ -2008,25 +2041,38 @@ void FileRogerArtProvider::reapplyStatus() {
 
 // Generic text-out captures live in the 0x6------- namespace. The low bits carry the
 // window/port id the text was drawn in (0x60000000 | port->id), so a window dispose
-// (GfxPorts::removeWindow -> uiClearToken(0x60000000 | id)) drops exactly that window's
+// (GfxPorts::removeWindow -> onWindowClose -> bracket close) drops exactly that window's
 // text Ã¢â‚¬â€ the same lifetime controls16/menu text already has. Text drawn on the picture
 // port (no dialog / char screen while open) uses that port's id, which is never disposed
 // mid-room, so it persists until room change. kGenericTextTokenNs is the namespace base
 // (matches picture-port id 0 fallback and is the value passed to the namespace helpers).
 static inline bool isGenericTextToken(uint32 t) { return (t & Roger::kTokenNamespaceMask) == Roger::kGenericTextTokenNs; }
 
-void FileRogerArtProvider::beginUiBatch() {
+void FileRogerArtProvider::beginBatch() {
 	_uiBatchDepth++;
 }
 
-void FileRogerArtProvider::endUiBatch() {
+void FileRogerArtProvider::endBatch() {
 	if (_uiBatchDepth > 0 && --_uiBatchDepth == 0)
 		presentBarrier();
 }
 
-void FileRogerArtProvider::uiClearToken(uint32 token) {
+void FileRogerArtProvider::onWindowClose(uint32 token) {
+	if (!enabled)
+		return;
+	_pendingShowOwner = 0; // a close cancels any armed open->show attribution
+	// The window-bracket close (control namespace) drops the window box op AND every
+	// op captured inside it (controls + generic text) — ONE signal subsuming the old
+	// 0x40.. + 0x60.. clear pair (the 0x60.. clear was already a no-op once the
+	// bracket closed). Singleton tokens (status strip 0x10.., dropdown 0x20..) from
+	// menu.cpp route through the same clear path as before.
+	clearWindowToken(token);
+}
+
+void FileRogerArtProvider::clearWindowToken(uint32 token) {
 	// The save-under restore path (bitsRestore) now goes through onRestore
-	// (checkpoint rollback) and no longer arrives here. Actual callers:
+	// (checkpoint rollback) and no longer arrives here. Sole caller is the
+	// onWindowClose dispatcher; tokens seen:
 	//   - GfxPorts::removeWindow Ã¢â‚¬â€ bracket close (0x40000000|id + 0x60000000|id)
 	//   - menu.cpp Ã¢â‚¬â€ status strip (0x10000000) and dropdown (0x20000000) singletons
 	// All work below is gated on an actual removal Ã¢â‚¬â€ a no-op call must stay cheap
@@ -2036,8 +2082,8 @@ void FileRogerArtProvider::uiClearToken(uint32 token) {
 	if (_journal) {
 		const uint32 ns = token & Roger::kTokenNamespaceMask;
 		if (ns == Roger::kControlTokenNs) {
-			// removeWindow bracket: drops the window box op AND every op captured
-			// inside it, whatever port drew it (the kGenericTextTokenNs|portId clear that
+			// removeWindow bracket (via onWindowClose): drops the window box op AND every
+			// op captured inside it, whatever port drew it (the kGenericTextTokenNs|portId clear that
 			// ports.cpp also sends becomes a no-op Ã¢â‚¬â€ brackets subsume it).
 			removedUi = _journal->closeBracket(token & 0x0FFFFFFFu, &removedRects);
 		} else if (ns == Roger::kGenericTextTokenNs) {
@@ -2247,7 +2293,7 @@ void FileRogerArtProvider::uiPushFrameBox(const Common::Rect &r, int penColor) {
 	e.hasFrame = true;
 	e.token = Roger::kFrameBoxToken;
 	journalAppend(e);
-	// RETAINED duty-3 exception (Phase 3, uiClearToken's twin): no SCI save-under exists
+	// RETAINED duty-3 exception (Phase 3, clearWindowToken's twin): no SCI save-under exists
 	// for the frame box, and the net can't see overlay-only draws Ã¢â‚¬â€ old position would ghost.
 	if (!oldFrameRect.isEmpty()) markVacatedDirty(oldFrameRect);
 	markUiDirty(r);
@@ -2425,7 +2471,7 @@ void FileRogerArtProvider::processForegroundCaptures(const Common::Array<Common:
 		s.mirror = false;
 		s.celOverride = snap;
 		s.celOverrideOwned = true;
-		s.owner = pending[i].owner; // window token: stamp dies with its window (uiClearToken)
+		s.owner = pending[i].owner; // window token: stamp dies with its window (onWindowClose)
 		s.seq = ++_stampSeqCounter; // seq tag: rollback can remove this stamp if it postdates a checkpoint
 		_textSprites.push_back(s);
 		if (_diag)
@@ -2533,7 +2579,23 @@ void FileRogerArtProvider::onInitCelInternal(int viewId, int loopNo, int celNo,
 void FileRogerArtProvider::beginSelfDraw() { _nativeDrawDepth++; }
 void FileRogerArtProvider::endSelfDraw()   { if (_nativeDrawDepth > 0) _nativeDrawDepth--; }
 
-void FileRogerArtProvider::onNativeShowRect(const Common::Rect &screenRect, uint32 ownerToken) {
+void FileRogerArtProvider::onShow(const Common::Rect &screenRect, uint32 owner) {
+	if (!enabled)
+		return;
+	// R9 open->show attribution: a show that self-derived owner 0 immediately after
+	// an onWindowOpen (the drawWindow terminal show, which runs under _wmgrPort)
+	// adopts the just-opened window's token when contained in its rect. Single-shot:
+	// consumed by the first matching show; also reset at every frame boundary
+	// (onFrameStart) and at onWindowClose. Ordinary port-derived shows (owner != 0)
+	// pass through untouched.
+	if (owner == 0 && _pendingShowOwner != 0 && _pendingShowRect.contains(screenRect)) {
+		owner = _pendingShowOwner;
+		_pendingShowOwner = 0;
+	}
+	onShowInternal(screenRect, owner);
+}
+
+void FileRogerArtProvider::onShowInternal(const Common::Rect &screenRect, uint32 ownerToken) {
 	// Ã‚Â§3.1 exact invalidation: SCI showed these native pixels, so the overlay
 	// region is stale regardless of any capture bookkeeping below. Deliberately
 	// NOT gated on _nativeDrawDepth: invalidation is dumb and exact; only the
@@ -2970,6 +3032,10 @@ void FileRogerArtProvider::onFrameStart() {
 	// `period` honest across -CycleLog toggles. Deliberately NOT gated on
 	// `enabled`: the old seam telemetry ran regardless of the enable flag.
 	_cycleTelemetry.frameStart(g_system->getMillis());
+	// R9: a pending open->show attribution never survives a frame boundary — the
+	// drawWindow content show is same-call, so a stale arm here is a bug, not a
+	// feature. O(1).
+	_pendingShowOwner = 0;
 }
 
 void FileRogerArtProvider::remapComparisonMouse(Common::Point &mousePos) {
