@@ -13,6 +13,13 @@ Buckets: **N** notification / **C** claim-override / **S** state-intrusion /
 Seam classifications: **hooked** / **derivable-from-L2** / **real-gap** / **excluded**.
 Gap-fill rule: a real-gap needs BOTH content-not-in-L2-pixels AND a non-Roger consumer story.
 
+Change-site table format (every section-3 subsection uses these columns):
+
+| # | Site (file:line) | What it does | Bucket | Defensibility verdict | Disposition |
+|---|---|---|---|---|---|
+
+Disposition values: `→ <event> (L1..L4)` / `observer-side` / `fork-only` / `standalone-PR` / `delete`.
+
 ## 2. Measured baseline
 
 | File | Lines changed | Hunks |
