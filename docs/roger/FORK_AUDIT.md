@@ -222,7 +222,72 @@ individually.
   hunk 2 (@@ -520,20 +521,67) = PO2(drawWindow open hook) + PO3(removeWindow close hook) — the two functions are adjacent, so the diff emits ONE hunk spanning both.
   So: hunk 1 -> PO1; hunk 2 -> PO2, PO3. -->
 
-<!-- Tasks 2-5 append per-file subsections here -->
+### 3.10 engines/sci/event.cpp (52 lines, 4 hunks)
+
+| # | Site (file:line) | What it does | Bucket | Defensibility verdict | Disposition |
+|---|---|---|---|---|---|
+| E1 | event.cpp:37 | `#include "sci/roger/roger_art_provider.h"` in the event file | W (+concern) | Not mechanical: same `roger/`-path leak as P1/K1 — a neutral observer header belongs here | → replace with `sci_gfx_observer.h`; observer-side |
+| E2 | event.cpp:206-219 | `getScummVMEvent()` mouse-move re-present: tracks `sawMouseMove` through the mouse-move skip loop, then `onMouseMoved()` when set (Roger draws its cursor into the overlay, which does not tick `kernelAnimate` during blocking dialogs/menus, so the composited cursor would freeze) | N | Mechanical null-guarded notification at the one place SCI sees the discarded mouse-moves; genuinely useful to any consumer compositing its own cursor. Per spec §4.4 this may survive as an L1 notification if a generic-consumer story holds — the cursor-tracking case is exactly that | → onMouseMoved() candidate L1 notification (spec §4.4); observer-side otherwise |
+| E3 | event.cpp:248-251 | side-by-side compare-mode mouse remap: `remapComparisonMouse(mousePos)` so a click in the left (enhanced) SBS panel drives the game (no-op in other display modes) | D | Display-mode plumbing for a Roger-only feature (SBS compare); listed under spec §4.4 as an observer-side/fork concern, not part of the generalized seam | observer-side (fork-only) |
+| E4 | event.cpp:271-304 | Roger debug hotkeys + tune-panel mouse swallow: F10 `toggleOverlay()` / F11 `toggleDebugLog()` / F12 `toggleTunePanel()` consumed on keydown; then the mouse-button swallow that routes L/R button events to `tunePanelMouse()` while the tune panel is open, self-labeled **"TEMPORARY DEBUG TOOL ... Delete with the tune panel."** | D | Pure dev-tool input handling — F10–F12 hotkeys are the display-mode/diag/panel toggles (spec §4.4 observer-side), and the tune-panel mouse swallow is quoted as explicitly temporary in-source; neither belongs in a neutral observer | fork-only (delete the tune-panel swallow with the panel; F10/F11/F12 toggles stay observer-side) |
+
+<!-- coverage: 4 hunks (event.cpp), diff order:
+  1=E1(roger include);
+  2=E2(getScummVMEvent mouse-move sawMouseMove + onMouseMoved);
+  3=E3(remapComparisonMouse SBS remap);
+  4=E4(F10-F12 hotkeys + TEMPORARY tune-panel mouse swallow) — one hunk spanning both blocks. -->
+
+### 3.11 engines/sci/sci.cpp (67 lines, 4 hunks)
+
+| # | Site (file:line) | What it does | Bucket | Defensibility verdict | Disposition |
+|---|---|---|---|---|---|
+| S1 | sci.cpp:22-24,32 | `#define FORBIDDEN_SYMBOL_EXCEPTION_getenv` (with its explanatory comment) at the top of the file, plus the `#include "engines/metaengine.h"` that S3's `EngineMan.findTarget` needs | **D (+blocker concern)** | **Upstream-forbidden.** ScummVM's `common/forbidden.h` poisons `getenv`; the fork rules (CLAUDE.md portability + `common/forbidden.h`) say **never add a `FORBIDDEN_SYMBOL_EXCEPTION_*`**. The exception exists solely to read `ROGER_STUDIO`/`ROGER_EYETEST`/`ROGER_NO_LAUNCHER` dev env vars (S4, S5) — an upstream slice must replace those env gates with a non-`getenv` mechanism (ConfMan key / command-line arg). The `metaengine.h` include is legitimate wiring for the G-bucket caption fix (S3) | env `#define` → **must not ship upstream** (flag: upstream-forbidden); replace env gates before any upstream slice. The `metaengine.h` include rides with S3 (standalone-PR) |
+| S2 | sci.cpp:75-78,229-231 | Provider lifecycle: the four `roger/` includes (`file_roger_art_provider.h`, `launcher/roger_launcher.h`, quarantined `utils/studio/roger_studio.h` + `utils/eyetest/roger_eyetest.h`) and the destructor `delete g_sciRogerProvider; g_sciRogerProvider = nullptr;` | W | Provider new/delete lifecycle wiring — becomes plugin self-registration via `setArtProvider()` (Stage 3). The concrete `roger/`-path includes leak the same way as P1 but here they are the actual instantiation site, not a hook | → provider registration API (`setArtProvider()`); includes move to the plugin's `module.mk` self-registration |
+| S3 | sci.cpp:401-411 | `run()` window-caption fix: `EngineMan.findTarget(ConfMan.getActiveDomainName())` re-derives the game's full canonical title from the detection plugin's game table and `setWindowCaption()`s it (main.cpp's stored "description" key can be stale/series-level; leaves caption untouched on lookup failure) | **G** | Standalone upstreamable today, **no Roger dependency** — a general SCI caption-quality fix using only detection data and no hardcoded strings. Needs an upstream-facing justification independent of Roger (the stale-caption case) | standalone-PR (independent of observer work) |
+| S4 | sci.cpp:413,415-433 | Provider instantiation + Studio/EyeTest env-gated blocks: `g_sciRogerProvider = new FileRogerArtProvider(...)`, then `if (getenv("ROGER_STUDIO"))` runs `RogerStudio` and returns, and `if (getenv("ROGER_EYETEST"))` runs `RogerEyeTest` and returns — each quarantined dev utility's ONLY engine reference | W (instantiation) + D (env-gated dev blocks) | The `new FileRogerArtProvider` is provider wiring (W, pairs with S2's delete). The two `getenv`-gated dev-utility launch blocks are downstream-only dev tools (D) and depend on the S1 forbidden-symbol exception | instantiation → provider registration (W); Studio/EyeTest blocks → fork-only (D), env gates replaced before upstream |
+| S5 | sci.cpp:435-455 | launcher / `skipLauncher` block: `skipLauncher` from `roger_no_launcher` ini key OR `getenv("ROGER_NO_LAUNCHER")`; when not skipping, `RogerLauncher::run()` (returns false → engine restart on game-switch); else `precacheAll()` synchronous warm-up | D/W | The picker dialog + precache orchestration is Roger launcher plumbing — dev/fork lifecycle, not part of the neutral seam; the `getenv` half of the gate again depends on the S1 forbidden exception | fork-only (D/W); env gate replaced before upstream (the ini-key half is portable) |
+
+<!-- coverage: 4 hunks (sci.cpp), diff order:
+  hunk 1 (@@ -19..) = S1(FORBIDDEN_SYMBOL_EXCEPTION_getenv define + comment) + S1(metaengine.h include);
+  hunk 2 (@@ -67/-72..) = S2-includes(4 roger includes);
+  hunk 3 (@@ -218/-227..) = S2-delete(destructor delete g_sciRogerProvider);
+  hunk 4 (@@ -387/-398..) = S3(caption findTarget) + S4(provider new + Studio/EyeTest env blocks) + S5(skipLauncher / launcher / precache) — one large run() hunk spanning all three.
+  (S1 spans two edits in hunk 1; S2 spans hunks 2+3; hunk 4 -> S3,S4,S5. Every hunk maps to >=1 row.) -->
+
+### 3.12 engines/sci/graphics/scifont.{cpp,h} (2+5 lines, 2+1 hunks)
+
+| # | Site (file:line) | What it does | Bucket | Defensibility verdict | Disposition |
+|---|---|---|---|---|---|
+| F1 | scifont.cpp:321-322 + :355 (was `#ifdef ENABLE_SCI32` / `#endif`) | Removes the `#ifdef ENABLE_SCI32` ... `#endif` guard around `GfxFontFromResource::drawToBuffer`, so the glyph-into-arbitrary-buffer renderer compiles for SCI0/SCI1 too (two hunks: the opening `-#ifdef` and the closing `-#endif`) | **G** | Standalone upstreamable today, **no Roger dependency** — `drawToBuffer` has no SCI32-specific code; the method is generally useful (SCI32 text path already used it, Roger's upscaled-native-font path now also does). Un-gating is a clean generalization | standalone-PR (independent of observer work) |
+| F2 | scifont.h:65-67 | Matching header change: removes the `#ifdef ENABLE_SCI32` guard around the `drawToBuffer` override decl and replaces the `// SCI2/2.1 equivalent` comment with a neutral "no SCI32 dependency" doc comment | **G** | Same standalone fix as F1 (the header side of un-gating the method) — declaration must be un-guarded to match the definition | standalone-PR (pairs with F1 in the same PR) |
+
+<!-- coverage: scifont.cpp 2 hunks + scifont.h 1 hunk, diff order:
+  scifont.cpp hunk 1 (@@ -319..) = F1-open(remove `#ifdef ENABLE_SCI32` before drawToBuffer);
+  scifont.cpp hunk 2 (@@ -355..) = F1-close(remove `#endif` after drawToBuffer);
+  scifont.h hunk 1 (@@ -62..) = F2(remove `#ifdef`/`#endif` + comment rewrite on the decl).
+  (F1 spans both scifont.cpp hunks — the open/close of one guard; F2 = the single scifont.h hunk.) -->
+
+### 3.13 Wiring: engines/sci/module.mk + gui/EventRecorder.h + test/module.mk (36+6+6 lines, 1+1+1 hunks)
+
+| # | Site (file:line) | What it does | Bucket | Defensibility verdict | Disposition |
+|---|---|---|---|---|---|
+| W1 | module.mk:106-141 | `MODULE_OBJS += \` block listing all ~33 `roger/*.o` object files (provider, gen pipeline, overlay, launcher, ui, quarantined utils/studio + utils/eyetest + utils/tunepanel, png_loader) | W | Pure build plumbing — the object list for the Roger sources. Stage 3 plan: `roger/*.o` move to the plugin's own `module.mk` when the provider becomes self-registering | → move to plugin `module.mk` (provider self-registration); build-only |
+| W2 | gui/EventRecorder.h:197-201 | Removes the `#ifdef USE_IMGUI` / `#endif` guard around the `isImGuiRecorderEnabled() const` declaration and adds a comment: the method is defined unconditionally in `EventRecorder.cpp` (returns false when `USE_IMGUI` off) and called from unguarded paths, so gating the decl breaks event-recorder builds without the ImGui debugger | **G** | Standalone upstreamable today, **no Roger dependency** — a genuine compile-correctness fix: the declaration must match the unconditional definition and unguarded call sites. Entirely independent of the observer work | standalone-PR (independent of observer work) |
+| W3 | test/module.mk:63-68 | Adds an `ifeq ($(ENABLE_SCI), STATIC_PLUGIN)` block: `TESTS += test/sci/roger/*.h`, `TEST_LIBS += engines/sci/libsci.a`, `TEST_CFLAGS += -DFIXTURE_DIR=...` — wires the Roger CxxTest suite into the make test build | W | Pure test-build plumbing. Stage 3 plan: the tests relink against a Roger static lib when the provider is exiled to a plugin | → relink tests against roger static lib (Stage 3); build-only |
+
+<!-- coverage: module.mk 1 hunk + EventRecorder.h 1 hunk + test/module.mk 1 hunk, diff order:
+  module.mk hunk 1 (@@ -103..) = W1(MODULE_OBJS += roger objects);
+  EventRecorder.h hunk 1 (@@ -194..) = W2(un-#ifdef isImGuiRecorderEnabled decl);
+  test/module.mk hunk 1 (@@ -60..) = W3(ENABLE_SCI STATIC_PLUGIN test block).
+  One hunk per file, one row per hunk. -->
+
+<!-- Section 3 coverage total (all subsections 3.1-3.13):
+  3.1 paint16 18 (17 cpp + 1 h); 3.2 kgraphics 6; 3.3 cursor 2; 3.4 animate 14;
+  3.5 text16 4; 3.6 transitions 2; 3.7 controls16 9; 3.8 menu 12 (9 cpp + 3 h);
+  3.9 ports 2; 3.10 event 4; 3.11 sci.cpp 4; 3.12 scifont 3 (2 cpp + 1 h);
+  3.13 wiring 3 (module.mk 1 + EventRecorder.h 1 + test/module.mk 1).
+  Sum = 18+6+2+14+4+2+9+12+2+4+4+3+3 = 83 hunks across 18 files. Matches §2 baseline (830 lines / 83 hunks / 18 files). -->
+
 
 ## 4. Seam inventory
 
@@ -242,7 +307,18 @@ individually.
 
 ## 8. Standalone upstream PR candidates (G bucket)
 
-<!-- Task 5 seeds, Task 10 finalizes -->
+These are the standalone, immediately-submittable upstream fixes (bucket **G**) —
+each is independent of the observer work and of Roger, per spec §8 ("cheap goodwill
+before the big pitch"). One entry per G-bucket row across all of section 3; the
+scifont `.cpp` and `.h` halves (F1 + F2) are one PR (both sides of un-gating the same
+method). **Task 5 seeds; Task 10 finalizes.**
+
+| Candidate | G rows | Change | Effort | Depends on Roger? |
+|---|---|---|---|---|
+| scifont drawToBuffer un-gating | F1 (scifont.cpp), F2 (scifont.h) | remove `#ifdef ENABLE_SCI32` around `GfxFontFromResource::drawToBuffer` (definition + override decl) | trivial (2 files, ~7 lines) | No |
+| EventRecorder.h decl fix | W2 (gui/EventRecorder.h) | `isImGuiRecorderEnabled()` declared unconditionally (matches its unconditional definition + unguarded call sites) | trivial (1 file, ~6 lines) | No |
+| Window caption from detection | S3 (sci.cpp) | `SciEngine::run` sets the OS window caption via `EngineMan.findTarget` (full canonical title, no hardcoded strings) | small (1 file, ~12 lines); needs an upstream-facing justification independent of Roger (stale/series-level caption) | No |
+| text16 textHeight=0 init | T2 (text16.cpp, §3.5) | `textHeight = 0` initializer silences a real uninitialized-read path | trivial (1 line) | No |
 
 ## 9. Findings that contradict the design spec
 
