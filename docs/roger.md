@@ -13,6 +13,14 @@ UI (dialogs, score/title banner, menus, inventory, text-input) into that overlay
 This targets the **native desktop build** (Windows/MSVC here). An earlier
 web/Emscripten/PixiJS prototype was abandoned and removed.
 
+Roger plugs into the SCI engine through a neutral, engine-owned observer interface,
+`SciGfxObserver` (`engines/sci/sci_gfx_observer.h`): SCI's graphics chokepoints emit
+structured events to a single registered observer, and Roger's provider consumes them to
+build the hires overlay. When no observer is registered, SCI renders exactly as stock. This
+is an internal refactor of how the display layer attaches — all user-facing behavior below
+(F10/F11/F12 keys, display modes, config knobs, `.rin` automation, the game picker, and
+Roger Studio) is unchanged.
+
 ## Supported games
 
 Roger supports **EGA SCI0 games only** (e.g. SQ3, QFG1 EGA). VGA and SCI1+ games are
@@ -242,7 +250,7 @@ Cache keys embed `kTransformVersion`, so a pipeline change automatically invalid
   hires art are shown as upscaled native cels.
 - Overlay sprite occlusion samples a hires priority map generated through the same omyac geometry as the plate, so band edges align with the displayed background.
 - **Plugin migration** (Roger as its own SCI plugin) is future work; today it is
-  wired into the SCI engine via the `g_sciRogerProvider` global.
+  wired into the SCI engine via the neutral `SciGfxObserver` seam (see below).
 
 ## Cross-game validation
 

@@ -3585,6 +3585,9 @@ void FileRogerArtProvider::onPictureAbsent() {
 }
 
 void FileRogerArtProvider::onMouseMoved() {
+	// overlayShown() is the effective enabled gate here: presentBarrier() (and the
+	// SBS/tune-panel paths) no-op when the overlay is not shown, so this event is a
+	// cheap early-return whenever Roger is not actively presenting.
 	// DEBUG TOOL: tune-panel hover tracking (game-space hit test).
 	if (_tunePanel.open && _mode == Roger::kModeEnhanced) {
 		const Common::Point mp = g_system->getEventManager()->getMousePos();

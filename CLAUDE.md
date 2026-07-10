@@ -166,6 +166,16 @@ all this class. These invariants are load-bearing — internalize them before ad
 changing a hook. They cross-reference "Performance discipline" (below) and the Feeder
 A/B capture notes in Stage 2.
 
+**The observer seam.** `SciGfxObserver` (`engines/sci/sci_gfx_observer.h`) is THE seam:
+a neutral, engine-owned observer interface. SCI graphics chokepoints call only
+null-guarded `g_sciGfxObserver` events (mechanical, no Roger types, byte-identical to
+stock when null). Roger's fork-only members live on `FileRogerArtProvider`, reached
+through `Sci::rogerProvider()` inside `// ROGER-FORK-ONLY` blocks — which exist only in
+`sci.cpp` and `event.cpp`. **Never add a `roger/` include (or a `rogerProvider()` call)
+to any other SCI translation unit; new hooks are virtuals on `SciGfxObserver`, never on
+the concrete provider.** All the old `g_sciRogerProvider`/`onNative*`/`uiPush*` names are
+retired — the hook table below carries the mapping.
+
 **How SCI0 draws (the mental model):**
 
 - **Immediate-mode native renderer at 320×200.** SCI draws directly into three parallel
@@ -181,8 +191,9 @@ A/B capture notes in Stage 2.
   (`_dirtyPrev`), the scene seed union, and the cycle-diff net (`roger_diff_net`) each
   independently reseed vacated regions. **Duty 3 is retired: do NOT add manual
   vacated-geometry code to new hooks.** Exactly two documented duty-3 exceptions keep a
-  manual `markVacatedDirty` — no-save-under window disposals (`uiClearToken`) and the
-  frame box (`uiPushFrameBox`) — classes where no bitsRestore rect ever fires and the
+  manual `markVacatedDirty` — no-save-under window disposals (now the `onWindowClose`
+  path, formerly `uiClearToken`) and the frame box (now `onFrameBox` internal, formerly
+  `uiPushFrameBox`) — classes where no bitsRestore rect ever fires and the
   net is blind (it diffs the NATIVE buffer, and a frozen cycle takes no snapshots).
 - **The game cycle is a single synchronous heartbeat: `kernelAnimate`.** Game *logic*
   (walking, input) advances one step per cycle. Anything reachable per-cycle must be O(1)
@@ -194,8 +205,9 @@ A/B capture notes in Stage 2.
   most expensive lesson: **any overlay state tied to an element's lifetime must be updated
   at that element's DRAW hook, never deferred to the animate cycle.** A deferred flush of
   dialog text reaches the overlay only *after* its window is already disposed, so it misses
-  its clear and ghosts until the next window reuses the id. (Fix: `onNativeText` appends into
-  the `_journal` immediately; it does not wait for `flushGenericText` in the next cycle.)
+  its clear and ghosts until the next window reuses the id. (Fix: `onText` (formerly
+  `onNativeText`) appends into the `_journal` immediately; it does not wait for
+  `flushGenericText` in the next cycle.)
 
 **The two structural lifetime signals — key off these, never off geometry or per-game knowledge:**
 
@@ -219,24 +231,24 @@ A/B capture notes in Stage 2.
   (requested-box rects were wider than the save-under restore rect, so dismissed text
   ghosted), and whole-block fit shrinking text. kernelDisplay's companion hook pushes only
   the background fill now (its whole-string element used to out-dedupe the per-line ops),
-  and kDisplay's flush `bitsShow` calls are begin/endNativeDraw-bracketed so Feeder B does
-  not pixel-stamp doubles of already-captured text.
+  and kDisplay's flush `bitsShow` calls are begin/endSelfDraw-bracketed (formerly
+  begin/endNativeDraw) so Feeder B does not pixel-stamp doubles of already-captured text.
 
 **Save-under is a real but INCOMPLETE erase signal.** `bitsSave`/`bitsRestore` back most
-transient overlays, and `bitsRestore` fires `onNativeRestoreRect` (a journal rollback —
+transient overlays, and `bitsRestore` fires `onRestore` (formerly `onNativeRestoreRect`; a journal rollback —
 the saved pixels are revealed, never re-captured). But transparent / no-save-under windows
 and `reanimate == false` disposals **skip it** — which is exactly why `removeWindow` (not
 `bitsRestore` alone) is the dependable dispose hook. *Structural since e5c0fa2d115:
 restores are rollbacks; the `_revealRects` set suppresses Feeder-B re-capture of restored
-pixel shows; the `beginNativeDraw` suppression that previously lived in
-`GfxPorts::removeWindow` is deleted — reveal rects replace it on the restore path.*
+pixel shows; the `beginSelfDraw` (formerly `beginNativeDraw`) suppression that previously
+lived in `GfxPorts::removeWindow` is deleted — reveal rects replace it on the restore path.*
 
 **The same content can be captured by more than one hook** (controls16 semantic + generic
 `Box` + `bitsShow` pixel). Keep a dedup/lifetime discipline (namespace tokens + covered-rect
 dedup) so redundant copies don't outlive each other and ghost.
 
 **`_picNotValid` = room init.** Cels drawn while it's set bake into the picture — capture them
-via `onInitCel` (Feeder A supplement) or they go missing on first visit. The init-frame cast
+via `onCel(source=initBake)` (formerly `onInitCel`; Feeder A supplement) or they go missing on first visit. The init-frame cast
 draws BOTH the baked decorations (their objects dispose out of the animate list after baking)
 AND live actors like the ego, and no view/loop/cel identity separates them (SCI0 packs both
 into one per-room view resource; both are in the cast on frame 1). The discriminator is the
@@ -246,22 +258,31 @@ room-entry position or wiped the room signs — both shipped as bugs once.
 
 **Kernel drawing primitives → where Roger hooks them** (the game-agnostic seams):
 
-| SCI primitive | What it does | Roger hook |
+The seam is the neutral engine-owned `SciGfxObserver` (`engines/sci/sci_gfx_observer.h`);
+SCI code calls the null-guarded `g_sciGfxObserver` events below (the older
+`g_sciRogerProvider`/`onNative*`/`uiPush*` names are all retired — see "The observer
+seam" above for the mapping):
+
+| SCI primitive | What it does | Observer event |
 |---|---|---|
-| `GfxPaint16::drawPicture` | room background render (fills visual/priority/control) | `pushHiresBackground` |
-| `GfxAnimate::kernelAnimate` | the game cycle + full cast draw | `renderFromAnimateList` |
-| `addToPicDrawCels/View` | static cels baked into the picture | `onAddToPicCel` (Feeder A) |
-| cast draw / `drawCelAndShow` during `_picNotValid` | first-visit static props (owner-tagged) | `onInitCel` (Feeder A) |
-| `GfxText16::Box` | **all** text-out | `onNativeText` |
-| `GfxPorts::openWindow` / `removeWindow` | window create / **dispose** | `uiPushWindow` / `uiClearToken` |
-| `kDrawControl` (button/text/edit/icon/list) | dialog controls | `uiPushButton`/`uiPushText`/`uiPushTextEdit` |
-| `bitsSave` | save-under snapshot (checkpoint) | `onNativeSaveRect` (journal checkpoint) |
-| `bitsFree` | free a save-under without restore (drop) | `onNativeFreeSave` (journal dropCheckpoint) |
-| `bitsShow` / `bitsRestore` | native region show / save-under restore | `onNativeShowRect` (Feeder B) / `onNativeRestoreRect` (journal rollback + reveal + dirty + barrier) |
-| `kGraphFrameBox` | selection frame primitive | `uiPushFrameBox` |
-| status/menu bar | top strip | `uiPushStatus` |
-| transitions (fade/dissolve/wipe/scroll/shake) | scene change FX | `onTransition` |
-| palette (cycling / fade) | live EGA palette | `roger_palette_live` re-apply |
+| `GfxPaint16::drawPicture` | room background render (fills visual/priority/control) | `onPicture` (formerly `pushHiresBackground`) |
+| `GfxAnimate::kernelAnimate` | the game cycle + full cast draw | `onAnimateFrame` (formerly `renderFromAnimateList`); `onFrameStart`/`onFrameEnd` bracket the cycle |
+| `addToPicDrawCels/View` | static cels baked into the picture | `onCel(source=addToPic)` (Feeder A; formerly `onAddToPicCel`) |
+| cast draw / `drawCelAndShow` during `_picNotValid` | first-visit static props (owner-tagged) | `onCel(source=initBake, owner)` (Feeder A; formerly `onInitCel`) |
+| `GfxText16::Box` | **all** text-out | `onText(source=textBox)` (formerly `onNativeText`) |
+| `GfxPorts::openWindow` / `removeWindow` | window create / **dispose** | `onWindowOpen` / `onWindowClose` (formerly `uiPushWindow` / `uiClearToken`) |
+| `kDrawControl` (button/text/edit/icon/list) | dialog controls | `onControl` (button/textEdit) / `onText(source=control/listRow)` / `onCel(source=icon)` (formerly `uiPushButton`/`uiPushText`/`uiPushTextEdit`) |
+| `bitsSave` | save-under snapshot (checkpoint) | `onSave` (journal checkpoint; formerly `onNativeSaveRect`) |
+| `bitsFree` | free a save-under without restore (drop) | `onFree` (journal dropCheckpoint; formerly `onNativeFreeSave`) |
+| `bitsShow` / `bitsRestore` | native region show / save-under restore | `onShow` (Feeder B; formerly `onNativeShowRect`) / `onRestore` (journal rollback + reveal + dirty + barrier; formerly `onNativeRestoreRect`) |
+| `kGraphRedrawBox` | in-place region erase/redraw | `onErase` (formerly `onNativeEraseRect`) |
+| `kGraphFrameBox` | selection frame primitive | `onFrameBox` (formerly `uiPushFrameBox`) |
+| status/menu bar | top strip | `onText(source=status/menuBar/menuRow)` via `roger_menu_model`; `onMenuHighlight` (formerly `uiPushStatus`) |
+| transitions (fade/dissolve/wipe/scroll/shake) | scene change FX | `claimTransition` / `claimShake` (formerly `onTransition`) |
+| palette (cycling / fade) | live EGA palette | `onPaletteChanged` → `roger_palette_live` re-apply |
+| cursor set/hide (kSetCursor) | pointer visual | `claimCursor` + `onCursorShape`/`onCursorView`/`onCursorHidden` (formerly `hidesNativeCursor`) |
+| self-composited draw brackets | suppress double-capture | `beginSelfDraw` / `endSelfDraw` (formerly `beginNativeDraw`/`endNativeDraw`) |
+| whole-frame native snapshot (SBS panel) | native mirror | `onFrameEnd` (formerly `snapshotNativeBaseline`) |
 
 **Traps — do NOT re-fall into these (each cost a debugging session):**
 
@@ -281,8 +302,8 @@ room-entry position or wiped the room signs — both shipped as bugs once.
   `Roger::Sprite.celRect` (**picture-local**, 320×190, origin below the status strip) → the
   stamp composites `picScreenTop` rows too low; the menu bar's black underline row (screen
   row 9) stamped as a full-width dark line across the top of every scene (fixed 2026-07-04,
-  `c8f3d44ecc3`). Convert at the seam: `renderFromAnimateList` translates fg stamps to
-  picture-local and compares the live-cast exclusion in screen space. Related: only windows
+  `c8f3d44ecc3`). Convert at the seam: `onAnimateFrame` (formerly `renderFromAnimateList`)
+  translates fg stamps to picture-local and compares the live-cast exclusion in screen space. Related: only windows
   with `hasFrame` get the compositor's black border — the status banner is frameless (SCI
   NOFRAME), and framing every `kUiWindow` drew a border line under the bar (same commit).
 - Clipping a sprite's **dest rect** to `picRect` when it hangs off the screen edge → the full
@@ -302,16 +323,17 @@ room-entry position or wiped the room signs — both shipped as bugs once.
   `RogerJournal::append` is append-only and `opSupersedes` retires the old op in place of an
   in-list swap, so append order == draw order (last on top) by construction. (`RogerUiLayer`
   and its `push` are deleted; the journal replaces them.)*
-- A **blanket namespace clear** on a generic event (`uiClearToken(0x50000000)` on every
-  `kGraphRestoreBox`) → wiped ALL kDrawCel icons (char-sheet portrait + stat graphics) when
+- A **blanket namespace clear** on a generic event (a `0x50000000`-namespace token clear on
+  every `kGraphRestoreBox`, formerly `uiClearToken(0x50000000)`) → wiped ALL kDrawCel icons
+  (char-sheet portrait + stat graphics) when
   any small save-under restored. Scope removals by the ERASE RECT geometry in
-  `onNativeEraseRect` (containment), the same rule generic text uses (fixed 2026-07-04).
+  `onErase` (formerly `onNativeEraseRect`; containment), the same rule generic text uses (fixed 2026-07-04).
   *Structural since 50a8522486f: the journal owns geometric removal — erase-rect containment
   in the journal's prune path retires only the ops the erase rect covers, so a blanket
   token clear is no longer even expressible.*
 - **Capture during a FROZEN cycle predates the reveal rect** — lifetime gates must run at
   process/composite time, not only at capture time. A blocking menu loop captures
-  `onNativeShowRect` while the cycle is frozen; the `bitsRestore` (and its `_revealRects`
+  `onShow` (formerly `onNativeShowRect`) while the cycle is frozen; the `bitsRestore` (and its `_revealRects`
   entry) only arrives AFTER the menu closes. Without a second check at `processForegroundCaptures`,
   restored background content gets stamped as new overlay content. Similarly, `rollback` must
   spare persistent singletons (status `0x10000000`, frame box `0x70000000`) that repaint while
@@ -349,7 +371,7 @@ room-entry position or wiped the room signs — both shipped as bugs once.
   (`Roger::mapNativeEdge` in `roger_coords.h` — the enhanced status bar rendered 1px
   narrower than native, 2026-07-09). Every native→overlay rect conversion goes through it;
   never open-code the division. Related: the status strip is fully overlay-owned —
-  `uiPushStatus` + `rogerPushBarOverlay` draw the black underline row (`_menuLine`,
+  `onText(source=status)` (formerly `uiPushStatus`) + `rogerPushBarOverlay` draw the black underline row (`_menuLine`,
   `statusStripRemainder`) so no visible seam depends on how the backend samples its game
   blit (its convention differs from Roger's and is not observable).
 - Composing anything into `_scratchScene` other than renderFrame/presentWithUi's own frame →
@@ -369,7 +391,7 @@ already partially wired. (Shipped from this list: the frame-complete present bar
 
 ### Stage 1: Background replacement
 
-Hook at top of `GfxPaint16::drawPicture()` checks `g_sciRogerProvider`. When non-null and `hasBackground()` returns true (i.e. a generating `roger_gen_mode` is active), it lets SCI's **native picture render run** — which fills SCI's own 320×200 priority + control buffers, so walkability and native occlusion stay correct — then calls `pushHiresBackground()` (full pics) or `pushHiresBackgroundAddTo()` (addToFlag pics — the pic is APPENDED to the current scene's pic stack and the plate/priority map regenerate from the concatenated command lists; see the addTo trap above). That generates (or loads from the content cache) the hires plate for the pic and presents it to the OSystem overlay. The overlay's per-pixel sprite occlusion is derived **in-engine** by rendering SCI's **priority screen** through the *same* omyac pipeline as the visual (`RogerAssetGen::generatePriorityMap()`, the `omyacprio` cache) — priority codes are EGA colours, so the output is a colour EGA priority view, upscaled/edge-enhanced exactly like the plate; the occlusion bands are recovered from that render (nearest EGA colour → code), not from any prebuilt map.
+Hook at top of `GfxPaint16::drawPicture()` fires `g_sciGfxObserver->onPicture()`. When the observer's provider is non-null and `hasBackground()` returns true (i.e. a generating `roger_gen_mode` is active), it lets SCI's **native picture render run** — which fills SCI's own 320×200 priority + control buffers, so walkability and native occlusion stay correct — then calls `pushHiresBackground()` (full pics) or `pushHiresBackgroundAddTo()` (addToFlag pics — the pic is APPENDED to the current scene's pic stack and the plate/priority map regenerate from the concatenated command lists; see the addTo trap above). That generates (or loads from the content cache) the hires plate for the pic and presents it to the OSystem overlay. The overlay's per-pixel sprite occlusion is derived **in-engine** by rendering SCI's **priority screen** through the *same* omyac pipeline as the visual (`RogerAssetGen::generatePriorityMap()`, the `omyacprio` cache) — priority codes are EGA colours, so the output is a colour EGA priority view, upscaled/edge-enhanced exactly like the plate; the occlusion bands are recovered from that render (nearest EGA colour → code), not from any prebuilt map.
 
 **Status: implemented + verified.** Supports SCI0 EGA games (SQ3, QFG1 EGA) with omyac upscaling. VGA games are detected at startup and rejected with a warning (EGA-only). Generation activates with zero prebuilt files; `pushHiresBackground()` presents the generated plate to the overlay immediately on room load (no native→hires "pop"). Walkability/native occlusion ride SCI's native buffers; overlay sprite occlusion uses the priority screen upscaled through omyac.
 
@@ -377,19 +399,22 @@ Hook at top of `GfxPaint16::drawPicture()` checks `g_sciRogerProvider`. When non
 
 | File | Role |
 |------|------|
-| `engines/sci/roger/roger_art_provider.h` | Abstract interface + `g_sciRogerProvider` global; declares no-op base virtuals for native-extras: `onAddToPicCel`, `onInitCel`, `beginNativeDraw`, `endNativeDraw`, `onNativeShowRect`, `snapshotNativeBaseline`; `diagEnabled()` accessor (gated trace facility, default false) |
+| `engines/sci/sci_gfx_observer.h` (+ `.cpp`) | The neutral, engine-owned observer seam: `SciGfxObserver` abstract interface (~30 virtuals across L1 frame-lifecycle / L2 pixel-truth / L3 semantic / L4 claims — see the header for the full contract) + the `g_sciGfxObserver` global and `setSciGfxObserver()`/`sciGfxObserver()` registration; also hosts the token scheme (`gfxWindowToken` etc.). SCI code names only this; Roger's fork-only members (the `diagEnabled()`-style accessors, generation/precache, tune-panel state) live on `FileRogerArtProvider`, reached via `Sci::rogerProvider()` in `// ROGER-FORK-ONLY` blocks (sci.cpp + event.cpp only) |
+| `engines/sci/roger/overlay/roger_menu_model.{h,cpp}` | SCI-free menu-bar/dropdown state model — the exiled menu logic; fed by `onText(source=status/menuBar/menuRow)` + `onMenuHighlight`, re-composited each frame |
+| `engines/sci/roger/roger_telemetry.h` | Observer-side `ROGER-CYCLE period=<ms> busy=<ms>` per-cycle telemetry (format unchanged; moved off the SCI hook sites) |
 | `engines/sci/roger/gen/roger_asset_gen.h/cpp` | In-engine generation: `generatePlate()` (omyac plate for EGA), `generateViewCel()` (scale6x cel, EGA only), `generatePriorityMap()` (renders SCI's priority screen through omyac; overlay occlusion bands recovered from it), `priorityBands()` (legacy native occlusion bands), `generateTextSurface()` (renders one native-font glyph via `scaleNearest` → RGBA, for the hybrid text path), backed by a content-hash disk cache (`kTransformVersion`-keyed) |
 | `engines/sci/roger/gen/roger_pic_native.{h,cpp}` + `roger_pic_parser` / `roger_omyac` / `roger_scale` / `roger_ega_blend` (all under `roger/gen/`) | The omyac pipeline: parse pic → native pre-render (exposes `NativeRef::priority`) → enhance passes → RGBA plate; scale6x for VIEW cels |
-| `engines/sci/roger/file_roger_art_provider.h/cpp` | Provider: `hasBackground()` (generating-mode gate), `pushHiresBackground()` (generates+presents the plate, routes occlusion through `generatePriorityMap()` — hires omyac-aligned), `precacheAll()`, scene/UI capture (incl. `buildGlyphs()` — pre-renders each non-ASCII byte from the game font for the hybrid text path), status-banner cache, cursor policy; implements native-extras hooks: `onAddToPicCel` (Feeder A — populates `_staticSprites`), `onInitCel` (Feeder A supplement — first-visit cels drawn during `_picNotValid` that bake into the native picture, e.g. QFG1 town signs; populates `_initCels`, one capture per owner object, latest wins; a cel is promoted only while its owner object is absent from the animate list — see the `_picNotValid` invariant above; both merged with the animate cast each frame via `mergeSpritesByPriority`), `beginNativeDraw`/`endNativeDraw`/`onNativeShowRect` (Feeder B bitsShow hook), `drawGenericRegions` (Feeder B bitsShow-region compositing), `snapshotNativeBaseline` (whole-frame native snapshot for the Side-by-Side native panel) |
-| `engines/sci/roger/overlay/roger_compositor.h/cpp` | Composites plate + sprites (priority-masked), generic native regions (Feeder B), and the UI display-list (dialogs/banner/buttons/edit/icons) into the overlay; opaque-black letterbox; black dialog borders; `resetForRoomChange()` (nulls `_bgPlate`, sets `_bgRebuilt`, drops all dirty accumulators — called at end of `onTransition` so a transition-entry gets the same clean first frame as a save-restore entry, preventing stale dirty-rect history from the previous room); pure helpers: `mergeSpritesByPriority`, `mapNativeRectToOverlay`, `upscaleNativeRegionNearest`, `extractChangedBoxes` |
+| `engines/sci/roger/file_roger_art_provider.h/cpp` | Provider: `hasBackground()` (generating-mode gate), `pushHiresBackground()` (generates+presents the plate, routes occlusion through `generatePriorityMap()` — hires omyac-aligned), `precacheAll()`, scene/UI capture (incl. `buildGlyphs()` — pre-renders each non-ASCII byte from the game font for the hybrid text path), status-banner cache, cursor policy; implements the `SciGfxObserver` virtuals: `onCel(source=addToPic)` (Feeder A — populates `_staticSprites`), `onCel(source=initBake, owner)` (Feeder A supplement — first-visit cels drawn during `_picNotValid` that bake into the native picture, e.g. QFG1 town signs; populates `_initCels`, one capture per owner object, latest wins; a cel is promoted only while its owner object is absent from the animate list — see the `_picNotValid` invariant above; both merged with the animate cast each frame via `mergeSpritesByPriority`), `beginSelfDraw`/`endSelfDraw`/`onShow` (Feeder B bitsShow hook), `drawGenericRegions` (Feeder B bitsShow-region compositing), `onFrameEnd` (whole-frame native snapshot for the Side-by-Side native panel) |
+| `engines/sci/roger/overlay/roger_compositor.h/cpp` | Composites plate + sprites (priority-masked), generic native regions (Feeder B), and the UI display-list (dialogs/banner/buttons/edit/icons) into the overlay; opaque-black letterbox; black dialog borders; `resetForRoomChange()` (nulls `_bgPlate`, sets `_bgRebuilt`, drops all dirty accumulators — called at the end of the `claimTransition` handler (formerly `onTransition`) so a transition-entry gets the same clean first frame as a save-restore entry, preventing stale dirty-rect history from the previous room); pure helpers: `mergeSpritesByPriority`, `mapNativeRectToOverlay`, `upscaleNativeRegionNearest`, `extractChangedBoxes` |
 | `engines/sci/roger/overlay/roger_text.h/cpp` | TTF text fit/draw; type scale driven by captured native SCI font metrics (per-element target cell height + single-line width cap — same on-screen footprint as the original), falling back to role heights when no metric was captured; `firstLineTop`/`vAlignTop`, and the hybrid `drawPx` layout: ASCII drawn with the TTF font, each non-ASCII byte blitted inline as the game's own font glyph (from the element's glyph map, scaled to ¾ line height) |
 | `engines/sci/roger/overlay/roger_ui_layer.h` | Resolution-independent `UiElement` struct (the retained `RogerUiLayer` display-list class was deleted in 75a2be6fecc; the append-only `RogerJournal` in `overlay/roger_journal.{h,cpp}` owns ordering/lifetime now) |
 | `engines/sci/roger/ui/roger_widgets.{h,cpp}` + `ui/roger_panel_style.{h,cpp}` | Shared panel UI kit: PanelWidget + packed-id hit-testing; PanelStyle palette, PanelFonts (TTF roles + bitmap fallback), PanelPainter -- the picker, pass builder, F12 tune panel, and Studio all draw through it |
 | `engines/sci/roger/overlay/view_cache.h/cpp` | Serves upscaled hires VIEW cels for ego/props/inventory by generating them on first use via `RogerAssetGen::generateViewCel` and caching them (owned). No prebuilt spritesheets. |
 | `engines/sci/roger/png_loader.h/cpp` | `loadGrayscale8()` / `loadSurfaceRGBA()` via `Image::PNGDecoder` |
-| `engines/sci/graphics/{paint16,controls16,menu,event}.cpp` | Hook sites: picture replace, dialog/control capture, status/menu bar, F10 toggle; `paint16.cpp` also hosts the `bitsShow` hook (`onNativeShowRect`), `beginNativeDraw`/`endNativeDraw` re-entrancy guards (Feeder B), and `drawCelAndShow`→`onInitCel` (owner 0) for script kDrawCel draws during `_picNotValid` |
-| `engines/sci/graphics/animate.cpp` | Hook sites: `addToPicDrawCels`/`addToPicDrawView` call `onAddToPicCel` (Feeder A — static addToPic cel capture); the cast-draw sites in `update()`/`drawCels()` call `onInitCel` during `_picNotValid`, tagged with `rogerOwnerToken(it->object)` (Feeder A supplement — owner-gated promotion) |
-| `engines/sci/sci.cpp` | Provider instantiated after `initGraphics()` (with `ConfMan.getPath("path")`), destroyed in destructor |
+| `engines/sci/sci_gfx_observer.{h,cpp}` | The seam itself — see the key-file row above; every hook site below calls its `g_sciGfxObserver` events |
+| `engines/sci/graphics/{paint16,controls16,menu,event,palette16,cursor}.cpp` | Hook sites: picture replace, dialog/control capture, status/menu bar, F10 toggle; `paint16.cpp` also hosts the `bitsShow` hook (`onShow`), `beginSelfDraw`/`endSelfDraw` re-entrancy guards (Feeder B), and `drawCelAndShow`→`onCel(source=initBake)` (owner 0) for script kDrawCel draws during `_picNotValid`; `palette16.cpp` funnels `onPaletteChanged`; `cursor.cpp` fires `onCursorShape`/`onCursorView`/`onCursorHidden` and honors `claimCursor` |
+| `engines/sci/graphics/animate.cpp` | Hook sites: `addToPicDrawCels`/`addToPicDrawView` call `onCel(source=addToPic)` (Feeder A — static addToPic cel capture); the cast-draw sites in `update()`/`drawCels()` call `onCel(source=initBake)` during `_picNotValid`, tagged with `gfxOwnerToken(it->object)` (Feeder A supplement — owner-gated promotion) |
+| `engines/sci/sci.cpp` | Provider instantiated after `initGraphics()` (with `ConfMan.getPath("path")`) and registered via `setSciGfxObserver()`; the observer slot is cleared then the provider destroyed in the destructor. Holds the only `// ROGER-FORK-ONLY` block outside `event.cpp` |
 
 **Launcher:** `engines/sci/roger/launcher/` (`roger_launcher.{h,cpp}` + `roger_launcher_dialog.{h,cpp}`; capabilities documented in its README). `RogerLauncher` discovers SCI game domains from ConfMan, manages the `LauncherState` (selected game, precache queues, settings), and is called at engine startup via `FileRogerArtProvider`. `RogerLauncherDialog` is a `GUI::Dialog` that presents the game list, per-game settings, and precaching controls. On launch with no cache, precaching runs automatically in `handleTickle` before `handleLaunch` is called.
 
@@ -443,7 +468,7 @@ The compositor draws the ego/props into the OSystem overlay at hires (upscaled n
 
 The hires priority map for sub-pixel occlusion alignment is now generated in-engine (omyac-aligned `omyacprio` cache), so overlay occlusion tracks the displayed plate. Remaining art-side work: authoring better hires backgrounds and new hires VIEW art for room sprites.
 
-**Native-extras capture (implemented + verified)** fixes the "many views missing per room" bug (notably QFG1 EGA) by routing native draws Roger did not previously hook into the compositor via two feeders. **Feeder A (addToPic + init-baked):** `kAddToPic` cels — static views baked into the room's picture, not in the animate list — are captured via `onAddToPicCel` (from `GfxAnimate::addToPicDrawCels`/`addToPicDrawView`) into a per-room `_staticSprites` array. First-visit cels drawn during `_picNotValid` (room init, before the picture is valid) — e.g. QFG1 town signs drawn at first visit that bake into the native picture — are captured via `onInitCel` (from the cast-draw sites in `GfxAnimate::update`/`drawCels`, tagged with an owner-object token, one capture per owner with the latest draw winning; and from `GfxPaint16::drawCelAndShow` for script kDrawCel draws, owner 0) into a per-room `_initCels` list. Both are cleared on room change. Each frame `renderFromAnimateList` promotes init cels whose owner object is ABSENT from the animate list into the static merge (deduped against addToPic) — a disposed-after-baking prop promotes, a live actor never does (promoting by view/loop/cel identity instead froze a duplicate ego or wiped the room signs; see the `_picNotValid` invariant) — then all statics + live cast are merged via `Roger::mergeSpritesByPriority` (static-first, stable ascending priority) and drawn through the hires Sprite path (ViewCache + priority occlusion) — not blocky. **Feeder B (generic native capture):** the long tail of unhooked native draws (kGraph primitives, etc.) is captured via a `bitsShow` rect hook (`onNativeShowRect` in `GfxPaint16::bitsShow`) that records shown screen rects, gated by `beginNativeDraw`/`endNativeDraw` re-entrancy depth so already-composited draws are not double-captured. At composite time `drawGenericRegions` upscales those recorded regions into the overlay — mapped to overlay space via `Roger::mapNativeRectToOverlay` and upscaled nearest-neighbour with `Roger::upscaleNativeRegionNearest` (intentionally blocky). Inter-room animated sequences (ship flyovers, death sequences) are out of scope. (The former `roger_diff_backstop` per-frame pixel-diff backstop — `snapshotNativeBaseline` + `Roger::extractChangedBoxes` — was removed; `roger_diff_net` now heals missed invalidation each cycle, and `snapshotNativeBaseline` only snapshots the whole native frame for the Side-by-Side native panel.)
+**Native-extras capture (implemented + verified)** fixes the "many views missing per room" bug (notably QFG1 EGA) by routing native draws Roger did not previously hook into the compositor via two feeders. **Feeder A (addToPic + init-baked):** `kAddToPic` cels — static views baked into the room's picture, not in the animate list — are captured via `onCel(source=addToPic)` (formerly `onAddToPicCel`; from `GfxAnimate::addToPicDrawCels`/`addToPicDrawView`) into a per-room `_staticSprites` array. First-visit cels drawn during `_picNotValid` (room init, before the picture is valid) — e.g. QFG1 town signs drawn at first visit that bake into the native picture — are captured via `onCel(source=initBake)` (formerly `onInitCel`; from the cast-draw sites in `GfxAnimate::update`/`drawCels`, tagged with an owner-object token, one capture per owner with the latest draw winning; and from `GfxPaint16::drawCelAndShow` for script kDrawCel draws, owner 0) into a per-room `_initCels` list. Both are cleared on room change. Each frame `onAnimateFrame` (formerly `renderFromAnimateList`) promotes init cels whose owner object is ABSENT from the animate list into the static merge (deduped against addToPic) — a disposed-after-baking prop promotes, a live actor never does (promoting by view/loop/cel identity instead froze a duplicate ego or wiped the room signs; see the `_picNotValid` invariant) — then all statics + live cast are merged via `Roger::mergeSpritesByPriority` (static-first, stable ascending priority) and drawn through the hires Sprite path (ViewCache + priority occlusion) — not blocky. **Feeder B (generic native capture):** the long tail of unhooked native draws (kGraph primitives, etc.) is captured via a `bitsShow` rect hook (`onShow`, formerly `onNativeShowRect`, in `GfxPaint16::bitsShow`) that records shown screen rects, gated by `beginSelfDraw`/`endSelfDraw` (formerly `beginNativeDraw`/`endNativeDraw`) re-entrancy depth so already-composited draws are not double-captured. At composite time `drawGenericRegions` upscales those recorded regions into the overlay — mapped to overlay space via `Roger::mapNativeRectToOverlay` and upscaled nearest-neighbour with `Roger::upscaleNativeRegionNearest` (intentionally blocky). Inter-room animated sequences (ship flyovers, death sequences) are out of scope. (The former `roger_diff_backstop` per-frame pixel-diff backstop was removed; `roger_diff_net` now heals missed invalidation each cycle, and the whole native frame is snapshotted at `onFrameEnd` (formerly `snapshotNativeBaseline`) only for the Side-by-Side native panel.)
 
 The overlay present is **dirty-rectangle by default** (`roger_dirty_present`): each frame converts+pushes only the regions that actually changed (sprites, cursor, UI) plus the union of the previous frame's, instead of the whole game region — at 2862×1986 this cut present from ~26 ms to ~2 ms. Sprite rects are tracked at *renderScene* granularity and UI/cursor rects at *present* granularity (see `roger_compositor.cpp` `dirtyUnion`/`rollPresentDirty`), so a UI-only present (`presentWithUi`: cursor move / dialog, no `renderScene`) cannot discard sprite-erase history. Room change / geometry / F10 and a periodic heal frame still do a full present; any uncertainty falls back to a full present (never a skipped/garbage frame).
 
@@ -451,9 +476,9 @@ The overlay present is **dirty-rectangle by default** (`roger_dirty_present`): e
 
 The overlay is a full-frame ~22 MB RGBA surface (2862×1986). A **full recompose (`renderScene`) or full present (`presentWithUi` / `_compositeCacheValid = false`) is expensive (~6–26 ms) and runs inside SCI's single-threaded game cycle** — so doing it every cycle stretches the cycle and makes the *game logic* (walking speed, input latency) physically slow. This is a throughput problem on the synchronous cycle, not a smoothness/frame-rate one.
 
-**The rule: only recompose / full-present when something actually changed.** The dirty-rectangle path enforces this for the normal sprite/UI flow — keep it that way. **Any new native hook that runs per cycle (anything reachable from `kernelAnimate`: `bitsShow`, `bitsRestore`, `onNativeShowRect`, `onAddToPicCel`, kGraph hooks, etc.) must be O(1)/cheap and must NOT trigger a full present or invalidate the composite cache unless its work genuinely changed the scene.** Gate the present on real change (e.g. `uiClearToken` presents only when `clearToken` actually removed an element).
+**The rule: only recompose / full-present when something actually changed.** The dirty-rectangle path enforces this for the normal sprite/UI flow — keep it that way. **Any new observer event that runs per cycle (anything reachable from `kernelAnimate`: `bitsShow`, `bitsRestore`, `onShow`, `onCel`, kGraph hooks, etc.) must be O(1)/cheap and must NOT trigger a full present or invalidate the composite cache unless its work genuinely changed the scene.** Gate the present on real change (e.g. the `onWindowClose`/restore clear path — formerly `uiClearToken` — presents only when a token was actually removed).
 
-> **Cautionary tale (regression fixed 2026-06-28, commit `bb65c56b75a`):** `GfxPaint16::bitsRestore` calls `uiClearToken()` ~2× per moving sprite *every* cycle; it used to fire `presentWithUi()` (a full overlay present) **unconditionally**, even while walking when no UI token matched. That alone cost ~196 ms/cycle (`restoreAndDelete` was ~196 ms Roger-on vs ~0 ms prebuilt) — a ~2.7× walking slowdown (225 ms vs 83 ms cycle). The fix was to present only on an actual clear.
+> **Cautionary tale (regression fixed 2026-06-28, commit `bb65c56b75a`):** `GfxPaint16::bitsRestore` fires the restore/clear path (then `onNativeRestoreRect`, now `onRestore`) ~2× per moving sprite *every* cycle; it used to fire `presentWithUi()` (a full overlay present) **unconditionally**, even while walking when no UI token matched. That alone cost ~196 ms/cycle (`restoreAndDelete` was ~196 ms Roger-on vs ~0 ms prebuilt) — a ~2.7× walking slowdown (225 ms vs 83 ms cycle). The fix was to present only on an actual clear.
 
 **Do NOT re-chase these dead ends** (measured, ruled out): the **render/present primitives are not the bottleneck** at this resolution — GPU flip ~0.3 ms, full 22 MB texture upload ~9.5 ms, full CPU recompose+upload ~20 ms; the **OpenGL backend ≈ software** when the whole overlay is re-touched each frame (CPU-frame-production-bound), so switching backends or micro-optimizing the present buys nothing until you *stop re-touching the whole surface*. `EventManager::updateScreen` fires only **~5–10×/sec (once per cycle), not 60**, so present-skip heuristics keyed on 60 fps are pointless. If a cycle-time/walking slowdown reappears, suspect a per-cycle path repeatedly invoking the full present/recompose — measure `kernelAnimate` span costs (invoke/draw/show/restore/rfal) busy-vs-sleep, don't optimize the present primitive.
 
@@ -469,8 +494,8 @@ they run.
 engine** — NOT a new ScummVM engine. It has no engine class, no metaengine, no detection
 tables, and must never grow them; detection stays SCI's. Any plan or prompt phrased in
 "new engine in `engines/<name>/`" vocabulary translates as: "engine directory" →
-`engines/sci/roger/`; "engine registration/wiring" → the future provider-registration API
-(`setArtProvider()`); "detection/metaengine" → nothing (unchanged SCI). **Decision: never
+`engines/sci/roger/`; "engine registration/wiring" → the observer-registration seam
+(`setSciGfxObserver()`); "detection/metaengine" → nothing (unchanged SCI). **Decision: never
 fork `engines/sci/` into a duplicated `sci-roger` engine** — upstream would reject engine
 duplication outright, two engines claiming the same games breaks detection, and it converts
 a ~725-line maintained diff into a whole-engine merge burden.
@@ -480,17 +505,19 @@ wholesale). Keep this inventory current when adding hooks — it pre-answers the
 
 | Files | ~Lines | Category / upstream story |
 |-------|--------|---------------------------|
-| `graphics/paint16.{cpp,h}`, `animate.cpp`, `controls16.cpp`, `menu.{cpp,h}`, `ports.cpp`, `text16.cpp`, `transitions.cpp`, `cursor.cpp`, `engine/kgraphics.cpp`, `graphics/scifont.{cpp,h}` | ~605 | **Observer-seam candidates** — mechanical, null-guarded provider call sites at SCI's structural chokepoints. Upstreamable if reshaped as a neutral, engine-owned observer interface, compiled out by default. The planned frame-complete present barrier should *replace* several of these — prefer that over adding more. (Phase 2 draw-journal: restore path consolidated to `onNativeRestoreRect`; `ports.cpp` `beginNativeDraw` suppression deleted; `bitsSave`/`bitsFree` hooks added — net ~+10 lines.) |
-| `sci.cpp`, `module.mk` | ~70 | **Provider wiring** — becomes plugin self-registration via `setArtProvider()`; `roger/*.o` move to the plugin's own `module.mk`; `test/module.mk` relinks tests against a roger static lib |
+| `sci_gfx_observer.{h,cpp}`, `graphics/paint16.{cpp,h}`, `animate.cpp`, `controls16.cpp`, `menu.{cpp,h}`, `ports.cpp`, `text16.cpp`, `transitions.cpp`, `palette16.cpp`, `cursor.cpp`, `engine/kgraphics.cpp`, `graphics/scifont.{cpp,h}` | ~1094 raw / ≈979 rule-adjusted (see FORK_AUDIT §10) | **The observer seam — reshape LANDED on jon-observer.** The scattered provider call sites are now mechanical, null-guarded `g_sciGfxObserver` events against the neutral engine-owned `SciGfxObserver` interface (`sci_gfx_observer.h`), the concrete provider named nowhere in SCI code. Compiled in unconditionally but byte-identical to stock when the observer is null. (Phase 2 draw-journal: restore path consolidated to `onRestore`; `ports.cpp` `beginSelfDraw` suppression deleted; `bitsSave`/`bitsFree` → `onSave`/`onFree`.) |
+| `sci.cpp`, `module.mk` | ~70 | **Provider wiring** — the observer is registered via `setSciGfxObserver()`; the fork-only provider glue sits in `// ROGER-FORK-ONLY` blocks (sci.cpp + event.cpp only). Becomes plugin self-registration later; `roger/*.o` are inlined between `ROGER BEGIN`/`END` markers in `module.mk` (move to the plugin's own `module.mk`); `test/module.mk` relinks tests against a roger static lib |
 | `event.cpp` + `gui/EventRecorder.h` | ~80 | **Separately pitchable upstream PR** — the `.rin` input driver is a generic headless scripted-input facility complementing EventRecorder; deliberately engine-agnostic (keep it that way) |
 | `build_and_run.ps1`, `build_tests.ps1`, `CLAUDE.md`, `.claude/`, `.gitignore` | — | **Downstream-only** dev tooling; never part of an upstream PR |
 
 **Rules that keep the future cleanup cheap (enforce on every change):**
 
-- Hook sites in `engines/sci/**` stay **mechanical**: a null-guarded `g_sciRogerProvider`
+- Hook sites in `engines/sci/**` stay **mechanical**: a null-guarded `g_sciGfxObserver`
   call plus minimal argument marshalling. No Roger logic, no game-specific branches, no
-  Roger types beyond the provider interface, inline in SCI code.
-- Every new hook is a **virtual on the abstract provider** (`roger_art_provider.h`) — SCI
+  observer/Roger types beyond the `SciGfxObserver` interface, inline in SCI code. Fork-only
+  provider access (`Sci::rogerProvider()`) lives only in `// ROGER-FORK-ONLY` blocks in
+  `sci.cpp` and `event.cpp` — never add a `roger/` include to any other SCI file.
+- Every new hook is a **virtual on the neutral observer** (`sci_gfx_observer.h`) — SCI
   code never names `FileRogerArtProvider`.
 - Before adding a new scattered hook site, check whether the present-barrier /
   exact-invalidation design covers the need — shrinking the hook count is an upstreaming
@@ -553,7 +580,7 @@ tools fail) but the rules below were verified against the wiki text on 2026-07-0
   `getenv`/`time.h`/`rand`/`strcpy`/`sprintf`/`setjmp` etc. Use the ScummVM equivalents:
   `Common::File`/`SaveFileManager`, `Common::String`, `debug()`/`warning()`/`error()`,
   `g_system->getMillis()`, `Common::RandomSource`. C++11 subset only: no exceptions, no
-  global objects with constructors (POD/pointer globals like `g_sciRogerProvider` are
+  global objects with constructors (POD/pointer globals like `g_sciGfxObserver` are
   fine); new code uses `Common::` classes directly (the `Std::` wrappers in `common/std/`
   are only for porting codebases that already use STL). Endian-safe data access
   (`READ_LE_UINT32` etc. from `common/endian.h`, or stream `readUint32LE` methods — never
