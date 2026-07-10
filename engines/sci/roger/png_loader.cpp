@@ -75,16 +75,6 @@ Common::Array<byte> loadGrayscale8(const Common::String &path) {
 	return result;
 }
 
-Graphics::Surface *loadSurfaceRGBA(Common::SeekableReadStream &stream) {
-	Image::PNGDecoder decoder;
-	if (!decoder.loadStream(stream) || !decoder.getSurface())
-		return nullptr;
-	const Graphics::PixelFormat rgba(4, 8, 8, 8, 8, 24, 16, 8, 0);
-	// Use the no-palette overload: test fixtures and hires art are truecolor PNGs.
-	Graphics::Surface *out = decoder.getSurface()->convertTo(rgba);
-	return out;  // may be nullptr if conversion failed
-}
-
 Graphics::Surface *loadSurfaceRGBA(const Common::String &path) {
 	Common::Path fsPath(path);
 	Common::FSNode node(fsPath);
@@ -93,9 +83,15 @@ Graphics::Surface *loadSurfaceRGBA(const Common::String &path) {
 	Common::SeekableReadStream *stream = node.createReadStream();
 	if (!stream)
 		return nullptr;
-	Graphics::Surface *out = loadSurfaceRGBA(*stream);
+	Image::PNGDecoder decoder;
+	const bool ok = decoder.loadStream(*stream);
 	delete stream;
-	return out;
+	if (!ok || !decoder.getSurface())
+		return nullptr;
+	const Graphics::PixelFormat rgba(4, 8, 8, 8, 8, 24, 16, 8, 0);
+	// Use the no-palette overload: test fixtures and hires art are truecolor PNGs.
+	Graphics::Surface *out = decoder.getSurface()->convertTo(rgba);
+	return out;  // may be nullptr if conversion failed
 }
 
 bool dumpSurfacePng(const Graphics::Surface &surf, const Common::String &path) {

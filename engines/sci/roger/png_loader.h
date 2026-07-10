@@ -36,14 +36,9 @@ namespace Roger {
 // Width x height pixels returned in row-major order (left-to-right, top-to-bottom).
 Common::Array<byte> loadGrayscale8(const Common::String &path);
 
-// Decode a PNG from an open stream to a newly-allocated 32-bit RGBA
+// Decode a PNG file at `path` to a newly-allocated 32-bit RGBA
 // Graphics::Surface. Caller owns the result: call ->free() then delete.
 // Returns nullptr on failure.
-Graphics::Surface *loadSurfaceRGBA(Common::SeekableReadStream &stream);
-
-// Decode a PNG file at `path` to a newly-allocated 32-bit RGBA
-// Graphics::Surface. Delegates to the stream overload above.
-// Caller owns the result: call ->free() then delete. Returns nullptr on failure.
 Graphics::Surface *loadSurfaceRGBA(const Common::String &path);
 
 // Write a Graphics::Surface to a PNG file at `path`. Returns false on failure

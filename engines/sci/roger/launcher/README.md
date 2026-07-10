@@ -89,15 +89,9 @@ var (per-process, preferred for automation):
 When skipped, the synchronous startup warm-up honors `roger_precache` instead
 of the dialog's interactive precache.
 
-## Background image
+## Background
 
-Place a `roger-picker-bg.png` next to `scummvm.exe` (or in `extrapath`) to
-customize the picker background. Recommended size 2560×1600; scaled to cover and
-center-cropped. If the file is absent or fails to load, a procedural dark-navy
-gradient is used. `build_and_run.ps1` deploys the placeholder
-`dists/roger/roger-picker-bg.png` on first run, never clobbing user art.
-Resolution order: `SearchMan` (finds it next to `scummvm.exe`, like `fonts.dat`),
-then the current working directory.
+The picker background is a procedural dark-navy vertical gradient (no image support).
 
 ## Wiring
 

@@ -19,12 +19,10 @@
  */
 
 #include "sci/roger/launcher/roger_picker_view.h"
-#include "sci/roger/png_loader.h"
 #include "gui/gui-manager.h"
 #include "gui/ThemeEngine.h"
 #include "graphics/fontman.h"
 #include "graphics/font.h"
-#include "common/archive.h"
 #include "common/system.h"
 #include "common/util.h"
 #ifdef USE_FREETYPE2
@@ -85,40 +83,13 @@ void PickerViewWidget::loadFonts() {
 
 void PickerViewWidget::bakeBackground() {
 	_bgBaked.create(_w, _h, _canvas.format);
-	// Resolution order: SearchMan first (finds files next to scummvm.exe via the
-	// same mechanism as fonts.dat / loadTTFFontFromArchive), then CWD-relative
-	// (works for dev launches from the repo root), then the procedural gradient.
-	Graphics::Surface *src = nullptr;
-	{
-		Common::SeekableReadStream *s = SearchMan.createReadStreamForMember("roger-picker-bg.png");
-		if (s) {
-			src = loadSurfaceRGBA(*s);
-			delete s;
-		}
-	}
-	if (!src)
-		src = loadSurfaceRGBA("roger-picker-bg.png");
-	if (src) {
-		// Scale-to-cover: crop the source to the widget's aspect, centered.
-		int cropW = src->w, cropH = src->w * (int)_h / MAX(1, (int)_w);
-		if (cropH > src->h) {
-			cropH = src->h;
-			cropW = src->h * (int)_w / MAX(1, (int)_h);
-		}
-		const Common::Rect srcR((src->w - cropW) / 2, (src->h - cropH) / 2,
-		                        (src->w - cropW) / 2 + cropW, (src->h - cropH) / 2 + cropH);
-		_bgBaked.blitFrom(*src, srcR, Common::Rect(0, 0, _w, _h));
-		src->free();
-		delete src;
-	} else {
-		// Fallback: procedural vertical gradient, near-black navy -> dark blue.
-		for (int yy = 0; yy < _h; ++yy) {
-			const int r = 10 + (26 - 10) * yy / MAX(1, _h - 1);
-			const int g = 14 + (36 - 14) * yy / MAX(1, _h - 1);
-			const int b = 26 + (56 - 26) * yy / MAX(1, _h - 1);
-			_bgBaked.fillRect(Common::Rect(0, yy, _w, yy + 1),
-			                  _bgBaked.format.RGBToColor(r, g, b));
-		}
+	// Procedural vertical gradient, near-black navy -> dark blue.
+	for (int yy = 0; yy < _h; ++yy) {
+		const int r = 10 + (26 - 10) * yy / MAX(1, _h - 1);
+		const int g = 14 + (36 - 14) * yy / MAX(1, _h - 1);
+		const int b = 26 + (56 - 26) * yy / MAX(1, _h - 1);
+		_bgBaked.fillRect(Common::Rect(0, yy, _w, yy + 1),
+		                  _bgBaked.format.RGBToColor(r, g, b));
 	}
 }
 

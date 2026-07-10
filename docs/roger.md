@@ -94,11 +94,7 @@ Select a game and click **Launch** to proceed. The picker can be bypassed with
 `build_and_run.ps1 -SkipPicker` sets the env var for one launch, and passing
 `-Game <target>` skips it automatically.
 
-**Background art:** Place a `roger-picker-bg.png` next to `scummvm.exe` (or in
-the `extrapath` dir) for a custom background image. Recommended size 2560×1600;
-it is scale-to-cover center-cropped to fit. If missing, a procedural dark-navy
-gradient is used instead. The placeholder `dists/roger/roger-picker-bg.png` is
-deployed by `build_and_run.ps1` on first run (never clobbers user art).
+**Background:** The picker background is a procedural dark-navy vertical gradient (no image support).
 
 **Card rows:** each game shows a title, a second line with detection facts
 (platform/language | gameid | EGA | SCI version for the running game | game path),
