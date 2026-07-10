@@ -179,11 +179,12 @@ FileRogerArtProvider::FileRogerArtProvider(const Common::String &gameId,
 			        _mode == Roger::kModeOriginal ? "ORIGINAL (native)" : "SIDE-BY-SIDE (enhanced|original)");
 	}
 
-	// Cursor: the native hardware cursor is NOT usefully visible over the in-game
-	// OSystem overlay (verified in live play Ã¢â‚¬â€ it disappears), which is the original
-	// reason Roger composites its own arrow into the overlay scene. So default to the
-	// composited cursor. roger_hw_cursor=true opts back into the (currently invisible)
-	// hardware cursor for experimentation. Default false.
+	// Cursor: the backend hardware cursor is composited ABOVE the OSystem overlay
+	// and leaks at the screen edge (verified in live play), so Roger composites its
+	// own arrow into the overlay scene and actively hides the HW cursor while
+	// Enhanced/Side-by-Side is on-screen (see hidesNativeCursor()). Default to the
+	// composited cursor. roger_hw_cursor=true opts back into the stock native
+	// cursor for experimentation. Default false.
 	_useHwCursor = false;
 	if (ConfMan.hasKey("roger_hw_cursor"))
 		_useHwCursor = ConfMan.getBool("roger_hw_cursor");
@@ -290,6 +291,7 @@ void FileRogerArtProvider::precacheAll() {
 	if (resMan->getViewType() != kViewEga) {
 		warning("ROGER: VGA game detected Ã¢â‚¬â€ Roger art replacement supports EGA games only. Overlay disabled.");
 		enabled = false;
+		applyNativeCursorVisibility();
 		return;
 	}
 
@@ -471,6 +473,7 @@ void FileRogerArtProvider::pushHiresBackgroundInternal(GuiResourceId pictureId) 
 		warning("ROGER: not an EGA SCI game - Roger art replacement supports EGA games only. "
 		        "Disabling the hires overlay.");
 		enabled = false;
+		applyNativeCursorVisibility();
 		if (_compositor)
 			_compositor->setRoom(nullptr, nullptr);
 		_loadedPicId = -1;
@@ -1175,7 +1178,12 @@ void FileRogerArtProvider::onCursorView(int viewId, int loopNo, int celNo) {
 }
 
 bool FileRogerArtProvider::hidesNativeCursor() const {
-	return enabled && !_useHwCursor && overlayShown();
+	// prebuilt = native-only mode: the overlay is never presented and Roger
+	// composites no cursor, so keep the stock hardware cursor (don't veto it).
+	// The added generation gate is static per-run, so it cannot reintroduce
+	// cursor-flap on room-change hideOverlay().
+	return enabled && !_useHwCursor && overlayShown() &&
+	       _assetGen && _assetGen->mode() != Roger::kGenPrebuilt;
 }
 
 void FileRogerArtProvider::applyNativeCursorVisibility() {
