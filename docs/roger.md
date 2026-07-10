@@ -67,10 +67,12 @@ the ini). `-Mode sbs` makes every scripted capture an enhanced-vs-native compari
 - The score / "Space Quest" status banner (always hires, on load and after F10)
 - The menu bar titles (the graphical Sierra icon is left native)
 - Parser text-input fields (top-aligned to match the native field, live caret)
-- The mouse cursor is Roger's composited arrow, drawn into the overlay (the native
-  hardware cursor is not visibly rendered over the overlay; `roger_hw_cursor=true`
-  opts back into it for experimentation). The letterbox edges are filled opaque
-  black so the native render cannot leak there.
+- The mouse cursor is Roger's composited arrow, drawn into the overlay. While
+  Enhanced or Side-by-Side mode is on-screen the backend hardware cursor is
+  actively hidden (it composites above the overlay and used to leak at the
+  screen edge); Original mode (F10) and `roger_hw_cursor=true` keep the stock
+  native cursor. The letterbox edges are filled opaque black so the native
+  render cannot leak there.
 
 ## Native-extras capture
 
@@ -151,7 +153,7 @@ All are optional `scummvm.ini` keys (only read when present).
 | `roger_ui_font_scale` | `150` | nudge multiplier (percent) on the native-metric text-size baseline; 100 = no nudge |
 | `roger_ui_font` | `GoMono-Regular.ttf` | dialog/body font (from ScummVM's `fonts.dat`). Per-game: set it on a game target to give each game its own font |
 | `roger_ui_header_font` | `NotoSans-Regular.ttf` | header/menu/banner font (config + restart only) |
-| `roger_hw_cursor` | `false` | opt back into the native hardware cursor (not visibly rendered over the overlay — experimental); `false` = Roger's composited arrow |
+| `roger_hw_cursor` | `false` | opt back into the stock native hardware cursor (default `false` hides it while Enhanced/Side-by-Side mode is on-screen — it composites above the overlay and would leak at the edge — and draws Roger's composited arrow instead; Original mode always keeps the native cursor) |
 | `roger_cursor_size` | `44` | composited-arrow size (applies with `roger_hw_cursor=false`, the default) |
 | `roger_dirty_present` | on | re-draw only changed regions each frame (dirty-rectangle present); off = full-region present |
 | `roger_transitions` | on | Mirror SCI screen transitions (fade/dissolve/wipe/scroll) and shake in the overlay. Off = hard cut (old behavior). |
