@@ -603,7 +603,7 @@ classified.
 
 ```
 git grep -n "copyRectToScreen\|copyToScreen\|copyDisplayRectToScreen" -- engines/sci   # 92 hits
-git grep -n "bitsShow(" -- engines/sci ':(exclude)engines/sci/roger'                    # 47 hits
+git grep -n "bitsShow(" -- engines/sci ':(exclude)engines/sci/roger'                    # 43 hits
 ```
 
 The `copyDisplayRectToScreen` token appears in no hit (SCI has no such method; it
@@ -618,8 +618,33 @@ rows — one per hit, none excluded as observer-side.
 - **`GfxScreen::copyRectToScreen` / `copyToScreen`** — the SCI16 funnel. This is
   the level L2 observes: `GfxPaint16::bitsShow` calls `GfxScreen::copyRectToScreen`
   (paint16.cpp:396, the funnel body — §3.1 P10/P11) and emits `onNativeShowRect`
-  right after. Every game-visible SCI16 pixel show flows through `bitsShow` (47
-  callers, all in-tree SCI code) → `GfxScreen::copyRectToScreen`.
+  right after. Every game-visible SCI16 pixel show flows through `bitsShow` (43
+  hits from the grep above; classified per-hit below) → `GfxScreen::copyRectToScreen`.
+
+  **`bitsShow(` hit classification (43 hits):**
+
+  **(a) Non-executing — definition, declaration, and comments (5 hits):**
+
+  | File:line | Kind |
+  |---|---|
+  | paint16.cpp:194 | comment: "This version of drawCel is not supposed to call bitsShow()!" |
+  | paint16.cpp:199 | comment: same |
+  | paint16.cpp:369 | **definition** — `void GfxPaint16::bitsShow(const Common::Rect &rect, uint32 rogerOwner)` |
+  | paint16.cpp:819 | comment in KQ6 hires-portrait workaround block |
+  | paint16.h:63 | **declaration** — `void bitsShow(const Common::Rect &r, uint32 rogerOwner = 0)` |
+
+  **(b) True call sites (38 hits) — verdict: funnel; each reaches `GfxScreen::copyRectToScreen` via `bitsShow`'s body (paint16.cpp:396):**
+
+  | File | Lines | Notes |
+  |---|---|---|
+  | animate.cpp | 533, 542, 598, 605 | cast draw / lsRect / workerRect shows |
+  | controls16.cpp | 161, 170, 315, 338, 392, 412, 437, 489, 498, 534, 554, 563, 575 | text-edit caret, control redraws |
+  | menu.cpp | 596, 602, 666, 702, 809, 867, 964, 965, 1100, 1144, 1168, 1175, 1194 | menu bar, menu items |
+  | paint16.cpp | 182, 186, 574, 750, 761 | drawCelAndShow inner calls, bitsGetView, kGraphUpdateBox |
+  | ports.cpp | 551, 583 | window open / bitsRestore show |
+  | text16.cpp | 565 | text Box show |
+
+  5 + 38 = 43. All 38 call sites feed `bitsShow`'s body; the hook at P11 fires on every one.
 - **`GfxDriver::copyRectToScreen`** (the `drivers/*` implementations + the
   `g_system->copyRectToScreen` inside them) — the **backend transport beneath**
   `GfxScreen`. `GfxScreen::displayRect` (screen.cpp:219) → `_gfxDrv->copyRectToScreen`
