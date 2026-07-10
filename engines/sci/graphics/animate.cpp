@@ -21,7 +21,6 @@
 
 #include "common/util.h"
 #include "common/stack.h"
-#include "common/system.h"
 #include "graphics/primitives.h"
 
 #include "sci/console.h"
@@ -692,10 +691,6 @@ void GfxAnimate::animateShowPic() {
 }
 
 void GfxAnimate::kernelAnimate(reg_t listReference, bool cycle, int argc, reg_t *argv) {
-	// Roger cycle telemetry (roger_cycle_log / ROGER_CYCLE_LOG): one getMillis
-	// call unconditionally (negligible); the log line itself is gated below.
-	const uint32 rogerCycleT0 = g_system->getMillis();
-
 	// Observer frame boundary: one game cycle begins. Early-return paths below
 	// exit without a matching onAnimateFrame (observers tolerate that).
 	if (g_sciGfxObserver)
@@ -772,17 +767,6 @@ void GfxAnimate::kernelAnimate(reg_t listReference, bool cycle, int argc, reg_t 
 
 	// Now trigger speed throttler
 	_s->_throttleTrigger = true;
-
-	// period = entry-to-entry (cycle time incl. throttle sleep; the walking-speed
-	// number), busy = this cycle's span. Early-return paths above skip the line —
-	// steady in-room cycles all reach here.
-	if (g_sciRogerProvider && g_sciRogerProvider->cycleLogEnabled()) {
-		static uint32 s_prevCycleT0 = 0;
-		const uint32 nowMs = g_system->getMillis();
-		warning("ROGER-CYCLE period=%u busy=%u",
-		        s_prevCycleT0 ? rogerCycleT0 - s_prevCycleT0 : 0, nowMs - rogerCycleT0);
-		s_prevCycleT0 = rogerCycleT0;
-	}
 }
 
 void GfxAnimate::addToPicSetPicNotValid() {

@@ -28,6 +28,7 @@
 #include "sci/roger/overlay/roger_compositor.h"
 #include "sci/roger/overlay/roger_journal.h"
 #include "sci/roger/roger_input.h"
+#include "sci/roger/roger_telemetry.h"
 #include "sci/roger/utils/tunepanel/roger_tune_panel.h" // quarantined dev utility (F12 tune panel)
 #include "common/array.h"
 #include "common/str.h"
@@ -56,6 +57,7 @@ public:
 	void pushHiresBackground(GuiResourceId pictureId) override;
 	void pushHiresBackgroundAddTo(GuiResourceId pictureId) override;
 	void onAnimateFrame(const AnimateList &list) override;
+	void onFrameStart() override;
 	void onNativePicture() override;
 	void onMouseMoved() override;
 	void onDrawCel(const Common::Rect &globalRect, int viewId, int loopNo, int celNo) override;
@@ -145,10 +147,6 @@ private:
 	bool _diag = false;          // roger_diag: one-line overlay-state trace at room-load/present/transition seams (revertible instrumentation)
 	Common::Array<Common::String> _diagDumpedCels; // diag: (view,loop,cel) PNGs already dumped this run
 	void diagDumpState(const char *where);
-public:
-	bool diagEnabled() const override { return _diag; }
-	bool cycleLogEnabled() const override { return _cycleLog; }
-private:
 	bool _selfTest = false;      // roger_selftest: log structural invariant PASS/FAIL per room (off by default)
 	bool _diffCheck = false;     // roger_diff_check: gated in-engine native-vs-overlay diff (off by default; once per pic; never on steady-state path)
 	bool _truthCapture = false; // .rin captures grab the REAL overlay pixels (grabOverlay) instead of forcing a full recompose Ã¢â‚¬â€ evidence mode, default off; stale never-pushed regions are visible
@@ -164,6 +162,7 @@ private:
 	// Input automation (scripted verification loop / live control) Ã¢â‚¬â€ roger_input.h.
 	Roger::InputScriptDriver *_inputDriver = nullptr;
 	bool _cycleLog = false;
+	Roger::CycleTelemetry _cycleTelemetry;   // ROGER-CYCLE telemetry state (rebuilt from the deleted animate.cpp seam)
 	void maybeScriptCapture(Graphics::ManagedSurface &scene, const Common::Rect &gameRect);
 	bool _useHwCursor = false;   // roger_hw_cursor: try the native HW cursor over the overlay (invisible in practice); default false = composited arrow
 	bool _debugCapture = false;  // roger_debug_capture: write manifest + PNGs to screenshots/ once per pic (off by default; inspection only)

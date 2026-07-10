@@ -555,9 +555,6 @@ void GfxPorts::drawWindow(Window *pWnd) {
 
 void GfxPorts::removeWindow(Window *pWnd, bool reanimate) {
 	if (g_sciRogerProvider && g_sciRogerProvider->enabled) {
-		if (g_sciRogerProvider->diagEnabled())
-			warning("ROGER-DIAG[removeWindow]: id=%d -> clear tok 0x%08x + 0x%08x",
-			        pWnd->id, 0x40000000u | (uint32)pWnd->id, 0x60000000u | (uint32)pWnd->id);
 		g_sciRogerProvider->uiClearToken(0x40000000u | (uint32)pWnd->id);
 		// Drop generic text-out captures scoped to this window (0x60000000 | id) so dialog/
 		// message text drawn via GfxText16::Box vanishes with its window, matching the control

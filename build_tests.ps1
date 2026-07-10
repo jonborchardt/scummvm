@@ -120,7 +120,8 @@ $RogerTestHeaders = @(
     "test_effects.h",
     "test_roger_capabilities.h",
     "test_picker_model.h",
-    "test_gfx_observer_tokens.h"
+    "test_gfx_observer_tokens.h",
+    "test_roger_telemetry.h"
 )
 
 # ── Locate MSBuild via vswhere ────────────────────────────────────────────────

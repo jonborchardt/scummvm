@@ -96,9 +96,6 @@ void GfxPaint16::drawPicture(GuiResourceId pictureId, bool mirroredFlag, bool ad
 	// occlusion use them) and cache the hires plate for the overlay compositor.
 	const bool rogerReplace = g_sciRogerProvider && g_sciRogerProvider->enabled
 			&& g_sciRogerProvider->hasBackground(pictureId);
-	if (g_sciRogerProvider && g_sciRogerProvider->enabled && g_sciRogerProvider->diagEnabled())
-		warning("ROGER-DIAG[drawPicture]: pic=%d addToFlag=%d hasBg=%d", pictureId,
-		        addToFlag ? 1 : 0, g_sciRogerProvider->hasBackground(pictureId) ? 1 : 0);
 	if (rogerReplace) {
 		g_sciRogerProvider->prefetch(pictureId);
 	} else if (!addToFlag && g_sciRogerProvider && g_sciRogerProvider->enabled) {
@@ -153,9 +150,6 @@ void GfxPaint16::drawCelAndShow(GuiResourceId viewId, int16 loopNo, int16 celNo,
 	Common::Rect celRect;
 
 	if (view) {
-		if (g_sciRogerProvider && g_sciRogerProvider->enabled && g_sciRogerProvider->diagEnabled())
-			warning("ROGER-DIAG[drawCelAndShow]: view=%d loop=%d cel=%d at(%d,%d) picNotValid=%d",
-			        viewId, loopNo, celNo, leftPos, topPos, _screen->_picNotValid);
 		// Self-draw bracket: animate-cast cels are composited semantically.
 		if (g_sciGfxObserver)
 			g_sciGfxObserver->beginSelfDraw();
@@ -499,8 +493,6 @@ void GfxPaint16::kernelDrawCel(GuiResourceId viewId, int16 loopNo, int16 celNo, 
 				               leftPos + celView->getWidth(loopNo, celNo),
 				               topPos + celView->getHeight(loopNo, celNo));
 				_ports->offsetRect(g);
-				if (g_sciRogerProvider->diagEnabled())
-					warning("ROGER-DIAG[kDrawCel]: view=%d loop=%d cel=%d at(%d,%d)", viewId, loopNo, celNo, leftPos, topPos);
 				g_sciRogerProvider->onDrawCel(g, viewId, loopNo, celNo);
 			}
 		}
@@ -555,8 +547,6 @@ void GfxPaint16::kernelGraphRestoreBox(reg_t handle) {
 }
 
 void GfxPaint16::kernelGraphUpdateBox(const Common::Rect &rect) {
-	if (g_sciRogerProvider && g_sciRogerProvider->enabled && g_sciRogerProvider->diagEnabled())
-		warning("ROGER-DIAG[kGraphUpdateBox]: rect=(%d,%d,%d,%d)", rect.left, rect.top, rect.right, rect.bottom);
 	bitsShow(rect);
 }
 

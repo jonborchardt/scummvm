@@ -2925,6 +2925,23 @@ void FileRogerArtProvider::onAnimateFrame(const AnimateList &list) {
 	_inAnimateCycle = false; // cycle draw complete Ã¢â‚¬â€ reopen the barrier
 	_revealRects.clear();   // reveal suppressions expire at cycle end (bitsShow fired already)
 	presentBarrier(); // spec Ã‚Â§3.2: the per-cycle present (fresh-frame branch Ã¢â‚¬â€ no recompose)
+
+	// ROGER-CYCLE telemetry (rebuilt from the deleted animate.cpp seam block).
+	// period = entry-to-entry (walking-speed), busy = entry to end-of-composite
+	// (covers restoreAndDelete - where the 2.7x walking regression lived). The
+	// LINE FORMAT is pinned by regression-lib.ps1's Get-CycleStats regex
+	// 'ROGER-CYCLE period=(\d+) busy=(\d+)' - never change it.
+	uint32 cyclePeriod = 0, cycleBusy = 0;
+	if (_cycleTelemetry.frameRendered(g_system->getMillis(), cyclePeriod, cycleBusy) && _cycleLog)
+		warning("ROGER-CYCLE period=%u busy=%u", cyclePeriod, cycleBusy);
+}
+
+void FileRogerArtProvider::onFrameStart() {
+	// Cycle telemetry origin stamp (the old animate.cpp seam block, rebuilt
+	// here). One unconditional getMillis per cycle - negligible, and keeps
+	// `period` honest across -CycleLog toggles. Deliberately NOT gated on
+	// `enabled`: the old seam telemetry ran regardless of the enable flag.
+	_cycleTelemetry.frameStart(g_system->getMillis());
 }
 
 void FileRogerArtProvider::remapComparisonMouse(Common::Point &mousePos) {
