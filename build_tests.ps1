@@ -40,10 +40,10 @@ $FixtureDir = ("$Root\test\sci\roger\fixtures" -replace '\\','/')
 # IMPORTANT: only SCI-TYPE-FREE Roger units belong here. The plan deliberately keeps
 # the loaders/compositor (png_loader, roger_coords, view_cache, slice_set,
 # roger_compositor) free of SCI engine types so they are unit-testable. The SCI-glue
-# files (file_roger_art_provider.cpp, roger_art_provider.cpp) are NOT compiled into
-# the test exe: they #include sci/graphics/screen.h (and, from Task 7, animate.h),
+# file (file_roger_art_provider.cpp) is NOT compiled into
+# the test exe: it #includes sci/graphics/screen.h (and, from Task 7, animate.h),
 # which drag in the full SCI graphics/engine stack and cannot link into this minimal
-# CxxTest runner. Those files are verified by the full scummvm.sln build + game-run
+# CxxTest runner. That file is verified by the full scummvm.sln build + game-run
 # instead. Add new SCI-free .cpp here as later tasks create them (view_cache.cpp,
 # slice_set.cpp, roger_compositor.cpp). roger_coords.h is header-only (no entry).
 #
