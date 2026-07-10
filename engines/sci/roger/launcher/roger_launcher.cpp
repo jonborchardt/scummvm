@@ -324,7 +324,7 @@ bool RogerLauncher::run() {
 		}
 	}
 	// Cross-game launch of an already-cached game: straight in, no dialog.
-	if (_autoLaunch && !_state.games.empty() && _state.games[0].cached)
+	if (_autoLaunch && _state.activeRow >= 0 && _state.games[_state.activeRow].cached)
 		return true;
 
 	RogerLauncherDialog dialog(*this);

@@ -407,8 +407,8 @@ void RogerLauncherDialog::open() {
 	rebuildPassOptions();
 	_view->rebuild();
 	// Empty-games guard: if no games are known, skip auto-actions (leave dialog
-	// open so the user can Add Game). A zero-item precache would write a
-	// meaningless roger_cache_stamp and auto-launch into nothing.
+	// open so the user can Add Game). A zero-item precache would
+	// start a zero-item precache and auto-launch into nothing.
 	if (_state.games.empty())
 		return;
 	// One-shot cross-game continuations consumed by RogerLauncher::run().
