@@ -291,8 +291,6 @@ individually.
 
 ## 4. Seam inventory
 
-<!-- Tasks 6-7 append per-class subsections here -->
-
 Convention (all 4.x subsections): the constructor and destructor are collapsed
 into a **single** excluded `ctor / dtor` row; the `(NN public methods)` count in
 each header includes that one row (so `row count == NN == the header's public
@@ -432,6 +430,165 @@ by delegating to a hooked leaf is marked hooked with a "(via …)" note.
 | kernelDrawList | hooked | (via drawListControl) → private `drawListControl` per-row hook (controls16.cpp:117-134, row C2) |
 | kernelTexteditChange | hooked | controls16.cpp:295-303 width-cap relaxation (row C3, claim) + :321-334 live-typing `uiPushTextEdit` (row C4) |
 
+### 4.5 GfxMenu (9 public methods)
+
+Same convention as 4.1: ctor+dtor collapse to one excluded row; public
+member variables are ignored; the `(9)` count == the row count == the public
+methods (ctor+dtor counted once). GfxMenu's hooked draw logic lives in the
+**private** helpers `drawMenu` / `invertMenuSelection` / the three `rogerPush*`
+methods (rows M5–M11) — those are not part of the public surface, so their
+public entry points below are marked hooked "(via …)". The bar/status/select
+public methods carry their own hooks directly.
+
+| Method | Classification | Evidence / justification |
+|---|---|---|
+| ctor / dtor | excluded | construction/teardown; no draw effect |
+| reset | excluded | clears the menu/item lists + `_curMenuId`/`_curItemId` state (menu.cpp); no draw effect |
+| kernelAddEntry | excluded | parses a menu definition string into `GuiMenuEntry`/`GuiMenuItemEntry` state; no draw effect |
+| kernelSetAttribute | excluded | mutates an item entry's text/key/enabled/tag fields (state); no draw effect |
+| kernelGetAttribute | excluded | pure accessor — reads an item entry's attribute into a reg_t; no draw effect |
+| drawBar | hooked | menu.cpp:372-405 per-title collection + `rogerPushBarOverlay()` (rows M5, M6) — the menu-bar `onText(menuBar)` seam |
+| kernelSelect | hooked | menu.cpp:605-606 `rogerClearMenuOverlay()` at close (row M7); drives the interactive loop that reaches the hooked private `drawMenu` (M8-M10) / `invertMenuSelection` (M11) dropdown captures |
+| kernelDrawStatus | hooked | menu.cpp:1177-1184 `uiPushStatus` score/title banner into the overlay top strip (row M13) |
+| kernelDrawMenuBar | hooked | (via drawBar) `clear`→erases the bar, else → `drawBar()` (menu.cpp), whose per-title push is captured at M5/M6 |
+
+### 4.6 GfxAnimate (18 public methods)
+
+| Method | Classification | Evidence / justification |
+|---|---|---|
+| ctor / dtor | excluded | construction/teardown; no draw effect |
+| isFastCastEnabled | excluded | pure accessor — returns `_fastCastEnabled`; no draw effect |
+| disposeLastCast | excluded | clears `_lastCastData` (state); no draw effect |
+| invoke | derivable-from-L2 | runs each cast object's `doit` (game-logic script calls); any drawing happens later in the frame via the hooked update/drawCels/updateScreen path, not here |
+| makeSortedList | excluded | pure computation — builds the priority-sorted `_list` from the kAnimate list; no draw effect |
+| applyGlobalScaling | excluded | pure computation — sets an entry's `scaleX`/`scaleY` from global scale (state); no draw effect |
+| fill | derivable-from-L2 | resolves cel geometry/nsRect and paints hidden cels into the buffers; screen reached via the frame's hooked updateScreen/onAnimateFrame path (A6-A9, A13). No text/owner semantics lost |
+| update | hooked | animate.cpp:427-431 + :461-465 `onInitCel` during `_picNotValid` at both cast-draw branches (rows A3, A4) |
+| drawCels | hooked | animate.cpp:491-495 `onInitCel` during `_picNotValid` (row A5) |
+| updateScreen | hooked | animate.cpp:512-516 begin + :550-552 end `beginNativeDraw`/`endNativeDraw` self-draw bracket (rows A6, A7) |
+| restoreAndDelete | derivable-from-L2 | restores each cast object's save-under via `bitsRestore` (hooked P13/onRestore) then deletes disposed entries; the composite that follows is `renderFromAnimateList` at A13 (onAnimateFrame). No un-covered screen path |
+| reAnimate | hooked | animate.cpp:585-589 begin + :608-613 end bracket + `renderFromAnimateList` (rows A8, A9) — dialog-dismissal cel redraw |
+| addToPicDrawCels | hooked | animate.cpp:652-654 `onAddToPicCel` static-baked cel capture (row A10) |
+| addToPicDrawView | hooked | animate.cpp:673-675 `onAddToPicCel` single addToPic view (row A11) |
+| printAnimateList | excluded | debug console dump of `_list`; no draw effect |
+| kernelAnimate | hooked | animate.cpp:756-765 `snapshotNativeBaseline` + `renderFromAnimateList` at the cycle frame boundaries (row A13); entry telemetry A12/A14 is fork-only dev |
+| kernelAddToPicList | hooked | (via addToPicDrawCels) → `addToPicDrawCels` after building the list, captured at A10 |
+| kernelAddToPicView | hooked | (via addToPicDrawView) → `addToPicDrawView`, captured at A11 |
+
+### 4.7 GfxTransitions (3 public methods)
+
+| Method | Classification | Evidence / justification |
+|---|---|---|
+| ctor / dtor | excluded | construction/teardown; no draw effect |
+| setup | excluded | stores `_number`/`_blackoutFlag` only (transitions.cpp:117-127); the actual effect runs in `doit`, so nothing draws here |
+| doit | hooked | transitions.cpp:184-208 claim block: `onTransition(...)` then instant SCI finalize + early-return, skipping the native animated transition (row TR2) |
+
+### 4.8 GfxPalette (41 public methods)
+
+Class `GfxPalette` in `engines/sci/graphics/palette16.h` — the SCI16 (SCI0-SCI1.1)
+palette (the SCI32 variant `GfxPalette32` in `palette32.h` is out of scope,
+SCI32-only). No hook exists in `palette16.cpp` (grep for `g_sciRogerProvider`
+returns nothing) — the fork's `roger_palette_live` behavior is compositor-side
+(re-applies the live `_sysPalette` to the RGBA plate each frame). Public member
+`_sysPalette` is data, ignored per convention. The palette methods change the
+color LUT, not the framebuffer bytes; on the EGA path `setOnScreen` →
+`copySysPaletteToScreen` → `_screen->setPalette` (an OSystem *palette* upload,
+not a `copyRectToScreen`), so palette changes emit **no L2 pixel event** — the
+basis for the per-tick-vary real-gap verdict below.
+
+| Method | Classification | Evidence / justification |
+|---|---|---|
+| ctor / dtor | excluded | construction/teardown; no draw effect |
+| isMerging | excluded | pure accessor — returns `_useMerging`; no draw effect |
+| isUsing16bitColorMatch | excluded | pure accessor — returns `_use16bitColorMatch`; no draw effect |
+| setDefault | excluded | loads the default palette into `_sysPalette` state (EGA/Amiga/resource dispatch); LUT only, no pixel event |
+| createFromData | excluded | pure computation — parses palette resource bytes into a `Palette` out-param; no draw effect |
+| setAmiga | excluded | loads the Amiga palette into state; LUT only, no pixel event |
+| modifyAmigaPalette | excluded | rewrites Amiga palette entries (state); LUT only, no pixel event |
+| setEGA | excluded | installs the 16+mix EGA palette into `_sysPalette` (state); LUT only, no pixel event |
+| set | excluded | merges/installs a palette into `_sysPalette` and may `setOnScreen`; a palette (LUT) upload, no `copyRectToScreen` — not an L2 pixel event |
+| insert | excluded | pure computation — merges `newPalette` into `destPalette`, returns changed flag; no draw effect |
+| merge | excluded | merges a source palette into `_sysPalette` (state); LUT only |
+| matchColor | excluded | pure computation — nearest-palette-index search; no draw effect |
+| setOnScreen | derivable-from-L2 | → `copySysPaletteToScreen` (palette16.cpp:478); an OSystem palette upload, not a pixel show. The *steady-state* re-apply is already covered compositor-side by `roger_palette_live` reading `_sysPalette` per frame — no new semantics at this one-shot call. (Smooth per-tick vary is the distinct real-gap row below) |
+| copySysPaletteToScreen | derivable-from-L2 | palette16.cpp:486 — builds `bpal[3*256]` and `_screen->setPalette`; a LUT upload with no pixel event, mirrored compositor-side by the live re-apply |
+| drewPicture | excluded | bumps the palette timestamp + reloads a palVary target on picture change (state); no draw effect |
+| kernelSetFromResource | excluded | loads a palette resource into `_sysPalette` via `set` (state/LUT); no pixel event |
+| kernelSetFlag | excluded | sets per-color flag bits in `_sysPalette` (state); no draw effect |
+| kernelUnsetFlag | excluded | clears per-color flag bits (state); no draw effect |
+| kernelSetIntensity | excluded | scales `_sysPalette.intensity[]` and may `setOnScreen` (LUT upload); no pixel event |
+| kernelFindColor | excluded | pure computation — → `matchColor`; no draw effect |
+| kernelAnimate | real-gap | palette16.cpp:552 — color-cycling: rotates palette entries on a schedule and `setPalette`s the LUT with **no** `copyRectToScreen`. Same real-gap class as per-tick vary (see below): the cycled intermediate LUT states are not recoverable from L2 pixels (no pixel event fires), and the consumer story is any display-layer enhancer wanting smooth cycling on the RGBA plate rather than a binary re-apply. **Conditions:** (1) not-in-L2 — a cycle step emits no `onShow`; the per-step rotated palette is invisible to a pixel-only consumer; (2) non-Roger consumer story — a TTS/streaming/enhancer overlay reproducing SCI color-cycling (water/fire effects) needs the LUT deltas |
+| kernelAnimateSet | real-gap | palette16.cpp:607 — commits the cycled palette via `setOnScreen` (LUT upload, no pixel event); pairs with `kernelAnimate` above under the same `onPaletteChanged` proposal. Content (the committed cycle LUT) not in L2; same enhancer consumer story |
+| kernelSave | excluded | serializes `_sysPalette` colors into a hunk for kSave/kRestore (state); no draw effect |
+| kernelRestore | excluded | restores `_sysPalette` from a saved hunk (state); no pixel event beyond a later LUT upload |
+| kernelAssertPalette | excluded | ensures a resource palette is merged into `_sysPalette` (state); no pixel event |
+| kernelSyncScreenPalette | excluded | grabs the backend palette back into `_sysPalette` (state read-back); no draw effect |
+| kernelPalVaryInit | excluded | sets up a palVary (origin/target/step/ticks state) + installs the tick timer; the per-tick effect is `palVaryProcess`, not this call |
+| kernelPalVaryReverse | excluded | reverses the running palVary direction/target (state); the per-tick effect is `palVaryProcess` |
+| kernelPalVaryGetCurrentStep | excluded | pure accessor — returns `_palVaryStep`; no draw effect |
+| kernelPalVaryChangeTarget | excluded | swaps the palVary target palette (state); per-tick effect is `palVaryProcess` |
+| kernelPalVaryChangeTicks | excluded | changes the palVary tick interval (state); no draw effect |
+| kernelPalVaryPause | excluded | pauses/resumes the palVary timer (state); no draw effect |
+| kernelPalVaryDeinit | excluded | tears down the running palVary (state + timer removal); no draw effect |
+| palVaryUpdate | real-gap | palette16.cpp:841 — the per-tick vary path: on `_palVarySignal`, → `palVaryProcess(sig, true)` which computes the 64-step inbetween palette and `setOnScreen`s it. **THE highest-value underused signal** (CLAUDE.md). Gap-fill **condition (1) — content not in L2:** a vary tick changes only the color LUT; `copySysPaletteToScreen` uploads the palette with **no** `copyRectToScreen`/`bitsShow`, so an L2-pixel-only consumer sees *zero* events across a whole smooth fade — the intermediate `_palVaryStep` state (the 64 inbetween Colors) and even the fact a change occurred are unrecoverable from pixels. The overlay plate being RGBA does not help: nothing re-stamps it on a vary tick, so the live re-apply is a *binary* snap, not the smooth curve. **condition (2) — non-Roger consumer story:** any display-layer enhancer needing smooth fades/cycling (Roger's own smooth-fade want; a streaming overlay mirroring a fade-to-black; a TTS/accessibility layer signalling scene dimming) consumes a proposed `onPaletteChanged(palette, step, total)` L-event. Both conditions hold → **real-gap** |
+| palVaryPrepareForTransition | derivable-from-L2 | palette16.cpp:876 — one-shot `palVaryProcess(0, false)` that resolves the palVary state WITHOUT `setOnScreen` (setPalette=false) ahead of a transition; the visible result is finalized by the hooked `doit`/`onTransition` (TR2). No independent pixel or LUT event of its own |
+| palVaryProcess | real-gap | palette16.cpp:884 — the shared per-tick worker `palVaryUpdate` calls; computes the inbetween palette and conditionally `setOnScreen`s (LUT only, no pixel event). Same `onPaletteChanged(step,total)` gap as `palVaryUpdate`: the intermediate LUT is not in L2 and the smooth-fade enhancer consumer story holds. (Listed for completeness — `palVaryUpdate` is the public tick entry; both fold into one proposed event) |
+| delayForPalVaryWorkaround | excluded | busy-waits up to 4 ticks at kAnimate start so a zero-tick palVary can fire (timing workaround); no draw effect |
+| saveLoadWithSerializer | excluded | savegame (de)serialization of palette + palVary state; no draw effect |
+| palVarySaveLoadPalette | excluded | (de)serializes one `Palette` struct for the serializer; no draw effect |
+| findMacIconBarColor | excluded | pure computation — nearest Mac-CLUT color for the icon bar; no draw effect (Mac-only) |
+| colorIsFromMacClut | excluded | pure predicate — is index a non-black Mac-CLUT color; no draw effect (Mac-only) |
+
+### 4.9 GfxCursor (16 public methods)
+
+The Roger cursor is composited into the overlay from `onMouseMoved` (event.cpp
+E2) plus the shape/view/hidden notifications at the kSetCursor kernel wrappers
+(kgraphics.cpp rows K2-K5) and the `hidesNativeCursor()` veto in `kernelShow`
+(cursor.cpp:84, row CU2). The kSetCursor* hooks live at the **callers** in
+`kgraphics.cpp`, not in GfxCursor itself — hooked-at-caller is a legitimate
+"hooked" citation, noted per row. The position/zone methods drive the OSystem
+hardware cursor (`CursorMan` / `gfxDriver()->replaceCursor` / `warpMouse`) and
+issue no game-surface draw, so they are excluded (Roger's cursor tracks the
+pointer via onMouseMoved, not these).
+
+| Method | Classification | Evidence / justification |
+|---|---|---|
+| ctor / dtor | excluded | construction/teardown; no draw effect |
+| kernelShow | hooked | cursor.cpp:84 `hidesNativeCursor()` veto on `CursorMan.showMouse` (row CU2); also notified at the Sci11 show caller (kgraphics.cpp:163-164, row K4, `onCursorHidden(false)`) |
+| kernelHide | hooked | (hooked-at-caller) kgraphics.cpp:152-153 `onCursorHidden(true)` after the Sci11 hide case (row K3); the method itself just `CursorMan.showMouse(false)` |
+| isVisible | excluded | pure accessor — returns `_isVisible`; no draw effect |
+| kernelSetShape | hooked | (hooked-at-caller) kgraphics.cpp:134-139 `onCursorShape(cursorId)`/`onCursorHidden` after kSetCursorSci0 (row K2); the method also delegates to `kernelShow` (CU2) at cursor.cpp:181 |
+| kernelSetView | hooked | (hooked-at-caller) kgraphics.cpp:210-212 `onCursorView(view,loop,cel)` after the kSetCursorSci11 view case (row K5) |
+| kernelSetMacCursor | excluded | Mac-platform cursor set (`kernelSetMacCursor` branch in kSetCursorSci11) — no Roger notification is emitted for the Mac path; never reached on a Roger-supported EGA game (Mac-only) |
+| setPosition | excluded | warps the OSystem hardware cursor (`gfxDriver()->setMousePos`/`warpMouse`) + touch-input position workarounds; no game-surface draw. Roger's composited cursor follows onMouseMoved (E2), not this |
+| getPosition | excluded | pure accessor — reads the backend mouse position (upscale-adjusted); no draw effect |
+| refreshPosition | excluded | clips to the move zone + redraws the zoom-zone hardware cursor via `gfxDriver()->replaceCursor` (backend cursor only); no game-surface pixel event |
+| kernelResetMoveZone | excluded | clears `_moveZoneActive` (state); no draw effect |
+| kernelSetMoveZone | excluded | sets `_moveZone`/`_moveZoneActive` (state); no draw effect |
+| kernelSetZoomZone | excluded | configures the LB2/Freddy Pharkas zoom-cursor state (views/multiplier/zone); the actual zoom draw is in `refreshPosition` (backend cursor); no game-surface draw here |
+| kernelClearZoomZone | excluded | clears `_zoomZoneActive` + frees the zoom cursor surface (state); no draw effect |
+| kernelSetPos | excluded | → `setPosition` (backend warp); no game-surface draw |
+| kernelMoveCursor | excluded | refreshes then → `setPosition` (backend warp + move-zone clamp); no game-surface draw |
+
+### 4.10 GfxCoordAdjuster16 (7 public methods)
+
+Class `GfxCoordAdjuster16` in `engines/sci/graphics/coordadjuster.h` — the SCI16
+coordinate adjuster. **All-excluded**: every method is pure coordinate math
+(port-offset add / rect clip / display-area geometry) that returns or mutates a
+Point/Rect — none draws, shows, or reaches the screen. Verified against
+`coordadjuster.cpp` (each body is a few add/CLIP/offsetRect lines).
+
+| Method | Classification | Evidence / justification |
+|---|---|---|
+| ctor / dtor | excluded | construction/teardown; no draw effect |
+| kernelGlobalToLocal | excluded | pure computation — subtracts the current port's left/top from x/y (coordadjuster.cpp:41); no draw effect |
+| kernelLocalToGlobal | excluded | pure computation — adds the current port's left/top to x/y (coordadjuster.cpp:47); no draw effect |
+| onControl | excluded | pure computation — clips a rect to the pic window and offsets it to global (coordadjuster.cpp:53); no draw effect |
+| setCursorPos | excluded | pure computation — offsets a Point by the current port origin (coordadjuster.cpp:63); no draw effect (backend warp is GfxCursor's job) |
+| moveCursor | excluded | pure computation — offsets + clamps a Point to the pic-window rect (coordadjuster.cpp:68); no draw effect |
+| pictureGetDisplayArea | excluded | pure computation — returns the current port's display-area rect (coordadjuster.cpp:76); no draw effect |
+
 ## 5. L2 completeness verification
 
 <!-- Task 9 -->
@@ -462,3 +619,5 @@ method). **Task 5 seeds; Task 10 finalizes.**
 ## 9. Findings that contradict the design spec
 
 <!-- any task may append here; Task 10 resolves -->
+
+- Task 7 (§4.8): the spec's L1-L4 event vocabulary (§4.2) has **no palette event**, yet the seam inventory finds a real-gap for the per-tick palette-vary/cycle path (`palVaryUpdate`/`palVaryProcess`, `kernelAnimate`/`kernelAnimateSet`) — a smooth fade/cycle emits no L2 pixel event and its intermediate LUT is unrecoverable from pixels, and CLAUDE.md already lists palette-vary-per-tick as the highest-value underused signal. The design needs a new event (proposed `onPaletteChanged(palette, step, total)`, likely L1/L2-adjacent) to cover it; per the §2 budget it should be one event folding all four palette-vary/cycle call sites. Task 8/10 to place it in the layer model.
