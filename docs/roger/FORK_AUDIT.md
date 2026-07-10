@@ -72,7 +72,7 @@ Disposition values: `→ <event> (L1..L4)` / `observer-side` / `fork-only` / `st
 | P20 | paint16.cpp:740-764 | kernelDisplay flush bracket: two `bitsShow(rect)` calls wrapped in `beginNativeDraw`/`endNativeDraw` (Box stays outside so its onNativeText is not depth-suppressed) | N | Mechanical brackets around pre-existing native shows; the CJK-fix logic itself is untouched | → beginSelfDraw()/endSelfDraw() (L2) |
 
 <!-- coverage: hunks 1-17 (paint16.cpp) -> P1;P2,P3;P4;P5,P6,P7;(P7);P8;P9;P10;P11;P12;P13;P14;P15;P16;P17;P18;P19,P20  |  hunk 1 (paint16.h) -> P10.
-  paint16.cpp hunk map (diff order): 1=P1(include); 2=P2+P3(drawPicture pre); 3=P4(drawPicture post); 4=P5+P6+P7-open(drawCelAndShow entry); 5=P7-close(endNativeDraw); 6=P8(drawHiresCel begin); 7=P9(drawHiresCel end); 8=P10(bitsShow sig); 9=P11(bitsShow body); 10=P12(bitsSave); 11=P13(bitsRestore); 12=P14(bitsFree); 13=P15(kernelDrawCel); 14=P16(kernelGraphFrameBox); 15=P17(kGraphUpdateBox diag); 16=P18(kGraphRedrawBox erase); 17=P19+P20(kernelDisplay). paint16.h hunk 1 = P10. -->
+  paint16.cpp hunk map (diff order): 1=P1(include); 2=P2+P3(drawPicture pre); 3=P4(drawPicture post); 4=P5+P6+P7-open(drawCelAndShow entry); 5=P7-close(endNativeDraw); 6=P8(drawHiresCel begin); 7=P9(drawHiresCel end); 8=P10(bitsShow sig); 9=P11(bitsShow body); 10=P12(bitsSave); 11=P13(bitsRestore); 12=P14(bitsFree); 13=P15(kernelDrawCel); 14=P16(kernelGraphFrameBox); 15=P17+P18(kGraphUpdateBox diag + kGraphRedrawBox erase); 16=P19(kernelDisplay bg-fill); 17=P20(kernelDisplay flush). paint16.h hunk 1 = P10. -->
 
 ### 3.2 engines/sci/engine/kgraphics.cpp (26 lines, 6 hunks)
 
