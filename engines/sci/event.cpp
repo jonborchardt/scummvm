@@ -35,6 +35,7 @@
 #endif
 #include "sci/graphics/screen.h"
 #include "sci/roger/roger_art_provider.h"
+#include "sci/sci_gfx_observer.h"
 
 namespace Sci {
 
@@ -210,13 +211,12 @@ SciEvent EventManager::getScummVMEvent() {
 			sawMouseMove = true;
 	} while (found && ev.type == Common::EVENT_MOUSEMOVE);
 
-	// Roger draws its cursor INTO the hires overlay (the native cursor is not usable
-	// over it), so the overlay must be re-presented on mouse movement or the cursor
-	// freezes - badly during blocking dialogs/inventory/menus, which do not tick
-	// kernelAnimate. SCI discards mouse-move events above, so this is the one place
-	// that sees them. Re-present so the composited cursor tracks the real pointer.
-	if (sawMouseMove && g_sciRogerProvider && g_sciRogerProvider->enabled)
-		g_sciRogerProvider->onMouseMoved();
+	// An observer compositing its own cursor re-presents on mouse movement: SCI
+	// discards mouse-moves above, and blocking dialogs/menus do not tick
+	// kernelAnimate, so the cursor would otherwise freeze. This is the one place
+	// SCI sees the discarded moves.
+	if (sawMouseMove && g_sciGfxObserver)
+		g_sciGfxObserver->onMouseMoved();
 
 	Common::Point mousePos;
 

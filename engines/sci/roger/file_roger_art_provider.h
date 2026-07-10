@@ -66,6 +66,9 @@ public:
 	void onPicture(GuiResourceId picId, bool addToFlag) override;
 	void onPictureAbsent() override;
 	void onMouseMoved() override;
+	// SciGfxObserver palette-truth (R18/§7): event-driven trigger for the live
+	// re-apply; latches _paletteDirty for the per-frame observeLivePalette poll.
+	void onPaletteChanged(const Palette &palette, int16 step, int16 total) override;
 	// SciGfxObserver cel family (R3): one dispatcher over the five sources.
 	void onCel(const Common::Rect &rect, int viewId, int loopNo, int celNo,
 	           int priority, uint32 owner, CelSource source) override;
@@ -278,6 +281,7 @@ private:
 	bool _haveScene = false;                         // _sceneCache valid this room
 	bool _transitionsEnabled = true;                 // roger_transitions knob (default on)
 	bool _paletteLive = true;                        // roger_palette_live knob (default on)
+	bool _paletteDirty = true;                       // onPaletteChanged latch; consumed by observeLivePalette (start dirty)
 	Common::Array<byte> _plateIndex;                 // current room's omyac doubled-nibble index map (or empty)
 	byte _palSnapshot[48];                           // room-load EGA palette (16 RGB triples)
 	bool _haveSnapshot = false;

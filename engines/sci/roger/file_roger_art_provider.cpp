@@ -596,6 +596,7 @@ void FileRogerArtProvider::pushHiresBackgroundInternal(GuiResourceId pictureId) 
 	// 0..15). grabPalette(buf, start, count) fills count*3 RGB bytes.
 	g_system->getPaletteManager()->grabPalette(_palSnapshot, 0, 16); // 16 colors = 48 bytes
 	_haveSnapshot = true;
+	_paletteDirty = true; // force a re-apply on the first frame after a room change (fallback safety)
 
 	// Re-push the cached score/title banner into the UI layer so it is enhanced again
 	// after the room change (the game only redraws status on score/text change). The
@@ -646,6 +647,9 @@ static Common::Rect currentGameRect(int overlayW, int overlayH) {
 void FileRogerArtProvider::observeLivePalette() {
 	if (!_paletteLive || _plateIndex.empty() || !_haveSnapshot || !_plate)
 		return;
+	if (!_paletteDirty)
+		return; // no palette event since the last consume: nothing changed, skip the grab+diff
+	_paletteDirty = false;
 	byte live[48];
 	g_system->getPaletteManager()->grabPalette(live, 0, 16);
 	bool changed[16];
@@ -3592,6 +3596,21 @@ void FileRogerArtProvider::onMouseMoved() {
 	// cursor region from the composite cache, repaints at the pointer, and pushes
 	// only the two cursor-sized rects.
 	presentBarrier();
+}
+
+void FileRogerArtProvider::onPaletteChanged(const Palette &palette, int16 step, int16 total) {
+	// Event-driven trigger for the live-palette re-apply. The reblend math itself
+	// (observeLivePalette) still reads the SCREEN LUT via grabPalette, because the
+	// omyac plate's colors were blended from the post-intensity/Mac-CLUT screen
+	// palette, not the raw _sysPalette this event carries — re-keying off _sysPalette
+	// would mis-recolor the anti-aliased plate. So the event only LATCHES that a
+	// palette change occurred; the next renderFrame's observeLivePalette consumes the
+	// latch and does the (already-correct) screen-palette reblend. This makes the
+	// poll event-driven (no grabPalette+diff on palette-static frames) with zero
+	// change to the visible fade/cycle/flash result. (void the args: the screen LUT
+	// is authoritative for the reblend; step/total reserved for a future smooth curve.)
+	(void)palette; (void)step; (void)total;
+	_paletteDirty = true;
 }
 
 void FileRogerArtProvider::composeRoomScene(Graphics::ManagedSurface &out) {

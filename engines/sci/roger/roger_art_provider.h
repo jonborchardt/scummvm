@@ -36,11 +36,9 @@ class GfxScreen;
 
 // Strangler base (SciGfxObserver): during the observer migration this class
 // derives from the neutral seam; each task moves a hook family from the old
-// virtuals below onto SciGfxObserver and deletes the old virtual here. The
-// same-name redeclaration that remains during migration (onMouseMoved)
-// intentionally OVERRIDES the base no-op — identical signature, identical
-// no-op body. (The cursor notifications onCursorShape/onCursorView/
-// onCursorHidden now live only on the neutral base — R16.)
+// virtuals below onto SciGfxObserver and deletes the old virtual here.
+// (onMouseMoved and the cursor notifications onCursorShape/onCursorView/
+// onCursorHidden now live only on the neutral base — R16/R18.)
 class RogerArtProvider : public SciGfxObserver {
 public:
 	virtual ~RogerArtProvider() {}
@@ -57,11 +55,6 @@ public:
 	virtual bool precacheOnePic(GuiResourceId /*picId*/, uint32 & /*ms*/) { return false; }
 	// Generates one view's cels (all loops×cels for viewId). Returns false on failure.
 	virtual bool precacheOneView(int /*viewId*/) { return false; }
-
-	// Called from the SCI event loop when the mouse has moved. Roger composites its
-	// cursor into the overlay, so it re-presents here to keep the cursor tracking the
-	// pointer (especially during blocking dialogs/menus that do not tick animate).
-	virtual void onMouseMoved() {}
 
 	// R4: generic text-out capture migrated to SciGfxObserver::onText (source
 	// kTextSourceBox); the old onNativeText virtual is deleted.

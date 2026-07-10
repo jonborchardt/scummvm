@@ -33,6 +33,7 @@
 #include "sci/graphics/remap.h"
 #include "sci/graphics/screen.h"
 #include "sci/graphics/view.h"
+#include "sci/sci_gfx_observer.h"
 
 namespace Sci {
 
@@ -508,6 +509,14 @@ void GfxPalette::copySysPaletteToScreen(bool update) {
 		g_sci->_gfxRemap16->updateRemapping();
 
 	_screen->setPalette(bpal, 0, 256, update);
+
+	// Palette-truth event (L2): per-tick palVary fades and color cycling change only
+	// the LUT and emit no pixel event, so their content is unrecoverable from the
+	// pixel path — an observer needs the palette itself to re-apply a live EGA plate.
+	// step/total mirror the vary progress (0/0 = plain set). This is the single hook
+	// for all palVary/cycle call sites (they all funnel through here).
+	if (g_sciGfxObserver)
+		g_sciGfxObserver->onPaletteChanged(_sysPalette, _palVaryStep, _palVaryStepStop);
 }
 
 bool GfxPalette::kernelSetFromResource(GuiResourceId resourceId, bool force) {
