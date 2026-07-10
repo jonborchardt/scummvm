@@ -46,6 +46,59 @@ Disposition values: `→ <event> (L1..L4)` / `observer-side` / `fork-only` / `st
 
 ## 3. Change-site classification
 
+### 3.1 engines/sci/graphics/paint16.{cpp,h} (167+4 lines, 18 hunks)
+
+| # | Site (file:line) | What it does | Bucket | Defensibility verdict | Disposition |
+|---|---|---|---|---|---|
+| P1 | paint16.cpp:43 | `#include "sci/roger/roger_art_provider.h"` — pulls the concrete provider header into an SCI-engine file | W (+concern) | Not mechanical: SCI code should include a neutral observer header, never a `roger/` path — this is the diff's clearest "fork plumbing" tell | → replace with `sci_gfx_observer.h` (engine-owned); observer-side |
+| P2 | paint16.cpp:91-108 | drawPicture pre-hook: `rogerReplace` gate (`enabled && hasBackground`), diag warning, `prefetch(pic)` on replace, `onNativePicture()` on unreplaced full-screen pic (stale-overlay drop) | N (+D for the diag line) | Mostly mechanical null-guarded observe + a claim-ish prefetch; the diag `warning()` is fork noise | → onPicture(picId, addToFlag) + onPictureAbsent() (L3); diag line: delete |
+| P3 | paint16.cpp:110-114 | beginNativeDraw re-entrancy bracket opened before the native picture render | N | Mechanical self-draw bracket, already neutral | → beginSelfDraw() (L2) |
+| P4 | paint16.cpp:135-149 | drawPicture post-hook: `pushHiresBackground` / `pushHiresBackgroundAddTo` on replace, then `endNativeDraw` bracket close | N | Mechanical observe + bracket close; picks the addTo variant by the same `addToFlag` the event already carries | → onPicture(picId, addToFlag) (L3) + endSelfDraw() (L2) |
+| P5 | paint16.cpp:158-164 | drawCelAndShow entry: diag warning, then `beginNativeDraw` bracket (animate-cast cels composited semantically, not via Feeder B) | N (+D for the diag line) | Mechanical bracket; diag `warning()` is fork noise | → beginSelfDraw() (L2); diag line: delete |
+| P6 | paint16.cpp:171-176 | `_picNotValid` init-cel capture: `onInitCel(view,loop,cel,rect,priority,owner=0)` for a script-drawn cel baking into the picture | N | Mechanical observe; owner=0 marshalling is one of the six `onCel` sources | → onCel(rect, view, loop, cel, priority, owner, source=initBake) (L3) |
+| P7 | paint16.cpp:189-190 | drawCelAndShow `endNativeDraw` bracket close | N | Mechanical bracket close | → endSelfDraw() (L2) |
+| P8 | paint16.cpp:227-230 | drawHiresCelAndShow `beginNativeDraw` bracket (KQ6 hires cel path; composited via onDrawCel) | N | Mechanical bracket | → beginSelfDraw() (L2) |
+| P9 | paint16.cpp:250-251 | drawHiresCelAndShow `endNativeDraw` bracket close | N | Mechanical bracket close | → endSelfDraw() (L2) |
+| P10 | paint16.cpp:369 + paint16.h:61-63 | `bitsShow(rect)` → `bitsShow(rect, uint32 rogerOwner = 0)` signature change + the header comment documenting the token param | N (+concern) | Default-arg keeps all native callers byte-identical, but a `rogerOwner` param on a public SCI method leaks the token scheme into the signature — a neutral observer would derive the owner observer-side | → onShow(rect, owner) (L2); owner derivation moves observer-side; drop the param |
+| P11 | paint16.cpp:398-410 | bitsShow Feeder B body: `onNativeShowRect(workerRect, owner)`, deriving the window token from the caller arg or the current window port | N | Mechanical observe; the token-derivation branch is the marshalling §4.3 moves behind a helper | → onShow(rect, owner) (L2); token helper observer-side |
+| P12 | paint16.cpp:428-433 | bitsSave journal checkpoint: `onNativeSaveRect(tok, rect)` keyed by the hunk handle | N | Mechanical observe; token = save-handle identity per §4.3 | → onSave(token, rect) (L2) |
+| P13 | paint16.cpp:452-460 | bitsRestore journal rollback: `onNativeRestoreRect(tok, restored)` (subsumes the old uiClearToken + onNativeEraseRect pair) | N | Mechanical observe; already the consolidated restore path | → onRestore(token, rect) (L2) |
+| P14 | paint16.cpp:471-475 | bitsFree drop: `onNativeFreeSave(tok)` before freeing the hunk | N | Mechanical observe | → onFree(token) (L2) |
+| P15 | paint16.cpp:507-520 | kernelDrawCel standalone-cel hook: `onDrawCel(g, view, loop, cel)` with `offsetRect` globalization + diag warning | N (+D for the diag line) | Mechanical observe + one `offsetRect` marshal; diag `warning()` is fork noise | → onCel(rect, view, loop, cel, priority, owner, source=standalone) (L3); diag line: delete |
+| P16 | paint16.cpp:543-554 | kernelGraphFrameBox hook: `uiPushFrameBox(g, color)` with `offsetRect` globalization | N | Mechanical observe + one `offsetRect` marshal | → onFrameBox(rect, pen) (L3) |
+| P17 | paint16.cpp:571-573 | kernelGraphUpdateBox diag warning before the (unchanged) `bitsShow(rect)` | D | Pure fork diag; the box is already L2 via `bitsShow` | delete (already covered by onShow via bitsShow) |
+| P18 | paint16.cpp:577-581 | kernelGraphRedrawBox hook: `onNativeEraseRect(rect)` on the already-global rect | N | Mechanical observe | → onErase(rect) (L2) |
+| P19 | paint16.cpp:705-717 | kernelDisplay background-fill push: `uiPushText(rect, "", pen, back, ...)` (empty string = fill only; text captured per-line in Box), keyed by the save-under handle | N (+concern) | Mechanical observe, but overloading `uiPushText` with an empty string to mean "fill only" is a smell — a dedicated fill event would read better | → candidate onFill(rect, color, token) or fold into onText(source=textBox) (L3) — audit §6 decides on line budget |
+| P20 | paint16.cpp:740-764 | kernelDisplay flush bracket: two `bitsShow(rect)` calls wrapped in `beginNativeDraw`/`endNativeDraw` (Box stays outside so its onNativeText is not depth-suppressed) | N | Mechanical brackets around pre-existing native shows; the CJK-fix logic itself is untouched | → beginSelfDraw()/endSelfDraw() (L2) |
+
+<!-- coverage: hunks 1-17 (paint16.cpp) -> P1;P2,P3;P4;P5,P6,P7;(P7);P8;P9;P10;P11;P12;P13;P14;P15;P16;P17;P18;P19,P20  |  hunk 1 (paint16.h) -> P10.
+  paint16.cpp hunk map (diff order): 1=P1(include); 2=P2+P3(drawPicture pre); 3=P4(drawPicture post); 4=P5+P6+P7-open(drawCelAndShow entry); 5=P7-close(endNativeDraw); 6=P8(drawHiresCel begin); 7=P9(drawHiresCel end); 8=P10(bitsShow sig); 9=P11(bitsShow body); 10=P12(bitsSave); 11=P13(bitsRestore); 12=P14(bitsFree); 13=P15(kernelDrawCel); 14=P16(kernelGraphFrameBox); 15=P17(kGraphUpdateBox diag); 16=P18(kGraphRedrawBox erase); 17=P19+P20(kernelDisplay). paint16.h hunk 1 = P10. -->
+
+### 3.2 engines/sci/engine/kgraphics.cpp (26 lines, 6 hunks)
+
+| # | Site (file:line) | What it does | Bucket | Defensibility verdict | Disposition |
+|---|---|---|---|---|---|
+| K1 | kgraphics.cpp:58 | `#include "sci/roger/roger_art_provider.h"` in the kernel graphics file | W (+concern) | Not mechanical: same `roger/`-path leak as P1 — a neutral observer header belongs here | → replace with `sci_gfx_observer.h`; observer-side |
+| K2 | kgraphics.cpp:134-139 | kSetCursorSci0 hook: after `kernelSetShape`, emit `onCursorHidden(true)` if `cursorId < 0` else `onCursorShape(cursorId)` | N | Mechanical null-guarded observe alongside the native shape set | → claimCursor() + onCursorShape/onCursorHidden notifications (L4) |
+| K3 | kgraphics.cpp:152-153 | kSetCursorSci11 hide case: `onCursorHidden(true)` after `kernelHide` | N | Mechanical observe | → claimCursor() + onCursorHidden (L4) |
+| K4 | kgraphics.cpp:163-164 | kSetCursorSci11 show case: `onCursorHidden(false)` after `kernelShow` | N | Mechanical observe | → claimCursor() + onCursorHidden (L4) |
+| K5 | kgraphics.cpp:210-212 | kSetCursorSci11 setView case: `onCursorView(view, loop, cel)` after `kernelSetView` | N | Mechanical observe | → claimCursor() + onCursorView (L4) |
+| K6 | kgraphics.cpp:1274-1280 | kShakeScreen: when overlay visible, `onShake(count, dirs)` and early-return, skipping the native `kernelShakeScreen` | C | Native path skipped when provider active — a real claim, but it is inline `isOverlayVisible()`-gated fork logic, not a documented override | → claimShake(count, directions) -> bool (L4) |
+| K7 | kgraphics.cpp:1286-1290 | kDisplay comment-only hunk explaining the overlay-not-hidden-for-text policy | D | Comment only, no code change; pure fork war-story | delete (comment relocates to FORK_AUDIT / observer impl) |
+
+<!-- coverage: hunks 1-6 (kgraphics.cpp) -> K1;K2;K3,K4;K5;K6;K7.
+  hunk map (diff order): 1=K1(include); 2=K2(kSetCursorSci0); 3=K3+K4(Sci11 hide/show); 4=K5(Sci11 setView); 5=K6(kShakeScreen); 6=K7(kDisplay comment). -->
+
+### 3.3 engines/sci/graphics/cursor.cpp (3 lines, 2 hunks)
+
+| # | Site (file:line) | What it does | Bucket | Defensibility verdict | Disposition |
+|---|---|---|---|---|---|
+| CU1 | cursor.cpp:40 | `#include "sci/roger/roger_art_provider.h"` in the cursor file | W (+concern) | Not mechanical: same `roger/`-path leak as P1/K1 | → replace with `sci_gfx_observer.h`; observer-side |
+| CU2 | cursor.cpp:84 | kernelShow `hidesNativeCursor()` veto: `CursorMan.showMouse(!(provider && provider->hidesNativeCursor()))` — the native hardware cursor is suppressed while the provider hides it (it draws ABOVE the OSystem overlay and leaks past the letterbox) | C | Native path altered while provider active — a genuine override, but a defensible one: the veto is the only way to keep the hw cursor off the overlay (commit 135ed9438a3) | → claimCursor() (L4), joining the K2–K5 cursor hooks under the same event |
+
+<!-- coverage: hunks 1-2 (cursor.cpp) -> CU1;CU2.
+  hunk map (diff order): 1=CU1(include); 2=CU2(kernelShow veto). -->
+
 <!-- Tasks 2-5 append per-file subsections here -->
 
 ## 4. Seam inventory
