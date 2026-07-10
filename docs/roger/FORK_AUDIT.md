@@ -798,7 +798,8 @@ QFG1 EGA — which have no Mac icon bar; the overlay is never active for a Mac t
 so it is not a live bug, but the *stated* claim is over-broad. Recorded as a §9
 finding: the completeness claim must be **scoped to non-Mac SCI16** (or the Mac icon
 bar must emit an L2 `onShow`, a one-line hook at `drawImage`) before the design can
-assert it unqualified.
+assert it unqualified. *(Resolved 2026-07-10: the spec now carries the non-Mac
+scoping — §9 resolution 3.)*
 
 ### 5.4 Footnote — roger/ exclusions
 
@@ -883,7 +884,8 @@ every contested estimate to its conservative value at once — menu exile only �
 disallowed and counted back in (+85), text and bracket rows −15 shallower each — lands
 at 475 + 25 + 35 + 85 + 30 = **650, still PASS**. The projection does land well below
 spec §2's "~780 ± 100" — logged as a §9 finding for Task 10 (the spec's projection
-under-counted the D/W/G departures its own dispositions imply).
+under-counted the D/W/G departures its own dispositions imply). *(Resolved
+2026-07-10: spec §2's projection updated to the audited numbers — §9 resolution 2.)*
 
 <!-- per-file "current" reconciliation (apportioned within measured §2 per-file totals; sums EXACTLY 830):
   kgraphics 26 = R1 1 + R15 7 (K6) + R16 13 (K2-K5) + R19 5 (K7)
@@ -951,20 +953,53 @@ These are the standalone, immediately-submittable upstream fixes (bucket **G**) 
 each is independent of the observer work and of Roger, per spec §8 ("cheap goodwill
 before the big pitch"). One entry per G-bucket row across all of section 3; the
 scifont `.cpp` and `.h` halves (F1 + F2) are one PR (both sides of un-gating the same
-method). **Task 5 seeds; Task 10 finalizes.**
+method). **Finalized 2026-07-10 (Task 10):** the four candidates cover all five §3
+G-bucket rows (T2, S3, F1, F2, W2 — re-checked against §3.5/§3.11/§3.12/§3.13; no
+G row uncovered, no non-G row leaked in). Audit notes carried into the entries:
+the S3 caption PR must be pitched on its Roger-independent merit (the
+stale/series-level-caption case) and carries S1's `engines/metaengine.h` include
+with it (§3.11 — that include is S3's legitimate wiring, not part of the
+forbidden-`getenv` block); per spec's commit rules, the Claude-attribution footer
+is stripped from anything submitted upstream.
 
 | Candidate | G rows | Change | Effort | Depends on Roger? |
 |---|---|---|---|---|
 | scifont drawToBuffer un-gating | F1 (scifont.cpp), F2 (scifont.h) | remove `#ifdef ENABLE_SCI32` around `GfxFontFromResource::drawToBuffer` (definition + override decl) | trivial (2 files, ~7 lines) | No |
 | EventRecorder.h decl fix | W2 (gui/EventRecorder.h) | `isImGuiRecorderEnabled()` declared unconditionally (matches its unconditional definition + unguarded call sites) | trivial (1 file, ~6 lines) | No |
-| Window caption from detection | S3 (sci.cpp) | `SciEngine::run` sets the OS window caption via `EngineMan.findTarget` (full canonical title, no hardcoded strings) | small (1 file, ~12 lines); needs an upstream-facing justification independent of Roger (stale/series-level caption) | No |
+| Window caption from detection | S3 (sci.cpp) | `SciEngine::run` sets the OS window caption via `EngineMan.findTarget` (full canonical title, no hardcoded strings); carries the `engines/metaengine.h` include from S1 | small (1 file, ~12 lines); needs an upstream-facing justification independent of Roger (stale/series-level caption) | No |
 | text16 textHeight=0 init | T2 (text16.cpp, §3.5) | `textHeight = 0` initializer silences a real uninitialized-read path | trivial (1 line) | No |
 
 ## 9. Findings that contradict the design spec
 
-<!-- any task may append here; Task 10 resolves -->
+All four findings **resolved 2026-07-10** (Task 10). Every resolution below is a
+spec amendment (none refuted); each spec edit is tagged "(audit 2026-07-10)"
+inline for traceability.
 
 - Task 7 (§4.8): the spec's L1-L4 event vocabulary (§4.2) has **no palette event**, yet the seam inventory finds a real-gap for the per-tick palette-vary/cycle path (`palVaryUpdate`/`palVaryProcess`, `kernelAnimate`/`kernelAnimateSet`) — a smooth fade/cycle emits no L2 pixel event and its intermediate LUT is unrecoverable from pixels, and CLAUDE.md already lists palette-vary-per-tick as the highest-value underused signal. The design needs a new event (proposed `onPaletteChanged(palette, step, total)`, likely L1/L2-adjacent) to cover it; per the §2 budget it should be one event folding all four palette-vary/cycle call sites. Task 8/10 to place it in the layer model.
+  **Resolution: spec amended** — `onPaletteChanged(palette, step, total)` added to spec §4.2's **L2** table (placed per §7's layer argument: the palette sibling of `onShow` — every visible state change is either pixels crossing `onShow` or a LUT change crossing `onPaletteChanged`), with the one-hook/+10-line rationale citing this audit's §4.8/§7; the L2 funnel paragraph now names it as the second half of the pixel/LUT truth pair.
 - Task 8 (§6): the projected reshaped footprint — **475** consolidation-only, **485** with the kept palette gap — lands **well below** spec §2's "~780 ± 100" projection. Not a budget violation (success-criterion 4 passes with a 345-line margin), but §2's projection paragraph under-counts three departures the audit's own dispositions make explicit: the fork-only D-bucket carve-out (−85: E3/E4/S1/S4-dev/S5, carried downstream outside the neutral seam), wiring → registration + plugin module.mk (−35), and G-bucket standalone-PR departures (−25); it also under-estimates the menu exile (−125 grounded in the measured 163 menu lines vs the −100 guess). Task 10 should update spec §2's projection, or state explicitly which measurement rule (with vs without the fork-only carve-out) its number assumes — even with the carve-out counted back in, the conservative bound is 650, still under the 830 target.
+  **Resolution: spec amended** — spec §2's projection paragraph replaced with the audited numbers (ΣΔ = −355, projected 475 / 485 with the kept gap, robustness bound 650, citing §6/§7 here) and it now states the measurement rule explicitly (fork-only D-bucket rows carried downstream outside the neutral-seam measurement); §2's 822 baseline carries a supersession note (re-measured **830 / 18 files / 83 hunks** at 14509d438c3, per §2 here); §4.2's menu-exile "~-100" guess tagged with the measured −125; spec §9 criteria 4/5 tagged with the measured 830 baseline and 49-virtual count.
 - Task 9 (§5): the L2-completeness claim (spec §3.3 / success-criterion 3) as stated — "every pixel reaching the screen in **SCI16** paths crosses `onShow` or a self-draw bracket" — is **falsified by one enumerated path**: the Macintosh icon bar (`GfxMacIconBar::drawImage`, maciconbar.cpp:203/209/211) writes directly to `_screen->gfxDriver()->copyRectToScreen`, bypassing `bitsShow` and any bracket, and is SCI16 (compiled unconditionally, module.mk:54), not SCI32. It is gated on `hasMacIconBar()` (Mac SCI game versions only), so it is outside Roger's shipping EGA-DOS scope and not a live bug — but the claim is over-broad. Resolution options (Task 10): (a) **scope the claim to non-Mac SCI16** — the honest, zero-code fix, matching Roger's actual EGA-DOS target; or (b) emit an L2 `onShow` from `GfxMacIconBar::drawImage` (one hook), making the claim literally true. The 91 other copy-to-screen callers are all funnel / claimed-L4 / SCI32 / debug-console — the funnel itself is complete for the game render loop; this is the lone platform-UI gap.
+  **Resolution: spec amended** — option **(a)** taken (this is a docs-only effort; option (b) is a code change and the spec's own structure supports scoping): spec §3.3's verification bullet and §4.2's L2 funnel paragraph now scope the claim to **non-Mac SCI16**, name `GfxMacIconBar::drawImage` as the sole game-reachable exception (citing §5.3 here), and record the one-line `onShow` hook as the noted future fix if Mac SCI ever enters scope.
 - Task 8 (§6, row R4): spec §6's `onFill(rect, color, token)` candidate is **rejected** on the line-budget grounds §6 delegated to the audit — the kDisplay background fill (P19) folds into `onText` as a `source=fill` enum value instead (retires the empty-string-overload smell without adding a virtual). Task 10: update spec §6's candidate list and §4.2's `onText` source enum accordingly.
+  **Resolution: spec amended** — spec §6's candidate bullet now records the decision (onFill rejected, fold into `onText(source=fill)`, citing row R4 here) and spec §4.2's `onText` source enum gains `fill`.
+
+## 10. Success criteria (spec §9)
+
+Run 2026-07-10 after the §9 resolutions. Spec §9's own six criteria match the
+plan's six one-for-one; two of the spec's literals were superseded by re-measure
+and are reconciled in the evidence cells (criterion 4's "~800" baseline →
+measured 830; criterion 5's "~47" virtuals → measured 49 — both now also tagged
+in the spec itself).
+
+| # | Criterion | Result | Evidence |
+|---|---|---|---|
+| 1 | every hunk classified | PASS | 83/83 hunks mapped across 18 files (per-subsection coverage comments at §3.1–3.13; the §3 coverage-total comment sums 18+6+2+14+4+2+9+12+2+4+4+3+3 = 83, matching §2's measured 83) |
+| 2 | every public entry point inventoried | PASS | §4.1–4.10: per-class method count == table row count for all ten classes (36/43/22/7/9/18/3/41/16/7; ctor+dtor collapsed to one row per the §4 convention) |
+| 3 | L2 completeness verified by enumeration | PASS | §5: 92 copy-to-screen callers + 43 `bitsShow(` hits enumerated and classified (funnel 38, claimed-L4 31, SCI32-only 7, debug/console 13, UNCOVERED 3 — the one Mac-icon-bar path). The claim holds **scoped to non-Mac SCI16**; the spec now carries that scoping (§9 resolution 3) |
+| 4 | projected diff ≤ 830 (cap 1000) | PASS | §6 + §7: 475 consolidation + 10 kept palette gap = **485 ≤ 830** (345-line margin; conservative robustness bound 650; the 1000 cap nowhere near threatened). Baseline evidence note: the 830 target is the 2026-07-10 re-measure (§2) superseding the plan's literal 825 and spec §9's "~800" — both supersessions recorded (§2 note here; spec §2/§9 amendments) |
+| 5 | all 49 virtuals mapped, no orphans | PASS | §6: the virtual-coverage comment maps all 49 `roger_art_provider.h` virtuals (measured count, incl. the dtor) to rows R2–R23, per-row counts summing to exactly 49; every §3 disposition family also lands in a row (disposition-family check comment) |
+| 6 | G-bucket PR candidates with effort | PASS | §8 (finalized): four PR candidates covering all five G rows (F1+F2 as one PR, W2, S3, T2), each with an effort estimate and an explicit "Depends on Roger? No" |
+
+All six PASS — no loop-back required. With §9 fully resolved, the audit + amended
+spec pair is the go signal for the future observer-reshaping work (Stage 3).
