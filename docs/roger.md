@@ -131,7 +131,8 @@ immediately via the one-shot self-consuming keys `roger_picker_precache` and
 detection, and refuses VGA games (Roger is EGA SCI0 only).
 
 **Remove** per row: removes the ConfMan domain (game files and cache are
-untouched). Disabled on row 0 (the running game).
+untouched). Enabled on every row, including the running game — the running
+session keeps playing; the game just leaves the list.
 
 The picker does **not** read or write `roger_precache`, `roger_gen_mode`, or
 `roger_ui_font` — those keys are managed directly in `scummvm.ini` and their
