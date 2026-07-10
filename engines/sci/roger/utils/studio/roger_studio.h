@@ -38,14 +38,15 @@
 // test registration, and the unit tests (test/sci/roger/test_studio_render.h,
 // test_shift_lock.h). Production code must never include it. This module may
 // only consume stable roger seams (roger_asset_gen.h, roger_view_scaler.h,
-// roger_passes.h, roger_widgets.h, png_loader.h) â€” never provider/compositor
-// internals.
+// roger_passes.h, ui/roger_widgets.h, ui/roger_panel_style.h, png_loader.h)
+// â€” never provider/compositor internals.
 
 #include "common/array.h"
 #include "common/rect.h"
 #include "common/str.h"
 #include "sci/roger/gen/roger_asset_gen.h"
 #include "sci/roger/gen/roger_view_scaler.h"
+#include "sci/roger/ui/roger_panel_style.h"
 #include "sci/roger/utils/studio/roger_studio_render.h"
 
 namespace Graphics { class ManagedSurface; struct Surface; }
@@ -194,6 +195,7 @@ private:
 	// Panel (Task 6)
 	Common::Array<PanelWidget> _widgets;    // panel-local small coords
 	uint32 _hoverWid = 0;
+	PanelFonts _panelFonts;
 
 	Common::String _status;
 	Common::String _offsetReadout;   // Task 8: SAD readout line (Diff only)
@@ -202,7 +204,6 @@ private:
 	Graphics::Surface *_diffSurf = nullptr; // 1920x1140 RGBA white-on-black diff
 	bool _diffStale = true;
 
-	bool _hudFontWarned = false;    // warn once per studio session on missing HUD font
 };
 
 } // namespace Roger

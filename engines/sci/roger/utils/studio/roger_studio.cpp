@@ -704,21 +704,26 @@ void RogerStudio::drawCursor() {
 }
 
 void RogerStudio::drawPanel() {
-	const Graphics::Font *font = FontMan.getFontByUsage(Graphics::FontManager::kBigGUIFont);
-	if (!font) {
-		if (!_hudFontWarned) {
-			_hudFontWarned = true;
-			warning("RogerStudio: kBigGUIFont unavailable, panel text disabled");
-		}
-		return;
-	}
+	const int panelTop = _display->h - kPanelH;
 	const int smallW = _display->w / 2, smallH = kPanelH / 2;
-	Graphics::ManagedSurface small(smallW, smallH, _display->format);
-	const uint32 bg = _display->format.RGBToColor(0, 0, 0);
-	const uint32 fg = _display->format.RGBToColor(220, 220, 220);
-	const uint32 hi = _display->format.RGBToColor(255, 255, 0);
-	const uint32 hov = _display->format.RGBToColor(90, 90, 140);
-	small.fillRect(Common::Rect(smallW, smallH), bg);
+
+	// Full-res paint: widgets stay laid out in small (half-res) space so the
+	// existing /2 hit-test mapping and buildStudioPanel are untouched; each
+	// rect is scaled 2x at draw time and text renders at display resolution.
+	const int sizes[kFontRoleCount] = {
+		kStudioRowH * 2 * 3 / 4,  // title: unused today, sized anyway
+		0,                        // sub: unused
+		kStudioRowH * 2 * 3 / 5,  // body: widget labels (28px in a 48px row)
+		kStudioRowH,              // small: unused today, sized anyway
+		kStudioRowH * 2 * 3 / 5   // mono: unused today, sized anyway
+	};
+	_panelFonts.load(sizes);
+	PanelPainter paint(*_display, _panelFonts);
+
+	const Common::Rect panelR(0, panelTop, _display->w, _display->h);
+	_display->fillRect(panelR, _display->format.RGBToColor(
+		PanelStyle::kPanelFill.r, PanelStyle::kPanelFill.g, PanelStyle::kPanelFill.b));
+	paint.strokeRect(panelR, PanelStyle::kPanelLine);
 
 	// Rebuild widgets from current state (cheap; keeps rects in lockstep with state).
 	StudioPanelState st;
@@ -747,13 +752,17 @@ void RogerStudio::drawPanel() {
 
 	for (uint i = 0; i < _widgets.size(); i++) {
 		const PanelWidget &wg = _widgets[i];
-		if (wg.enabled) {
-			if (wg.id == _hoverWid)
-				small.fillRect(wg.rect, hov);
-			small.frameRect(wg.rect, wg.on ? hi : fg);
+		const Common::Rect r(wg.rect.left * 2, panelTop + wg.rect.top * 2,
+		                     wg.rect.right * 2, panelTop + wg.rect.bottom * 2);
+		if (widKind(wg.id) == kWidNone || !wg.enabled) {
+			// Plain text runs (labels, values, display-only chips).
+			paint.drawTextIn(kFontBody, wg.label, r, PanelStyle::kText,
+			                 Graphics::kTextAlignLeft);
+		} else {
+			paint.drawButton(r, wg.label,
+			                 wg.on ? PanelStyle::kBlue : PanelStyle::kPanelLine,
+			                 false, true, wg.id == _hoverWid, kFontBody);
 		}
-		font->drawString(&small, wg.label, wg.rect.left + 4, wg.rect.top + 2,
-		                 wg.rect.width() - 6, wg.on ? hi : fg);
 	}
 
 	// Bottom line: hover help (when hovering a param/chip widget) or render ms + status + offset readout.
@@ -789,11 +798,10 @@ void RogerStudio::drawPanel() {
 			bottomLine = Common::String::format("%ums  %s  %s",
 				s.renderMs, _status.c_str(), _offsetReadout.c_str());
 	}
-	font->drawString(&small, bottomLine, 4, smallH - kStudioRowH + 4, smallW - 8, hi);
-
-	const Common::Rect srcR(0, 0, smallW, smallH);
-	const Common::Rect dstR(0, _display->h - kPanelH, _display->w, _display->h);
-	_display->blitFrom(small.rawSurface(), srcR, dstR);
+	const Common::Rect blR(8, _display->h - kStudioRowH * 2 + 2,
+	                       _display->w - 8, _display->h - 2);
+	paint.drawTextIn(kFontBody, bottomLine, blR, PanelStyle::kAmber,
+	                 Graphics::kTextAlignLeft);
 }
 
 void RogerStudio::dispatchWidget(uint32 id) {
