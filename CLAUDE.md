@@ -289,7 +289,12 @@ room-entry position or wiped the room signs — both shipped as bugs once.
   cel still scales into whatever rect remains, a visible squish at every edge. Clip the
   **paint** instead: `blendScaleBlitNearest`'s optional clip rect samples source coords
   against the full dest rect, cropping off-screen content like native SCI port clipping
-  (fixed 2026-07-04, `a79dace6cd8`).
+  (fixed 2026-07-04, `a79dace6cd8`). Related: `ManagedSurface::blendBlitFrom` computes its
+  right/bottom source crop against the SOURCE size instead of the dest surface, so a dest
+  rect hanging off the screen's right or bottom edge empties the src rect and the whole
+  blit silently no-ops — the composited cursor vanished entirely at the right screen edge
+  (fixed 2026-07-09). Never blendBlitFrom anything that can reach a surface edge; use
+  `blendScaleBlitNearest` (1:1 when dst == src size).
 - Replacing a re-pushed UI element **in place** in the retained display list → violates
   native immediate-mode ordering (the last draw is on top). The QFG1 char-sheet selection
   frame lost its bottom edge to the next row's blank cel, which overlapped it by 1 native px

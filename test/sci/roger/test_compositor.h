@@ -319,6 +319,48 @@ public:
 		plate.free();
 	}
 
+	void test_blend_blit_1to1_off_right_edge_paints_onscreen_part() {
+		// REGRESSION for the "cursor vanishes at the right screen edge" bug: the
+		// composited cursor used ManagedSurface::blendBlitFrom, whose right/bottom
+		// clip computes the source crop against the SOURCE size instead of the dest
+		// surface — a dst rect hanging off the right edge emptied the src rect and
+		// the whole cursor silently vanished. Cursor draws go through
+		// blendScaleBlitNearest (1:1 when dst == src size): the on-screen columns
+		// must be painted, the overhang cropped, never squished.
+		const Graphics::PixelFormat rgba(4, 8, 8, 8, 8, 24, 16, 8, 0);
+		const uint32 red  = rgba.ARGBToColor(255, 255, 0, 0);
+		const uint32 blue = rgba.ARGBToColor(255, 0, 0, 255);
+		const uint32 gray = rgba.ARGBToColor(255, 64, 64, 64);
+
+		// Cursor-shaped source: left half red, right half blue, 32x32.
+		Graphics::Surface cur;
+		cur.create(32, 32, rgba);
+		cur.fillRect(Common::Rect(0, 0, 16, 32), red);
+		cur.fillRect(Common::Rect(16, 0, 32, 32), blue);
+
+		Graphics::ManagedSurface dest(64, 64, rgba);
+		dest.fillRect(Common::Rect(0, 0, 64, 64), gray);
+
+		// 1:1 dst, half off the right edge: (48,16)-(80,48). Only the source's
+		// LEFT (red) half is on-screen.
+		Sci::Roger::blendScaleBlitNearest(dest, cur, Common::Rect(48, 16, 80, 48), false);
+
+		// The on-screen columns show the cursor's left half up to the last pixel.
+		TS_ASSERT_EQUALS(dest.surfacePtr()->getPixel(48, 32), red);
+		TS_ASSERT_EQUALS(dest.surfacePtr()->getPixel(63, 32), red); // very edge painted
+		// No squish: blue (the off-screen half) never appears.
+		for (int x = 0; x < 64; x++)
+			TS_ASSERT_DIFFERS(dest.surfacePtr()->getPixel(x, 32), blue);
+		// Outside the dst rect the background is untouched.
+		TS_ASSERT_EQUALS(dest.surfacePtr()->getPixel(47, 32), gray);
+
+		// Bottom edge, same rule: (16,48)-(48,80) — rows 48..63 painted.
+		Sci::Roger::blendScaleBlitNearest(dest, cur, Common::Rect(16, 48, 48, 80), false);
+		TS_ASSERT_EQUALS(dest.surfacePtr()->getPixel(16, 63), red); // bottom row painted
+
+		cur.free();
+	}
+
 	void test_splat_matches_background_scaler_under_scaling() {
 		// REGRESSION for the "splatted pixels are off by a few px" bug. When the plate
 		// is scaled into the game rect (plate wider than picRect), the occlusion
