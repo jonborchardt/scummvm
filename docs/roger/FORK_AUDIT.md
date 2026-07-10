@@ -595,11 +595,137 @@ Point/Rect — none draws, shows, or reaches the screen. Verified against
 
 ## 6. Consolidation table and line budget
 
-<!-- Task 8 -->
+**Provider surface:** `engines/sci/roger/roger_art_provider.h` declares **49 virtuals**
+(measured 2026-07-10: `(Select-String -Pattern '^\s*virtual ').Count` = 49, matching the
+plan's expected count; the virtual destructor is one of the 49). Every one of them
+appears in exactly one consolidation row below (spec success-criterion 5); the compact
+mapping is the coverage comment at the end of this section.
+
+**Baseline note:** the plan's literal "825" (measured 2026-07-09) is superseded by the
+2026-07-10 re-measure at 14509d438c3: **830 lines / 18 files / 83 hunks** (§2). The
+budget target is therefore ≤ 830; the 1000 hard cap is unchanged.
+
+**Measurement rule.** The projection measures the reshaped **neutral-seam** diff outside
+`engines/sci/roger/` — what the observer-based fork (and any upstream slice) carries in
+SCI engine code. Per the section-3 dispositions: `→ event` rows become mechanical
+null-guarded observer calls; `delete` rows vanish; `standalone-PR` rows leave via §8
+(merged upstream, they are no longer fork diff); `observer-side` marshalling moves
+behind the new header's helpers or into `roger/` (uncounted); `fork-only` rows (bucket
+D) are carried as downstream-only patches **outside** the seam measurement, the same way
+§2's baseline scope already excludes `build_*.ps1`/`CLAUDE.md`/`docs/` (spec §2). The
+new observer header is counted because it lives outside `roger/` (spec §2). Row R20
+makes the fork-only carve-out explicit so the arithmetic stays transparent.
+
+**Estimation method** (stated per the plan, applied to every row): Δ = (current lines at
+the affected sites, apportioned from the §2 per-file measurements across the §3 rows) −
+(reshaped lines: one mechanical observer call per site + §4.3 helper reuse) −
+(war-story comment lines relocated into this audit / the observer implementation).
+Per-row apportionment within a file is estimated; the per-file sums are measured (§2),
+and the reconciliation comment below ties every row's "current" lines back to the 830
+total exactly. Every Δ is rounded to the nearest 5 and tagged high/med/low confidence —
+no invented precision.
+
+| Row | Old (virtuals + hook sites) | New (spec §4.2 event, layer) | §3 rows covered | Sites touched | Cur → reshaped | Est. Δ | Conf. | Risk notes |
+|---|---|---|---|---|---|---|---|---|
+| R1 | ten `#include "sci/roger/roger_art_provider.h"` sites | one neutral engine-owned `sci_gfx_observer.h` include per file | P1, K1, CU1, A2(inc), T1, TR1, C1, M4, PO1, E1 | 10 files | 10 → 10 | 0 | high | SCI code never names a `roger/` path again (Stage 3 rule); 1:1 swap |
+| R2 | `prefetch`, `hasBackground`, `pushHiresBackground`, `pushHiresBackgroundAddTo`, `onNativePicture`; `loadBuffers` = explicit deletion (documented obsolete no-op) | `onPicture(picId, addToFlag)` + `onPictureAbsent()` (L3) | P2, P4 | paint16.cpp ×2 | 34 → ~10 | −25 | med | replace/absent/prefetch decisions move observer-side (the observer knows its own art inventory); the pre-hook gate disappears — SCI emits unconditionally after the native render; the addTo trap (CLAUDE.md) is observer logic, not seam logic |
+| R3 | `onInitCel` (3 sites), `onAddToPicCel` (2 sites), `onDrawCel`, `uiPushIcon`, + `rogerOwnerToken` helper | `onCel(rect, view, loop, cel, priority, owner, source)`, source ∈ {animate, addToPic, initBake, standalone, icon} (L3) | P6, P15, A2(helper), A3, A4, A5, A10, A11, C9 | paint16 ×2, animate ×5 (+helper), controls16 ×1 | 54 → ~24 | −30 | med | owner-token promotion rule is load-bearing (CLAUDE.md `_picNotValid` trap) — `owner` must stay on the event; token construction → §4.3 helper |
+| R4 | `onNativeText`, `uiPushText`, `uiPushStatus` (+ kDisplay bg-fill push) | `onText(rect, text, font, pen, back, align, metrics, token, source)`, source ∈ {textBox, control, status, listRow, fill} (L3) | T3, T4, C2, C6, M13, P19 | text16, controls16 ×2, menu ×1, paint16 ×1 | 92 → ~37 | −55 | med | per-line rects are the DRAWN extent (text16 invariant) — the placement math stays at the Box site. **P19 decision (spec §6 asked the audit):** the `onFill` candidate is REJECTED on line-budget grounds; the kDisplay background fill folds into `onText` as `source=fill` (retires the empty-string overload smell, no new virtual). menuBar/menuRow sources are emitted from menu.cpp and budgeted in R5; windowTitle folds into `onWindowOpen` (R6, per spec §4.2) |
+| R5 | menu.h `RogerMenuRow` struct + 4 state members + 3 `rogerPush*` decls; menu.cpp collection code, `rogerTitleIsText`, `rogerPushBarOverlay`/`rogerPushMenuOverlay`/`rogerClearMenuOverlay` bodies, M12 comment | draw-time events: `onText(menuBar)`/`onText(menuRow)` inside `beginBatch`/`endBatch`, `onWindowOpen/Close(token=dropdown)`, `onMenuHighlight(itemId)` — the **observer** keeps all row state (menu state exile, kills bucket S) | M1, M2, M3, M5, M6, M7, M8, M9, M10, M11, M12 | menu.{cpp,h} | 154 → ~30 | −125 | med | grounded in §2's measured 163 menu lines: 163 − 1 (include, R1) − 8 (M13, R4) = 154 current; reshaped ≈ 30 mechanical emits (drawBar ~8, kernelSelect ~2, drawMenu ~12, invertMenuSelection ~4, + guards) → −125, LARGER than spec §4.2's −100 guess. Risks: invalidation verified only by interactive soak, not the gate; the bar/banner token mutual-exclusion (`0x10000000`) must survive in the §4.3 token scheme |
+| R6 | `uiPushWindow`, `uiClearToken`, `uiClearAll` | `onWindowOpen(rect, style, colors, title, token)` / `onWindowClose(token)` (L3) | PO2, PO3 | ports.cpp ×2 | 53 → ~23 | −30 | med | titlebar text folds into the open payload; the two removeWindow clears become ONE `onWindowClose`; `uiClearAll` has NO out-of-roger caller (verified by grep) → deleted from the seam (observer-internal). PO3's no-save-under **reveal plant is a retained duty-3 exception** — survives as `onRestore(0, rect)` and must never be "simplified" away; menu's three `uiClearToken` calls go observer-side with R5 |
+| R7 | `uiPushButton`, `uiPushTextEdit` | `onControl(kind ∈ {button, textEdit}, ...)` (L3) | C4, C5, C8 | controls16 ×3 | 32 → ~17 | −15 | high | C4/C8 same-token replace-in-place discipline moves observer-side (journal `opSupersedes`); offsetRect/StringWidth/token boilerplate → §4.3 helpers |
+| R8 | `uiPushFrameBox` | `onFrameBox(rect, pen)` (L3) | P16, C7 | paint16, controls16 | 26 → ~11 | −15 | med | C7's change-gating (present-storm guard) moves observer-side; duty-3 exception #2 (frame-box vacated mark) is observer behavior, unaffected at the seam |
+| R9 | `onNativeShowRect` + the `bitsShow(rect, rogerOwner)` signature change | `onShow(rect, owner)` (L2); the `rogerOwner` param is dropped from the public SCI signature, owner derived observer-side | P10, P11 | paint16.{cpp,h} | 19 → ~9 | −10 | med | risk: PO2's tokened show (drawWindow runs under `_wmgrPort`, so bitsShow cannot self-derive the owner) must stay attributable — event ordering (`onWindowOpen` precedes the show) is the replacement mechanism; verify at implementation time |
+| R10 | `onNativeSaveRect`, `onNativeRestoreRect`, `onNativeFreeSave`, `onNativeEraseRect` | `onSave(token, rect)` / `onRestore(token, rect)` / `onFree(token)` / `onErase(rect)` (L2) | P12, P13, P14, P18 | paint16 ×4 | 24 → ~14 | −10 | high | already the consolidated journal path — near-verbatim renames; token = save-handle identity (§4.3) |
+| R11 | `beginNativeDraw` / `endNativeDraw` | `beginSelfDraw()` / `endSelfDraw()` (L2) | P3, P5, P7, P8, P9, P20, A6, A7, A8, A9(bracket) | paint16 ×6, animate ×4 | 63 → ~33 | −30 | med | brackets stay mechanical; the shrink is war-story comment relocation (esp. P20's kDisplay-flush rationale) — the bracket PLACEMENTS are load-bearing and must not move |
+| R12 | `renderFromAnimateList`, `snapshotNativeBaseline` | `onAnimateFrame(list)` + `onFrameEnd()` (L1) | A9(render), A13 | animate ×2 | 14 → ~9 | −5 | high | snapshot is SBS-panel-only since the diff-backstop removal — `onFrameEnd` is the honest generalized name |
+| R13 | `beginUiBatch` / `endUiBatch` | `beginBatch()` / `endBatch()` (L1), generalized to any frozen-loop re-push | (sites live inside the exiled menu bodies — lines budgeted in R5) | menu.cpp (reshaped drawBar/drawMenu) | 0 → 0 | 0 | high | the present-storm guard (menu mouse-crawl fix) must survive the exile — the reshaped drawBar/drawMenu emits stay bracketed |
+| R14 | `onTransition`, `isOverlayVisible` (gated TR2; also gated K6/R15) | `claimTransition(type, rect, blackoutType) -> bool` (L4) | TR2 | transitions.cpp | 26 → ~11 | −15 | med | claim-false → native runs; the instant-finalize block stays inside the claim-true branch (double-blocking dead-time contract documented at the claim); `isOverlayVisible` disappears from the seam — the observer returns false from claims while its overlay is hidden |
+| R15 | `onShake` | `claimShake(count, directions) -> bool` (L4) | K6 | kgraphics.cpp | 7 → ~4 | −5 | high | same claim contract; the inline `isOverlayVisible()` gate becomes the claim return |
+| R16 | `onCursorShape`, `onCursorHidden`, `onCursorView`, `hidesNativeCursor` | `claimCursor() -> bool` + `onCursorShape/View/Hidden` notifications (L4) | K2, K3, K4, K5, CU2 | kgraphics ×4, cursor.cpp | 15 → ~10 | −5 | high | `hidesNativeCursor` ≡ `claimCursor` (the plan's mapping for 135ed9438a3 — no vocabulary extension); CU2's kernelShow veto is the claim's enforcement point; the edge-leak rationale relocates to the claim doc |
+| R17 | (no virtual today — inline `enabled`-gated branch) | `wantsUnclampedTextEdit() -> bool` (L4) | C3 | controls16 | 9 → ~4 | −5 | med | documents exactly what native behavior is skipped (pixel-width keystroke cap) and what the observer guarantees in exchange (`maxChars` still bounds the buffer) |
+| R18 | `onMouseMoved` | `onMouseMoved()` — survives as an L1 notification (spec §4.4: the generic composited-cursor consumer story holds) | E2 | event.cpp | 14 → ~9 | −5 | med | the `sawMouseMove` tracking through the skip loop stays (detection logic, not marshalling) |
+| R19 | `diagEnabled`, `cycleLogEnabled` + the ROGER-DIAG/ROGER-CYCLE instrumentation | deleted from the seam (diag/telemetry stay `roger/`-internal facilities) | P17, K7, A1, A12, A14 (diag lines inside P2/P5/P15/PO3 are netted in their host rows) | paint16, kgraphics, animate ×3 | 24 → 0 | −25 | high | deleting A14 also retires its **upstream-forbidden** non-const function-static `s_prevCycleT0` |
+| R20 | `precacheAll`, `precacheOnePic`, `precacheOneView`, `toggleOverlay`, `toggleDebugLog`, `toggleTunePanel`, `tunePanelMouse`, `remapComparisonMouse` + hotkeys / env gates / launcher block | none — fork-only carve-out: carried as downstream-only patches outside the neutral seam (measurement rule above) | E3, E4, S1, S4(dev blocks), S5 | event.cpp, sci.cpp | 84 → 0 (in-seam) | −85 | med | the fork still carries ~84 lines downstream; they leave the seam measurement the way Stage 3 already excludes dev tooling. Regardless of measurement: S1's `FORBIDDEN_SYMBOL_EXCEPTION_getenv` must be replaced (ConfMan/CLI) before ANY upstream slice |
+| R21 | provider new/delete + concrete includes in sci.cpp; module.mk object list; test/module.mk block | `setArtProvider()` registration (~6 lines); `roger/*.o` exiled to a `roger/`-owned module.mk (uncounted); tests relink against a roger static lib | S2, S4(instantiation), W1, W3 | sci.cpp, module.mk, test/module.mk | 51 → ~15 | −35 | low | Stage 3 registration mechanism not yet designed — the estimate assumes the object list moves under `roger/`; if the build cannot include a nested module.mk, this Δ shrinks toward 0 (see robustness bound below) |
+| R22 | T2 `textHeight = 0` init; S3 caption fix; F1/F2 scifont un-gating; W2 EventRecorder decl fix | standalone upstream PRs (§8) — once merged upstream they leave the fork diff entirely | T2, S3, F1, F2, W2 | text16, sci.cpp, scifont.{cpp,h}, gui/EventRecorder.h | 25 → 0 | −25 | high | cheap goodwill before the observer pitch (spec §8); the Δ realizes only when the PRs are merged |
+| R23 | **NEW: observer header outside roger/** (the `~RogerArtProvider` virtual dtor maps here — the new class owns its own) | `sci_gfx_observer.h`: `SciGfxObserver` (≈30 virtuals incl. dtor: 6 L1, 7 L2, 9 L3, 7 L4, `onMouseMoved`) + §4.3 token-scheme enum & constructors + offsetRect/StringWidth/token marshalling helpers | — | 1 new file | 0 → 200 | +200 | med | spec §2's +200 sanity-checked against the event count this table actually needs: ~30 declarations × ~4 lines (decl + doc comment) ≈ 130, token scheme ~30, source/kind enums ~15, GPL header + boilerplate ~25 ≈ 200 — plausible as budgeted, no adjustment needed |
+| **Total** | | | | | **830 → 475** | **ΣΔ = −355** | | **projected = 830 − 355 = 475** |
+
+**Arithmetic** (per-row Δs, summed by hand): negatives 25+30+55+125+30+15+15+10+10+30+5
++15+5+5+5+5+25+85+35+25 = 555; positives +200; ΣΔ = 200 − 555 = **−355**; projected =
+830 − 355 = **475** (consolidation only; the kept §7 gap adds +10 → **485** final).
+
+**Budget verdict: 485 (475 consolidation + 10 kept palette gap, §7) ≤ 830 target (cap 1000) — PASS.**
+
+No shrink list is required (the gate passes with a 345-line margin), and the 1000 hard
+cap is nowhere near threatened — no §9 cap contradiction. **Robustness bound:** flipping
+every contested estimate to its conservative value at once — menu exile only −100
+(spec's own guess), wiring Δ 0 (nested module.mk impossible), the fork-only carve-out
+disallowed and counted back in (+85), text and bracket rows −15 shallower each — lands
+at 475 + 25 + 35 + 85 + 30 = **650, still PASS**. The projection does land well below
+spec §2's "~780 ± 100" — logged as a §9 finding for Task 10 (the spec's projection
+under-counted the D/W/G departures its own dispositions imply).
+
+<!-- per-file "current" reconciliation (apportioned within measured §2 per-file totals; sums EXACTLY 830):
+  kgraphics 26 = R1 1 + R15 7 (K6) + R16 13 (K2-K5) + R19 5 (K7)
+  event 52 = R1 1 + R18 14 (E2) + R20 37 (E3 4 + E4 33)
+  animate 74 = R1 1 + R3 27 (A2h 6, A3-A5 15, A10/A11 6) + R11 16 (A6-A9 brackets) + R12 14 (A9-render 4 + A13 10) + R19 16 (A1 1 + A12 3 + A14 12)
+  controls16 94 = R1 1 + R3 8 (C9) + R4 29 (C2 20 + C6 9) + R7 32 (C4 14 + C5 9 + C8 9) + R8 15 (C7) + R17 9 (C3)
+  cursor 3 = R1 1 + R16 2 (CU2)
+  menu 163 = R1 1 + R4 8 (M13) + R5 154
+  paint16 171 = R1 1 + R2 34 (P2 18 + P4 16) + R3 19 (P6 6 + P15 13) + R4 13 (P19) + R8 11 (P16) + R9 19 (P10 5 + P11 14) + R10 24 (P12 6 + P13 8 + P14 5 + P18 5) + R11 47 (P3 4 + P5 7 + P7 2 + P8 4 + P9 2 + P20 28) + R19 3 (P17)
+  ports 54 = R1 1 + R6 53 (PO2 28 + PO3 25)
+  scifont 7 = R22 7 (F1+F2)
+  text16 44 = R1 1 + R4 42 (T3 1 + T4 41) + R22 1 (T2)
+  transitions 27 = R1 1 + R14 26 (TR2)
+  module.mk 36 = R21 36 (W1)
+  sci.cpp 67 = R20 47 (S1 6 + S4dev 20 + S5 21) + R21 9 (S2 7 + S4inst 2) + R22 11 (S3)
+  EventRecorder.h 6 = R22 6 (W2)
+  test/module.mk 6 = R21 6 (W3)
+  Row totals: R1 10, R2 34, R3 54, R4 92, R5 154, R6 53, R7 32, R8 26, R9 19, R10 24,
+  R11 63, R12 14, R13 0, R14 26, R15 7, R16 15, R17 9, R18 14, R19 24, R20 84, R21 51, R22 25.
+  Sum = 10+34+54+92+154+53+32+26+19+24+63+14+0+26+7+15+9+14+24+84+51+25 = 830. -->
+
+<!-- virtual coverage: 49/49 —
+  ~RogerArtProvider→R23; prefetch→R2; precacheAll→R20; precacheOnePic→R20; precacheOneView→R20;
+  hasBackground→R2; loadBuffers→R2(explicit deletion); pushHiresBackground→R2; pushHiresBackgroundAddTo→R2;
+  renderFromAnimateList→R12; onNativePicture→R2; onMouseMoved→R18; diagEnabled→R19; cycleLogEnabled→R19;
+  onDrawCel→R3; onInitCel→R3; onAddToPicCel→R3; beginNativeDraw→R11; endNativeDraw→R11;
+  onNativeShowRect→R9; onNativeText→R4; onNativeEraseRect→R10; onNativeSaveRect→R10; onNativeFreeSave→R10;
+  onNativeRestoreRect→R10; snapshotNativeBaseline→R12; onTransition→R14; onShake→R15;
+  onCursorShape→R16; onCursorHidden→R16; onCursorView→R16; hidesNativeCursor→R16;
+  uiPushWindow→R6; uiPushText→R4; uiPushButton→R7; uiPushTextEdit→R7; uiPushIcon→R3; uiPushStatus→R4;
+  uiClearToken→R6; uiClearAll→R6(interface deletion, no out-of-roger caller); beginUiBatch→R13; endUiBatch→R13;
+  uiPushFrameBox→R8; toggleOverlay→R20; toggleDebugLog→R20; remapComparisonMouse→R20;
+  toggleTunePanel→R20; tunePanelMouse→R20; isOverlayVisible→R14(subsumed by claim returns; also gated K6/R15).
+  Count: R2 6 + R3 4 + R4 3 + R6 3 + R7 2 + R8 1 + R9 1 + R10 4 + R11 2 + R12 2 + R13 2 + R14 2
+  + R15 1 + R16 4 + R18 1 + R19 2 + R20 8 + R23 1 = 49. -->
+
+<!-- disposition-family check (every `→ on…`/claim…/other disposition in §3 appears in a row):
+  onPicture/onPictureAbsent→R2; onCel→R3; onText→R4 (menuBar/menuRow emits budgeted R5); onFill candidate→decided in R4;
+  onWindowOpen/onWindowClose→R5/R6; onControl→R7; onFrameBox→R8; onShow→R9; onSave/onRestore/onFree/onErase→R10
+  (PO3 reveal plant retained in R6); beginSelfDraw/endSelfDraw→R11; onAnimateFrame/onFrameEnd→R12;
+  beginBatch/endBatch→R13; onMenuHighlight→R5; claimTransition→R14; claimShake→R15; claimCursor+onCursor*→R16;
+  wantsUnclampedTextEdit→R17; onMouseMoved→R18; sci_gfx_observer.h include swap→R1; delete (diag/telemetry/comments)→R19
+  (+M12 in R5, K7 in R19); fork-only→R20; provider registration/build wiring→R21; standalone-PR→R22. -->
 
 ## 7. Gap list
 
-<!-- Task 8 -->
+One entry per real-gap from section 4. The only real-gap cluster the seam inventory
+found is §4.8's palette-vary/cycle family (4 real-gap rows: `kernelAnimate`,
+`kernelAnimateSet`, `palVaryUpdate`, `palVaryProcess`); everything else was hooked,
+derivable-from-L2, or excluded. Gaps ADD lines, so each kept entry must fit inside the
+post-gate budget — shown added into the projection below.
+
+| Gap (§4 rows) | Proposed event | Layer | Consumer story | Sites | Est. Δ | Keep/defer |
+|---|---|---|---|---|---|---|
+| GfxPalette per-tick vary + color-cycling (§4.8: `kernelAnimate`, `kernelAnimateSet`, `palVaryUpdate`, `palVaryProcess`) | `onPaletteChanged(palette, step, total)` — an explicit **extension** of the spec §4.2 vocabulary (no palette event exists today; the §9 entry from Task 7 already flags it; `step`/`total` come from `_palVaryStep`/`_palVaryStepStop`, 0/0 when no vary is active) | **L2** (LUT truth — the palette sibling of `onShow`: every visible state change is either pixels crossing `onShow` or a LUT change crossing `onPaletteChanged`; this resolves the "place it in the layer model" question left open in §9) | Any display-layer enhancer needing smooth fades/cycling on an RGBA plate: Roger's `roger_palette_live` becomes the smooth 64-step curve instead of a binary re-apply; a streaming overlay mirrors a fade-to-black; an accessibility layer detects scene dimming. Content is NOT recoverable from L2 pixels (a vary tick emits no pixel event at all — §4.8) — both gap-fill conditions hold | **One** hook at the shared funnel `GfxPalette::copySysPaletteToScreen` (palette16.cpp:486) — all four real-gap rows plus every other `setOnScreen` path flow through it: 1 include + ~5-line null-guarded call + ~5 header lines | **+10** (high conf.) | **KEEP** — both §5 conditions hold, CLAUDE.md lists palette-vary-per-tick as the highest-value underused signal, and the cost is a single hook site at an existing funnel |
+
+**Budget fit:** 475 (§6 consolidation projection) + 10 (kept gap) = **485 ≤ 830** — the
+gap fits with no shrink-list consequences. No other gap entries: the list is complete
+with one kept entry (an empty/all-deferred list was a valid outcome; the analysis
+supports keeping this one).
 
 ## 8. Standalone upstream PR candidates (G bucket)
 
@@ -621,3 +747,5 @@ method). **Task 5 seeds; Task 10 finalizes.**
 <!-- any task may append here; Task 10 resolves -->
 
 - Task 7 (§4.8): the spec's L1-L4 event vocabulary (§4.2) has **no palette event**, yet the seam inventory finds a real-gap for the per-tick palette-vary/cycle path (`palVaryUpdate`/`palVaryProcess`, `kernelAnimate`/`kernelAnimateSet`) — a smooth fade/cycle emits no L2 pixel event and its intermediate LUT is unrecoverable from pixels, and CLAUDE.md already lists palette-vary-per-tick as the highest-value underused signal. The design needs a new event (proposed `onPaletteChanged(palette, step, total)`, likely L1/L2-adjacent) to cover it; per the §2 budget it should be one event folding all four palette-vary/cycle call sites. Task 8/10 to place it in the layer model.
+- Task 8 (§6): the projected reshaped footprint — **475** consolidation-only, **485** with the kept palette gap — lands **well below** spec §2's "~780 ± 100" projection. Not a budget violation (success-criterion 4 passes with a 345-line margin), but §2's projection paragraph under-counts three departures the audit's own dispositions make explicit: the fork-only D-bucket carve-out (−85: E3/E4/S1/S4-dev/S5, carried downstream outside the neutral seam), wiring → registration + plugin module.mk (−35), and G-bucket standalone-PR departures (−25); it also under-estimates the menu exile (−125 grounded in the measured 163 menu lines vs the −100 guess). Task 10 should update spec §2's projection, or state explicitly which measurement rule (with vs without the fork-only carve-out) its number assumes — even with the carve-out counted back in, the conservative bound is 650, still under the 830 target.
+- Task 8 (§6, row R4): spec §6's `onFill(rect, color, token)` candidate is **rejected** on the line-budget grounds §6 delegated to the audit — the kDisplay background fill (P19) folds into `onText` as a `source=fill` enum value instead (retires the empty-string-overload smell without adding a virtual). Task 10: update spec §6's candidate list and §4.2's `onText` source enum accordingly.
