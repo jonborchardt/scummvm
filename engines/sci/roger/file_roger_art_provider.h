@@ -55,7 +55,7 @@ public:
 	bool precacheOneView(int viewId) override;
 	void pushHiresBackground(GuiResourceId pictureId) override;
 	void pushHiresBackgroundAddTo(GuiResourceId pictureId) override;
-	void renderFromAnimateList(const AnimateList &list) override;
+	void onAnimateFrame(const AnimateList &list) override;
 	void onNativePicture() override;
 	void onMouseMoved() override;
 	void onDrawCel(const Common::Rect &globalRect, int viewId, int loopNo, int celNo) override;
@@ -73,7 +73,7 @@ public:
 	void onSave(uint32 token, const Common::Rect &rect) override;
 	void onFree(uint32 token) override;
 	void onRestore(uint32 token, const Common::Rect &rect) override;
-	void snapshotNativeBaseline() override;
+	void onFrameEnd() override;
 	void onTransition(int sciType, const Common::Rect &picRect, int blackoutSciType) override;
 	void onShake(int shakeCount, int directions) override;
 	void onCursorShape(int cursorId) override;
@@ -292,7 +292,7 @@ private:
 	// Ã¢â€â‚¬Ã¢â€â‚¬ Present barrier (spec Ã‚Â§3.2) Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 	// The ONLY entry point that pushes to the overlay outside transitions. O(1)
 	// when nothing changed. Defers while the animate cycle is mid-draw
-	// (_inAnimateCycle) Ã¢â‚¬â€ the end-of-renderFromAnimateList call flushes.
+	// (_inAnimateCycle) Ã¢â‚¬â€ the end-of-onAnimateFrame call flushes.
 	void presentBarrier();
 	void markUiDirty(const Common::Rect &nativeRect);      // element pushed/redrawn at nr
 	void markVacatedDirty(const Common::Rect &nativeRect); // element removed at nr
@@ -302,7 +302,7 @@ private:
 	// Extracted from compositeCursor so the barrier can detect cursor movement.
 	Common::Rect cursorDstRect(const Common::Rect &gameRect);
 	bool _barrierDirty = false;      // any mark since the last barrier present
-	bool _inAnimateCycle = false;    // set at snapshotNativeBaseline, cleared at cycle end
+	bool _inAnimateCycle = false;    // set at onFrameEnd, cleared at cycle end
 	bool _frameJustComposed = false; // renderFrame composed this cycle (Task 4 uses it)
 	int _uiBatchDepth = 0; // presentBarrier defers while > 0; endUiBatch flushes
 

@@ -42,7 +42,7 @@
 #include "sci/roger/gen/roger_view_scaler.h"
 // animate.h references these SCI engine types in GfxAnimate's interface but does
 // not declare them itself. This translation unit includes animate.h (to iterate
-// the AnimateList in renderFromAnimateList) without first pulling in the full
+// the AnimateList in onAnimateFrame) without first pulling in the full
 // engine-state headers, so forward-declare them here. Confined to this Roger file
 // to keep animate.h itself untouched.
 namespace Sci {
@@ -122,7 +122,7 @@ FileRogerArtProvider::FileRogerArtProvider(const Common::String &gameId,
 	_truthCapture = envTruth ? (Common::String(envTruth) != "0" && Common::String(envTruth) != "false")
 	                         : (ConfMan.hasKey("roger_truth_capture") && ConfMan.getBool("roger_truth_capture"));
 
-	// Cycle-diff backstop net (spec Phase 2): at the snapshotNativeBaseline seam, diff
+	// Cycle-diff backstop net (spec Phase 2): at the onFrameEnd seam, diff
 	// the native visual buffer against the previous cycle's copy and invalidate the
 	// changed boxes Ã¢â‚¬â€ a native change that slipped past every invalidation hook heals
 	// on the next cycle's present (brief flicker at worst, never persistent staleness).
@@ -776,7 +776,7 @@ void FileRogerArtProvider::renderFrame(const Common::Array<Roger::Sprite> &sprit
 			_compositeCache->copyRectToSurface(scene.rawSurface(), u[i].left, u[i].top, u[i]);
 	}
 	_compositeCacheValid = true;
-	_frameJustComposed = true; // presentBarrier() (the renderFromAnimateList tail) presents this frame
+	_frameJustComposed = true; // presentBarrier() (the onAnimateFrame tail) presents this frame
 }
 
 void FileRogerArtProvider::dumpOverlaySnap(const Common::String &label,
@@ -2574,7 +2574,7 @@ void FileRogerArtProvider::onNativeText(const Common::Rect &nativeRect, const ch
 	// tagged to a dead window (it then lingered until the NEXT window reused the id). Pushing
 	// immediately means the text is in _journal under its live window bracket, so the window's
 	// removeWindow closes it on dismiss. Safe: onNativeText fires on a real text draw, not
-	// per-cycle. renderFromAnimateList still calls flushGenericText (a no-op when empty).
+	// per-cycle. onAnimateFrame still calls flushGenericText (a no-op when empty).
 	flushGenericText();
 }
 
@@ -2636,8 +2636,10 @@ void FileRogerArtProvider::flushGenericText() {
 		dumpCaptureDebug();
 }
 
-void FileRogerArtProvider::snapshotNativeBaseline() {
-	// kernelAnimate is mid-cycle from this hook until renderFromAnimateList runs.
+void FileRogerArtProvider::onFrameEnd() {
+	if (!enabled)
+		return;
+	// kernelAnimate is mid-cycle from this hook until onAnimateFrame runs.
 	// While it is, blocking-seam barrier calls defer (the cycle's own tail call
 	// flushes them) Ã¢â‚¬â€ this is what makes a bitsRestore storm structurally unable
 	// to present per-hook (the bb65c56b75a class).
@@ -2785,7 +2787,9 @@ bool FileRogerArtProvider::drawGenericRegions(Graphics::ManagedSurface &scene,
 	return drewAny;
 }
 
-void FileRogerArtProvider::renderFromAnimateList(const AnimateList &list) {
+void FileRogerArtProvider::onAnimateFrame(const AnimateList &list) {
+	if (!enabled)
+		return;
 	Common::Array<Roger::Sprite> sprites;
 	Common::Array<Graphics::Surface *> nativeSurfaces;
 
@@ -2958,7 +2962,7 @@ void FileRogerArtProvider::toggleOverlay() {
 		g_system->hideOverlay();
 	} else if (prev == Roger::kModeOriginal) {
 		// Original -> SideBySide: overlay comes back. _nativeBaseline went stale while
-		// the overlay was off (snapshotNativeBaseline early-returns when hidden); force a
+		// the overlay was off (onFrameEnd early-returns when hidden); force a
 		// fresh snapshot on the next kernelAnimate before the SBS native panel reads it.
 		_haveBaseline = false;
 		if (_haveScene) { markFullDirty(); presentBarrier(); }
@@ -3257,7 +3261,7 @@ void FileRogerArtProvider::onTransition(int sciType, const Common::Rect & /*picR
 	// cycle the Feeder-A hooks have captured exactly that set: _staticSprites
 	// (addToPic) + _initCels (every cast draw during _picNotValid, live actors
 	// included Ã¢â‚¬â€ the steady-state live-owner promotion filter deliberately does
-	// NOT apply to this one transient frame). renderFromAnimateList recomposes
+	// NOT apply to this one transient frame). onAnimateFrame recomposes
 	// from the real animate list on the very next frame.
 	Common::Array<Roger::Sprite> frame1;
 	Roger::buildInitFrameSpriteSet(_staticSprites, _initCels, frame1);

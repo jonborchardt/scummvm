@@ -604,9 +604,9 @@ void GfxAnimate::reAnimate(Common::Rect rect) {
 	if (g_sciGfxObserver)
 		g_sciGfxObserver->endSelfDraw();
 
-	// Roger hires overlay: re-composite after the background is restored (e.g. after a dialog dismissal).
-	if (g_sciRogerProvider && g_sciRogerProvider->enabled)
-		g_sciRogerProvider->renderFromAnimateList(_list);
+	// Re-composite after the background restore (e.g. dialog dismissal).
+	if (g_sciGfxObserver)
+		g_sciGfxObserver->onAnimateFrame(_list);
 }
 
 void GfxAnimate::addToPicDrawCels() {
@@ -696,6 +696,11 @@ void GfxAnimate::kernelAnimate(reg_t listReference, bool cycle, int argc, reg_t 
 	// call unconditionally (negligible); the log line itself is gated below.
 	const uint32 rogerCycleT0 = g_system->getMillis();
 
+	// Observer frame boundary: one game cycle begins. Early-return paths below
+	// exit without a matching onAnimateFrame (observers tolerate that).
+	if (g_sciGfxObserver)
+		g_sciGfxObserver->onFrameStart();
+
 	// If necessary, delay this kAnimate for a running PalVary.
 	// See delayForPalVaryWorkaround() for details.
 	if (_screen->_picNotValid)
@@ -749,16 +754,15 @@ void GfxAnimate::kernelAnimate(reg_t listReference, bool cycle, int argc, reg_t 
 
 	updateScreen(old_picNotValid);
 
-	// Roger Feeder B: the native buffer now holds {pic + addToPic + animate} — the
-	// "known" state. Snapshot it as the diff baseline for unhooked draws this frame.
-	if (g_sciRogerProvider && g_sciRogerProvider->enabled)
-		g_sciRogerProvider->snapshotNativeBaseline();
+	// Observer frame boundary: the native buffer now holds the complete frame
+	// {pic + addToPic + animate}.
+	if (g_sciGfxObserver)
+		g_sciGfxObserver->onFrameEnd();
 
 	restoreAndDelete(argc, argv);
 
-	// Roger hires overlay: composite the sorted cast into the OSystem overlay.
-	if (g_sciRogerProvider && g_sciRogerProvider->enabled)
-		g_sciRogerProvider->renderFromAnimateList(_list);
+	if (g_sciGfxObserver)
+		g_sciGfxObserver->onAnimateFrame(_list);
 
 	// We update the screen here as well, some scenes like EQ1 credits run w/o calling kGetEvent thus we wouldn't update
 	//  screen at all

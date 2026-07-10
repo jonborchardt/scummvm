@@ -90,11 +90,6 @@ public:
 	// Base implementation is a no-op.
 	virtual void pushHiresBackgroundAddTo(GuiResourceId pictureId) {}
 
-	// Called each frame by the GfxAnimate hook: translates the sorted animate
-	// list to Sprites and composites the hires scene into the OSystem overlay.
-	// Default no-op; FileRogerArtProvider overrides with the real compositor.
-	virtual void renderFromAnimateList(const AnimateList &list) {}
-
 	// Called when a full-screen picture with NO replacement art is drawn: drop any
 	// hires overlay left over from a previous room so it does not bleed through.
 	virtual void onNativePicture() {}
@@ -154,11 +149,6 @@ public:
 	virtual void onNativeText(const Common::Rect &nativeRect, const char *text,
 	                          int fontId, int penColor, int align,
 	                          int nativeFontH, int nativeTextW, uint32 winToken) {}
-
-	// Feeder B diff backstop: snapshot the native visual buffer as the "known" state
-	// (plate-source + addToPic + animate sprites), taken right after SCI's updateScreen.
-	// A later composite diffs against it to catch native draws no hook recorded. No-op base.
-	virtual void snapshotNativeBaseline() {}
 
 	// Called from GfxTransitions::doit() when a room transition is about to run (gated on
 	// g_sciRogerProvider + enabled). The provider mirrors the effect in the overlay; SCI's
