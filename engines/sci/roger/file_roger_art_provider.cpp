@@ -1790,7 +1790,16 @@ void FileRogerArtProvider::onWindowOpen(const Common::Rect &r, uint16 wndStyle,
 	// show this way. Armed even without a plate: attribution state, not rendering.
 	if ((token & Roger::kTokenNamespaceMask) == Roger::kControlTokenNs) {
 		_pendingShowOwner = token;
+		// GfxPaint16::bitsShow even-rounds every shown rect (left &= 0xFFFE, right
+		// rounded up to even; paint16.cpp:359-360). Framed windows always have an ODD
+		// dims.left — GfxPorts::addWindow force-evens the content rect then grows it by
+		// 1px for the frame — so the shown rect is 1px wider on the left than the armed
+		// dims rect and inclusive Rect::contains() never matches. Normalize the armed
+		// rect to bitsShow's rounding here or open->show attribution never fires for
+		// framed dialogs (the pre-cmdbox-fix state, masked by later redundancy layers).
 		_pendingShowRect = r;
+		_pendingShowRect.left &= 0xFFFE;              // round down (mirror bitsShow)
+		_pendingShowRect.right = (_pendingShowRect.right + 1) & 0xFFFE; // round up
 	}
 	if (!overlayShown() || !_plate) return; // no hires scene -> leave native UI visible
 	ensureUi();
