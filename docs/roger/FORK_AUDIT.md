@@ -591,7 +591,200 @@ Point/Rect — none draws, shows, or reaches the screen. Verified against
 
 ## 5. L2 completeness verification
 
-<!-- Task 9 -->
+**Claim (spec §3.3 / success-criterion 3):** every pixel that reaches the screen
+in **SCI16** paths crosses the L2 `onShow` seam (`GfxPaint16::bitsShow` →
+`GfxScreen::copyRectToScreen`), is inside a documented begin/endNativeDraw
+**self-draw bracket** (§3 rows), or is a **documented L4 claim** the observer
+overrides. Per §3.3 this is *checked by enumeration, not asserted*: every
+`copyRectToScreen`/`copyToScreen` caller in the SCI graphics stack is listed and
+classified.
+
+**Reproducible enumeration (run at 14509d438c3 on branch jon-update-core-audit):**
+
+```
+git grep -n "copyRectToScreen\|copyToScreen\|copyDisplayRectToScreen" -- engines/sci   # 92 hits
+git grep -n "bitsShow(" -- engines/sci ':(exclude)engines/sci/roger'                    # 47 hits
+```
+
+The `copyDisplayRectToScreen` token appears in no hit (SCI has no such method; it
+was carried from the plan's grep for completeness). **92** copy-to-screen hits;
+**0** are under `engines/sci/roger/` (footnote below), so the table has **92**
+rows — one per hit, none excluded as observer-side.
+
+### 5.1 The two-layer funnel (why most hits are "below L2, not a bypass")
+
+`copyRectToScreen` names **two structurally distinct layers**:
+
+- **`GfxScreen::copyRectToScreen` / `copyToScreen`** — the SCI16 funnel. This is
+  the level L2 observes: `GfxPaint16::bitsShow` calls `GfxScreen::copyRectToScreen`
+  (paint16.cpp:396, the funnel body — §3.1 P10/P11) and emits `onNativeShowRect`
+  right after. Every game-visible SCI16 pixel show flows through `bitsShow` (47
+  callers, all in-tree SCI code) → `GfxScreen::copyRectToScreen`.
+- **`GfxDriver::copyRectToScreen`** (the `drivers/*` implementations + the
+  `g_system->copyRectToScreen` inside them) — the **backend transport beneath**
+  `GfxScreen`. `GfxScreen::displayRect` (screen.cpp:219) → `_gfxDrv->copyRectToScreen`
+  → `g_system->copyRectToScreen`. This is how the funnel reaches the OSystem
+  surface; it is *downstream* of L2, never a path that bypasses it. Classifying a
+  driver-layer call "uncovered" would be a category error — no SCI16 pixel reaches
+  the driver except through `GfxScreen`, which the funnel already covers.
+
+So the verdicts below use these values (the four brief categories, plus two
+sub-labels that are honestly *covered*, not gaps — each justified inline):
+
+- **funnel** — the `GfxScreen` funnel itself (defs, decls, the `bitsShow` body) or
+  the driver/backend transport beneath it (reached only through `GfxScreen`).
+- **bracketed** — inside a begin/endNativeDraw self-draw bracket a §3 row documents.
+- **claimed (L4)** — a native path the observer overrides via a documented L4 claim
+  (transitions early-return, §3.6 TR2 → `claimTransition`); never runs while the
+  overlay is visible, so no unobserved pixel escapes. Covered, not a gap.
+- **SCI32-only** — excluded; compiled only under `ifdef ENABLE_SCI32` (module.mk:143).
+- **debug/console** — excluded developer instrumentation (SCI debugger console,
+  `#ifdef DEBUG_*` / `#if 0` visualizers, `kDebugLevelAvoidPath` channel); not part
+  of the observed game render loop, the same way SCI32 is out of scope. Gating cited
+  per row.
+- **UNCOVERED** — a *game-reachable* SCI16 screen write outside funnel, bracket, and
+  claim. Any such hit is a real finding (recorded in §9). Result: **one** — the Mac
+  icon bar (Mac-platform-only SCI16 UI; see §5.3 and §9).
+
+### 5.2 Classification table (92 rows)
+
+| # | Caller (file:line) | Path | Verdict |
+|---|---|---|---|
+| 1 | console.cpp:2050 copyToScreen | `cmdDrawPic` debugger command | debug/console |
+| 2 | console.cpp:2079 copyRectToScreen | `cmdDrawCel` debugger command | debug/console |
+| 3 | console.cpp:2390 copyRectToScreen | `cmdPaintSetSize`/paint-rect debugger command | debug/console |
+| 4 | console.cpp:2394 copyRectToScreen | same debugger command, restore path | debug/console |
+| 5 | kpathing.cpp:1605 copyToScreen | AvoidPath input viz, gated `isDebugChannelEnabled(kDebugLevelAvoidPath)` | debug/console |
+| 6 | kpathing.cpp:1861 copyToScreen | AvoidPath intersections viz, same debug channel | debug/console |
+| 7 | kpathing.cpp:2409 copyToScreen | `draw_line`-based path viz, `#ifdef DEBUG_MERGEPOLY` region | debug/console |
+| 8 | kpathing.cpp:2491 copyToScreen | merge-poly viz, `#ifdef DEBUG_MERGEPOLY` | debug/console |
+| 9 | animate.cpp:549 `// _screen->copyToScreen();` | commented-out debug line — not a call site | debug/console (comment) |
+| 10 | cursor32.cpp:135 `g_system->copyRectToScreen` | GfxCursor32 (SCI32 cursor) | SCI32-only |
+| 11 | drivers/cga.cpp:34 decl | `SCI0_CGADriver::copyRectToScreen` override decl (driver layer) | funnel (backend decl) |
+| 12 | drivers/cga.cpp:146 def | CGA driver `copyRectToScreen` def (below GfxScreen) | funnel (backend) |
+| 13 | drivers/cga.cpp:164 `g_system->copyRectToScreen` | CGA driver → OSystem transport | funnel (backend) |
+| 14 | drivers/cgabw.cpp:34 decl | CGA-BW driver override decl | funnel (backend decl) |
+| 15 | drivers/cgabw.cpp:67 def | CGA-BW driver def | funnel (backend) |
+| 16 | drivers/cgabw.cpp:89 `g_system->copyRectToScreen` | CGA-BW → OSystem transport | funnel (backend) |
+| 17 | drivers/default.cpp:183 copyRectToScreen | GfxDefaultDriver internal full-bitmap re-push | funnel (backend) |
+| 18 | drivers/default.cpp:191 def | GfxDefaultDriver `copyRectToScreen` def | funnel (backend) |
+| 19 | drivers/default.cpp:205 `g_system->copyRectToScreen` | default driver → OSystem transport | funnel (backend) |
+| 20 | drivers/ega.cpp:138 copyRectToScreen | SCI1_EGADriver internal full re-push | funnel (backend) |
+| 21 | drivers/ega.cpp:141 def | SCI1_EGADriver `copyRectToScreen` def | funnel (backend) |
+| 22 | drivers/ega.cpp:156 `g_system->copyRectToScreen` | EGA driver → OSystem transport | funnel (backend) |
+| 23 | drivers/gfxdriver.h:50 pure-virtual decl | `GfxDriver::copyRectToScreen` interface (driver layer) | funnel (backend decl) |
+| 24 | drivers/gfxdriver_intern.h:37 decl | GfxDefaultDriver override decl | funnel (backend decl) |
+| 25 | drivers/gfxdriver_intern.h:96 decl | UpscaledGfxDriver override decl | funnel (backend decl) |
+| 26 | drivers/gfxdriver_intern.h:132 decl | further driver override decl | funnel (backend decl) |
+| 27 | drivers/hercules.cpp:34 decl | Hercules driver override decl | funnel (backend decl) |
+| 28 | drivers/hercules.cpp:70 def | Hercules driver `copyRectToScreen` def | funnel (backend) |
+| 29 | drivers/hercules.cpp:97 `g_system->copyRectToScreen` | Hercules → OSystem transport | funnel (backend) |
+| 30 | drivers/pc98_8col_sci1.cpp:36 decl | PC98 8-color driver override decl | funnel (backend decl) |
+| 31 | drivers/pc98_8col_sci1.cpp:164 def | PC98 8-color driver def | funnel (backend) |
+| 32 | drivers/upscaled.cpp:91 def | UpscaledGfxDriver `copyRectToScreen` def | funnel (backend) |
+| 33 | drivers/upscaled.cpp:168 `g_system->copyRectToScreen` | upscaled driver → OSystem transport | funnel (backend) |
+| 34 | drivers/win256col.cpp:34 decl | Windows-256 driver override decl | funnel (backend decl) |
+| 35 | drivers/win256col.cpp:156 def | Windows-256 driver def | funnel (backend) |
+| 36 | drivers/win256col.cpp:161 `UpscaledGfxDriver::copyRectToScreen` | delegates to base driver | funnel (backend) |
+| 37 | frameout.cpp:654 `g_system->copyRectToScreen` | GfxFrameout (SCI32 render loop) | SCI32-only |
+| 38 | frameout.cpp:1105 comment | comment mentioning `OSystem::copyRectToScreen` — not a call | SCI32-only (comment) |
+| 39 | frameout.cpp:1117 `g_system->copyRectToScreen` | GfxFrameout show-rect | SCI32-only |
+| 40 | frameout.cpp:1121 `g_system->copyRectToScreen` | GfxFrameout show-rect (partial) | SCI32-only |
+| 41 | maciconbar.cpp:203 `gfxDriver()->copyRectToScreen` | Mac icon bar, upscaled draw — direct to driver, no bitsShow | **UNCOVERED** (Mac-only; §9) |
+| 42 | maciconbar.cpp:209 `gfxDriver()->copyRectToScreen` | Mac icon bar, disabled-icon draw — direct to driver | **UNCOVERED** (Mac-only; §9) |
+| 43 | maciconbar.cpp:211 `gfxDriver()->copyRectToScreen` | Mac icon bar, enabled-icon draw — direct to driver | **UNCOVERED** (Mac-only; §9) |
+| 44 | paint16.cpp:396 `_screen->copyRectToScreen(workerRect)` | **the funnel body**: `bitsShow` → `GfxScreen::copyRectToScreen`, then `onNativeShowRect` (§3.1 P10/P11) | **funnel** |
+| 45 | picture.cpp:450 copyToScreen | `#ifdef DEBUG_PICTURE_DRAW` op-trace | debug/console |
+| 46 | picture.cpp:727 copyToScreen | `_EGAdrawingVisualize` debug-visualize flag | debug/console |
+| 47 | picture.cpp:878 copyToScreen | `#if 0` floodfill debug | debug/console |
+| 48 | screen.cpp:219 `_gfxDrv->copyRectToScreen` | `GfxScreen::displayRect` → driver (funnel→backend seam) | funnel |
+| 49 | screen.cpp:233 copyToScreen | `clearForRestoreGame` full re-push (funnel self-call) | funnel |
+| 50 | screen.cpp:236 def | `GfxScreen::copyToScreen` def (funnel) | funnel |
+| 51 | screen.cpp:242 `_gfxDrv->copyRectToScreen` | `copyToScreen` → driver transport | funnel |
+| 52 | screen.cpp:249 def | `GfxScreen::copyRectToScreen(rect)` def (funnel, bitsShow target) | funnel |
+| 53 | screen.cpp:275 `_gfxDrv->copyRectToScreen` | `copyHiResRectToScreen` → driver (hires upscaled-mode transport) | funnel |
+| 54 | screen.cpp:279 def | `GfxScreen::copyRectToScreen(rect,x,y)` overload def (funnel) | funnel |
+| 55 | screen.cpp:792 copyToScreen | `debugShowMap` (console `debug_showmap` command) | debug/console |
+| 56 | screen.cpp:927 `_gfxDrv->copyRectToScreen` | `bakCopyRectToScreen` → driver; sole caller is transitions scroll (claimed) | funnel |
+| 57 | screen.h:85 decl | `GfxScreen::copyToScreen` decl | funnel (decl) |
+| 58 | screen.h:87 decl | `GfxScreen::copyRectToScreen(rect)` decl | funnel (decl) |
+| 59 | screen.h:89 decl | `GfxScreen::copyRectToScreen(rect,x,y)` decl | funnel (decl) |
+| 60 | transitions.cpp:306 `_screen->copyRectToScreen(_picRect)` | `setNewScreen`; reached only via `doit()` (claimed early-return, §3.6 TR2) | claimed (L4) |
+| 61 | transitions.cpp:311 def | `GfxTransitions::copyRectToScreen` helper def | claimed (L4) |
+| 62 | transitions.cpp:313 `_screen->copyRectToScreen(rect)` | transitions helper body → funnel | claimed (L4) |
+| 63 | transitions.cpp:383 copyRectToScreen | `pixelation()` | claimed (L4) |
+| 64 | transitions.cpp:409 copyRectToScreen | `blocks()` | claimed (L4) |
+| 65 | transitions.cpp:431 copyRectToScreen | `straight()` from-right | claimed (L4) |
+| 66 | transitions.cpp:446 copyRectToScreen | `straight()` from-left | claimed (L4) |
+| 67 | transitions.cpp:461 copyRectToScreen | `straight()` from-bottom | claimed (L4) |
+| 68 | transitions.cpp:474 copyRectToScreen | `straight()` from-top | claimed (L4) |
+| 69 | transitions.cpp:522 `_screen->copyRectToScreen(...)` | `scroll()` | claimed (L4) |
+| 70 | transitions.cpp:540 `_screen->copyRectToScreen(...)` | `scroll()` | claimed (L4) |
+| 71 | transitions.cpp:559 `_screen->copyRectToScreen(...)` | `scroll()` | claimed (L4) |
+| 72 | transitions.cpp:575 `_screen->copyRectToScreen(...)` | `scroll()` final | claimed (L4) |
+| 73 | transitions.cpp:588 `_screen->copyRectToScreen(newScreenRect)` | `scrollCopyOldToScreen`/scroll finalize | claimed (L4) |
+| 74 | transitions.cpp:603 copyRectToScreen | `verticalRollFromCenter()` left | claimed (L4) |
+| 75 | transitions.cpp:604 copyRectToScreen | `verticalRollFromCenter()` right | claimed (L4) |
+| 76 | transitions.cpp:620 copyRectToScreen | `verticalRollToCenter()` left | claimed (L4) |
+| 77 | transitions.cpp:621 copyRectToScreen | `verticalRollToCenter()` right | claimed (L4) |
+| 78 | transitions.cpp:641 copyRectToScreen | `horizontalRollFromCenter()` upper | claimed (L4) |
+| 79 | transitions.cpp:642 copyRectToScreen | `horizontalRollFromCenter()` lower | claimed (L4) |
+| 80 | transitions.cpp:658 copyRectToScreen | `horizontalRollToCenter()` upper | claimed (L4) |
+| 81 | transitions.cpp:659 copyRectToScreen | `horizontalRollToCenter()` lower | claimed (L4) |
+| 82 | transitions.cpp:690 copyRectToScreen | `diagonalRollFromCenter()` upper | claimed (L4) |
+| 83 | transitions.cpp:691 copyRectToScreen | `diagonalRollFromCenter()` lower | claimed (L4) |
+| 84 | transitions.cpp:692 copyRectToScreen | `diagonalRollFromCenter()` left | claimed (L4) |
+| 85 | transitions.cpp:693 copyRectToScreen | `diagonalRollFromCenter()` right | claimed (L4) |
+| 86 | transitions.cpp:711 copyRectToScreen | `diagonalRollToCenter()` upper | claimed (L4) |
+| 87 | transitions.cpp:712 copyRectToScreen | `diagonalRollToCenter()` lower | claimed (L4) |
+| 88 | transitions.cpp:713 copyRectToScreen | `diagonalRollToCenter()` left | claimed (L4) |
+| 89 | transitions.cpp:714 copyRectToScreen | `diagonalRollToCenter()` right | claimed (L4) |
+| 90 | transitions.h:76 decl | `GfxTransitions::copyRectToScreen` helper decl | claimed (L4) |
+| 91 | video32.cpp:269 `g_system->copyRectToScreen` | SCI32 video playback (Robot/VMD) | SCI32-only |
+| 92 | video32.cpp:1269 `g_system->copyRectToScreen` | SCI32 video playback | SCI32-only |
+
+### 5.3 Result
+
+**Result: 92 callers — 89 covered rows + 3 uncovered rows (one finding). Verdict tally: funnel 38, claimed-L4 31, SCI32-only 7, debug/console 13, UNCOVERED 3.**
+
+- **funnel: 38** (rows 11–36, 44, 48–54, 56–59 — the `GfxScreen` funnel + the
+  driver/backend transport beneath it; the funnel body at row 44 emits `onNativeShowRect`).
+- **claimed (L4): 31** (rows 60–90 — all reached only through `GfxTransitions::doit`,
+  which early-returns to `onTransition`/`claimTransition` while the overlay is visible;
+  §3.6 TR2).
+- **SCI32-only: 7** (rows 10, 37–40, 91–92 — `ifdef ENABLE_SCI32`, module.mk:143; row 38
+  is a comment).
+- **debug/console: 13** (rows 1–8 + row 9 commented-out line, rows 45–47, 55 — SCI
+  debugger console, `DEBUG_*`/`#if 0` visualizers, `kDebugLevelAvoidPath` channel).
+  Developer instrumentation, out of the observed render loop (excluded on the same
+  footing as SCI32).
+- **UNCOVERED: 3** (rows 41–43 — the single Mac-icon-bar draw path; three call sites,
+  **one finding**, so "89 covered + 3 uncovered = the one Mac-icon-bar gap").
+
+**The one uncovered path — the Mac icon bar** (`GfxMacIconBar::drawImage`,
+maciconbar.cpp:203/209/211). It writes directly to `_screen->gfxDriver()->copyRectToScreen`,
+bypassing `GfxPaint16::bitsShow` and any self-draw bracket, and it is **SCI16**
+(compiled unconditionally; module.mk:54), not SCI32. It is gated on
+`hasMacIconBar()` — the Macintosh-only persistent icon strip (Mac SCI game versions).
+It is therefore a real screen write the literal L2-completeness claim ("every pixel
+in SCI16 paths crosses onShow or a bracket") does **not** account for. In practice it
+is out of Roger's shipping scope (Roger targets SCI0/SCI1 **EGA DOS** games — SQ3,
+QFG1 EGA — which have no Mac icon bar; the overlay is never active for a Mac target),
+so it is not a live bug, but the *stated* claim is over-broad. Recorded as a §9
+finding: the completeness claim must be **scoped to non-Mac SCI16** (or the Mac icon
+bar must emit an L2 `onShow`, a one-line hook at `drawImage`) before the design can
+assert it unqualified.
+
+### 5.4 Footnote — roger/ exclusions
+
+Both greps were re-run against `engines/sci/roger/`:
+`git grep -n "copyRectToScreen\|copyToScreen\|copyDisplayRectToScreen" -- engines/sci/roger`
+and the `bitsShow(` grep with `':(exclude)engines/sci/roger'` inverted — **both return
+zero hits**. The Roger overlay never calls `copyRectToScreen`/`copyToScreen` (it
+presents through the OSystem *overlay* via `g_system->copyRectToOverlay`, a different
+surface) and never calls `bitsShow` (it *observes* it). So there are **no
+observer-side hits to exclude** from the 92-row enumeration; every row is SCI-engine
+code, and the table row count equals the grep hit count exactly.
 
 ## 6. Consolidation table and line budget
 
@@ -748,4 +941,5 @@ method). **Task 5 seeds; Task 10 finalizes.**
 
 - Task 7 (§4.8): the spec's L1-L4 event vocabulary (§4.2) has **no palette event**, yet the seam inventory finds a real-gap for the per-tick palette-vary/cycle path (`palVaryUpdate`/`palVaryProcess`, `kernelAnimate`/`kernelAnimateSet`) — a smooth fade/cycle emits no L2 pixel event and its intermediate LUT is unrecoverable from pixels, and CLAUDE.md already lists palette-vary-per-tick as the highest-value underused signal. The design needs a new event (proposed `onPaletteChanged(palette, step, total)`, likely L1/L2-adjacent) to cover it; per the §2 budget it should be one event folding all four palette-vary/cycle call sites. Task 8/10 to place it in the layer model.
 - Task 8 (§6): the projected reshaped footprint — **475** consolidation-only, **485** with the kept palette gap — lands **well below** spec §2's "~780 ± 100" projection. Not a budget violation (success-criterion 4 passes with a 345-line margin), but §2's projection paragraph under-counts three departures the audit's own dispositions make explicit: the fork-only D-bucket carve-out (−85: E3/E4/S1/S4-dev/S5, carried downstream outside the neutral seam), wiring → registration + plugin module.mk (−35), and G-bucket standalone-PR departures (−25); it also under-estimates the menu exile (−125 grounded in the measured 163 menu lines vs the −100 guess). Task 10 should update spec §2's projection, or state explicitly which measurement rule (with vs without the fork-only carve-out) its number assumes — even with the carve-out counted back in, the conservative bound is 650, still under the 830 target.
+- Task 9 (§5): the L2-completeness claim (spec §3.3 / success-criterion 3) as stated — "every pixel reaching the screen in **SCI16** paths crosses `onShow` or a self-draw bracket" — is **falsified by one enumerated path**: the Macintosh icon bar (`GfxMacIconBar::drawImage`, maciconbar.cpp:203/209/211) writes directly to `_screen->gfxDriver()->copyRectToScreen`, bypassing `bitsShow` and any bracket, and is SCI16 (compiled unconditionally, module.mk:54), not SCI32. It is gated on `hasMacIconBar()` (Mac SCI game versions only), so it is outside Roger's shipping EGA-DOS scope and not a live bug — but the claim is over-broad. Resolution options (Task 10): (a) **scope the claim to non-Mac SCI16** — the honest, zero-code fix, matching Roger's actual EGA-DOS target; or (b) emit an L2 `onShow` from `GfxMacIconBar::drawImage` (one hook), making the claim literally true. The 91 other copy-to-screen callers are all funnel / claimed-L4 / SCI32 / debug-console — the funnel itself is complete for the game render loop; this is the lone platform-UI gap.
 - Task 8 (§6, row R4): spec §6's `onFill(rect, color, token)` candidate is **rejected** on the line-budget grounds §6 delegated to the audit — the kDisplay background fill (P19) folds into `onText` as a `source=fill` enum value instead (retires the empty-string-overload smell without adding a virtual). Task 10: update spec §6's candidate list and §4.2's `onText` source enum accordingly.
