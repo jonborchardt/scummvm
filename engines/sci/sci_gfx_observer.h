@@ -147,7 +147,7 @@ public:
 
 	// Provenance of an onCel emission.
 	enum CelSource {
-		kCelSourceAnimate,    // live animate-cast draw
+		kCelSourceAnimate,    // reserved: no seam emits it (animate-list cels ride onAnimateFrame)
 		kCelSourceAddToPic,   // kAddToPic cel baked into the room picture
 		kCelSourceInitBake,   // cel drawn while _picNotValid (room init) — may bake
 		kCelSourceStandalone, // script kDrawCel (e.g. inventory look-at close-up)
@@ -323,6 +323,9 @@ public:
 	// A full-screen picture with NO observer replacement is being drawn: drop
 	// any stale observer scene from the previous room so it does not bleed
 	// through.
+	// Currently RESERVED: no SCI emitter fires this — the absent case routes
+	// through onPicture (with the observer declining to replace). Kept for
+	// observer symmetry with onPicture.
 	virtual void onPictureAbsent() {}
 
 	// The highlighted menu row changed (invertMenuSelection). The observer

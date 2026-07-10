@@ -2706,6 +2706,14 @@ void FileRogerArtProvider::onAddToPicCelInternal(int viewId, int loopNo, int cel
 
 void FileRogerArtProvider::onCel(const Common::Rect &rect, int viewId, int loopNo, int celNo,
                                  int priority, uint32 owner, CelSource source) {
+	// The model-free accumulators (_initCels / _staticSprites) that initBake/addToPic
+	// feed, and the standalone/icon captures, must NOT grow on a disabled (caps-rejected,
+	// e.g. VGA) session: onPicture early-returns while disabled, so the room-change clears
+	// that would bound these arrays never run. The old animate.cpp hook sites were each
+	// `g_sciRogerProvider->enabled`-gated; this whole-dispatcher gate restores that for all
+	// five sources at once (matching onSave/onRestore et al.).
+	if (!enabled)
+		return;
 	switch (source) {
 	case kCelSourceInitBake:
 		// owner-gated promotion (the _picNotValid trap) lives inside this body,
@@ -3643,12 +3651,22 @@ void FileRogerArtProvider::composeRoomScene(Graphics::ManagedSurface &out,
 }
 
 bool FileRogerArtProvider::claimTransition(int sciType, const Common::Rect & /*picRect*/, int blackoutSciType) {
-	// Overlay hidden (Original / F10 A-B view) or Roger off/native-only: don't claim,
-	// so SCI's native animated transition runs. Every other path claims (returns true)
-	// so the caller finalizes the screen instantly — matches the old gate that skipped
-	// the native transition unconditionally once enabled && overlay visible.
-	if (!_transitionsEnabled || !overlayShown() || !_compositor || !_plate)
+	// Claim gate, stated per row (do NOT collapse — the rows have different semantics):
+	//  - !enabled || !overlayShown() (Original / F10 A-B view / Roger off): DECLINE, so
+	//    SCI's native animated transition runs and is visible under the hidden overlay.
+	//  - !_compositor: DECLINE (nothing to render an equivalent effect with).
+	//  - !_plate (native-fallback room, no enhanced plate): DECLINE — deliberate change
+	//    from the old seam, which claimed here and instant-cut. A fallback room shows the
+	//    native buffer, so its native transition IS visible and worth keeping.
+	//  - _plate && !_transitionsEnabled (roger_transitions=false): CLAIM and render
+	//    NOTHING. This preserves the OLD behavior (knob-off was an internal no-op: the
+	//    native transition was skipped and the screen instantly finalized). Declining here
+	//    would run the native ANIMATED transition invisibly under the opaque overlay =
+	//    dead time. The caller's claim-true branch does the instant finalize.
+	if (!enabled || !overlayShown() || !_compositor || !_plate)
 		return false;
+	if (!_transitionsEnabled)
+		return true; // knob off: claim + render nothing = instant cut (old behavior)
 	diagDumpState("transition");
 	const Roger::TransitionFamily fam = Roger::transitionFamilyFor(sciType);
 	if (fam == Roger::kFxNone && blackoutSciType < 0)
