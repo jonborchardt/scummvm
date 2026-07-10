@@ -30,28 +30,12 @@
 #include "gui/widget.h"
 #include "graphics/managed_surface.h"
 #include "sci/roger/ui/roger_widgets.h"
+#include "sci/roger/ui/roger_panel_style.h"
 #include "sci/roger/launcher/roger_launcher.h"
 #include "sci/roger/launcher/roger_picker_model.h"
 
-namespace Graphics {
-class Font;
-}
-
 namespace Sci {
 namespace Roger {
-
-// Palette shared by all Roger picker surfaces (picker view + pass builder).
-// No theme dependence: all Roger panels paint themselves.
-namespace PickerColors {
-struct Rgb { byte r, g, b; };
-const Rgb kText      = { 232, 236, 244 };
-const Rgb kTextDim   = { 154, 164, 184 };
-const Rgb kGreen     = {  76, 195, 138 };
-const Rgb kAmber     = { 229, 184,  75 };
-const Rgb kBlue      = { 100, 148, 237 };
-const Rgb kRed       = { 214,  86,  78 };
-const Rgb kPanelLine = {  42,  52,  80 };
-} // namespace PickerColors
 
 struct PassOption {
 	Common::String label;   // display text
@@ -75,7 +59,6 @@ class PickerViewWidget : public GUI::Widget {
 public:
 	PickerViewWidget(GUI::GuiObject *boss, int x, int y, int w, int h,
 	                 const LauncherState &state, PickerActionListener *listener);
-	~PickerViewWidget() override;
 
 	void setPassOptions(const Common::Array<PassOption> &opts);
 	void rebuild(); // recompute layout + widgets, re-render, markAsDirty
@@ -88,8 +71,6 @@ protected:
 	void handleMouseLeft(int button) override;
 
 private:
-	enum FontRole { kFTitle = 0, kFSub, kFBody, kFSmall, kFMono, kFontCount };
-
 	const LauncherState      &_state;
 	PickerActionListener     *_listener;
 	Graphics::ManagedSurface  _canvas;   // full widget, re-rendered on state change
@@ -100,23 +81,18 @@ private:
 	uint32 _hoverId = 0;
 	bool   _dropdownOpen = false;
 	int    _scroll = 0;
-	Graphics::Font       *_ttf[kFontCount] = {}; // owned (may be null)
-	const Graphics::Font *_use[kFontCount] = {}; // ttf or FontMan fallback
+	PanelFonts _fonts;
 
 	void loadFonts();
 	void bakeBackground();
 	void buildWidgets();
 	void renderAll();
-	// draw helpers (all into _canvas)
-	void blendFill(const Common::Rect &r, byte cr, byte cg, byte cb, byte ca);
-	void strokeRect(const Common::Rect &r, byte cr, byte cg, byte cb);
-	void drawTextIn(int fontRole, const Common::String &s, const Common::Rect &r,
-	                byte cr, byte cg, byte cb, Graphics::TextAlign align);
-	void drawButtonRect(const Common::Rect &r, const Common::String &label,
-	                    byte cr, byte cg, byte cb, bool filled, bool enabled, uint32 id);
-	void drawRow(int visIdx, int row);
-	void drawSettings();
-	void drawDropdown();
+	void drawButtonRect(PanelPainter &paint, const Common::Rect &r,
+	                    const Common::String &label, const PanelStyle::Rgb &accent,
+	                    bool filled, bool enabled, uint32 id);
+	void drawRow(PanelPainter &paint, int visIdx, int row);
+	void drawSettings(PanelPainter &paint);
+	void drawDropdown(PanelPainter &paint);
 };
 
 } // namespace Roger

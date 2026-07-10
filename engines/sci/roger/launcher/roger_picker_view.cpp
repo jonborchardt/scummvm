@@ -21,26 +21,13 @@
 #include "sci/roger/launcher/roger_picker_view.h"
 #include "gui/gui-manager.h"
 #include "gui/ThemeEngine.h"
-#include "graphics/fontman.h"
-#include "graphics/font.h"
 #include "common/system.h"
 #include "common/util.h"
-#ifdef USE_FREETYPE2
-#include "graphics/fonts/ttf.h"
-#endif
 
 namespace Sci {
 namespace Roger {
 
-// Pull palette constants into this scope from the shared PickerColors namespace.
-using PickerColors::Rgb;
-using PickerColors::kText;
-using PickerColors::kTextDim;
-using PickerColors::kGreen;
-using PickerColors::kAmber;
-using PickerColors::kBlue;
-using PickerColors::kRed;
-using PickerColors::kPanelLine;
+using namespace PanelStyle;
 
 PickerViewWidget::PickerViewWidget(GUI::GuiObject *boss, int x, int y, int w, int h,
                                    const LauncherState &state, PickerActionListener *listener)
@@ -52,106 +39,19 @@ PickerViewWidget::PickerViewWidget(GUI::GuiObject *boss, int x, int y, int w, in
 	rebuild();
 }
 
-PickerViewWidget::~PickerViewWidget() {
-	for (int i = 0; i < kFontCount; ++i)
-		delete _ttf[i];
-}
-
 void PickerViewWidget::setPassOptions(const Common::Array<PassOption> &opts) {
 	_passOptions = opts;
 }
 
 void PickerViewWidget::loadFonts() {
-#ifdef USE_FREETYPE2
-	struct { const char *file; int size; } spec[kFontCount] = {
-		{ "LiberationSans-Regular.ttf", _h / 16 }, // kFTitle
-		{ "LiberationSans-Regular.ttf", _h / 34 }, // kFSub
-		{ "LiberationSans-Regular.ttf", _h / 38 }, // kFBody
-		{ "LiberationSans-Regular.ttf", _h / 46 }, // kFSmall
-		{ "GoMono-Regular.ttf",         _h / 38 }, // kFMono
-	};
-	for (int i = 0; i < kFontCount; ++i)
-		_ttf[i] = Graphics::loadTTFFontFromArchive(spec[i].file, spec[i].size,
-		                                           Graphics::kTTFSizeModeCell, 0, 0,
-		                                           Graphics::kTTFRenderModeLight);
-#endif
-	const Graphics::Font *gui = FontMan.getFontByUsage(Graphics::FontManager::kGUIFont);
-	const Graphics::Font *big = FontMan.getFontByUsage(Graphics::FontManager::kBigGUIFont);
-	for (int i = 0; i < kFontCount; ++i)
-		_use[i] = _ttf[i] ? _ttf[i] : ((i == kFTitle && big) ? big : gui);
+	const int sizes[kFontRoleCount] = { _h / 16, _h / 34, _h / 38, _h / 46, _h / 38 };
+	_fonts.load(sizes);
 }
 
 void PickerViewWidget::bakeBackground() {
 	_bgBaked.create(_w, _h, _canvas.format);
-	// Procedural vertical gradient, near-black navy -> dark blue.
-	for (int yy = 0; yy < _h; ++yy) {
-		const int r = 10 + (26 - 10) * yy / MAX(1, _h - 1);
-		const int g = 14 + (36 - 14) * yy / MAX(1, _h - 1);
-		const int b = 26 + (56 - 26) * yy / MAX(1, _h - 1);
-		_bgBaked.fillRect(Common::Rect(0, yy, _w, yy + 1),
-		                  _bgBaked.format.RGBToColor(r, g, b));
-	}
-}
-
-void PickerViewWidget::blendFill(const Common::Rect &rIn, byte cr, byte cg, byte cb, byte ca) {
-	Common::Rect r = rIn;
-	r.clip(Common::Rect(0, 0, _w, _h));
-	if (r.isEmpty()) return;
-	const Graphics::PixelFormat &f = _canvas.format;
-	// Non-32bpp overlay: skip alpha blend; fill opaque with the nearest color.
-	if (f.bytesPerPixel != 4) {
-		_canvas.fillRect(r, f.RGBToColor(cr, cg, cb));
-		return;
-	}
-	for (int yy = r.top; yy < r.bottom; ++yy) {
-		for (int xx = r.left; xx < r.right; ++xx) {
-			uint32 *px = (uint32 *)_canvas.getBasePtr(xx, yy);
-			byte dr, dg, db;
-			f.colorToRGB(*px, dr, dg, db);
-			dr = (byte)((cr * ca + dr * (255 - ca)) / 255);
-			dg = (byte)((cg * ca + dg * (255 - ca)) / 255);
-			db = (byte)((cb * ca + db * (255 - ca)) / 255);
-			*px = f.RGBToColor(dr, dg, db);
-		}
-	}
-}
-
-void PickerViewWidget::strokeRect(const Common::Rect &rIn, byte cr, byte cg, byte cb) {
-	Common::Rect r = rIn;
-	r.clip(Common::Rect(0, 0, _w, _h));
-	if (r.isEmpty()) return;
-	const uint32 c = _canvas.format.RGBToColor(cr, cg, cb);
-	_canvas.hLine(r.left, r.top, r.right - 1, c);
-	_canvas.hLine(r.left, r.bottom - 1, r.right - 1, c);
-	_canvas.vLine(r.left, r.top, r.bottom - 1, c);
-	_canvas.vLine(r.right - 1, r.top, r.bottom - 1, c);
-}
-
-void PickerViewWidget::drawTextIn(int fontRole, const Common::String &s, const Common::Rect &r,
-                                  byte cr, byte cg, byte cb, Graphics::TextAlign align) {
-	const Graphics::Font *font = _use[fontRole];
-	if (!font || r.isEmpty()) return;
-	const int y = r.top + (r.height() - font->getFontHeight()) / 2;
-	font->drawString(&_canvas, s, r.left, MAX((int)r.top, y), r.width(),
-	                 _canvas.format.RGBToColor(cr, cg, cb), align);
-}
-
-void PickerViewWidget::drawButtonRect(const Common::Rect &r, const Common::String &label,
-                                      byte cr, byte cg, byte cb, bool filled, bool enabled,
-                                      uint32 id) {
-	const bool hovered = enabled && _hoverId == id;
-	const byte a = enabled ? (byte)(filled ? 235 : 90) : (byte)40;
-	if (filled)
-		blendFill(r, cr / 2, cg / 2, cb / 2, a);       // dark fill of the accent
-	else
-		blendFill(r, 10, 14, 24, hovered ? 200 : 160); // translucent dark pill
-	byte br = cr, bg2 = cg, bb = cb;
-	if (hovered) { br = (byte)MIN(255, cr + 40); bg2 = (byte)MIN(255, cg + 40); bb = (byte)MIN(255, cb + 40); }
-	if (!enabled) { br = cr / 2; bg2 = cg / 2; bb = cb / 2; }
-	strokeRect(r, br, bg2, bb);
-	drawTextIn(kFSmall, label, r, enabled ? kText.r : kTextDim.r,
-	           enabled ? kText.g : kTextDim.g, enabled ? kText.b : kTextDim.b,
-	           Graphics::kTextAlignCenter);
+	PanelPainter bg(_bgBaked, _fonts);
+	bg.gradientFill(Common::Rect(0, 0, _w, _h), kGradTop, kGradBottom);
 }
 
 void PickerViewWidget::buildWidgets() {
@@ -218,17 +118,23 @@ void PickerViewWidget::buildWidgets() {
 	_widgets.push_back(lb);
 }
 
-void PickerViewWidget::drawRow(int visIdx, int row) {
+void PickerViewWidget::drawButtonRect(PanelPainter &paint, const Common::Rect &r,
+                                      const Common::String &label, const Rgb &accent,
+                                      bool filled, bool enabled, uint32 id) {
+	paint.drawButton(r, label, accent, filled, enabled, enabled && _hoverId == id);
+}
+
+void PickerViewWidget::drawRow(PanelPainter &paint, int visIdx, int row) {
 	const PickerRowLayout &r = _layout.rows[visIdx];
 	const GameEntry &g = _state.games[row];
 	const bool selected = (row == _state.selectedIndex);
 	const int pad = MAX(2, _h / 80);
 
-	blendFill(r.card, 22, 30, 50, 235);
+	paint.blendFill(r.card, kCardFill, 235);
 	if (selected)
-		strokeRect(r.card, kBlue.r, kBlue.g, kBlue.b);
+		paint.strokeRect(r.card, kBlue);
 	else
-		strokeRect(r.card, kPanelLine.r, kPanelLine.g, kPanelLine.b);
+		paint.strokeRect(r.card, kPanelLine);
 
 	// Title + subtitle (left column)
 	const int leftW = r.badge.left - r.card.left - 2 * pad;
@@ -236,9 +142,8 @@ void PickerViewWidget::drawRow(int visIdx, int row) {
 	                    r.card.left + 2 * pad + leftW, r.card.top + r.card.height() / 2);
 	Common::Rect subR(titleR.left, titleR.bottom,
 	                  titleR.right, r.card.bottom - pad);
-	drawTextIn(kFBody, Common::String::format("%d. %s", row + 1, g.description.c_str()),
-	           titleR, selected ? kBlue.r : kText.r, selected ? kBlue.g : kText.g,
-	           selected ? kBlue.b : kText.b, Graphics::kTextAlignLeft);
+	paint.drawTextIn(kFontBody, Common::String::format("%d. %s", row + 1, g.description.c_str()),
+	           titleR, selected ? kBlue : kText, Graphics::kTextAlignLeft);
 
 	// Second line: join non-empty facts with "  |  " (ASCII, byte-safe).
 	// targetName leads so entries with the same description are distinguishable.
@@ -256,8 +161,7 @@ void PickerViewWidget::drawRow(int visIdx, int row) {
 		if (g.ega) append("EGA");
 		append(g.sciVersion);
 		append(g.gamePath.toString());
-		drawTextIn(kFSmall, info, subR, kTextDim.r, kTextDim.g, kTextDim.b,
-		           Graphics::kTextAlignLeft);
+		paint.drawTextIn(kFontSmall, info, subR, kTextDim, Graphics::kTextAlignLeft);
 	}
 
 	// Badge area: precache progress on the active row while running, else status.
@@ -265,129 +169,114 @@ void PickerViewWidget::drawRow(int visIdx, int row) {
 	if (isActive && _state.precaching) {
 		Common::Rect txt(r.badge.left, r.badge.top, r.badge.right,
 		                 r.badge.top + r.badge.height() / 2);
-		drawTextIn(kFSmall, _state.precacheStatus, txt, kText.r, kText.g, kText.b,
+		paint.drawTextIn(kFontSmall, _state.precacheStatus, txt, kText,
 		           Graphics::kTextAlignLeft);
 		Common::Rect bar(r.badge.left, txt.bottom + pad / 2, r.badge.right,
 		                 txt.bottom + pad / 2 + MAX(3, _h / 160));
-		strokeRect(bar, kPanelLine.r, kPanelLine.g, kPanelLine.b);
+		paint.strokeRect(bar, kPanelLine);
 		const int total = MAX(1, _state.precacheTotal);
 		Common::Rect fill = bar;
 		fill.right = fill.left + (int16)((bar.width() * CLIP(_state.precacheDone, 0, total)) / total);
-		blendFill(fill, kBlue.r, kBlue.g, kBlue.b, 255);
+		paint.blendFill(fill, kBlue, 255);
 	} else {
 		const Rgb c = g.cached ? kGreen : kAmber;
 		Common::Rect line1(r.badge.left, r.badge.top, r.badge.right,
 		                   r.badge.top + r.badge.height() / 2);
 		Common::Rect line2(r.badge.left, line1.bottom, r.badge.right, r.badge.bottom);
-		drawTextIn(kFBody, g.cached ? "Cached" : "! Not Cached", line1,
-		           c.r, c.g, c.b, Graphics::kTextAlignLeft);
-		drawTextIn(kFSmall, g.cached ? "Ready" : "Not ready", line2,
-		           kTextDim.r, kTextDim.g, kTextDim.b, Graphics::kTextAlignLeft);
+		paint.drawTextIn(kFontBody, g.cached ? "Cached" : "! Not Cached", line1,
+		           c, Graphics::kTextAlignLeft);
+		paint.drawTextIn(kFontSmall, g.cached ? "Ready" : "Not ready", line2,
+		           kTextDim, Graphics::kTextAlignLeft);
 	}
 
 	// Buttons (labels/enabled state mirror buildWidgets exactly).
 	const bool busy = _state.precaching;
 	if ((!g.cached && !busy) || (isActive && busy))
-		drawButtonRect(r.precache, (isActive && busy) ? "Cancel" : "Precache",
-		               (isActive && busy) ? kRed.r : kBlue.r,
-		               (isActive && busy) ? kRed.g : kBlue.g,
-		               (isActive && busy) ? kRed.b : kBlue.b,
+		drawButtonRect(paint, r.precache, (isActive && busy) ? "Cancel" : "Precache",
+		               (isActive && busy) ? kRed : kBlue,
 		               false, (isActive && busy) || !busy, widId(kPickRowPrecache, row));
-	drawButtonRect(r.remove, "Remove", kRed.r, kRed.g, kRed.b, false,
+	drawButtonRect(paint, r.remove, "Remove", kRed, false,
 	               !busy, widId(kPickRowRemove, row));
 }
 
-void PickerViewWidget::drawSettings() {
-	blendFill(_layout.settingsPanel, 16, 22, 36, 216);
-	strokeRect(_layout.settingsPanel, kPanelLine.r, kPanelLine.g, kPanelLine.b);
+void PickerViewWidget::drawSettings(PanelPainter &paint) {
+	paint.blendFill(_layout.settingsPanel, kPanelFill, 216);
+	paint.strokeRect(_layout.settingsPanel, kPanelLine);
 	if (_state.games.empty())
 		return;
 	const GameEntry &g = _state.games[_state.selectedIndex];
 	Common::String forWhom = g.subtitle.empty()
 		? g.description
 		: Common::String::format("%s (%s)", g.description.c_str(), g.subtitle.c_str());
-	drawTextIn(kFBody, "Settings for: " + forWhom, _layout.settingsTitle,
-	           kBlue.r, kBlue.g, kBlue.b, Graphics::kTextAlignLeft);
+	paint.drawTextIn(kFontBody, "Settings for: " + forWhom, _layout.settingsTitle,
+	           kBlue, Graphics::kTextAlignLeft);
 
-	drawTextIn(kFBody, "Omyac passes", _layout.passesLabel, kText.r, kText.g, kText.b,
+	paint.drawTextIn(kFontBody, "Omyac passes", _layout.passesLabel, kText,
 	           Graphics::kTextAlignLeft);
-	blendFill(_layout.passesField, 10, 14, 24, 200);
-	strokeRect(_layout.passesField,
-	           _hoverId == widId(kPickPasses) ? kBlue.r : kPanelLine.r,
-	           _hoverId == widId(kPickPasses) ? kBlue.g : kPanelLine.g,
-	           _hoverId == widId(kPickPasses) ? kBlue.b : kPanelLine.b);
+	paint.blendFill(_layout.passesField, kFieldFill, 200);
+	paint.strokeRect(_layout.passesField,
+	           _hoverId == widId(kPickPasses) ? kBlue : kPanelLine);
 	const int pad = MAX(2, _h / 80);
 	Common::Rect fieldText = _layout.passesField;
 	fieldText.left += 2 * pad;
-	drawTextIn(kFMono, _state.settings.passes + "  v", fieldText,
-	           kText.r, kText.g, kText.b, Graphics::kTextAlignLeft);
-	drawTextIn(kFSmall, "Rendering pass sequence (roger_omyac_passes).",
-	           _layout.passesHint, kTextDim.r, kTextDim.g, kTextDim.b,
-	           Graphics::kTextAlignLeft);
+	paint.drawTextIn(kFontMono, _state.settings.passes + "  v", fieldText,
+	           kText, Graphics::kTextAlignLeft);
+	paint.drawTextIn(kFontSmall, "Rendering pass sequence (roger_omyac_passes).",
+	           _layout.passesHint, kTextDim, Graphics::kTextAlignLeft);
 
-	drawTextIn(kFBody, "Debug Logging", _layout.debugLabel,
-	           kText.r, kText.g, kText.b, Graphics::kTextAlignLeft);
+	paint.drawTextIn(kFontBody, "Debug Logging", _layout.debugLabel,
+	           kText, Graphics::kTextAlignLeft);
 	// Toggle pill: filled+knob-right when on.
 	const bool on = _state.settings.debugLog;
-	blendFill(_layout.debugToggle, on ? kBlue.r / 2 : 10, on ? kBlue.g / 2 : 14,
-	          on ? kBlue.b / 2 : 24, 220);
-	strokeRect(_layout.debugToggle, on ? kBlue.r : kPanelLine.r,
-	           on ? kBlue.g : kPanelLine.g, on ? kBlue.b : kPanelLine.b);
-	Common::Rect knob = _layout.debugToggle;
-	knob.grow(-2);
-	if (on)
-		knob.left = knob.right - knob.height();
-	else
-		knob.right = knob.left + knob.height();
-	blendFill(knob, kText.r, kText.g, kText.b, 255);
-	drawTextIn(kFSmall, "Enable roger_debug in this game's INI section.",
-	           _layout.debugHint, kTextDim.r, kTextDim.g, kTextDim.b,
-	           Graphics::kTextAlignLeft);
+	paint.drawTogglePill(_layout.debugToggle, on);
+	paint.drawTextIn(kFontSmall, "Enable roger_debug in this game's INI section.",
+	           _layout.debugHint, kTextDim, Graphics::kTextAlignLeft);
 }
 
-void PickerViewWidget::drawDropdown() {
+void PickerViewWidget::drawDropdown(PanelPainter &paint) {
+	Rgb rowHi = {26, 38, 64};
+	Rgb row   = {14, 20, 34};
 	for (uint i = 0; i < _passOptions.size(); ++i) {
 		const Common::Rect r = passOptionRect(_layout, (int)i, (int)_passOptions.size(), _h);
 		const bool hovered = _hoverId == widId(kPickPassOption, (int)i);
-		blendFill(r, hovered ? 26 : 14, hovered ? 38 : 20, hovered ? 64 : 34, 245);
-		strokeRect(r, kPanelLine.r, kPanelLine.g, kPanelLine.b);
+		paint.blendFill(r, hovered ? rowHi : row, 245);
+		paint.strokeRect(r, kPanelLine);
 		const int pad = MAX(2, _h / 80);
 		Common::Rect txt = r;
 		txt.left += 2 * pad;
-		drawTextIn(kFMono, _passOptions[i].label, txt, kText.r, kText.g, kText.b,
+		paint.drawTextIn(kFontMono, _passOptions[i].label, txt, kText,
 		           Graphics::kTextAlignLeft);
 	}
 }
 
 void PickerViewWidget::renderAll() {
 	_canvas.blitFrom(_bgBaked);
+	PanelPainter paint(_canvas, _fonts);
 
-	drawTextIn(kFTitle, "ROGER", _layout.titleBox, kText.r, kText.g, kText.b,
-	           Graphics::kTextAlignLeft);
-	drawTextIn(kFSmall,
+	paint.drawTextIn(kFontTitle, "ROGER", _layout.titleBox, kText, Graphics::kTextAlignLeft);
+	paint.drawTextIn(kFontSmall,
 	           "A high-resolution overlay renderer for classic Sierra SCI games. "
 	           "Select a game to configure rendering passes and settings.",
-	           _layout.descBox, kTextDim.r, kTextDim.g, kTextDim.b, Graphics::kTextAlignLeft);
+	           _layout.descBox, kTextDim, Graphics::kTextAlignLeft);
 
-	blendFill(_layout.listPanel, 16, 22, 36, 216);
-	strokeRect(_layout.listPanel, kPanelLine.r, kPanelLine.g, kPanelLine.b);
+	paint.blendFill(_layout.listPanel, kPanelFill, 216);
+	paint.strokeRect(_layout.listPanel, kPanelLine);
 
 	if (_state.games.empty()) {
-		drawTextIn(kFBody, "No SCI games found - use + Add Game below.",
-		           _layout.listPanel, kTextDim.r, kTextDim.g, kTextDim.b,
-		           Graphics::kTextAlignCenter);
+		paint.drawTextIn(kFontBody, "No SCI games found - use + Add Game below.",
+		           _layout.listPanel, kTextDim, Graphics::kTextAlignCenter);
 	} else {
 		for (uint i = 0; i < _layout.rows.size(); ++i)
-			drawRow((int)i, _scroll + (int)i);
+			drawRow(paint, (int)i, _scroll + (int)i);
 	}
 
-	drawButtonRect(_layout.addGame, "+ Add Game", kBlue.r, kBlue.g, kBlue.b,
-	               false, !_state.precaching, widId(kPickAddGame));
-	drawSettings();
-	drawButtonRect(_layout.launch, "Launch Game", kBlue.r, kBlue.g, kBlue.b,
-	               true, !_state.games.empty() && !_state.precaching, widId(kPickLaunch));
+	drawButtonRect(paint, _layout.addGame, "+ Add Game", kBlue, false,
+	               !_state.precaching, widId(kPickAddGame));
+	drawSettings(paint);
+	drawButtonRect(paint, _layout.launch, "Launch Game", kBlue, true,
+	               !_state.games.empty() && !_state.precaching, widId(kPickLaunch));
 	if (_dropdownOpen)
-		drawDropdown();
+		drawDropdown(paint);
 }
 
 void PickerViewWidget::rebuild() {
