@@ -1781,16 +1781,20 @@ void FileRogerArtProvider::buildGlyphs(const char *text, int fontId, int penColo
 void FileRogerArtProvider::onWindowOpen(const Common::Rect &r, uint16 wndStyle,
                                         int backColor, int penColor, const char *title,
                                         uint32 token) {
-	if (!enabled)
-		return;
 	// Menu exile (R5): the dropdown box is MODEL-owned — openDropdown resets the
 	// retained rows and stores the box; the journal emit is menuRebuildDropdown at
 	// endBatch. Never treated as a real window (no bracket, no immediate append).
+	// The model ingestion runs UNCONDITIONALLY (matching the old menu.cpp
+	// collection): a registered-but-disabled provider still receives onText row
+	// pushes, so its openDropdown reset must fire too or _rows accumulates forever.
+	// Rendering/journal work stays below the !enabled gate (rebuilds bail on !_plate).
 	if (token == kGfxTokenMenuDropdown) {
 		_menuModel.openDropdown(r);
 		_batchTouchedDropdown = true;
 		return;
 	}
+	if (!enabled)
+		return;
 	// Arm open->show attribution (R9): the window's content show follows immediately
 	// (GfxPorts::drawWindow emits onWindowOpen, then bitsShow(dims) under _wmgrPort,
 	// which self-derives owner 0 — see onShow). Only real windows (control namespace)
@@ -2124,9 +2128,11 @@ void FileRogerArtProvider::endBatch() {
 // white full-width bar (NOFRAME), black underline row, then one heading-role
 // alt-font text op per printable-ASCII title — same token, rects, append order.
 void FileRogerArtProvider::menuRebuildBar() {
-	if (!overlayShown() || !_plate || !_journal)
+	if (!overlayShown() || !_plate)
 		return;
-	ensureUi();
+	ensureUi(); // may CREATE the journal if a menu is the first UI push
+	if (!_journal)
+		return;
 	// The menu bar and the score/title banner share the top strip and are mutually
 	// exclusive in time, so they use the SAME token (kGfxTokenStatus): rebuilding
 	// the bar replaces the banner; the next kernelDrawStatus (onText source=status)
@@ -2183,9 +2189,11 @@ void FileRogerArtProvider::menuRebuildBar() {
 // framed opaque white box, then one body-role alt-font text op per row (selected
 // row inverted white-on-black) — same token, rects, append order.
 void FileRogerArtProvider::menuRebuildDropdown() {
-	if (!overlayShown() || !_plate || !_journal)
+	if (!overlayShown() || !_plate)
 		return;
-	ensureUi();
+	ensureUi(); // may CREATE the journal if a menu is the first UI push
+	if (!_journal)
+		return;
 	_journal->clearToken(kGfxTokenMenuDropdown); // single open dropdown at a time
 	// Opaque white box with a frame (matches SCI's black-bordered white dropdown).
 	Roger::UiElement box;
@@ -2225,19 +2233,21 @@ void FileRogerArtProvider::onMenuHighlight(uint16 itemId) {
 }
 
 void FileRogerArtProvider::onWindowClose(uint32 token) {
-	if (!enabled)
-		return;
-	_pendingShowOwner = 0; // a close cancels any armed open->show attribution
 	// Menu exile (R5): dropdown dispose (kernelSelect close). The dropdown is
 	// drawn straight to the screen (no window, and this seam fires whether or not
 	// its save-under restored), so this is a manual-invalidation case: clear the
 	// model + journal, invalidate the retained box, present. Gated on an actual
 	// open dropdown — kernelSelect fires this close on EVERY event it examines
 	// (each keypress), so the no-dropdown call must stay O(1) with no present.
+	// The MODEL reset (closeDropdown) runs UNCONDITIONALLY — a registered-but-disabled
+	// provider still ingests onText rows via the ungated path, so its close reset must
+	// fire too (enabled-gate symmetry). Journal/present work stays below the gate.
 	if (token == kGfxTokenMenuDropdown) {
 		const bool hadRows = !_menuModel.rows().empty();
 		const Common::Rect box = _menuModel.box();
 		_menuModel.closeDropdown();
+		if (!enabled)
+			return;
 		const bool removed = _journal && _journal->clearToken(kGfxTokenMenuDropdown);
 		if (hadRows || removed) {
 			markVacatedDirty(box);
@@ -2245,6 +2255,9 @@ void FileRogerArtProvider::onWindowClose(uint32 token) {
 		}
 		return;
 	}
+	if (!enabled)
+		return;
+	_pendingShowOwner = 0; // a close cancels any armed open->show attribution
 	// The window-bracket close (control namespace) drops the window box op AND every
 	// op captured inside it (controls + generic text) — ONE signal subsuming the old
 	// 0x40.. + 0x60.. clear pair (the 0x60.. clear was already a no-op once the
