@@ -255,13 +255,21 @@ private:
 	Graphics::Surface *_cursorSurf = nullptr;        // smooth hires arrow cursor (RGBA, owned)
 	int _cursorShapeId = -1;   // last SCI0 cursor resource id received; -1 = unknown
 	bool _cursorVisible = true; // false when the game called kernelHide()
+	// Native game-px footprint of the SCI cursor (16x16 shape / cel dims) + its
+	// active point, both in game px. The enhanced _cursorSurf is scale-blitted
+	// into this footprint mapped through the game rect, so the on-screen size
+	// always matches the native cursor regardless of the surface's pixel size.
+	// x == 0 => legacy 1:1 blit (the fallback arrow, which sizes itself in
+	// overlay px via roger_cursor_size).
+	Common::Point _cursorNativeSize;
+	Common::Point _cursorNativeHotspot;
 	void ensureCursor();                             // build _cursorSurf once
 	void compositeCursor(Graphics::ManagedSurface &scene, const Common::Rect &gameRect);
-	// Decode the SCI0 cursor resource cursorId from g_sci->_resMan, scale 5x, store
-	// result in _cursorSurf + hotspot in _cursorHotspot. No-op if resource unavailable.
+	// Decode the SCI0 cursor resource cursorId from g_sci->_resMan (6x enhanced),
+	// store result in _cursorSurf; native footprint 16x16. No-op if resource unavailable.
 	void buildCursorForShape(int cursorId);
-	// Render native VIEW cel via renderNativeCel(), scale 5x (inline RGBA nearest-neighbour),
-	// store in _cursorSurf. Hotspot computed from GfxView cel displaceX/displaceY.
+	// Serve the ViewCache's enhanced 6x cel (6x nearest fallback) into _cursorSurf;
+	// native footprint/hotspot from GfxView cel dims + displaceX/displaceY.
 	void buildCursorFromView(int viewId, int loopNo, int celNo);
 	// Cursor-only fast redraw (composite cache). Holds scene+UI with no cursor baked in.
 	// Rebuilt on scene/UI change; patched in-place on cursor-only moves.

@@ -1196,6 +1196,7 @@ void FileRogerArtProvider::applyNativeCursorVisibility() {
 void FileRogerArtProvider::buildCursorForShape(int cursorId) {
 	if (_cursorSurf) { _cursorSurf->free(); delete _cursorSurf; _cursorSurf = nullptr; }
 	_cursorHotspot = Common::Point(2, 2); // fallback: arrow hotspot if resource missing
+	_cursorNativeSize = Common::Point(0, 0); // fallback arrow: legacy fixed-px blit
 
 	if (!g_sci || !g_sci->getResMan() || cursorId < 0)
 		return;
@@ -1208,12 +1209,20 @@ void FileRogerArtProvider::buildCursorForShape(int cursorId) {
 	Common::Point hs;
 	_cursorSurf = Roger::decodeSci0Cursor(res->data(), (int)res->size(), hs);
 	_cursorHotspot = hs;
+	if (_cursorSurf) {
+		// Native footprint: SCI0 cursors are 16x16 game px. Recover the game-px
+		// hotspot from the surface-px one (hs is at the surface's uniform scale).
+		_cursorNativeSize = Common::Point(16, 16);
+		_cursorNativeHotspot = Common::Point(hs.x * 16 / _cursorSurf->w,
+		                                     hs.y * 16 / _cursorSurf->h);
+	}
 	_compositeCacheValid = false; // cursor surface changed -> next present is full rebuild
 }
 
 void FileRogerArtProvider::buildCursorFromView(int viewId, int loopNo, int celNo) {
 	if (_cursorSurf) { _cursorSurf->free(); delete _cursorSurf; _cursorSurf = nullptr; }
 	_cursorHotspot = Common::Point(0, 0);
+	_cursorNativeSize = Common::Point(0, 0); // fallback arrow: legacy fixed-px blit
 
 	if (!g_sci || !g_sci->_gfxCache) return;
 	GfxView *view = g_sci->_gfxCache->getView((GuiResourceId)viewId);
@@ -1256,6 +1265,9 @@ void FileRogerArtProvider::buildCursorFromView(int viewId, int loopNo, int celNo
 		(int)(w / 2 - dx) * kScale,
 		(int)(h - dy - 1) * kScale
 	);
+	// Native footprint: the cel's own game-px dims + game-px hotspot.
+	_cursorNativeSize = Common::Point(w, h);
+	_cursorNativeHotspot = Common::Point(w / 2 - dx, h - dy - 1);
 	_compositeCacheValid = false;
 }
 
@@ -1271,7 +1283,14 @@ void FileRogerArtProvider::compositeCursor(Graphics::ManagedSurface &scene,
 	const Common::Rect dst = cursorDstRect(gameRect);
 	if (dst.isEmpty())
 		return;
-	scene.blendBlitFrom(*_cursorSurf, Common::Rect(0, 0, _cursorSurf->w, _cursorSurf->h), dst);
+	// Both cursor kinds draw through blendScaleBlitNearest (exact rational sampling,
+	// alpha-aware; the fallback arrow's dst == surface size, so it collapses to a 1:1
+	// blend). NEVER blendBlitFrom here: its right/bottom clip computes the source crop
+	// against the SOURCE size instead of the dest surface, so a cursor rect hanging off
+	// the screen's right or bottom edge empties the src rect and the whole cursor
+	// silently vanishes. blendScaleBlitNearest clips the PAINT to the scene and keeps
+	// sampling against the full dst — off-screen extent is cropped, never dropped.
+	Roger::blendScaleBlitNearest(scene, *_cursorSurf, dst, false);
 	if (_compositor)
 		_compositor->addDirtyRect(dst); // cursor moved here this frame (dirty-rect present)
 	_lastCursorDstRect = dst; // fast path uses this to restore the old cursor region
@@ -1538,6 +1557,12 @@ Common::Rect FileRogerArtProvider::cursorDstRect(const Common::Rect &gameRect) {
 	if (!_cursorSurf)
 		return Common::Rect();
 	const Common::Point mp = g_system->getEventManager()->getMousePos();
+	if (_cursorNativeSize.x > 0) {
+		// SCI cursor: native game-px footprint mapped through the game rect —
+		// the enhanced surface scales into it, so on-screen size == native size.
+		return Roger::cursorOverlayRect(mp, gameRect, _cursorNativeSize, _cursorNativeHotspot);
+	}
+	// Fallback arrow: fixed pixel size (roger_cursor_size), blitted 1:1.
 	const int ox = gameRect.left + mp.x * gameRect.width() / 320;
 	const int oy = gameRect.top + mp.y * gameRect.height() / 200;
 	return Common::Rect(ox - _cursorHotspot.x, oy - _cursorHotspot.y,
@@ -1706,7 +1731,9 @@ void FileRogerArtProvider::presentComparison() {
 			const Common::Rect dst(ox - _cursorHotspot.x, oy - _cursorHotspot.y,
 			                       ox - _cursorHotspot.x + _cursorSurf->w,
 			                       oy - _cursorHotspot.y + _cursorSurf->h);
-			out.blendBlitFrom(*_cursorSurf, Common::Rect(0, 0, _cursorSurf->w, _cursorSurf->h), dst);
+			// blendScaleBlitNearest (1:1 here), not blendBlitFrom: the latter drops the
+			// whole blit once dst hangs off the right/bottom edge (see compositeCursor).
+			Roger::blendScaleBlitNearest(out, *_cursorSurf, dst, false);
 		}
 	}
 

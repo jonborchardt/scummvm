@@ -203,4 +203,43 @@ public:
 		TS_ASSERT_EQUALS(def.width(), 1600);
 		TS_ASSERT_EQUALS(def.height(), 1000);
 	}
+
+	// --- Cursor on-screen footprint: native game-px size, not surface px ---
+
+	void test_cursor_rect_is_native_footprint_at_2x() {
+		// A 16x16 game-px cursor at exact 2x scale occupies exactly 32x32 overlay px,
+		// regardless of how large the enhanced cursor surface is.
+		Common::Rect game(0, 0, 640, 400);
+		Common::Rect r = Sci::Roger::cursorOverlayRect(Common::Point(100, 100), game,
+		                                               Common::Point(16, 16), Common::Point(8, 8));
+		TS_ASSERT_EQUALS(r.width(), 32);
+		TS_ASSERT_EQUALS(r.height(), 32);
+		// Centered hotspot: game rect (92,92)-(108,108) -> overlay (184,184)-(216,216).
+		TS_ASSERT_EQUALS(r.left, 184);
+		TS_ASSERT_EQUALS(r.top, 184);
+	}
+
+	void test_cursor_rect_tracks_game_rect_offset_and_scale() {
+		// Letterboxed game rect: the cursor rect lands inside it at its scale.
+		// Width 799: a 16 game-px cursor spans ceil-mapped edges, ~40px (2.497x).
+		Common::Rect game(0, 738, 799, 738 + 499);
+		Common::Rect r = Sci::Roger::cursorOverlayRect(Common::Point(0, 0), game,
+		                                               Common::Point(16, 16), Common::Point(0, 0));
+		TS_ASSERT_EQUALS(r.left, game.left);
+		TS_ASSERT_EQUALS(r.top, game.top);
+		TS_ASSERT_EQUALS(r.right, game.left + 40);  // ceil(16*799/320)
+		TS_ASSERT_EQUALS(r.bottom, game.top + 40);  // ceil(16*499/200)
+	}
+
+	void test_cursor_rect_view_cel_uses_cel_dims() {
+		// View-cel cursors keep their cel's native dims (not 16x16).
+		Common::Rect game(0, 0, 640, 400);
+		Common::Rect r = Sci::Roger::cursorOverlayRect(Common::Point(50, 50), game,
+		                                               Common::Point(12, 20), Common::Point(6, 19));
+		TS_ASSERT_EQUALS(r.width(), 24);   // 12 * 2x
+		TS_ASSERT_EQUALS(r.height(), 40);  // 20 * 2x
+		// Hotspot (6,19): rect starts at game (44,31) -> overlay (88,62).
+		TS_ASSERT_EQUALS(r.left, 88);
+		TS_ASSERT_EQUALS(r.top, 62);
+	}
 };

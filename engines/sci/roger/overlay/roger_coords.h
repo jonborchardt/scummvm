@@ -246,6 +246,22 @@ inline Common::Rect uiVacatedExtent(const Common::Rect &nr, const Common::Rect &
 }
 
 /**
+ * On-screen overlay rect for the composited cursor: the cursor's NATIVE
+ * game-space footprint (nativeSize game px, active point at nativeHotspot)
+ * anchored at the game-space mouse position and mapped through the game rect.
+ * The enhanced cursor surface (whatever its pixel size) is scale-blitted into
+ * this rect, so the cursor occupies exactly the size the native cursor would
+ * — never the surface's own pixel size.
+ */
+inline Common::Rect cursorOverlayRect(const Common::Point &mouse, const Common::Rect &gameRect,
+                                      const Common::Point &nativeSize, const Common::Point &nativeHotspot) {
+	const Common::Rect nr(mouse.x - nativeHotspot.x, mouse.y - nativeHotspot.y,
+	                      mouse.x - nativeHotspot.x + nativeSize.x,
+	                      mouse.y - nativeHotspot.y + nativeSize.y);
+	return sciRectToDest(nr, gameRect);
+}
+
+/**
  * Return the SCI0 priority band (0..14) for a given y coordinate.
  *
  * Band 0 for y < 42 (above the horizon); bands 1..14 are distributed
