@@ -293,6 +293,145 @@ individually.
 
 <!-- Tasks 6-7 append per-class subsections here -->
 
+Convention (all 4.x subsections): the constructor and destructor are collapsed
+into a **single** excluded `ctor / dtor` row; the `(NN public methods)` count in
+each header includes that one row (so `row count == NN == the header's public
+method rows, ctor+dtor counted once`). Overloaded methods each get their own row.
+Public **member variables** (e.g. `GfxText16::_font`; `GfxPorts::_wmgrPort`,
+`_picWind`, `_menuPort`, `_menuBarRect`, `_menuRect`, `_menuLine`, `_curPort`) are
+data, not methods — ignored per the audit method. `#if 0`-compiled-out decls
+(`GfxText16::ClearChar`, `ShowString`) are not part of the public surface and are
+not counted. Hooked rows cite section-3 row ids; a method that reaches a hook only
+by delegating to a hooked leaf is marked hooked with a "(via …)" note.
+
+### 4.1 GfxPaint16 (36 public methods)
+
+| Method | Classification | Evidence / justification |
+|---|---|---|
+| ctor / dtor | excluded | construction/teardown; no draw effect |
+| init | excluded | wires `_animate`/`_text16` pointers; no draw effect |
+| debugSetEGAdrawingVisualize | excluded | sets `_EGAdrawingVisualize` flag; no draw effect |
+| drawPicture | hooked | paint16.cpp:91-108 pre-hook + :135-149 post-hook (rows P2, P3, P4) — the room-background replace/prefetch seam |
+| drawCelAndShow | hooked | paint16.cpp:158-176 (`beginNativeDraw`, `onInitCel`) + :189-190 close (rows P5, P6, P7) |
+| drawCel (celRect, GuiResourceId) | derivable-from-L2 | thin wrapper → the GfxView overload; draws into the 320×200 buffers, no bitsShow; caller issues a separate show onShow covers |
+| drawCel (celRect, GfxView\*) | derivable-from-L2 | "This version of drawCel is not supposed to call bitsShow()!" (paint16.cpp:199) — mutates visual/priority/control buffers only; screen reached via a later bitsShow the caller issues (L2 onShow). No text/owner semantics lost |
+| drawHiresCelAndShow | hooked | paint16.cpp:227-230 begin + :250-251 close (rows P8, P9) — KQ6 hires-cel path composited via onDrawCel |
+| redrawHiresCels | derivable-from-L2 | replays stored hires draws through `drawHiresCelAndShow` (itself hooked at P8/P9); no distinct screen-reaching path |
+| clearScreen | derivable-from-L2 | → `fillRect` of the whole port; buffer fill only, reaches screen via a caller show |
+| invertRect | derivable-from-L2 | → `fillRect` in pen-mode 2; buffer-only invert (textedit caret / inversion), no own show — L2 onShow covers |
+| invertRectViaXOR | derivable-from-L2 | SCI0early-only; XORs visual bytes directly (`_screen->putPixel`), no bitsShow; reaches screen via caller show |
+| eraseRect | derivable-from-L2 | → `fillRect` with backClr; buffer fill only |
+| paintRect | derivable-from-L2 | → `fillRect` with penClr; buffer fill only |
+| fillRect | derivable-from-L2 | the shared buffer-fill primitive (`_screen->putPixel` loops); no show — every visible fill reaches screen via a separate bitsShow/updateBox (L2 onShow). No text/owner semantics lost |
+| frameRect | derivable-from-L2 | four `paintRect` edge fills into the buffer; no own show (the semantic selection-frame is captured separately at controls16 C7 / paint16 P16, not here) |
+| bitsShow | hooked | paint16.cpp:369 sig + :398-410 Feeder-B body (rows P10, P11) — the L2 pixel-truth funnel `onNativeShowRect` |
+| bitsSave | hooked | paint16.cpp:428-433 journal checkpoint `onNativeSaveRect` (row P12) |
+| bitsGetRect | excluded | pure accessor — writes the saved hunk's rect into `*destRect`; no draw effect |
+| bitsRestore | hooked | paint16.cpp:452-460 journal rollback `onNativeRestoreRect` (row P13) |
+| bitsFree | hooked | paint16.cpp:471-475 journal drop `onNativeFreeSave` (row P14) |
+| kernelDrawPicture | hooked | (via drawPicture) delegates to `drawPicture` (paint16.cpp:485/497), captured at P2/P4 |
+| kernelDrawCel | hooked | paint16.cpp:507-520 standalone-cel `onDrawCel` hook (row P15); also delegates to drawCelAndShow (P5-P7) / drawHiresCelAndShow (P8-P9) |
+| kernelGraphFillBoxForeground | derivable-from-L2 | → `paintRect` buffer fill; no own show |
+| kernelGraphFillBoxBackground | derivable-from-L2 | → `eraseRect` buffer fill; no own show |
+| kernelGraphFillBox | derivable-from-L2 | → `fillRect`; buffer fill only, reaches screen via a caller updateBox/bitsShow (L2 onShow) |
+| kernelGraphFrameBox | hooked | paint16.cpp:543-554 `uiPushFrameBox` after the native `frameRect` (row P16) |
+| kernelGraphDrawLine | derivable-from-L2 | clips/offsets then `_screen->drawLine` into the buffer; no bitsShow — reaches screen only via a bitsShow/kernelGraphUpdateBox the caller issues (L2 onShow, the §3.2 "line never hooked" note). No text/owner semantics lost |
+| kernelGraphSaveBox | hooked | (via bitsSave) → `bitsSave` (paint16.cpp:564), captured at P12 |
+| kernelGraphRestoreBox | hooked | (via bitsRestore) → `bitsRestore` (paint16.cpp:568), captured at P13 |
+| kernelGraphUpdateBox | hooked | paint16.cpp:571-574 → `bitsShow(rect)` (row P17 diag; the show itself is L2 onShow via P10/P11) |
+| kernelGraphRedrawBox | hooked | paint16.cpp:577-581 `onNativeEraseRect` on the global rect (row P18) |
+| kernelDisplay | hooked | paint16.cpp:705-717 background-fill push + :740-764 flush brackets (rows P19, P20); per-line text captured downstream at GfxText16::Box (T4) |
+| kernelPortraitLoad | excluded | no-op stub (returns NULL_REG; body commented out); no draw effect |
+| kernelPortraitShow | derivable-from-L2 | KQ6CD speech-sync portrait animation — draws + shows natively via `Portrait::doit` (its own bitsShow crosses L2 onShow); not on any Roger-supported EGA game. No text/owner semantics beyond the pixels |
+| kernelPortraitUnload | excluded | empty body; no draw effect |
+
+### 4.2 GfxPorts (43 public methods)
+
+| Method | Classification | Evidence / justification |
+|---|---|---|
+| ctor / dtor | excluded | construction/teardown; no draw effect |
+| init | excluded | wires paint16/text16 pointers + gfx-function mode; no draw effect |
+| reset | excluded | resets port state; no draw effect |
+| kernelSetActive | derivable-from-L2 | selects the active port (state); may `bitsShow` the menu port on restore — that show is L2 onShow (P10/P11). No text/owner semantics of its own |
+| kernelGetPicWindow | excluded | pure accessor — returns the pic window rect / top-left; no draw effect |
+| kernelSetPicWindow | excluded | sets pic-window geometry + priority-band flag (state); no draw effect |
+| kernelGetActive | excluded | pure accessor — returns the active port's reg_t id; no draw effect |
+| kernelNewWindow | hooked | (via drawWindow) → `addWindow` + `drawWindow` (ports.cpp:238), window-open captured at PO2 |
+| kernelDisposeWindow | hooked | (via removeWindow) → `removeWindow` (ports.cpp:247), window-close captured at PO3 |
+| setActiveWindowHasEditText | excluded | records the edit-text port id (state); no draw effect |
+| isFrontWindow | excluded | pure predicate over the window list; no draw effect |
+| beginUpdate | derivable-from-L2 | walks front windows issuing `bitsSave`/`bitsRestore` (paint16, hooked P12/P13); no distinct un-covered screen path |
+| endUpdate | derivable-from-L2 | mirror of beginUpdate; restores via `bitsRestore` (L2 onRestore, P13) |
+| addWindow | hooked | (via drawWindow) may call `drawWindow` when `draw` set (else deferred to kernelNewWindow's explicit draw) — window-open captured at PO2 |
+| drawWindow | hooked | ports.cpp:524-551 `uiPushWindow` + titlebar `uiPushText` + tokened `bitsShow` (row PO2) |
+| removeWindow | hooked | ports.cpp:557-585 two `uiClearToken` clears + no-save-under reveal plant (row PO3) |
+| freeWindow | excluded | frees the disposed window struct/hunks; no draw effect (dispose signal already fired at removeWindow/PO3) |
+| updateWindow | derivable-from-L2 | re-snapshots save-unders via `bitsSave`/`bitsRestore` (hooked P12/P13); effect crosses L2 save/restore |
+| getPortById | excluded | pure accessor — index into `_windowsById`; no draw effect |
+| setPort | excluded | swaps the current port pointer (state); no draw effect |
+| getPort | excluded | pure accessor — returns current port; no draw effect |
+| setOrigin | excluded | sets port origin (state); no draw effect |
+| moveTo | excluded | sets port cursor position (state); no draw effect |
+| move | excluded | relative cursor move (state); no draw effect |
+| openPort | excluded | initializes a port's fields (state); no draw effect |
+| penColor | excluded | sets pen colour (state); no draw effect |
+| backColor | excluded | sets back colour (state); no draw effect |
+| penMode | excluded | sets pen mode (state); no draw effect |
+| textGreyedOutput | excluded | sets greyed-output flag (state); no draw effect |
+| getPointSize | excluded | pure accessor — current font height; no draw effect |
+| offsetRect | excluded | pure computation — port-local → global rect (the marshalling helper hooks reuse); no draw effect |
+| offsetLine | excluded | pure computation — port-local → global line endpoints; no draw effect |
+| clipLine | excluded | pure computation — clips a line to the port; no draw effect |
+| priorityBandsInit (bandCount, top, bottom) | excluded | fills the `_priorityBands` LUT; no draw effect (priority stays native per Stage 1) |
+| priorityBandsInit (SciSpan) | excluded | LUT init from data; no draw effect |
+| priorityBandsInitSci11 | excluded | SCI1.1 LUT init from data; no draw effect |
+| kernelInitPriorityBands | excluded | recomputes the band LUT; no draw effect |
+| kernelGraphAdjustPriority | excluded | sets priority top/bottom + reinit LUT; no draw effect |
+| kernelCoordinateToPriority | excluded | pure computation — y → priority band; no draw effect |
+| kernelPriorityToCoordinate | excluded | pure computation — priority band → y; no draw effect |
+| processEngineHunkList | excluded | walks ports adding save-under hunks to the GC worklist; no draw effect |
+| printWindowList | excluded | debug console dump of the window list; no draw effect |
+| saveLoadWithSerializer | excluded | savegame (de)serialization of port state; no draw effect |
+
+### 4.3 GfxText16 (22 public methods)
+
+| Method | Classification | Evidence / justification |
+|---|---|---|
+| ctor / dtor | excluded | construction/teardown; no draw effect |
+| GetFontId | excluded | pure accessor — current font id; no draw effect |
+| GetFont | excluded | loads/returns the current `GfxFont`; no draw effect |
+| SetFont | excluded | sets the active font (state); no draw effect |
+| CodeProcessing | excluded | parses inline `|c|`/`|f|` control codes, mutates font/colour state (or measures); no glyphs drawn here |
+| GetLongest | excluded | pure computation — longest line that fits `maxWidth`; no draw effect |
+| Width | excluded | pure computation — measures text width/height; no draw effect |
+| StringWidth | excluded | pure computation — → `Width`; no draw effect |
+| DrawString (str, font, pen) | derivable-from-L2 | → `Draw` (glyphs into the buffer via `_font->draw`), no own bitsShow; reaches screen via a caller show (L2 onShow). Semantic text captured at the higher Box/control/status seams, not this low-level path |
+| Size | excluded | pure computation — measures wrapped-block rect (width×height); no draw effect |
+| Draw | derivable-from-L2 | draws each glyph directly into the buffer (`_font->draw`), no bitsShow (text16.cpp:505-555); the §3.2 "direct-draw path outside Box" — Roger deliberately captures text at Box (T4) not here. Reaches screen via a caller show (L2 onShow) |
+| Show | derivable-from-L2 | `Draw` then `_paint16->bitsShow(rect)` (text16.cpp:557-566) — its show IS the L2 onShow funnel (P10/P11); semantics captured at Box (T4) |
+| Box (languageSplitter, 6-arg) | hooked | text16.cpp:681-725 per-line capture `onNativeText` inside the draw loop (row T4) — THE text chokepoint |
+| Box (5-arg overload) | hooked | (via 6-arg Box) inline forwarder → `Box(text, 0, show, …)` (text16.h:72-74), captured at T4 |
+| DrawString (str) | derivable-from-L2 | → `Draw` (glyphs into buffer, RTL-aware), no own show; reaches screen via a caller show |
+| DrawStatus | derivable-from-L2 | draws status glyphs directly into the buffer (`_font->draw`, text16.cpp:745-774), no bitsShow; the status-banner semantics are captured at the menu seam (kernelDrawStatus → `uiPushStatus`, row M13), not here |
+| allocAndFillReferenceRectArray | excluded | pure computation — returns the collected code-ref rects as a reg_t array; no draw effect |
+| kernelTextSize | excluded | pure computation — → `Size`, writes width/height out params; no draw effect |
+| kernelTextFonts | excluded | loads the inline code-font table (state); no draw effect |
+| kernelTextColors | excluded | loads the inline code-colour table (state); no draw effect |
+| macTextSize | excluded | pure computation — Mac hires text measurement; no draw effect |
+| macDraw | excluded | Mac SCI hires (640×400) text draw via the Mac font manager; never reached on a Roger-supported EGA game (Mac-hires-only path, analogous to the SCI32-only exclusion) |
+
+### 4.4 GfxControls16 (7 public methods)
+
+| Method | Classification | Evidence / justification |
+|---|---|---|
+| ctor / dtor | excluded | construction/teardown; no draw effect |
+| kernelDrawButton | hooked | controls16.cpp:356-364 `uiPushButton` (row C5) |
+| kernelDrawText | hooked | controls16.cpp:444-452 `uiPushText(source=control)` + :465-478 SELECTED `uiPushFrameBox` (rows C6, C7) |
+| kernelDrawTextEdit | hooked | controls16.cpp:503-511 `uiPushTextEdit` (row C8) |
+| kernelDrawIcon | hooked | controls16.cpp:539-546 `uiPushIcon` (row C9) |
+| kernelDrawList | hooked | (via drawListControl) → private `drawListControl` per-row hook (controls16.cpp:117-134, row C2) |
+| kernelTexteditChange | hooked | controls16.cpp:295-303 width-cap relaxation (row C3, claim) + :321-334 live-typing `uiPushTextEdit` (row C4) |
+
 ## 5. L2 completeness verification
 
 <!-- Task 9 -->
