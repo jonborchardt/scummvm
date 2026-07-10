@@ -79,6 +79,7 @@ public:
 	void onCursorShape(int cursorId) override;
 	void onCursorHidden(bool hidden) override;
 	void onCursorView(int viewId, int loopNo, int celNo) override;
+	bool hidesNativeCursor() const override;
 	void remapComparisonMouse(Common::Point &mousePos) override;
 	void toggleOverlay() override;   // F10: upscaled overlay <-> original native (display mode)
 	void toggleDebugLog() override;  // F11: per-frame Roger diagnostic logging
@@ -138,6 +139,7 @@ private:
 	bool _capsProbed = false;
 	Roger::CompareDisplayMode _mode = Roger::kModeEnhanced; // F10 cycles enhanced/original/side-by-side
 	bool overlayShown() const { return _mode != Roger::kModeOriginal; } // overlay visible (enhanced OR side-by-side)
+	void applyNativeCursorVisibility(); // re-sync CursorMan after mode/enable changes
 	bool _debugLog = false;      // per-frame diagnostic logging
 	uint32 _lastUiDiagSig = 0;   // ROGER-UI diag dump dedup: signature of the last dumped UI display-list
 	bool _diag = false;          // roger_diag: one-line overlay-state trace at room-load/present/transition seams (revertible instrumentation)

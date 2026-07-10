@@ -37,6 +37,7 @@
 #include "sci/graphics/view.h"
 #include "sci/graphics/cursor.h"
 #include "sci/graphics/maciconbar.h"
+#include "sci/roger/roger_art_provider.h"
 
 namespace Sci {
 
@@ -80,7 +81,7 @@ GfxCursor::~GfxCursor() {
 }
 
 void GfxCursor::kernelShow() {
-	CursorMan.showMouse(true);
+	CursorMan.showMouse(!(g_sciRogerProvider && g_sciRogerProvider->hidesNativeCursor()));
 	_isVisible = true;
 }
 

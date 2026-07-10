@@ -71,10 +71,12 @@ class GfxCompare;
 #include "common/file.h"
 #include "common/path.h"
 #include "common/fs.h"
+#include "graphics/cursorman.h"
 #include "common/config-manager.h"
 #include "common/events.h"
 #include "common/system.h"
 #include "common/textconsole.h"
+#include "sci/graphics/cursor.h"
 
 namespace Sci {
 
@@ -242,6 +244,7 @@ FileRogerArtProvider::FileRogerArtProvider(const Common::String &gameId,
 		                       ConfMan.hasKey("roger_omyac_passes") ? ConfMan.get("roger_omyac_passes") : "")
 	);
 
+	applyNativeCursorVisibility();
 }
 
 bool FileRogerArtProvider::isOverlayVisible() const {
@@ -1169,6 +1172,17 @@ void FileRogerArtProvider::onCursorHidden(bool hidden) {
 
 void FileRogerArtProvider::onCursorView(int viewId, int loopNo, int celNo) {
 	buildCursorFromView(viewId, loopNo, celNo);
+}
+
+bool FileRogerArtProvider::hidesNativeCursor() const {
+	return enabled && !_useHwCursor && overlayShown();
+}
+
+void FileRogerArtProvider::applyNativeCursorVisibility() {
+	// GfxCursor::_isVisible is the game's logical cursor state; may not exist yet
+	// at provider construction — default to visible, the first kernelShow re-syncs.
+	const bool gameVisible = (g_sci && g_sci->_gfxCursor) ? g_sci->_gfxCursor->isVisible() : true;
+	CursorMan.showMouse(gameVisible && !hidesNativeCursor());
 }
 
 void FileRogerArtProvider::buildCursorForShape(int cursorId) {
@@ -2850,6 +2864,7 @@ void FileRogerArtProvider::toggleOverlay() {
 	diagDumpState("toggle");
 	const Roger::CompareDisplayMode prev = _mode;
 	_mode = Roger::nextDisplayMode(_mode);
+	applyNativeCursorVisibility();
 
 	if (_mode == Roger::kModeOriginal) {
 		// Enhanced -> Original: reveal the native 320x200 render underneath.
@@ -3240,6 +3255,7 @@ void FileRogerArtProvider::onShake(int shakeCount, int directions) {
 }
 
 FileRogerArtProvider::~FileRogerArtProvider() {
+	CursorMan.showMouse((g_sci && g_sci->_gfxCursor) ? g_sci->_gfxCursor->isVisible() : true);
 	if (_inputDriver) {
 		g_system->getEventManager()->getEventDispatcher()->unregisterSource(_inputDriver);
 		delete _inputDriver;

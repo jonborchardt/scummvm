@@ -202,6 +202,12 @@ public:
 	// Provider renders the native cel scaled 5x and stores it as the cursor surface.
 	virtual void onCursorView(int viewId, int loopNo, int celNo) {}
 
+	// True while the provider's composited cursor owns the pointer visual — the
+	// backend hardware cursor must not be drawn (it leaks at the overlay edge,
+	// where it is composited ABOVE the overlay by every backend). Default false:
+	// stock native cursor behavior when no provider / provider disabled.
+	virtual bool hidesNativeCursor() const { return false; }
+
 	// UI display-list capture (Roger hires dialogs). SCI's high-level UI draw calls
 	// push resolution-independent elements (global 320x200 rects) here; the provider
 	// composites them over the cached hires scene. All default to no-op so the base
