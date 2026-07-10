@@ -158,12 +158,12 @@ void RogerLauncherDialog::pickerSelectRow(int row) {
 }
 
 void RogerLauncherDialog::pickerPrecacheRow(int row) {
-	if (_state.precaching) { // Cancel (only offered on row 0)
+	if (_state.precaching) { // Cancel (only offered on the active row)
 		_launchAfterPrecache = false;
 		_state.cancelPrecache = true;
 		return;
 	}
-	if (row == 0) {
+	if (isActiveGame(row)) {
 		startPrecache(false);
 	} else {
 		_launcher.requestCrossGame(row, false);
@@ -172,8 +172,8 @@ void RogerLauncherDialog::pickerPrecacheRow(int row) {
 }
 
 void RogerLauncherDialog::pickerRemoveRow(int row) {
-	if (row <= 0 || row >= (int)_state.games.size())
-		return; // row 0 = active game, protected (view draws it disabled too)
+	if (row < 0 || row >= (int)_state.games.size())
+		return;
 	const GameEntry &g = _state.games[row];
 	GUI::MessageDialog confirm(Common::U32String(Common::String::format(
 		"Remove %s from ScummVM?\nGame files on disk are not touched.",
@@ -323,7 +323,8 @@ void RogerLauncherDialog::pickerToggleDebug() {
 void RogerLauncherDialog::pickerLaunch() {
 	if (_state.games.empty() || _state.precaching)
 		return;
-	if (_state.selectedIndex == 0 && !_state.games[0].cached) {
+	const int ar = _state.activeRow;
+	if (isActiveGame(_state.selectedIndex) && ar >= 0 && !_state.games[ar].cached) {
 		startPrecache(true); // always-precache-before-launch, active game
 		return;
 	}

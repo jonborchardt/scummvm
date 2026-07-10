@@ -29,6 +29,9 @@ struct LauncherSettings {
 struct LauncherState {
 	Common::Array<GameEntry> games;
 	int selectedIndex = 0;
+	// Index of the active (currently running) game in games[], -1 if absent.
+	// Set by discoverGames(); use this instead of assuming row 0 is active.
+	int activeRow = -1;
 	LauncherSettings settings;
 	// Precache iterator state (used by dialog handleTickle).
 	Common::Array<GuiResourceId> picQueue;   // pic IDs left to cache

@@ -56,6 +56,8 @@ private:
 
 	void rebuildPassOptions();
 	void startPrecache(bool launchAfter);
+	// True when row is the currently running game (keys on activeRow, not position).
+	bool isActiveGame(int row) const { return row == _state.activeRow; }
 };
 
 } // namespace Roger

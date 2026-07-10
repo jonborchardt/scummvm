@@ -208,14 +208,15 @@ void PickerViewWidget::buildWidgets() {
 		card.on = (row == _state.selectedIndex);
 		card.enabled = !busy;
 		// Precache slot: visible when not cached, or as Cancel on the active
-		// row while precaching. Row 0 is ALWAYS the active game.
-		if ((!g.cached && !busy) || (row == 0 && busy)) {
+		// row while precaching.
+		const bool isActive = (row == _state.activeRow);
+		if ((!g.cached && !busy) || (isActive && busy)) {
 			PanelWidget pre;
 			pre.rect = _layout.rows[i].precache;
 			pre.id = widId(kPickRowPrecache, row);
-			pre.label = (row == 0 && busy) ? "Cancel" : "Precache";
+			pre.label = (isActive && busy) ? "Cancel" : "Precache";
 			pre.on = false;
-			pre.enabled = (row == 0 && busy) || !busy;
+			pre.enabled = (isActive && busy) || !busy;
 			_widgets.push_back(pre);
 		}
 		PanelWidget rem;
@@ -223,7 +224,7 @@ void PickerViewWidget::buildWidgets() {
 		rem.id = widId(kPickRowRemove, row);
 		rem.label = "Remove";
 		rem.on = false;
-		rem.enabled = (row != 0) && !busy; // active game can't be removed (spec 7.5)
+		rem.enabled = !busy;
 		_widgets.push_back(rem);
 		_widgets.push_back(card); // card AFTER its buttons: buttons hit-test first
 	}
@@ -273,7 +274,8 @@ void PickerViewWidget::drawRow(int visIdx, int row) {
 	           Graphics::kTextAlignLeft);
 
 	// Badge area: precache progress on the active row while running, else status.
-	if (row == 0 && _state.precaching) {
+	const bool isActive = (row == _state.activeRow);
+	if (isActive && _state.precaching) {
 		Common::Rect txt(r.badge.left, r.badge.top, r.badge.right,
 		                 r.badge.top + r.badge.height() / 2);
 		drawTextIn(kFSmall, _state.precacheStatus, txt, kText.r, kText.g, kText.b,
@@ -298,14 +300,14 @@ void PickerViewWidget::drawRow(int visIdx, int row) {
 
 	// Buttons (labels/enabled state mirror buildWidgets exactly).
 	const bool busy = _state.precaching;
-	if ((!g.cached && !busy) || (row == 0 && busy))
-		drawButtonRect(r.precache, (row == 0 && busy) ? "Cancel" : "Precache",
-		               (row == 0 && busy) ? kRed.r : kBlue.r,
-		               (row == 0 && busy) ? kRed.g : kBlue.g,
-		               (row == 0 && busy) ? kRed.b : kBlue.b,
-		               false, (row == 0 && busy) || !busy, widId(kPickRowPrecache, row));
+	if ((!g.cached && !busy) || (isActive && busy))
+		drawButtonRect(r.precache, (isActive && busy) ? "Cancel" : "Precache",
+		               (isActive && busy) ? kRed.r : kBlue.r,
+		               (isActive && busy) ? kRed.g : kBlue.g,
+		               (isActive && busy) ? kRed.b : kBlue.b,
+		               false, (isActive && busy) || !busy, widId(kPickRowPrecache, row));
 	drawButtonRect(r.remove, "Remove", kRed.r, kRed.g, kRed.b, false,
-	               (row != 0) && !busy, widId(kPickRowRemove, row));
+	               !busy, widId(kPickRowRemove, row));
 }
 
 void PickerViewWidget::drawSettings() {

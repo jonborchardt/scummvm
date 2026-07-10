@@ -104,6 +104,14 @@ void RogerLauncher::discoverGames() {
 		}
 	}
 	_state.selectedIndex = 0;
+	// Set activeRow: index of the running game in the sorted list, or -1 if absent.
+	_state.activeRow = -1;
+	for (uint i = 0; i < _state.games.size(); ++i) {
+		if (_state.games[i].targetName == active) {
+			_state.activeRow = (int)i;
+			break;
+		}
+	}
 }
 
 Common::String RogerLauncher::currentPassStamp(const Common::String &domain) const {
@@ -255,10 +263,10 @@ bool RogerLauncher::precacheStep() {
 	}
 	_state.precaching = false;
 	if (!_state.cancelPrecache) {
-		if (_state.games.empty()) {
-			warning("RogerLauncher::precacheStep: games list empty at completion, skipping marker write");
+		if (_state.activeRow < 0 || _state.activeRow >= (int)_state.games.size()) {
+			warning("RogerLauncher::precacheStep: no active game in list at completion, skipping marker write");
 		} else {
-			GameEntry &active = _state.games[0]; // row 0 == active game
+			GameEntry &active = _state.games[_state.activeRow];
 			const Common::String stamp = currentPassStamp(active.targetName);
 			const Common::String markerName = cacheMarkerName(active.gameId, kTransformVersion, stamp);
 			// Ensure the cache directory exists (the precache just wrote files there, but
