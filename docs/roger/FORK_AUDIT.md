@@ -99,6 +99,57 @@ Disposition values: `→ <event> (L1..L4)` / `observer-side` / `fork-only` / `st
 <!-- coverage: hunks 1-2 (cursor.cpp) -> CU1;CU2.
   hunk map (diff order): 1=CU1(include); 2=CU2(kernelShow veto). -->
 
+### 3.4 engines/sci/graphics/animate.cpp (74 lines, 14 hunks)
+
+| # | Site (file:line) | What it does | Bucket | Defensibility verdict | Disposition |
+|---|---|---|---|---|---|
+| A1 | animate.cpp:24 | `#include "common/system.h"` — pulls in `g_system` for the `getMillis()` cycle-telemetry timestamp | D | Include exists only to serve the ROGER-CYCLE dev-telemetry block (A14); no observer need | delete with A14 (fork-only) |
+| A2 | animate.cpp:45,49-54 | `#include "sci/roger/roger_art_provider.h"` + `rogerOwnerToken(reg_t)` static helper packing segment/offset into a 32-bit owner token | W (+concern) for the include; N for the helper | Include is the same `roger/`-path leak as P1/K1; the helper is token marshalling (owner identity for `onCel`) that §4.3 moves observer-side | include → replace with `sci_gfx_observer.h`; helper → observer-side (token construction behind onCel source=initBake) |
+| A3 | animate.cpp:427-431 | update() `kSignalAlwaysUpdate` branch: `onInitCel(view,loop,cel,rect,priority,owner)` during `_picNotValid` for an init-frame cast draw that bakes into the picture | N | Mechanical null-guarded observe; owner token disambiguates baked prop vs live actor | → onCel(rect, view, loop, cel, priority, owner, source=initBake) (L3) |
+| A4 | animate.cpp:461-465 | update() `kSignalNoUpdate` branch: same `onInitCel` capture during `_picNotValid` | N | Mechanical observe, identical to A3 at the second cast-draw site | → onCel(..., source=initBake) (L3) |
+| A5 | animate.cpp:491-495 | drawCels() branch: same `onInitCel` capture during `_picNotValid` | N | Mechanical observe, identical to A3 at the third cast-draw site | → onCel(..., source=initBake) (L3) |
+| A6 | animate.cpp:512-516 | updateScreen() open: `beginNativeDraw()` re-entrancy bracket so the animate cels' native bitsShow is not double-captured by Feeder B (they are composited semantically) | N | Mechanical self-draw bracket, neutral | → beginSelfDraw() (L2) |
+| A7 | animate.cpp:550-552 | updateScreen() close: `endNativeDraw()` bracket close | N | Mechanical bracket close | → endSelfDraw() (L2) |
+| A8 | animate.cpp:585-589 | reAnimate() open: `beginNativeDraw()` bracket around the cel redraw (dialog-dismissal restore path) | N | Mechanical self-draw bracket | → beginSelfDraw() (L2) |
+| A9 | animate.cpp:608-613 | reAnimate() close: `endNativeDraw()` bracket close + `renderFromAnimateList(_list)` re-composite after background restore | N | Mechanical bracket close + one frame-list observe; the animate-list emit is the L1 frame event | → endSelfDraw() (L2) + onAnimateFrame(list) (L1) |
+| A10 | animate.cpp:652-654 | addToPicDrawCels(): `onAddToPicCel(view,loop,cel,rect,priority)` for a static cel baked into the pic (not in the animate list after) | N | Mechanical observe; one of the six `onCel` sources | → onCel(rect, view, loop, cel, priority, owner, source=addToPic) (L3) |
+| A11 | animate.cpp:673-675 | addToPicDrawView(): same `onAddToPicCel` for a single addToPic view | N | Mechanical observe, identical to A10 for the single-view entry | → onCel(..., source=addToPic) (L3) |
+| A12 | animate.cpp:699-701 | kernelAnimate() entry: `const uint32 rogerCycleT0 = g_system->getMillis()` unconditionally, feeding the A14 telemetry line | D | Fork dev-telemetry only (one unconditional getMillis); no observer need | delete with A14 (fork-only) |
+| A13 | animate.cpp:756-765 | kernelAnimate(): `snapshotNativeBaseline()` after updateScreen (Feeder B diff baseline) + `renderFromAnimateList(_list)` after restoreAndDelete (composite the sorted cast) | N | Two mechanical observes at the cycle's frame boundaries | → onFrameEnd()/snapshot (L1) + onAnimateFrame(list) (L1) |
+| A14 | animate.cpp:776-785 | kernelAnimate() tail: ROGER-CYCLE `warning()` telemetry gated on `cycleLogEnabled()`, using a **non-const function-static `s_prevCycleT0`** to hold the previous entry timestamp | D (+concern) | Dev-only telemetry AND an **upstream-forbidden reentrancy violation**: spec §portability bans non-const function statics (stale across return-to-launcher / in-process restart) — must not ship upstream in this form | delete (fork-only); if kept downstream, `s_prevCycleT0` must move to member state |
+
+<!-- coverage: 14 hunks (animate.cpp), diff order:
+  1=A1(common/system.h include); 2=A2(roger include + rogerOwnerToken helper);
+  3=A3(update kSignalAlwaysUpdate onInitCel); 4=A4(update kSignalNoUpdate onInitCel);
+  5=A5(drawCels onInitCel); 6=A6(updateScreen begin bracket); 7=A7(updateScreen end bracket);
+  8=A8(reAnimate begin bracket); 9=A9(reAnimate end bracket + renderFromAnimateList);
+  10=A10(addToPicDrawCels onAddToPicCel); 11=A11(addToPicDrawView onAddToPicCel);
+  12=A12(kernelAnimate entry getMillis); 13=A13(snapshotNativeBaseline + renderFromAnimateList);
+  14=A14(ROGER-CYCLE telemetry w/ static s_prevCycleT0). -->
+
+### 3.5 engines/sci/graphics/text16.cpp (44 lines, 4 hunks)
+
+| # | Site (file:line) | What it does | Bucket | Defensibility verdict | Disposition |
+|---|---|---|---|---|---|
+| T1 | text16.cpp:39 | `#include "sci/roger/roger_art_provider.h"` in the text file | W (+concern) | Same `roger/`-path leak as P1/K1/A2 | → replace with `sci_gfx_observer.h`; observer-side |
+| T2 | text16.cpp:570 | `int16 textWidth, maxTextWidth, textHeight = 0;` — adds `= 0` initializer to `textHeight` | G | Standalone upstreamable fix, no Roger needed: silences a real uninitialized-read path (`textHeight` is read into `hline` accumulation before assignment on a degenerate empty-box path) | standalone-PR (independent of observer work) |
+| T3 | text16.cpp:597 | `int16 lineCount = 0;` local declared before the draw loop | N (+concern) | Support variable for the per-line capture (T4), incremented but only consumed by the fork path — dead outside Roger | → folds into onText per-line emit (L3); observer-side (drop if unused upstream) |
+| T4 | text16.cpp:681-715,723-725 | Per-line capture block inside Box's draw loop: builds the exact placed line rect (offset+hline, measured textWidth/textHeight), `offsetRect` to global space, window-scoped token `0x60000000\|port->id`, emits `onNativeText(...)` per drawn line regardless of `show`; `lineCount++`; plus the post-loop comment noting the old whole-box hook was deleted | N | Mechanical observe (the load-bearing per-line-rect fix), but carries the token/offsetRect marshalling §4.3/§4.2 consolidate; the war-story comments relocate here | → onText(rect, text, font, pen, back, align, metrics, token, source=textBox) (L3); token+offsetRect helper observer-side; comments → FORK_AUDIT |
+
+<!-- coverage: 4 hunks (text16.cpp), diff order:
+  1=T1(roger include); 2=T2(textHeight = 0 init); 3=T3(lineCount decl);
+  4=T4(per-line capture block + lineCount++ + post-loop comment). -->
+
+### 3.6 engines/sci/graphics/transitions.cpp (27 lines, 2 hunks)
+
+| # | Site (file:line) | What it does | Bucket | Defensibility verdict | Disposition |
+|---|---|---|---|---|---|
+| TR1 | transitions.cpp:32 | `#include "sci/roger/roger_art_provider.h"` in the transitions file | W (+concern) | Same `roger/`-path leak as P1/K1/A2/T1 | → replace with `sci_gfx_observer.h`; observer-side |
+| TR2 | transitions.cpp:184-208 | doit() claim block: when `enabled && isOverlayVisible()`, compute the blackout pre-type via `translateNumber`, `palVaryPrepareForTransition()`, emit `onTransition(_number, picRect, blackoutNumber)`, then finalize SCI instantly (`setNewScreen`/`setNewPalette`/`_picNotValid=0`) and **early-return**, skipping SCI's animated transition to avoid double-blocking | C | Native path skipped when provider active — a genuine, defensible override (avoids invisible double-blocking dead time under the opaque overlay); currently inline `isOverlayVisible()`-gated fork logic rather than a documented claim | → claimTransition(type, rect, blackoutType) -> bool (L4) |
+
+<!-- coverage: 2 hunks (transitions.cpp), diff order:
+  1=TR1(roger include); 2=TR2(doit claim early-return block). -->
+
 <!-- Tasks 2-5 append per-file subsections here -->
 
 ## 4. Seam inventory
