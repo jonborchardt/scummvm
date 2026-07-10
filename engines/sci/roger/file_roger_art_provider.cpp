@@ -1862,8 +1862,8 @@ void FileRogerArtProvider::uiPushTextEdit(const Common::Rect &r, const char *tex
 	presentBarrier();
 }
 
-void FileRogerArtProvider::uiPushIcon(const Common::Rect &r, int viewId, int loopNo, int celNo,
-                                      uint32 token) {
+void FileRogerArtProvider::uiPushIconInternal(const Common::Rect &r, int viewId, int loopNo, int celNo,
+                                              uint32 token) {
 	if (!overlayShown() || !_plate) return;
 	ensureUi();
 	Roger::UiElement e;
@@ -1883,7 +1883,7 @@ void FileRogerArtProvider::uiPushIcon(const Common::Rect &r, int viewId, int loo
 	presentBarrier();
 }
 
-void FileRogerArtProvider::onDrawCel(const Common::Rect &r, int viewId, int loopNo, int celNo) {
+void FileRogerArtProvider::onDrawCelInternal(const Common::Rect &r, int viewId, int loopNo, int celNo) {
 	if (!overlayShown() || !_plate || !_viewCache) return;
 	const Graphics::Surface *hi = _viewCache->getCel(viewId, loopNo, celNo);
 	ensureUi();
@@ -2437,8 +2437,8 @@ void FileRogerArtProvider::processForegroundCaptures(const Common::Array<Common:
 		dumpCaptureDebug();
 }
 
-void FileRogerArtProvider::onAddToPicCel(int viewId, int loopNo, int celNo,
-                                         const Common::Rect &celRect, int priority) {
+void FileRogerArtProvider::onAddToPicCelInternal(int viewId, int loopNo, int celNo,
+                                                 const Common::Rect &celRect, int priority) {
 	Roger::Sprite s;
 	s.viewId = viewId;
 	s.loopNo = loopNo;
@@ -2459,8 +2459,35 @@ void FileRogerArtProvider::onAddToPicCel(int viewId, int loopNo, int celNo,
 		        celRect.left, celRect.top, celRect.right, celRect.bottom, (unsigned)_staticSprites.size());
 }
 
-void FileRogerArtProvider::onInitCel(int viewId, int loopNo, int celNo,
-                                     const Common::Rect &celRect, int priority, uint32 owner) {
+void FileRogerArtProvider::onCel(const Common::Rect &rect, int viewId, int loopNo, int celNo,
+                                 int priority, uint32 owner, CelSource source) {
+	switch (source) {
+	case kCelSourceInitBake:
+		// owner-gated promotion (the _picNotValid trap) lives inside this body,
+		// unchanged: a cel promotes only while its owner leaves the animate list.
+		onInitCelInternal(viewId, loopNo, celNo, rect, priority, owner);
+		break;
+	case kCelSourceAddToPic:
+		onAddToPicCelInternal(viewId, loopNo, celNo, rect, priority);
+		break;
+	case kCelSourceStandalone:
+		onDrawCelInternal(rect, viewId, loopNo, celNo);
+		break;
+	case kCelSourceIcon:
+		// `owner` carries the window UI token for the icon source (C9 decision):
+		// read only here, never by the initBake promotion logic above.
+		uiPushIconInternal(rect, viewId, loopNo, celNo, owner);
+		break;
+	case kCelSourceAnimate:
+	default:
+		// Live animate-cast cels are composited via onAnimateFrame, not per
+		// draw — no per-cel work here (no seam emits kCelSourceAnimate yet).
+		break;
+	}
+}
+
+void FileRogerArtProvider::onInitCelInternal(int viewId, int loopNo, int celNo,
+                                             const Common::Rect &celRect, int priority, uint32 owner) {
 	if (owner != 0) {
 		// One capture per animate object, latest draw wins Ã¢â‚¬â€ mirrors the native buffer,
 		// which holds the object's most recent baked draw. Prevents an actor that moved
@@ -2845,8 +2872,9 @@ void FileRogerArtProvider::onAnimateFrame(const AnimateList &list) {
 	// the cast on frame 1 and must still promote after their objects leave.
 	Common::Array<uint32> liveOwners;
 	for (AnimateList::const_iterator it = list.begin(); it != list.end(); ++it)
-		// Token must match rogerOwnerToken() in graphics/animate.cpp (segment<<16 | offset).
-		liveOwners.push_back(((uint32)it->object.getSegment() << 16) | (uint32)(it->object.getOffset() & 0xFFFF));
+		// Token must match onCel(kCelSourceInitBake)'s owner (gfxOwnerToken in
+		// sci_gfx_observer.h, segment<<16 | offset) — the promotion discriminator.
+		liveOwners.push_back(gfxOwnerToken(it->object.getSegment(), it->object.getOffset()));
 
 	// Promote the eligible init cels, deduped against addToPic.
 	Common::Array<Roger::Sprite> statics = _staticSprites;

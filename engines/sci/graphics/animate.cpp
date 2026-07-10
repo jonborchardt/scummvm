@@ -45,13 +45,6 @@
 
 namespace Sci {
 
-// Roger: opaque owner token for an animate-list object, passed with init-cel captures so
-// the provider can tell a disposed-after-baking prop (promote) from a live actor (never
-// promote — it is drawn live; promoting froze a duplicate ego). SCI0 offsets fit 16 bits.
-static uint32 rogerOwnerToken(reg_t obj) {
-	return ((uint32)obj.getSegment() << 16) | (uint32)(obj.getOffset() & 0xFFFF);
-}
-
 GfxAnimate::GfxAnimate(EngineState *state, ScriptPatcher *scriptPatcher, GfxCache *cache, GfxCompare *compare, GfxPorts *ports, GfxPaint16 *paint16, GfxScreen *screen, GfxPalette *palette, GfxCursor *cursor, GfxTransitions *transitions)
 	: _s(state), _scriptPatcher(scriptPatcher), _cache(cache), _compare(compare), _ports(ports), _paint16(paint16), _screen(screen), _palette(palette), _cursor(cursor), _transitions(transitions) {
 	init();
@@ -426,8 +419,11 @@ void GfxAnimate::update() {
 			// Roger: a cast draw during room init (_picNotValid) bakes into the native
 			// picture if its object disposes before ever being erased — capture it, tagged
 			// with its owner so it only promotes once the owner leaves the animate list.
-			if (g_sciRogerProvider && g_sciRogerProvider->enabled && _screen->_picNotValid)
-				g_sciRogerProvider->onInitCel(it->viewId, it->loopNo, it->celNo, it->celRect, it->priority, rogerOwnerToken(it->object));
+			if (g_sciGfxObserver && _screen->_picNotValid)
+				g_sciGfxObserver->onCel(it->celRect, it->viewId, it->loopNo, it->celNo,
+				                        it->priority,
+				                        gfxOwnerToken(it->object.getSegment(), it->object.getOffset()),
+				                        SciGfxObserver::kCelSourceInitBake);
 			it->showBitsFlag = true;
 
 			it->signal &= ~(kSignalStopUpdate | kSignalViewUpdated | kSignalNoUpdate | kSignalForceUpdate);
@@ -461,8 +457,11 @@ void GfxAnimate::update() {
 			// draw corresponding cel
 			_paint16->drawCel(it->viewId, it->loopNo, it->celNo, it->celRect, it->priority, it->paletteNo, it->scaleX, it->scaleY);
 			// Roger: init-frame cast draw — see the kSignalAlwaysUpdate capture above.
-			if (g_sciRogerProvider && g_sciRogerProvider->enabled && _screen->_picNotValid)
-				g_sciRogerProvider->onInitCel(it->viewId, it->loopNo, it->celNo, it->celRect, it->priority, rogerOwnerToken(it->object));
+			if (g_sciGfxObserver && _screen->_picNotValid)
+				g_sciGfxObserver->onCel(it->celRect, it->viewId, it->loopNo, it->celNo,
+				                        it->priority,
+				                        gfxOwnerToken(it->object.getSegment(), it->object.getOffset()),
+				                        SciGfxObserver::kCelSourceInitBake);
 			it->showBitsFlag = true;
 
 			if (!(it->signal & kSignalIgnoreActor)) {
@@ -489,8 +488,11 @@ void GfxAnimate::drawCels() {
 			// draw corresponding cel
 			_paint16->drawCel(it->viewId, it->loopNo, it->celNo, it->celRect, it->priority, it->paletteNo, it->scaleX, it->scaleY, it->scaleSignal);
 			// Roger: init-frame cast draw — see the kSignalAlwaysUpdate capture in update().
-			if (g_sciRogerProvider && g_sciRogerProvider->enabled && _screen->_picNotValid)
-				g_sciRogerProvider->onInitCel(it->viewId, it->loopNo, it->celNo, it->celRect, it->priority, rogerOwnerToken(it->object));
+			if (g_sciGfxObserver && _screen->_picNotValid)
+				g_sciGfxObserver->onCel(it->celRect, it->viewId, it->loopNo, it->celNo,
+				                        it->priority,
+				                        gfxOwnerToken(it->object.getSegment(), it->object.getOffset()),
+				                        SciGfxObserver::kCelSourceInitBake);
 			it->showBitsFlag = true;
 
 			if (it->signal & kSignalRemoveView)
@@ -646,8 +648,9 @@ void GfxAnimate::addToPicDrawCels() {
 		_paint16->drawCel(view, it->loopNo, it->celNo, it->celRect, it->priority, it->paletteNo, it->scaleX, it->scaleY);
 		// Roger hires overlay: capture this addToPic cel so it appears in the overlay
 		// (it is baked into the native pic and is not in the animate list afterwards).
-		if (g_sciRogerProvider && g_sciRogerProvider->enabled)
-			g_sciRogerProvider->onAddToPicCel(it->viewId, it->loopNo, it->celNo, it->celRect, it->priority);
+		if (g_sciGfxObserver)
+			g_sciGfxObserver->onCel(it->celRect, it->viewId, it->loopNo, it->celNo,
+			                        it->priority, 0, SciGfxObserver::kCelSourceAddToPic);
 		if (!(it->signal & kSignalIgnoreActor)) {
 			it->celRect.top = CLIP<int16>(_ports->kernelPriorityToCoordinate(it->priority) - 1, it->celRect.top, it->celRect.bottom - 1);
 			_paint16->fillRect(it->celRect, GFX_SCREEN_MASK_CONTROL, 0, 0, 15);
@@ -666,8 +669,9 @@ void GfxAnimate::addToPicDrawView(GuiResourceId viewId, int16 loopNo, int16 celN
 	view->getCelRect(loopNo, celNo, x, y, 0, celRect);
 	_paint16->drawCel(view, loopNo, celNo, celRect, priority, 0);
 	// Roger hires overlay: capture this single addToPic view.
-	if (g_sciRogerProvider && g_sciRogerProvider->enabled)
-		g_sciRogerProvider->onAddToPicCel(viewId, loopNo, celNo, celRect, priority);
+	if (g_sciGfxObserver)
+		g_sciGfxObserver->onCel(celRect, viewId, loopNo, celNo,
+		                        priority, 0, SciGfxObserver::kCelSourceAddToPic);
 
 	if (control != -1) {
 		celRect.top = CLIP<int16>(_ports->kernelPriorityToCoordinate(priority) - 1, celRect.top, celRect.bottom - 1);

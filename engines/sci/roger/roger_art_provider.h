@@ -62,28 +62,6 @@ public:
 	// pointer (especially during blocking dialogs/menus that do not tick animate).
 	virtual void onMouseMoved() {}
 
-	// Standalone cel draw (kDrawCel) — e.g. an inventory item's "look at" close-up.
-	// If an upscaled cel exists (views/<id>/view.<id>.loop.<loop>.png), composite it
-	// into the overlay at globalRect (320x200 space); otherwise no-op (native shows).
-	virtual void onDrawCel(const Common::Rect &globalRect, int viewId, int loopNo, int celNo) {}
-
-	// Init-time cel (a cel drawn while _picNotValid): a view cel drawn during the room's
-	// first setup that bakes into the native picture (QFG1 first-visit signs/decorations).
-	// Captured so it can be re-shown persistently at hires. `owner` is an opaque token
-	// identifying the drawing animate-list object (0 = not a cast draw, e.g. kDrawCel):
-	// the capture is shown only while its owner is absent from the live animate list —
-	// a disposed-after-baking prop promotes, a live actor (the ego) never does.
-	// No-op in base.
-	virtual void onInitCel(int viewId, int loopNo, int celNo,
-	                       const Common::Rect &celRect, int priority, uint32 owner) {}
-
-	// addToPic cel (kAddToPic) — a static view baked into the room's native picture.
-	// Roger captures it as a persistent per-room sprite so it appears in the overlay at
-	// hires (it is NOT part of the omyac plate and NOT in the animate list). celRect is
-	// picture-window-local 320x190 space (same as animate Sprite::celRect). No-op in base.
-	virtual void onAddToPicCel(int viewId, int loopNo, int celNo,
-	                           const Common::Rect &celRect, int priority) {}
-
 	// Generic native show (Feeder B): SCI is about to blit `screenRect` (320x200 screen
 	// coords) of its native visual buffer to the display through a path Roger does not
 	// hook semantically. Recorded for the per-frame generic composite. `ownerToken` scopes
@@ -156,8 +134,6 @@ public:
 	virtual void uiPushTextEdit(const Common::Rect &globalRect, const char *text, int fontId,
 	                            int style, int cursorPos, uint32 token,
 	                            int nativeFontH = 0, int nativeTextW = 0) {}
-	virtual void uiPushIcon(const Common::Rect &globalRect, int viewId, int loopNo, int celNo,
-	                        uint32 token) {}
 	// Score/title status banner (top strip): rendered hires (exact fit, opaque) so it
 	// occludes the native low-res bar instead of showing through the overlay strip.
 	virtual void uiPushStatus(const Common::Rect &globalRect, const char *text, int fontId,

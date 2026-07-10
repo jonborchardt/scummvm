@@ -136,12 +136,11 @@ void GfxPaint16::drawCelAndShow(GuiResourceId viewId, int16 loopNo, int16 celNo,
 		celRect.right = celRect.left + view->getWidth(loopNo, celNo);
 		celRect.bottom = celRect.top + view->getHeight(loopNo, celNo);
 
-		// Roger: a script-drawn cel (kDrawCel / control icon) while the picture is not yet
-		// valid (_picNotValid) bakes into the native picture — capture it as a persistent
-		// hires static. owner = 0: no animate-list object, so it is always promoted.
-		// Animate-cast draws are captured separately in GfxAnimate with their owner object.
-		if (g_sciRogerProvider && g_sciRogerProvider->enabled && _screen->_picNotValid)
-			g_sciRogerProvider->onInitCel(viewId, loopNo, celNo, celRect, priority, 0);
+		// A script-drawn cel drawn while the picture is not yet valid bakes into the
+		// native picture. owner = 0: no animate-list object, so it is always promoted.
+		if (g_sciGfxObserver && _screen->_picNotValid)
+			g_sciGfxObserver->onCel(celRect, viewId, loopNo, celNo, priority, 0,
+			                        SciGfxObserver::kCelSourceInitBake);
 
 		drawCel(view, loopNo, celNo, celRect, priority, paletteNo, scaleX, scaleY, scaleSignal);
 
@@ -192,7 +191,7 @@ void GfxPaint16::drawHiresCelAndShow(GuiResourceId viewId, int16 loopNo, int16 c
 		return;
 	}
 
-	// Self-draw bracket: hires cels are composited semantically (onDrawCel).
+	// Self-draw bracket: hires cels are composited semantically (onCel).
 	if (g_sciGfxObserver)
 		g_sciGfxObserver->beginSelfDraw();
 
@@ -461,16 +460,16 @@ void GfxPaint16::kernelDrawCel(GuiResourceId viewId, int16 loopNo, int16 celNo, 
 	// some calls are hiresMode even under kq6 DOS, that's why we check for hires caps here
 	if (!hiresMode || !_screen->gfxDriver()->supportsHiResGraphics()) {
 		drawCelAndShow(viewId, loopNo, celNo, leftPos, topPos, priority, paletteNo, scaleX, scaleY);
-		// Roger: a standalone cel (e.g. an inventory item's "look at" close-up). If an
-		// upscaled cel exists, composite it hires into the overlay over the native draw.
-		if (g_sciRogerProvider && g_sciRogerProvider->enabled) {
+		// A standalone cel (e.g. an inventory item's "look at" close-up).
+		if (g_sciGfxObserver) {
 			GfxView *celView = _cache->getView(viewId);
 			if (celView) {
 				Common::Rect g(leftPos, topPos,
 				               leftPos + celView->getWidth(loopNo, celNo),
 				               topPos + celView->getHeight(loopNo, celNo));
 				_ports->offsetRect(g);
-				g_sciRogerProvider->onDrawCel(g, viewId, loopNo, celNo);
+				g_sciGfxObserver->onCel(g, viewId, loopNo, celNo, 0, 0,
+				                        SciGfxObserver::kCelSourceStandalone);
 			}
 		}
 	} else {

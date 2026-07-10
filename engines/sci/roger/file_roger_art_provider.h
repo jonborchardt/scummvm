@@ -66,11 +66,17 @@ public:
 	void onPicture(GuiResourceId picId, bool addToFlag) override;
 	void onPictureAbsent() override;
 	void onMouseMoved() override;
-	void onDrawCel(const Common::Rect &globalRect, int viewId, int loopNo, int celNo) override;
-	void onAddToPicCel(int viewId, int loopNo, int celNo,
-	                   const Common::Rect &celRect, int priority) override;
-	void onInitCel(int viewId, int loopNo, int celNo,
-	               const Common::Rect &celRect, int priority, uint32 owner) override;
+	// SciGfxObserver cel family (R3): one dispatcher over the five sources.
+	void onCel(const Common::Rect &rect, int viewId, int loopNo, int celNo,
+	           int priority, uint32 owner, CelSource source) override;
+	// Per-source bodies (formerly onDrawCel/onAddToPicCel/onInitCel/uiPushIcon):
+	void onDrawCelInternal(const Common::Rect &globalRect, int viewId, int loopNo, int celNo);
+	void onAddToPicCelInternal(int viewId, int loopNo, int celNo,
+	                           const Common::Rect &celRect, int priority);
+	void onInitCelInternal(int viewId, int loopNo, int celNo,
+	                       const Common::Rect &celRect, int priority, uint32 owner);
+	void uiPushIconInternal(const Common::Rect &globalRect, int viewId, int loopNo, int celNo,
+	                        uint32 token);
 	void beginSelfDraw() override;
 	void endSelfDraw() override;
 	void onNativeShowRect(const Common::Rect &screenRect, uint32 ownerToken) override;
@@ -107,8 +113,6 @@ public:
 	void uiPushTextEdit(const Common::Rect &globalRect, const char *text, int fontId,
 	                    int style, int cursorPos, uint32 token,
 	                    int nativeFontH, int nativeTextW) override;
-	void uiPushIcon(const Common::Rect &globalRect, int viewId, int loopNo, int celNo,
-	                uint32 token) override;
 	void uiPushStatus(const Common::Rect &globalRect, const char *text, int fontId,
 	                  int penColor, int backColor, uint32 token,
 	                  int nativeFontH, int nativeTextW) override;
@@ -203,7 +207,7 @@ private:
 	// first-visit signs), tagged with their owning animate object (one capture per owner,
 	// latest wins; owner 0 = script kDrawCel). Cleared on room change; each frame the entries
 	// whose owner is absent from the animate list are merged in as persistent hires statics Ã¢â‚¬â€
-	// a disposed-after-baking prop promotes, a live actor (the ego) never does. See onInitCel.
+	// a disposed-after-baking prop promotes, a live actor (the ego) never does. See onInitCelInternal.
 	Common::Array<Roger::Sprite> _initCels;
 	// Native-foreground capture (QFG1 menu/character-creation stat labels, class buttons,
 	// software cursor): regions recorded by the bitsShow hook (onNativeShowRect), turned
@@ -224,7 +228,7 @@ private:
 	// surfaces are freed on room change alongside _uiIcons.
 	struct GenGlyphKey { byte ch; int fontId; int penColor; const Graphics::Surface *surf; };
 	Common::Array<GenGlyphKey> _genericGlyphCache;
-	// Cache for native-fallback cel surfaces used by onDrawCel (kDrawCel standalone cels).
+	// Cache for native-fallback cel surfaces used by onDrawCelInternal (kDrawCel standalone cels).
 	// Keyed by (viewId, loopNo, celNo) so the same cel drawn at N positions renders once
 	// and is referenced N times. Owned via _uiIcons (freed on room change); this array is
 	// just an index (cleared whenever _uiIcons is freed).

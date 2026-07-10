@@ -537,12 +537,13 @@ void GfxControls16::kernelDrawTextEdit(Common::Rect rect, reg_t obj, const char 
 }
 
 void GfxControls16::kernelDrawIcon(Common::Rect rect, reg_t obj, GuiResourceId viewId, int16 loopNo, int16 celNo, int16 priority, int16 style, bool hilite) {
-	if (g_sciRogerProvider && g_sciRogerProvider->enabled) {
+	if (g_sciGfxObserver) {
 		Common::Rect g = rect;
 		_ports->offsetRect(g);
 		const Port *p = _ports->getPort();
-		const uint32 tok = 0x40000000u | (uint32)(p ? p->id : 0);
-		g_sciRogerProvider->uiPushIcon(g, viewId, loopNo, celNo, tok);
+		const uint32 tok = gfxWindowToken((uint32)(p ? p->id : 0));
+		g_sciGfxObserver->onCel(g, viewId, loopNo, celNo, priority, tok,
+		                        SciGfxObserver::kCelSourceIcon);
 	}
 
 	if (!hilite) {
