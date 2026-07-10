@@ -32,7 +32,7 @@ Graphics::Surface *decodeSci0Cursor(const byte *data, int size, Common::Point &o
 		return nullptr;
 
 	const int kHW = 16;    // SCI_CURSOR_SCI0_HEIGHTWIDTH
-	const int kScale = 5;
+	const int kScale = 6;  // same enhanced scale as view cels (scale6x)
 
 	// Byte 3 nonzero -> hotspot centered (half-width); zero -> top-left.
 	const bool centered = (data[3] != 0);
@@ -40,6 +40,8 @@ Graphics::Surface *decodeSci0Cursor(const byte *data, int size, Common::Point &o
 	// Decode 16x16 bitmask into an IndexImage.
 	// color = 2*maskA_bit + maskB_bit:
 	//   0 = black, 1 = white, 2 = transparent, 3 = white (SCI0 both-masks-set)
+	// Both white encodings collapse to index 1 so the edge-aware scaler never
+	// sees a false color boundary between them.
 	IndexImage img;
 	img.w = kHW;
 	img.h = kHW;
@@ -48,13 +50,15 @@ Graphics::Surface *decodeSci0Cursor(const byte *data, int size, Common::Point &o
 		const uint16 maskA = READ_LE_UINT16(data + 4 + y * 2);
 		const uint16 maskB = READ_LE_UINT16(data + 4 + 32 + y * 2);
 		for (int x = 0; x < kHW; x++) {
-			const byte colorIdx = (byte)((((maskA << x) & 0x8000) | (((maskB << x) >> 1) & 0x4000)) >> 14);
+			byte colorIdx = (byte)((((maskA << x) & 0x8000) | (((maskB << x) >> 1) & 0x4000)) >> 14);
+			if (colorIdx == 3)
+				colorIdx = 1;
 			img.pixels[y * kHW + x] = colorIdx;
 		}
 	}
 
-	// Scale 5x nearest-neighbour -> 80x80.
-	const IndexImage scaled = scaleNearest(img, kScale);
+	// Scale 6x edge-enhanced (EPX scale6x, the view-cel pipeline) -> 96x96.
+	const IndexImage scaled = scale6x(img);
 
 	// Convert IndexImage to RGBA32.
 	const Graphics::PixelFormat rgba(4, 8, 8, 8, 8, 24, 16, 8, 0);

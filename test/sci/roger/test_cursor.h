@@ -47,14 +47,14 @@ public:
 		}
 	}
 
-	void test_decode_all_black_produces_80x80_black_surface() {
+	void test_decode_all_black_produces_96x96_black_surface() {
 		byte data[68];
 		buildAllBlack(data);
 		Common::Point hotspot;
 		Graphics::Surface *surf = Sci::Roger::decodeSci0Cursor(data, 68, hotspot);
 		TS_ASSERT(surf != nullptr);
-		TS_ASSERT_EQUALS(surf->w, 80); // 16 * 5
-		TS_ASSERT_EQUALS(surf->h, 80);
+		TS_ASSERT_EQUALS(surf->w, 96); // 16 * 6 — same enhanced scale as view cels
+		TS_ASSERT_EQUALS(surf->h, 96);
 		uint8 a, r, g, b;
 		surf->format.colorToARGB(surf->getPixel(0, 0), a, r, g, b);
 		TS_ASSERT_EQUALS(a, 255);
@@ -90,11 +90,11 @@ public:
 	void test_hotspot_centered_when_byte3_nonzero() {
 		byte data[68];
 		buildAllBlack(data);
-		data[3] = 1; // centered -> hotspot = (8 * 5, 8 * 5) = (40, 40)
+		data[3] = 1; // centered -> hotspot = (8 * 6, 8 * 6) = (48, 48)
 		Common::Point hotspot;
 		Graphics::Surface *s = Sci::Roger::decodeSci0Cursor(data, 68, hotspot);
-		TS_ASSERT_EQUALS(hotspot.x, 40);
-		TS_ASSERT_EQUALS(hotspot.y, 40);
+		TS_ASSERT_EQUALS(hotspot.x, 48);
+		TS_ASSERT_EQUALS(hotspot.y, 48);
 		s->free(); delete s;
 	}
 
@@ -116,12 +116,67 @@ public:
 		Graphics::Surface *s = Sci::Roger::decodeSci0Cursor(data, 68, hotspot);
 		TS_ASSERT(s != nullptr);
 		uint8 a, r, g, b;
-		// The top-left 5x5 block (scaled from original pixel 0,0) should be white.
+		// The top-left block (scaled from original pixel 0,0) should be white.
 		s->format.colorToARGB(s->getPixel(0, 0), a, r, g, b);
 		TS_ASSERT_EQUALS(a, 255);
 		TS_ASSERT_EQUALS(r, 255);
 		TS_ASSERT_EQUALS(g, 255);
 		TS_ASSERT_EQUALS(b, 255);
+		s->free(); delete s;
+	}
+
+	void test_diagonal_is_edge_enhanced_not_plain_nearest() {
+		// A white diagonal on black. The enhanced (EPX scale6x) upscale smooths
+		// the stair-steps, so at least one output pixel must differ from what
+		// plain nearest-neighbour replication would produce. Plain replication
+		// (the old 5x path) would match everywhere.
+		byte data[68];
+		memset(data, 0, 68); // all black
+		// White (color 1: maskA=0, maskB bit set) at (x, y) where x == y.
+		for (int y = 0; y < 16; y++) {
+			const uint16 maskB = (uint16)(0x8000 >> y);
+			data[36 + y * 2]     = (byte)(maskB & 0xFF);
+			data[36 + y * 2 + 1] = (byte)(maskB >> 8);
+		}
+		Common::Point hotspot;
+		Graphics::Surface *s = Sci::Roger::decodeSci0Cursor(data, 68, hotspot);
+		TS_ASSERT(s != nullptr);
+		const int scale = s->w / 16;
+		bool anyDiffers = false;
+		for (int y = 0; y < s->h && !anyDiffers; y++) {
+			for (int x = 0; x < s->w; x++) {
+				const bool srcWhite = (x / scale) == (y / scale); // nearest expectation
+				uint8 a, r, g, b;
+				s->format.colorToARGB(s->getPixel(x, y), a, r, g, b);
+				const bool outWhite = (r == 255);
+				if (outWhite != srcWhite) {
+					anyDiffers = true;
+					break;
+				}
+			}
+		}
+		TS_ASSERT(anyDiffers);
+		s->free(); delete s;
+	}
+
+	void test_both_masks_set_white_matches_plain_white() {
+		// Color 3 (both masks set) is white in SCI0 — it must scale identically
+		// to color 1 white (no seam artifacts from the enhancer treating the two
+		// white encodings as different colors). All-3 image => uniformly white.
+		byte data[68];
+		memset(data, 0xFF, 68); // maskA and maskB all set -> color 3 everywhere
+		data[3] = 0;            // top-left hotspot (byte 3 is header, keep it 0)
+		Common::Point hotspot;
+		Graphics::Surface *s = Sci::Roger::decodeSci0Cursor(data, 68, hotspot);
+		TS_ASSERT(s != nullptr);
+		for (int y = 0; y < s->h; y++) {
+			for (int x = 0; x < s->w; x++) {
+				uint8 a, r, g, b;
+				s->format.colorToARGB(s->getPixel(x, y), a, r, g, b);
+				TS_ASSERT_EQUALS(a, 255);
+				TS_ASSERT_EQUALS(r, 255);
+			}
+		}
 		s->free(); delete s;
 	}
 };
