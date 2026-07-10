@@ -71,8 +71,8 @@ struct PickerRowLayout {
 };
 
 struct PickerLayout {
-	Common::Rect titleBox, subtitleBox, descBox;
-	Common::Rect listPanel, listHeader;
+	Common::Rect titleBox, descBox;
+	Common::Rect listPanel;
 	Common::Array<PickerRowLayout> rows;  // one per VISIBLE row; state row = scrollOffset + i
 	int rowsVisible = 0;                  // capacity (rows that fit), >= rows.size()
 	Common::Rect addGame;

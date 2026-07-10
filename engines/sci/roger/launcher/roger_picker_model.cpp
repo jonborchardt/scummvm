@@ -55,19 +55,16 @@ PickerLayout layoutPicker(int w, int h, int gameCount, int scrollOffset) {
 	const int M   = h / 24;
 	const int pad = MAX(2, h / 80);
 
-	l.titleBox    = Common::Rect(M, M, M + w / 2, M + h / 14);
-	l.subtitleBox = Common::Rect(M, l.titleBox.bottom, M + w / 2, l.titleBox.bottom + h / 30);
-	l.descBox     = Common::Rect(M, l.subtitleBox.bottom + pad, w - M,
-	                             l.subtitleBox.bottom + pad + h / 18);
+	l.titleBox = Common::Rect(M, M, M + w / 2, M + h / 14);
+	l.descBox  = Common::Rect(M, l.titleBox.bottom + pad, w - M,
+	                           l.titleBox.bottom + pad + h / 18);
 
 	const int listTop = l.descBox.bottom + M / 2;
-	l.listPanel  = Common::Rect(M, listTop, w - M, listTop + (h * 40) / 100);
-	l.listHeader = Common::Rect(M + 2 * pad, listTop + pad, w - M - 2 * pad,
-	                            listTop + pad + h / 32);
+	l.listPanel = Common::Rect(M, listTop, w - M, listTop + (h * 40) / 100);
 
 	const int rowH = h / 11;
 	const int rowGap = pad;
-	const int rowsTop = l.listHeader.bottom + pad;
+	const int rowsTop = listTop + 2 * pad;
 	l.rowsVisible = MAX(1, (l.listPanel.bottom - pad - rowsTop + rowGap) / (rowH + rowGap));
 	const int shown = CLIP(gameCount - scrollOffset, 0, l.rowsVisible);
 	for (int i = 0; i < shown; ++i) {

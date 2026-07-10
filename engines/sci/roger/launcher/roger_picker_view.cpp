@@ -322,7 +322,7 @@ void PickerViewWidget::drawSettings() {
 	drawTextIn(kFBody, "Settings for: " + forWhom, _layout.settingsTitle,
 	           kBlue.r, kBlue.g, kBlue.b, Graphics::kTextAlignLeft);
 
-	drawTextIn(kFBody, "Passes", _layout.passesLabel, kText.r, kText.g, kText.b,
+	drawTextIn(kFBody, "Omyac passes", _layout.passesLabel, kText.r, kText.g, kText.b,
 	           Graphics::kTextAlignLeft);
 	blendFill(_layout.passesField, 10, 14, 24, 200);
 	strokeRect(_layout.passesField,
@@ -338,7 +338,7 @@ void PickerViewWidget::drawSettings() {
 	           _layout.passesHint, kTextDim.r, kTextDim.g, kTextDim.b,
 	           Graphics::kTextAlignLeft);
 
-	drawTextIn(kFBody, "Debug Logging (ini)", _layout.debugLabel,
+	drawTextIn(kFBody, "Debug Logging", _layout.debugLabel,
 	           kText.r, kText.g, kText.b, Graphics::kTextAlignLeft);
 	// Toggle pill: filled+knob-right when on.
 	const bool on = _state.settings.debugLog;
@@ -377,19 +377,13 @@ void PickerViewWidget::renderAll() {
 
 	drawTextIn(kFTitle, "ROGER", _layout.titleBox, kText.r, kText.g, kText.b,
 	           Graphics::kTextAlignLeft);
-	drawTextIn(kFSub, "Game Picker", _layout.subtitleBox, kText.r, kText.g, kText.b,
-	           Graphics::kTextAlignLeft);
 	drawTextIn(kFSmall,
-	           "ROGER is a high-resolution overlay renderer for classic Sierra SCI games. "
+	           "A high-resolution overlay renderer for classic Sierra SCI games. "
 	           "Select a game to configure rendering passes and settings.",
 	           _layout.descBox, kTextDim.r, kTextDim.g, kTextDim.b, Graphics::kTextAlignLeft);
 
 	blendFill(_layout.listPanel, 16, 22, 36, 216);
 	strokeRect(_layout.listPanel, kPanelLine.r, kPanelLine.g, kPanelLine.b);
-	drawTextIn(kFSmall, "GAME", _layout.listHeader, kTextDim.r, kTextDim.g, kTextDim.b,
-	           Graphics::kTextAlignLeft);
-	drawTextIn(kFSmall, "CACHE STATUS (FOR CURRENT PASSES)", _layout.listHeader,
-	           kTextDim.r, kTextDim.g, kTextDim.b, Graphics::kTextAlignCenter);
 
 	if (_state.games.empty()) {
 		drawTextIn(kFBody, "No SCI games found - use + Add Game below.",
