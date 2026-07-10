@@ -34,7 +34,10 @@ when unset) — "Reset" always returns to that.
 Top = the **scene area**; bottom 560 overlay px = the **control panel**. The
 pointer is a composited crosshair (the hardware cursor is invisible over the
 overlay). Only two keys exist, for automation convenience: **Esc** quits,
-**E** exports; everything else is mouse.
+**E** exports; everything else is mouse. The control panel is painted at full
+display resolution through the shared kit's PanelPainter (TTF labels, PanelStyle
+palette); the widgets keep their half-res layout space and the /2 hit-test
+mapping unchanged.
 
 ### Scene area interaction
 
