@@ -22,9 +22,6 @@
 #include "sci/roger/gen/roger_passes.h" // omyacPassStamp, goodPassPattern, parsePassString
 #include "sci/roger/gen/roger_view_scaler.h"
 #include "common/util.h"
-#include "graphics/fontman.h"
-#include "graphics/font.h"
-#include "graphics/managed_surface.h"
 #include "sci/roger/overlay/roger_coords.h"
 
 namespace Sci {
@@ -156,50 +153,80 @@ Common::String tuneStatusLine(const TunePanelState &st) {
 }
 
 void drawTunePanel(Graphics::ManagedSurface &scene, const Common::Rect &gameRect,
-                   const TunePanelState &st, const Common::Array<PanelWidget> &widgets) {
+                   const TunePanelState &st, const Common::Array<PanelWidget> &widgets,
+                   TunePanelBake &bake) {
 	if (gameRect.isEmpty())
 		return;
 	const Common::Rect panelGame = tunePanelRect(st.leftSide);
 	const Common::Rect panel = sciRectToDest(panelGame, gameRect);
-	const uint32 bg   = scene.format.ARGBToColor(255, 22, 22, 30);
-	const uint32 fg   = scene.format.ARGBToColor(255, 190, 190, 200);
-	const uint32 hi   = scene.format.ARGBToColor(255, 255, 220, 120);
-	const uint32 hov  = scene.format.ARGBToColor(255, 60, 60, 84);
-	const uint32 dim  = scene.format.ARGBToColor(255, 96, 96, 104);
-	scene.fillRect(panel, bg);
-	scene.frameRect(panel, fg);
+	if (panel.isEmpty())
+		return;
 
-	const Graphics::Font *f = FontMan.getFontByUsage(Graphics::FontManager::kBigGUIFont);
+	// Everything the rendered pixels depend on. Rebuild only on change so the
+	// per-present cost is one panel-sized alpha blit (per-cycle discipline).
+	Common::String sig = Common::String::format("%d,%d,%dx%d|h%u|%s|",
+		panel.left, panel.top, panel.width(), panel.height(),
+		st.hoverId, tuneStatusLine(st).c_str());
+	for (uint i = 0; i < widgets.size(); i++)
+		sig += Common::String::format("%u:%s:%d%d;", widgets[i].id,
+			widgets[i].label.c_str(), widgets[i].on ? 1 : 0,
+			widgets[i].enabled ? 1 : 0);
 
-	// Title (top-left, inside the panel, left of the side/close boxes).
-	if (f) {
-		const Common::Rect t = sciRectToDest(
+	if (sig != bake.sig) {
+		bake.sig = sig;
+		if (bake.surface.w != panel.width() || bake.surface.h != panel.height())
+			bake.surface.create(panel.width(), panel.height(), scene.format);
+
+		// One game-space row (10 px) in dest px sizes the fonts.
+		const int rowDestH = panel.height() * 10 / MAX(1, (int)panelGame.height());
+		const int sizes[kFontRoleCount] = {
+			rowDestH,             // title: "TUNE (F12)"
+			0,                    // sub: unused
+			rowDestH * 3 / 5,     // body: widget labels
+			rowDestH / 2,         // small: status line
+			rowDestH * 3 / 5      // mono: unused today, sized anyway
+		};
+		bake.fonts.load(sizes);
+		PanelPainter paint(bake.surface, bake.fonts);
+
+		// Translucent navy panel: baked WITH alpha so the game scene shows
+		// through when the bake is alpha-blended over it. Widgets drawn on top
+		// composite against the panel color and end up ~opaque — intended.
+		bake.surface.fillRect(Common::Rect(0, 0, bake.surface.w, bake.surface.h),
+			bake.surface.format.ARGBToColor(216, PanelStyle::kPanelFill.r,
+				PanelStyle::kPanelFill.g, PanelStyle::kPanelFill.b));
+		paint.strokeRect(Common::Rect(0, 0, bake.surface.w, bake.surface.h),
+			PanelStyle::kPanelLine);
+
+		// All rects below: map game space -> scene dest -> panel-local.
+		const int ox = panel.left, oy = panel.top;
+		Common::Rect t = sciRectToDest(
 			Common::Rect(panelGame.left + 2, panelGame.top + 2,
 			             panelGame.right - 26, panelGame.top + 12), gameRect);
-		f->drawString(&scene, "TUNE (F12)", t.left, t.top, t.width(), hi);
-	}
+		t.translate(-ox, -oy);
+		paint.drawTextIn(kFontTitle, "TUNE (F12)", t, PanelStyle::kBlue,
+		                 Graphics::kTextAlignLeft);
 
-	for (uint i = 0; i < widgets.size(); i++) {
-		const PanelWidget &w = widgets[i];
-		const Common::Rect r = sciRectToDest(w.rect, gameRect);
-		if (w.id == st.hoverId && w.enabled)
-			scene.fillRect(r, hov);
-		scene.frameRect(r, w.on ? hi : (w.enabled ? fg : dim));
-		if (f) {
-			const int ty = r.top + (r.height() - f->getFontHeight()) / 2;
-			f->drawString(&scene, w.label, r.left + 2, ty, r.width() - 4,
-			              w.enabled ? (w.on ? hi : fg) : dim,
-			              Graphics::kTextAlignCenter);
+		for (uint i = 0; i < widgets.size(); i++) {
+			const PanelWidget &w = widgets[i];
+			Common::Rect r = sciRectToDest(w.rect, gameRect);
+			r.translate(-ox, -oy);
+			paint.drawButton(r, w.label,
+			                 w.on ? PanelStyle::kBlue : PanelStyle::kPanelLine,
+			                 false, w.enabled,
+			                 w.enabled && w.id == st.hoverId, kFontBody);
 		}
-	}
 
-	// Status line at the bottom-anchored text row.
-	if (f) {
-		const Common::Rect s = sciRectToDest(
+		Common::Rect s = sciRectToDest(
 			Common::Rect(panelGame.left + 2, panelGame.bottom - 12,
 			             panelGame.right - 2, panelGame.bottom - 2), gameRect);
-		f->drawString(&scene, tuneStatusLine(st), s.left, s.top, s.width(), fg);
+		s.translate(-ox, -oy);
+		paint.drawTextIn(kFontSmall, tuneStatusLine(st), s, PanelStyle::kTextDim,
+		                 Graphics::kTextAlignLeft);
 	}
+
+	scene.blendBlitFrom(bake.surface,
+		Common::Rect(0, 0, bake.surface.w, bake.surface.h), panel);
 }
 
 } // namespace Roger

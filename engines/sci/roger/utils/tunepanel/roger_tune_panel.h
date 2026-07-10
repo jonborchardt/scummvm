@@ -39,7 +39,7 @@
 // event.cpp's key/mouse routing — must go through the plain virtuals on the
 // abstract provider (roger_art_provider.h), which name no tunepanel types.
 // This module may only consume stable SCI-free roger seams
-// (ui/roger_widgets.h, roger_passes.h, roger_view_scaler.h, roger_coords.h) —
+// (ui/roger_widgets.h, ui/roger_panel_style.h, roger_passes.h, roger_view_scaler.h, roger_coords.h) —
 // never provider/compositor internals, never SCI engine state, and never
 // anything under utils/studio/ (each utils/ tool is quarantined on its own).
 //
@@ -51,8 +51,8 @@
 #include "common/rect.h"
 #include "common/str.h"
 #include "sci/roger/ui/roger_widgets.h" // PanelWidget, widId, hitTestWidgets
-
-namespace Graphics { class ManagedSurface; }
+#include "graphics/managed_surface.h"
+#include "sci/roger/ui/roger_panel_style.h" // PanelFonts, PanelPainter, PanelStyle
 
 namespace Sci {
 namespace Roger {
@@ -133,11 +133,24 @@ void buildTunePanel(const TunePanelState &st, Common::Array<PanelWidget> &out);
 // "fla * 812ms": pass stamp (omyacPassStamp), pending marker, last gen time.
 Common::String tuneStatusLine(const TunePanelState &st);
 
+// Render cache for drawTunePanel: the panel is baked into an RGBA surface
+// re-rendered only when its signature (dest rect, hover, labels, states)
+// changes, then alpha-blended into the scene each present. Owned by the
+// provider next to _tunePanel/_tuneWidgets (per-cycle discipline: presents
+// stay O(panel area); TTF work happens only on change).
+struct TunePanelBake {
+	Graphics::ManagedSurface surface; // panel-dest-sized, source alpha
+	Common::String sig;               // last-rendered signature ("" = never)
+	PanelFonts fonts;                 // loaded at the panel's dest row height
+};
+
 // Draw the panel into `scene` (overlay-sized RGBA). gameRect = the game
 // picture placement (provider's _lastGameRect); each game-space rect maps
-// through sciRectToDest. Labels use the GUI big font. Task 5 implements.
+// through sciRectToDest. Styled by the shared panel UI kit; `bake` caches
+// the rendered panel between presents.
 void drawTunePanel(Graphics::ManagedSurface &scene, const Common::Rect &gameRect,
-                   const TunePanelState &st, const Common::Array<PanelWidget> &widgets);
+                   const TunePanelState &st, const Common::Array<PanelWidget> &widgets,
+                   TunePanelBake &bake);
 
 } // namespace Roger
 } // namespace Sci

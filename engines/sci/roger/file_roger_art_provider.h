@@ -346,6 +346,7 @@ private:
 	// (s2>s3 shipped; MMPX removed); panel stays as the session-only pass-tuning tool.
 	Roger::TunePanelState _tunePanel;
 	Common::Array<Roger::PanelWidget> _tuneWidgets;
+	Roger::TunePanelBake _tuneBake;      // drawTunePanel render cache
 	Roger::GenMode _tunePreTuneMode = Roger::kGenCache; // mode before Apply first forced kGenMemory
 	bool _tuneModeRemembered = false;
 	void markTunePanelDirty();           // dirty ONLY the panel rect + presentBarrier arm

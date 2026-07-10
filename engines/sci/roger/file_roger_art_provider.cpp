@@ -1274,9 +1274,9 @@ void FileRogerArtProvider::buildCursorFromView(int viewId, int loopNo, int celNo
 void FileRogerArtProvider::compositeCursor(Graphics::ManagedSurface &scene,
                                            const Common::Rect &gameRect) {
 	// DEBUG TOOL: quick-tune panel rides the cursor layer Ã¢â‚¬â€ drawn at every
-	// present site, above scene+UI, below the cursor. Never cached.
+	// present site, above scene+UI, below the cursor; the bake caches the rendered panel between presents.
 	if (_tunePanel.open && _mode == Roger::kModeEnhanced)
-		Roger::drawTunePanel(scene, gameRect, _tunePanel, _tuneWidgets);
+		Roger::drawTunePanel(scene, gameRect, _tunePanel, _tuneWidgets, _tuneBake);
 
 	// The native OS cursor is invisible over the OSystem overlay, so draw our own
 	// arrow into the overlay scene at the mouse position.
