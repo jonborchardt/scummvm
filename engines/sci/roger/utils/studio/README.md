@@ -134,12 +134,13 @@ registration, and the unit tests (`test/sci/roger/test_studio_render.h`,
 `test_shift_lock.h` — they cover the pure helpers in
 `roger_studio_render.{h,cpp}`). Production code must never include anything
 from this folder — the generic widget primitives it shares with the F12 tune
-panel live in the neutral `sci/roger/roger_widgets.h`, and the pass-list edit
+panel live in the neutral `sci/roger/ui/roger_widgets.h`, and the pass-list edit
 ops/stamps in `sci/roger/gen/roger_passes.h`, precisely so nothing outside
 `utils/` ever needs a studio header.
 
 This module may only consume stable roger seams (`roger_asset_gen.h`,
-`roger_view_scaler.h`, `roger_passes.h`, `roger_widgets.h`, `png_loader.h`)
+`roger_view_scaler.h`, `roger_passes.h`, `ui/roger_widgets.h`,
+`ui/roger_panel_style.h`, `png_loader.h`)
 — never provider/compositor internals. It never touches the generation disk
 cache (its own `RogerAssetGen` runs `kGenMemory` with an empty cache dir),
 never writes `scummvm.ini`, and a launch without the env var is

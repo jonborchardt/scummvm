@@ -79,7 +79,7 @@ Common::String studioCompareExportName(int picId, bool diff,
                                        const Common::String &stampB);
 
 // â”€â”€ Studio v2: widget kinds (the widget record, id encoding, and hit-test are
-//    the shared sci/roger/roger_widgets.h; kind 0 = "none" by that contract) â”€â”€
+//    the shared sci/roger/ui/roger_widgets.h; kind 0 = "none" by that contract) â”€â”€
 enum WidKind {
 	kWidNone = 0,
 	kWidPicPrev, kWidPicNext, kWidViewPrev, kWidViewNext,

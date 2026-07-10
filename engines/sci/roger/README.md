@@ -112,7 +112,7 @@ invalidated automatically when the generation pipeline changes.
 | Caching | `view_cache.*`, `png_loader.*` |
 | Game picker (launcher) | `launcher/` — startup game-picker dialog; see [launcher/README.md](launcher/README.md) |
 | Input automation | `roger_input.*` (engine-agnostic; no SCI includes) |
-| Shared debug-panel primitives | `roger_widgets.*`, `roger_passes.*` |
+| Shared panel UI kit | `ui/roger_widgets.*`, `ui/roger_panel_style.*`, `roger_passes.*` |
 | Quarantined dev utilities | `utils/studio/` (Roger Studio), `utils/tunepanel/` (F12 tune panel), `utils/eyetest/` (eye exam) — each has its own README + quarantine contract |
 | Validation | `roger_selftest.*`, `roger_capabilities.*` |
 

@@ -87,9 +87,14 @@ glue. The only permitted references:
 
 Everything else — including `event.cpp`'s key/mouse routing — must go through
 the plain virtuals on the abstract provider, which name no tunepanel types.
+Panel visuals (colors, fonts, layout painting) use the shared
+`ui/roger_panel_style.h` kit (PanelStyle + PanelFonts + PanelPainter);
+the provider bakes the rendered surface into `_tuneBake` once per open
+so repeated presents are a surface copy, not a repaint.
 This module may only consume stable SCI-free roger seams
-(`roger_widgets.h`, `roger_passes.h`, `roger_view_scaler.h`,
-`roger_coords.h`) — never provider/compositor internals, never SCI engine
-state, and never anything under `utils/studio/`. It never writes the
-ini or the generation disk cache, and with the panel closed the render path
-is untouched (the draw call is gated on `open && kModeEnhanced`).
+(`ui/roger_widgets.h`, `ui/roger_panel_style.h`, `roger_passes.h`,
+`roger_view_scaler.h`, `roger_coords.h`) — never provider/compositor
+internals, never SCI engine state, and never anything under `utils/studio/`.
+It never writes the ini or the generation disk cache, and with the panel
+closed the render path is untouched (the draw call is gated on
+`open && kModeEnhanced`).
