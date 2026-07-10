@@ -451,6 +451,7 @@ void PickerViewWidget::handleMouseDown(int x, int y, int button, int clickCount)
 		break;
 	case kPickPassOption:
 		_dropdownOpen = false;
+		rebuild(); // repaint sans dropdown NOW: the listener may open a modal over us
 		_listener->pickerPassOption(widIndex(id));
 		break;
 	case kPickDebugToggle: _listener->pickerToggleDebug(); break;
