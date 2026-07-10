@@ -100,26 +100,30 @@ it is scale-to-cover center-cropped to fit. If missing, a procedural dark-navy
 gradient is used instead. The placeholder `dists/roger/roger-picker-bg.png` is
 deployed by `build_and_run.ps1` on first run (never clobbers user art).
 
-**Card rows:** each game shows a title, a subtitle with the platform/language group (e.g. "DOS/English"), and a
-badge — green **Cached** (a precache stamp is present and current) or amber
+**Card rows:** each game shows a title, a second line with detection facts
+(platform/language | gameid | EGA | SCI version for the running game | game path),
+and a badge — green **Cached** (a current marker file exists) or amber
 **Not Cached**. A **Precache** button and a per-row **Remove** button appear on
-each row (Remove is disabled for the currently running game). The running game
-sorts first. Double-clicking a row launches the game.
+each row (Remove is enabled for every row including the running game — it removes
+the ConfMan entry only; game files and cache on disk are untouched). The running
+game sorts first. Double-clicking a row launches the game.
 
 **Per-game settings** (write-through to the selected game's ini section
 immediately):
-- **Passes** — a dropdown: Default (engine default) + entries from the
+- **Omyac passes** — a dropdown: Default (engine default) + entries from the
   `goodPassPattern()` registry + the current ini value if not in the registry +
-  a **Custom…** option that opens a text-input sub-dialog. Selecting any entry
-  writes `roger_omyac_passes` to the game's section at once. Selecting Default
-  removes the key (= engine default).
-- **Debug log** — toggles `roger_debug` on/off for the selected game.
+  a **Custom…** option that opens a mouse-first pass builder (+f/+l/+a/del/clear
+  chips, OK/Cancel in the picker's own visual style). Selecting any entry writes
+  `roger_omyac_passes` to the game's section at once. Selecting Default removes
+  the key (= engine default).
+- **Debug Logging** — toggles `roger_debug` on/off for the selected game.
 
 **Precache** (inline, row 0 / the running game): runs a full all-pics-and-views
 precache in-dialog with a progress bar and Cancel button. When complete, writes
-a stamp key `roger_cache_stamp = v<kTransformVersion>:<passes>` to the game's
-section so the badge reflects current cache state. Launching a *different* game
-that already has a current stamp skips the precache dialog entirely and launches
+a marker file `<gameid>-roger/cache/<gameid>.done.v<kTransformVersion>.<passStamp>.marker`
+so the badge reflects current cache state. Multiple markers accumulate — switching
+passes back to a completed set is instantly Cached. Launching a *different* game
+that already has a current marker skips the precache dialog entirely and launches
 immediately via the one-shot self-consuming keys `roger_picker_precache` and
 `roger_picker_launch` (written then flushed before acting at `run()` start).
 
@@ -142,7 +146,6 @@ All are optional `scummvm.ini` keys (only read when present).
 | `roger_gen_mode` | `cache` | in-engine art generation mode: `cache` = generate on a miss, load from the content cache on a hit; `memory` = generate, never write; `always` = regenerate + overwrite; `prebuilt` = the off-switch (native-only render, no Roger overlay) |
 | `roger_precache` | `off` | scope of the synchronous startup warm-up: `all`, `pics`, `views`, `off`. Only active when the picker is skipped; the picker manages precaching directly (see "Launcher") |
 | `roger_omyac_passes` | unset (= `affffflaaa`) | enhance-pass list for the omyac pipeline. Canonical form is a compact character string, one char per pass: `f`=fill, `l`=line, `a`=all (digits `2`/`1`/`0` also accepted) — the default is `affffflaaa`. Legacy space/comma-separated tokens (`fill`/`f`/`2`, `line`/`l`/`1`, `all`/`a`/`0`) still parse. Unset = the default sequence; empty string = wireframe (zero passes); unknown tokens warn and are skipped. The picker's Passes dropdown writes this key immediately to the selected game's section. Tunable live (session-only) via the F12 quick-tune panel |
-| `roger_cache_stamp` | unset | Written by the picker on a completed precache run: `v<kTransformVersion>:<passes>`. The picker uses this to show the green Cached badge and to decide whether a cross-game launch can skip the precache dialog |
 | `roger_picker_precache` | unset | One-shot self-consuming key: if present at `run()` start, triggers a full precache before launch and is then removed |
 | `roger_picker_launch` | unset | One-shot self-consuming boolean key written into the target game's ini section: if present at `run()` start, triggers an immediate launch and is then removed (used for cross-game launch from the picker) |
 | `roger_no_launcher` | off | skip the Roger game-picker dialog at startup (also env `ROGER_NO_LAUNCHER`; `build_and_run.ps1 -SkipPicker`, auto-set by `-Game`) |

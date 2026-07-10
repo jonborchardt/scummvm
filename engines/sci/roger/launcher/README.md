@@ -25,28 +25,34 @@ in the normal game path and writes real, persistent settings to `scummvm.ini`.
   `scummvm -p <path> <gameid>` launches show up too) and lists them. The active
   game sorts first.
 - **Show cache state.** Each row shows a green **Cached** badge when a current
-  `roger_cache_stamp` is present (`v<kTransformVersion>:<passes>` format), or an
-  amber **Not Cached** badge otherwise. The stamp is written only when a precache
-  run completes without cancellation.
+  marker file `<gameid>.done.v<kTransformVersion>.<passStamp>.marker` exists in
+  the game's `<gameid>-roger/cache/` directory, or an amber **Not Cached** badge
+  otherwise. Multiple markers accumulate — switching passes back to a completed
+  set is instantly Cached. Legacy `roger_cache_stamp` ini keys are auto-removed
+  on first read. The marker is written only when a precache run completes without
+  cancellation.
 - **Add a game** (`+ Add Game`): opens a directory browser, runs engine-level
   MD5 detection, and falls back to a raw `resource.map`/`resource.001` check
   for versions the tables don't know. VGA games are refused (Roger is EGA SCI0
   only). A new ConfMan domain is created and persisted.
 - **Remove a game** (per-row button): removes the selected ConfMan domain (game
-  files and cache on disk are untouched). Disabled on row 0 (the running game).
+  files and cache on disk are untouched). Enabled on every row including the
+  running game.
 - **Per-game settings**, written through to the selected game's ConfMan domain
   immediately on change (no separate Save/Apply step):
-  - **Passes** — a dropdown: Default (removes `roger_omyac_passes`, engine uses
-    `kDefaultPassString`) + entries from `goodPassPattern()` registry +
-    current-ini-value-if-unlisted + **Custom…** (opens a text-input sub-dialog).
-    Any selection writes `roger_omyac_passes` to the game's section at once.
-  - **Debug log** — toggles `roger_debug` on/off for the selected game.
+  - **Omyac passes** — a dropdown: Default (removes `roger_omyac_passes`, engine
+    uses `kDefaultPassString`) + entries from `goodPassPattern()` registry +
+    current-ini-value-if-unlisted + **Custom…** (opens a mouse-first pass builder
+    with +f/+l/+a/del/clear chips and OK/Cancel in the picker's own visual style;
+    seed is canonicalized to compact form). Any selection writes
+    `roger_omyac_passes` to the game's section at once.
+  - **Debug Logging** — toggles `roger_debug` on/off for the selected game.
   - The picker does **not** read or write `roger_precache`, `roger_gen_mode`, or
     `roger_ui_font` — those keys are managed directly in `scummvm.ini`.
 - **Precache now** (inline, row 0 — the running game): builds pic+view queues
   and generates one item per GUI tick in `handleTickle`, showing a progress bar
   and a Cancel button. Always covers all pics **and** views. On completion writes
-  `roger_cache_stamp` to the game's section. Cache badge refreshes immediately.
+  a marker file to `<gameid>-roger/cache/`. Cache badge refreshes immediately.
 - **Cross-game launch**: launching a *different* game that already has a current
   stamp skips the precache dialog and launches immediately via two one-shot
   self-consuming ini keys (`roger_picker_precache` / `roger_picker_launch`) —
@@ -55,15 +61,18 @@ in the normal game path and writes real, persistent settings to `scummvm.ini`.
   and proceeds. Launching a different game pushes it through `ChainedGamesMan` +
   a return-to-launcher event. Double-click on a row selects and launches.
 
-## Ini keys owned by the picker
+## Keys and files owned by the picker
 
-| Key | Written when | Format |
-|-----|-------------|--------|
+| Key / file | Written when | Format |
+|------------|-------------|--------|
 | `roger_omyac_passes` | Passes dropdown selection (per-game section) | compact pass string or absent (= default) |
 | `roger_debug` | Debug toggle (per-game section) | `true`/`false` or absent |
-| `roger_cache_stamp` | Precache completes without cancel (per-game section) | `v<kTransformVersion>:<passes>` |
+| `<gameid>-roger/cache/<gameid>.done.v<ver>.<passStamp>.marker` | Precache completes without cancel | empty file; existence is the signal; multiple accumulate |
 | `roger_picker_precache` | Cross-game launch that needs precache (per-game section) | `true` (consumed at next `run()`) |
 | `roger_picker_launch` | Cross-game launch (per-game section) | `true` — boolean one-shot written into the target game's ini section (consumed at next `run()`) |
+
+Note: legacy `roger_cache_stamp` ini keys from earlier builds are auto-removed by
+`refreshCacheState()` on first read; the marker-file scheme supersedes them.
 
 ## Skipping the picker
 
