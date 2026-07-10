@@ -124,6 +124,7 @@ MODULE_OBJS += \
 	roger/overlay/roger_palette_remap.o \
 	roger/overlay/roger_text.o \
 	roger/overlay/roger_journal.o \
+	roger/overlay/roger_menu_model.o \
 	roger/overlay/view_cache.o \
 	roger/launcher/roger_launcher.o \
 	roger/launcher/roger_launcher_dialog.o \

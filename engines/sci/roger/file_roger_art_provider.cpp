@@ -1771,7 +1771,7 @@ void FileRogerArtProvider::buildGlyphs(const char *text, int fontId, int penColo
 		Graphics::Surface *g = _assetGen->generateTextSurface(Common::String(1, (char)c),
 		                                                       fontId, (byte)(penColor >= 0 ? penColor : 0));
 		if (g) {
-			_uiIcons.push_back(g); // owned; freed on room change / uiClearAll
+			_uiIcons.push_back(g); // owned; freed on room change
 			Roger::UiGlyph ug; ug.ch = c; ug.surf = g;
 			out.push_back(ug);
 		}
@@ -1783,6 +1783,14 @@ void FileRogerArtProvider::onWindowOpen(const Common::Rect &r, uint16 wndStyle,
                                         uint32 token) {
 	if (!enabled)
 		return;
+	// Menu exile (R5): the dropdown box is MODEL-owned — openDropdown resets the
+	// retained rows and stores the box; the journal emit is menuRebuildDropdown at
+	// endBatch. Never treated as a real window (no bracket, no immediate append).
+	if (token == kGfxTokenMenuDropdown) {
+		_menuModel.openDropdown(r);
+		_batchTouchedDropdown = true;
+		return;
+	}
 	// Arm open->show attribution (R9): the window's content show follows immediately
 	// (GfxPorts::drawWindow emits onWindowOpen, then bitsShow(dims) under _wmgrPort,
 	// which self-derives owner 0 — see onShow). Only real windows (control namespace)
@@ -1964,7 +1972,7 @@ void FileRogerArtProvider::onDrawCelInternal(const Common::Rect &r, int viewId, 
 	// redraw at the SAME rect replaces in place. Clearing the shared token at the start of
 	// every call would erase the previous cel, leaving only the last one visible.
 	// Lifetime: an icon dies when a native erase rect covers it (onErase) or on
-	// room change (uiClearAll) Ã¢â‚¬â€ never via a blanket namespace clear.
+	// room change Ã¢â‚¬â€ never via a blanket namespace clear.
 	const uint32 tok = Roger::kDrawCelIconTokenNs;
 
 	Roger::UiElement e;
@@ -2089,17 +2097,154 @@ static inline bool isGenericTextToken(uint32 t) { return (t & Roger::kTokenNames
 
 void FileRogerArtProvider::beginBatch() {
 	_uiBatchDepth++;
+	// Arm a bar reset: if this batch turns out to be a BAR re-push (its first
+	// event is an onText(menuBar)), the model's titles rebuild from a clean set.
+	// A dropdown batch (drawMenu) emits no menuBar text, so the retained bar
+	// titles survive it — exactly the pre-exile bar-title lifetime.
+	_barResetPending = true;
 }
 
 void FileRogerArtProvider::endBatch() {
-	if (_uiBatchDepth > 0 && --_uiBatchDepth == 0)
+	if (_uiBatchDepth > 0 && --_uiBatchDepth == 0) {
+		// Rebuild only what THIS batch touched, then present ONCE (the
+		// present-storm guard — every push above was suppressed by the batch
+		// depth). A dropdown batch must not clear+rebuild the bar strip (token
+		// kGfxTokenStatus) it never touched, and vice versa.
+		if (_batchTouchedBar)
+			menuRebuildBar();
+		if (_batchTouchedDropdown)
+			menuRebuildDropdown();
+		_batchTouchedBar = _batchTouchedDropdown = false;
 		presentBarrier();
+	}
+}
+
+// Exiled GfxMenu bar-overlay emitter, reading the retained MenuModel.
+// Journal output is IDENTICAL to the old emitter: clear kGfxTokenStatus, opaque
+// white full-width bar (NOFRAME), black underline row, then one heading-role
+// alt-font text op per printable-ASCII title — same token, rects, append order.
+void FileRogerArtProvider::menuRebuildBar() {
+	if (!overlayShown() || !_plate || !_journal)
+		return;
+	ensureUi();
+	// The menu bar and the score/title banner share the top strip and are mutually
+	// exclusive in time, so they use the SAME token (kGfxTokenStatus): rebuilding
+	// the bar replaces the banner; the next kernelDrawStatus (onText source=status)
+	// replaces the bar back (and a strip-covering bitsRestore reapplies the cached
+	// banner — see onRestore).
+	_journal->clearToken(kGfxTokenStatus);
+	// The bar rect: the cached _statusRect IS the full _menuBarRect (the banner is
+	// drawn on room load, before any menu can open, and both native fills cover the
+	// same strip). Fallback: derive the row extent from the first captured title.
+	Common::Rect barRect = _statusRect;
+	if (!_haveStatus || barRect.isEmpty()) {
+		if (_menuModel.barTitles().empty())
+			return;
+		barRect = Common::Rect(0, _menuModel.barTitles()[0].rect.top,
+		                       320, _menuModel.barTitles()[0].rect.bottom);
+	}
+	// Opaque white bar (matches the native white menu bar), no frame, spanning the
+	// FULL bar width (a transparent gap for a graphical-glyph title would let the
+	// native bar bleed through and overlap the hires titles).
+	Roger::UiElement barE;
+	barE.type = Roger::kUiWindow; barE.nativeRect = barRect;
+	barE.backColor = 15 /*EGA white*/; barE.penColor = 0; barE.style = 2 /*NOFRAME*/;
+	barE.token = kGfxTokenStatus;
+	journalAppend(barE);
+	markUiDirty(barRect);
+	// Mirror the black underline row below the bar (statusStripRemainder) so the
+	// whole reserved strip stays overlay-owned (the 1px-narrow-bar seam fix,
+	// 2026-07-09).
+	const Common::Rect line = Roger::statusStripRemainder(barRect, _statusBarH);
+	if (!line.isEmpty()) {
+		Roger::UiElement ul;
+		ul.type = Roger::kUiWindow; ul.nativeRect = line; ul.backColor = 0;
+		ul.penColor = 0; ul.style = 2; ul.token = kGfxTokenStatus;
+		journalAppend(ul);
+		markUiDirty(line);
+	}
+	for (uint i = 0; i < _menuModel.barTitles().size(); i++) {
+		const Roger::MenuBarTitle &t = _menuModel.barTitles()[i];
+		if (!t.isText)
+			continue; // graphical glyph (Sierra icon) -> leave the native bar showing
+		Roger::UiElement e;
+		e.type = Roger::kUiText; e.nativeRect = t.rect; e.text = t.text;
+		e.penColor = 0; e.backColor = -1; e.align = 0 /*left*/;
+		e.textRole = Roger::kRoleHeading; e.useAltFont = true; e.token = kGfxTokenStatus;
+		e.nativeFontH = t.nativeFontH; e.nativeTextW = t.nativeTextW;
+		buildGlyphs(t.text.c_str(), 0, 0, e.glyphs);
+		journalAppend(e);
+		markUiDirty(t.rect);
+	}
+}
+
+// Exiled GfxMenu dropdown-overlay emitter, reading the retained MenuModel.
+// Journal output is IDENTICAL to the old emitter: clear kGfxTokenMenuDropdown,
+// framed opaque white box, then one body-role alt-font text op per row (selected
+// row inverted white-on-black) — same token, rects, append order.
+void FileRogerArtProvider::menuRebuildDropdown() {
+	if (!overlayShown() || !_plate || !_journal)
+		return;
+	ensureUi();
+	_journal->clearToken(kGfxTokenMenuDropdown); // single open dropdown at a time
+	// Opaque white box with a frame (matches SCI's black-bordered white dropdown).
+	Roger::UiElement box;
+	box.type = Roger::kUiWindow; box.nativeRect = _menuModel.box();
+	box.backColor = 15 /*EGA white*/; box.penColor = 0; box.hasFrame = true;
+	box.token = kGfxTokenMenuDropdown;
+	journalAppend(box);
+	markUiDirty(box.nativeRect);
+	for (uint i = 0; i < _menuModel.rows().size(); i++) {
+		const Roger::MenuRow &r = _menuModel.rows()[i];
+		const bool sel = r.selected(_menuModel.highlight());
+		const int pen = sel ? 15 : 0;
+		const int back = sel ? 0 : -1; // selected row drawn inverted (white on black)
+		Roger::UiElement e;
+		e.type = Roger::kUiText; e.nativeRect = r.rect; e.text = r.text;
+		e.penColor = pen; e.backColor = back; e.align = 0 /*left*/;
+		e.textRole = Roger::kRoleBody; e.useAltFont = true; e.token = kGfxTokenMenuDropdown;
+		e.nativeFontH = r.nativeFontH; e.nativeTextW = r.nativeTextW;
+		buildGlyphs(r.text.c_str(), 0, pen, e.glyphs);
+		journalAppend(e);
+		markUiDirty(r.rect);
+	}
+}
+
+void FileRogerArtProvider::onMenuHighlight(uint16 itemId) {
+	if (!enabled)
+		return;
+	// The dedup exiled from GfxMenu::invertMenuSelection lives in
+	// setHighlight: a no-op highlight (repeat, or the itemId==0 old-row re-invert
+	// interactiveWithMouse sends first) never re-pushes — the present-storm guard.
+	// A real change re-composites the retained dropdown and presents ONCE (not
+	// batched: menuRebuildDropdown emits no per-push presents itself).
+	if (_menuModel.setHighlight(itemId)) {
+		menuRebuildDropdown();
+		presentBarrier();
+	}
 }
 
 void FileRogerArtProvider::onWindowClose(uint32 token) {
 	if (!enabled)
 		return;
 	_pendingShowOwner = 0; // a close cancels any armed open->show attribution
+	// Menu exile (R5): dropdown dispose (kernelSelect close). The dropdown is
+	// drawn straight to the screen (no window, and this seam fires whether or not
+	// its save-under restored), so this is a manual-invalidation case: clear the
+	// model + journal, invalidate the retained box, present. Gated on an actual
+	// open dropdown — kernelSelect fires this close on EVERY event it examines
+	// (each keypress), so the no-dropdown call must stay O(1) with no present.
+	if (token == kGfxTokenMenuDropdown) {
+		const bool hadRows = !_menuModel.rows().empty();
+		const Common::Rect box = _menuModel.box();
+		_menuModel.closeDropdown();
+		const bool removed = _journal && _journal->clearToken(kGfxTokenMenuDropdown);
+		if (hadRows || removed) {
+			markVacatedDirty(box);
+			presentBarrier();
+		}
+		return;
+	}
 	// The window-bracket close (control namespace) drops the window box op AND every
 	// op captured inside it (controls + generic text) — ONE signal subsuming the old
 	// 0x40.. + 0x60.. clear pair (the 0x60.. clear was already a no-op once the
@@ -2270,7 +2415,7 @@ void FileRogerArtProvider::onRestore(uint32 handleToken, const Common::Rect &rec
 		        handleToken, rect.left, rect.top, rect.right, rect.bottom,
 		        did ? 1 : 0, (unsigned)removed.size());
 	// The top strip's score/title banner and the transient menu bar share the singleton
-	// token 0x10000000 (menu.cpp: rogerPushBarOverlay / uiPushStatus). On the MOUSE menu
+	// token 0x10000000 (menuRebuildBar / the status banner). On the MOUSE menu
 	// path SCI closes the menu by bitsRestore(_barSaveHandle) of the full menu strip Ã¢â‚¬â€
 	// which reverts the NATIVE pixels to the saved banner background Ã¢â‚¬â€ WITHOUT a following
 	// kernelDrawStatus. rollback() deliberately spares the 0x10000000 op from removal
@@ -2289,17 +2434,8 @@ void FileRogerArtProvider::onRestore(uint32 handleToken, const Common::Rect &rec
 	presentBarrier();
 }
 
-void FileRogerArtProvider::uiClearAll() {
-	if (_journal) _journal->clear();
-	for (uint i = 0; i < _uiIcons.size(); i++) { _uiIcons[i]->free(); delete _uiIcons[i]; }
-	_uiIcons.clear();
-	_genericGlyphCache.clear(); // surfaces were owned by _uiIcons (freed above)
-	_drawCelNativeCache.clear(); // surfaces were owned by _uiIcons (freed above)
-	if (overlayShown() && _plate) { markFullDirty(); presentBarrier(); }
-}
-
 // Fixed token for the kGraphFrameBox selection highlight. Room-scoped: cleared by
-// uiClearAll (called on every room change and onNativePicture). A single constant
+// the room-change journal clear (onNativePicture / room entry). A single constant
 // token means each new push calls clearToken() first, so the highlight tracks
 // movement without accumulating stale elements even when the rect changes.
 void FileRogerArtProvider::uiPushFrameBoxInternal(const Common::Rect &r, int penColor) {
@@ -2673,8 +2809,6 @@ void FileRogerArtProvider::onText(const Common::Rect &rect, const char *text, in
                                   int penColor, int backColor, int align,
                                   int nativeFontH, int nativeTextW, uint32 token,
                                   TextSource source, uint16 itemId) {
-	// itemId feeds the Task 11 menu model; the pre-exile dispatcher ignores it.
-	(void)itemId;
 	switch (source) {
 	case kTextSourceBox:
 		// Box body forces backColor=-1 / role=body itself; the 8-param internal keeps that.
@@ -2692,14 +2826,23 @@ void FileRogerArtProvider::onText(const Common::Rect &rect, const char *text, in
 		                   Roger::kRoleBody, false, nativeFontH, nativeTextW);
 		break;
 	case kTextSourceMenuBar:
-		// Heading role + alt (header) font (menu exile Task 11 emits this).
-		uiPushTextInternal(rect, text, penColor, backColor, fontId, align, token,
-		                   Roger::kRoleHeading, true, nativeFontH, nativeTextW);
+		// Menu exile (R5): accumulate into the retained model; the journal emit
+		// happens ONCE at endBatch (menuRebuildBar). The bar reset armed by
+		// beginBatch fires on the FIRST title only, so a dropdown batch (which
+		// emits no menuBar text) never wipes the retained bar titles.
+		if (_barResetPending) {
+			_menuModel.beginBar();
+			_barResetPending = false;
+		}
+		_menuModel.addBarTitle(rect, text ? text : "", nativeFontH, nativeTextW);
+		_batchTouchedBar = true;
 		break;
 	case kTextSourceMenuRow:
-		// Body role + alt font (dropdown rows).
-		uiPushTextInternal(rect, text, penColor, backColor, fontId, align, token,
-		                   Roger::kRoleBody, true, nativeFontH, nativeTextW);
+		// Dropdown row: the SCI item id rides onText's dedicated itemId param
+		// (selection is keyed by item id — separator rows skip ids, so ordinal
+		// derivation is unsafe). Emit happens at endBatch (menuRebuildDropdown).
+		_menuModel.addRow(rect, text ? text : "", itemId, nativeFontH, nativeTextW);
+		_batchTouchedDropdown = true;
 		break;
 	default:
 		uiPushTextInternal(rect, text, penColor, backColor, fontId, align, token,

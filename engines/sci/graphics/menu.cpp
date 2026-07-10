@@ -36,7 +36,7 @@
 #include "sci/graphics/text16.h"
 #include "sci/graphics/screen.h"
 #include "sci/graphics/menu.h"
-#include "sci/roger/roger_art_provider.h"
+#include "sci/sci_gfx_observer.h"
 
 namespace Sci {
 
@@ -369,10 +369,11 @@ void GfxMenu::drawBar() {
 	else
 		_ports->moveTo(_screen->getWidth() - 8, 1);
 
-	// Roger: collect each bar title (global coords) so the bar can be composited
-	// into the overlay as hires header text (it would otherwise show through the
-	// reserved status strip as the native bitmap font).
-	_rogerBarTitles.clear();
+	// Emit each bar title as a neutral menuBar text event so a display-layer
+	// observer can composite the bar into its overlay top strip; batched so a
+	// presenting observer coalesces the whole bar into one present.
+	if (g_sciGfxObserver)
+		g_sciGfxObserver->beginBatch();
 
 	listIterator = _list.begin();
 	while (listIterator != listEnd) {
@@ -386,15 +387,16 @@ void GfxMenu::drawBar() {
 		int16 origCurLeft = _ports->_curPort->curLeft;
 		_text16->DrawString(listEntry->textSplit.c_str());
 
-		// Capture this title spanning from its start x to wherever DrawString left
-		// the pen, across the full bar-strip height.
-		RogerMenuRow rr;
-		const int16 lo = origCurLeft < _ports->_curPort->curLeft ? origCurLeft : _ports->_curPort->curLeft;
-		const int16 hi = origCurLeft < _ports->_curPort->curLeft ? _ports->_curPort->curLeft : origCurLeft;
-		rr.rect = Common::Rect(lo, _ports->_menuBarRect.top, hi, _ports->_menuBarRect.bottom);
-		rr.text = listEntry->textSplit;
-		rr.id = 0;
-		_rogerBarTitles.push_back(rr);
+		if (g_sciGfxObserver) {
+			const int16 lo = origCurLeft < _ports->_curPort->curLeft ? origCurLeft : _ports->_curPort->curLeft;
+			const int16 hi = origCurLeft < _ports->_curPort->curLeft ? _ports->_curPort->curLeft : origCurLeft;
+			const Common::Rect titleRect(lo, _ports->_menuBarRect.top, hi, _ports->_menuBarRect.bottom);
+			int16 nfw = 0, nfh = 0;
+			_text16->StringWidth(listEntry->textSplit.c_str(), _text16->GetFontId(), nfw, nfh);
+			g_sciGfxObserver->onText(titleRect, listEntry->textSplit.c_str(),
+			                         _text16->GetFontId(), 0, -1, SCI_TEXT16_ALIGNMENT_LEFT,
+			                         nfh, nfw, kGfxTokenStatus, SciGfxObserver::kTextSourceMenuBar, 0 /*itemId*/);
+		}
 
 		if (g_sci->isLanguageRTL())
 			_ports->_curPort->curLeft = origCurLeft;
@@ -402,56 +404,8 @@ void GfxMenu::drawBar() {
 		listIterator++;
 	}
 
-	rogerPushBarOverlay();
-}
-
-// A menu-bar title is plain text we can render with the TTF header font only if every
-// character is printable ASCII. The leftmost SQ3 menu's title is a graphical "Sierra"
-// glyph (a control/high-bit char) the TTF lacks, so it is left for the native bar.
-static bool rogerTitleIsText(const Common::String &s) {
-	if (s.empty())
-		return false;
-	for (uint i = 0; i < s.size(); i++) {
-		const byte c = (byte)s[i];
-		if (c < 0x20 || c >= 0x7f)
-			return false;
-	}
-	return true;
-}
-
-void GfxMenu::rogerPushBarOverlay() {
-	if (!g_sciRogerProvider || !g_sciRogerProvider->enabled)
-		return;
-	// The menu bar shares the top strip with the score/title banner and they are
-	// mutually exclusive in time, so they use the SAME clear-token: pushing the bar
-	// replaces the banner, and the next kernelDrawStatus replaces the bar back.
-	const uint32 tok = 0x10000000u;
-	g_sciGfxObserver->beginBatch();
-	g_sciGfxObserver->onWindowClose(tok);
-	// Opaque white bar (matches the native white menu bar), no frame, spanning the FULL
-	// bar width. Earlier this started to the right of a leading graphical-glyph title so
-	// the native icon could show through the transparent gap — but that gap also let the
-	// native bar (e.g. the leftmost "Score:" text) bleed through and overlap the hires
-	// titles. Covering the whole bar keeps it clean; the leftmost graphical menu is still
-	// clickable, it just renders as the white bar rather than its native glyph.
-	Common::Rect barRect = _ports->_menuBarRect;
-	g_sciGfxObserver->onWindowOpen(barRect, 2 /*SCI_WINDOWMGR_STYLE_NOFRAME*/,
-	                               _screen->getColorWhite(), 0, "", tok);
-	// Mirror the black underline drawBar fills below the bar (_menuLine) so the
-	// whole reserved strip stays overlay-owned while the bar replaces the banner.
-	g_sciGfxObserver->onWindowOpen(_ports->_menuLine, 2 /*SCI_WINDOWMGR_STYLE_NOFRAME*/,
-	                               0, 0, "", tok);
-	for (uint i = 0; i < _rogerBarTitles.size(); i++) {
-		const RogerMenuRow &t = _rogerBarTitles[i];
-		if (!rogerTitleIsText(t.text))
-			continue; // graphical glyph (Sierra icon) -> leave the native bar showing
-		int16 nfw = 0, nfh = 0;
-		_text16->StringWidth(t.text, 0, nfw, nfh);
-		g_sciGfxObserver->onText(t.rect, t.text.c_str(), 0 /*fontId*/, 0 /*black pen*/, -1 /*no fill*/,
-		                         SCI_TEXT16_ALIGNMENT_LEFT, nfh, nfw, tok,
-		                         SciGfxObserver::kTextSourceMenuBar, 0 /*itemId*/);
-	}
-	g_sciGfxObserver->endBatch();
+	if (g_sciGfxObserver)
+		g_sciGfxObserver->endBatch();
 }
 
 // This helper calculates all text widths for all menus (only)
@@ -602,8 +556,9 @@ reg_t GfxMenu::kernelSelect(reg_t eventObject, bool pauseSound) {
 		_paint16->bitsShow(_ports->_menuRect);
 		_barSaveHandle = NULL_REG;
 	}
-	// Roger: the menu has closed — drop the composited dropdown from the overlay.
-	rogerClearMenuOverlay();
+	// Menu closed: dispose the dropdown overlay (the dropdown singleton token).
+	if (g_sciGfxObserver)
+		g_sciGfxObserver->onWindowClose(kGfxTokenMenuDropdown);
 	if (_oldPort) {
 		_ports->setPort(_oldPort);
 		_oldPort = nullptr;
@@ -736,12 +691,14 @@ void GfxMenu::drawMenu(uint16 oldMenuId, uint16 newMenuId) {
 	// Save background
 	_menuSaveHandle = _paint16->bitsSave(_menuRect, GFX_SCREEN_MASK_VISUAL);
 
-	// Roger hires dialogs: remember the full dropdown box (global coords, before the
-	// draw-time inset mutations) and collect each row below, so the dropdown can be
-	// composited into the overlay (it is drawn straight to the screen, not via a
-	// window, so it would otherwise be hidden behind the hires overlay).
-	_rogerMenuBox = _menuRect;
-	_rogerMenuRows.clear();
+	// Dropdown open: batch the re-push and emit the box as a window-open event
+	// (the observer resets its rows on this open). Captured before the draw-time
+	// inset mutations below, matching the native box extent.
+	if (g_sciGfxObserver) {
+		g_sciGfxObserver->beginBatch();
+		g_sciGfxObserver->onWindowOpen(_menuRect, 0 /*framed white box*/, _screen->getColorWhite(),
+		                               0, "", kGfxTokenMenuDropdown);
+	}
 
 	// Do the drawing
 	_paint16->fillRect(_menuRect, GFX_SCREEN_MASK_VISUAL, 0);
@@ -770,13 +727,19 @@ void GfxMenu::drawMenu(uint16 oldMenuId, uint16 newMenuId) {
 					_ports->moveTo(_menuRect.right - listItemEntry->textWidth, topPos);
 					_text16->DrawString(listItemEntry->textSplit.c_str());
 				}
-				// Roger: capture this menu row (global coords) for the overlay.
-				RogerMenuRow rr;
-				rr.rect = Common::Rect(_menuRect.left, topPos,
-				                       _menuRect.right, topPos + _ports->_curPort->fontHeight);
-				rr.text = listItemEntry->textSplit;
-				rr.id = listItemEntry->id;
-				_rogerMenuRows.push_back(rr);
+				if (g_sciGfxObserver) {
+					const Common::Rect rowRect(_menuRect.left, topPos,
+					                           _menuRect.right, topPos + _ports->_curPort->fontHeight);
+					int16 nfw = 0, nfh = 0;
+					_text16->StringWidth(listItemEntry->textSplit.c_str(), 0, nfw, nfh);
+					// The row id rides onText's dedicated itemId param (menu-row
+					// selection is keyed by the SCI item id, never by rect/ordinal).
+					g_sciGfxObserver->onText(rowRect, listItemEntry->textSplit.c_str(),
+					                         0, 0, -1, SCI_TEXT16_ALIGNMENT_LEFT,
+					                         nfh, nfw, kGfxTokenMenuDropdown,
+					                         SciGfxObserver::kTextSourceMenuRow,
+					                         listItemEntry->id /*itemId*/);
+				}
 			} else {
 				// We dont 100% follow sierra here, we draw the line from left to right. Looks better
 				// BTW. SCI1.1 seems to put 2 pixels and then skip one, we don't do this at all (lsl6)
@@ -808,53 +771,19 @@ void GfxMenu::drawMenu(uint16 oldMenuId, uint16 newMenuId) {
 	_menuRect.bottom++;
 	_paint16->bitsShow(_menuRect);
 
-	// Roger: composite the freshly drawn dropdown into the overlay (no highlight yet;
-	// the caller follows up with invertMenuSelection to set the active row).
-	_rogerMenuHighlight = 0;
-	rogerPushMenuOverlay();
-}
-
-void GfxMenu::rogerPushMenuOverlay() {
-	if (!g_sciRogerProvider || !g_sciRogerProvider->enabled)
-		return;
-	const uint32 tok = 0x20000000u; // single open dropdown at a time
-	// One present for the whole re-push: the frozen menu loop means every push
-	// below would otherwise flush its own full present (a storm per highlight).
-	g_sciGfxObserver->beginBatch();
-	g_sciGfxObserver->onWindowClose(tok);
-	// Opaque white box with a frame (matches SCI's black-bordered white dropdown).
-	g_sciGfxObserver->onWindowOpen(_rogerMenuBox, 0, _screen->getColorWhite(), 0, "", tok);
-	for (uint i = 0; i < _rogerMenuRows.size(); i++) {
-		const RogerMenuRow &r = _rogerMenuRows[i];
-		const bool sel = (r.id == _rogerMenuHighlight);
-		const int pen = sel ? _screen->getColorWhite() : 0;
-		const int back = sel ? 0 : -1; // selected row drawn inverted (white on black)
-		int16 nfw = 0, nfh = 0;
-		_text16->StringWidth(r.text, 0, nfw, nfh);
-		g_sciGfxObserver->onText(r.rect, r.text.c_str(), 0 /*fontId*/, pen, back,
-		                         SCI_TEXT16_ALIGNMENT_LEFT, nfh, nfw, tok,
-		                         SciGfxObserver::kTextSourceMenuRow, r.id /*itemId*/);
-	}
-	g_sciGfxObserver->endBatch();
-}
-
-void GfxMenu::rogerClearMenuOverlay() {
+	// Dropdown fully drawn: close the batch (one present). The caller follows up
+	// with invertMenuSelection to set the active row.
 	if (g_sciGfxObserver)
-		g_sciGfxObserver->onWindowClose(0x20000000u);
-	_rogerMenuRows.clear();
+		g_sciGfxObserver->endBatch();
 }
 
 void GfxMenu::invertMenuSelection(uint16 itemId) {
 	Common::Rect itemRect = _menuRect;
 
-	// Roger: track the highlighted row and re-push the dropdown so the overlay's
-	// selection follows the cursor (the native invert is hidden under the overlay).
-	// interactiveWithMouse inverts the OLD row then the NEW one; the old-row call
-	// arrives with the highlight it already holds — skip that no-op re-push.
-	if (itemId != 0 && itemId != _rogerMenuHighlight) {
-		_rogerMenuHighlight = itemId;
-		rogerPushMenuOverlay();
-	}
+	// The highlighted row changed: notify the observer, which re-composites its
+	// retained dropdown rows. The old-row/no-op dedup lives observer-side now.
+	if (g_sciGfxObserver)
+		g_sciGfxObserver->onMenuHighlight(itemId);
 
 	if (itemId == 0)
 		return;
@@ -872,9 +801,6 @@ void GfxMenu::interactiveStart(bool pauseSound) {
 	_cursor->kernelShow();
 	if (pauseSound)
 		g_sci->_soundCmd->pauseAll(true);
-	// Roger hires dialogs: the overlay stays up; the menu bar shows through the
-	// reserved status strip and the dropdown is composited via rogerPushMenuOverlay
-	// (drawMenu / invertMenuSelection). No longer hide the overlay here.
 }
 
 void GfxMenu::interactiveEnd(bool pauseSound) {

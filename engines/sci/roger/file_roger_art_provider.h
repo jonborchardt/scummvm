@@ -27,6 +27,7 @@
 #include "sci/roger/roger_capabilities.h"
 #include "sci/roger/overlay/roger_compositor.h"
 #include "sci/roger/overlay/roger_journal.h"
+#include "sci/roger/overlay/roger_menu_model.h"
 #include "sci/roger/roger_input.h"
 #include "sci/roger/roger_telemetry.h"
 #include "sci/roger/utils/tunepanel/roger_tune_panel.h" // quarantined dev utility (F12 tune panel)
@@ -140,11 +141,12 @@ public:
 	                            int style, int cursorPos, uint32 token,
 	                            int nativeFontH, int nativeTextW);
 	void uiPushFrameBoxInternal(const Common::Rect &rect, int penColor);
-	void uiClearAll(); // internal (room teardown); no longer an observer virtual
-	// R13 batch brackets (renamed from beginUiBatch/endUiBatch; bodies unchanged —
-	// pure depth counting + coalesced present at depth 0):
+	// R13 batch brackets: depth counting + per-batch menu-model routing. endBatch
+	// rebuilds only what the batch touched (bar and/or dropdown) and presents ONCE.
 	void beginBatch() override;
 	void endBatch() override;
+	// R5 menu exile (Task 11): the retained menu state lives observer-side now.
+	void onMenuHighlight(uint16 itemId) override;
 
 	// Compose and present the current room to the OSystem overlay.
 	// Called each frame by the GfxAnimate hook (Task 7).
@@ -338,6 +340,19 @@ private:
 	bool _inAnimateCycle = false;    // set at onFrameEnd, cleared at cycle end
 	bool _frameJustComposed = false; // renderFrame composed this cycle (Task 4 uses it)
 	int _uiBatchDepth = 0; // presentBarrier defers while > 0; endBatch flushes
+	// R5 menu exile (Task 11): retained menu state rebuilt from the neutral L3
+	// event stream (onText(menuBar/menuRow), onWindowOpen/Close(dropdown),
+	// onMenuHighlight). menuRebuildBar/menuRebuildDropdown re-emit the journal ops
+	// the deleted GfxMenu::rogerPush* bodies emitted, reading this model.
+	Roger::MenuModel _menuModel;
+	// Batch routing: beginBatch arms a bar reset (consumed by the FIRST menuBar
+	// text of the batch, so a dropdown-only batch never wipes the retained bar
+	// titles); endBatch rebuilds only what THIS batch touched.
+	bool _barResetPending = false;
+	bool _batchTouchedBar = false;
+	bool _batchTouchedDropdown = false;
+	void menuRebuildBar();      // exiled bar-overlay emitter (token kGfxTokenStatus)
+	void menuRebuildDropdown(); // exiled dropdown-overlay emitter (token kGfxTokenMenuDropdown)
 	// R9 open->show attribution: onWindowOpen arms the just-opened window's token;
 	// the FIRST following onShow that self-derived owner 0 and is contained in the
 	// window rect adopts it (the drawWindow terminal show, which runs under

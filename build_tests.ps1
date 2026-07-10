@@ -72,6 +72,7 @@ $RogerSources = @(
     "..\..\engines\sci\roger\roger_input.cpp",
     "..\..\engines\sci\roger\gen\roger_view_scaler.cpp",
     "..\..\engines\sci\roger\overlay\roger_journal.cpp",
+    "..\..\engines\sci\roger\overlay\roger_menu_model.cpp",
     "..\..\engines\sci\roger\utils\tunepanel\roger_tune_panel.cpp",
     "..\..\engines\sci\roger\utils\eyetest\roger_eyetest_search.cpp",
     "..\..\engines\sci\roger\gen\roger_passes.cpp",
@@ -121,7 +122,8 @@ $RogerTestHeaders = @(
     "test_roger_capabilities.h",
     "test_picker_model.h",
     "test_gfx_observer_tokens.h",
-    "test_roger_telemetry.h"
+    "test_roger_telemetry.h",
+    "test_menu_model.h"
 )
 
 # ── Locate MSBuild via vswhere ────────────────────────────────────────────────
