@@ -91,9 +91,22 @@ public:
 	                  int penColor, const char *title, uint32 token) override;
 	void onWindowClose(uint32 token) override;
 	void clearWindowToken(uint32 token); // ex uiClearToken (internal clear body)
-	void onNativeText(const Common::Rect &nativeRect, const char *text,
-	                  int fontId, int penColor, int align,
-	                  int nativeFontH, int nativeTextW, uint32 winToken) override;
+	// R4 text family: one dispatcher over the seven text sources. It derives
+	// role/alt-font from `source` (the dropped uiPushText textRole/useAltFont
+	// params) and routes to the per-source bodies below.
+	void onText(const Common::Rect &rect, const char *text, int fontId, int penColor,
+	            int backColor, int align, int nativeFontH, int nativeTextW,
+	            uint32 token, TextSource source, uint16 itemId) override;
+	// Per-source bodies (formerly onNativeText / uiPushText / uiPushStatus):
+	void onTextBoxInternal(const Common::Rect &rect, const char *text, int fontId,
+	                       int penColor, int align, int nativeFontH, int nativeTextW,
+	                       uint32 winToken);
+	void uiPushTextInternal(const Common::Rect &rect, const char *text, int penColor,
+	                        int backColor, int fontId, int align, uint32 token,
+	                        int textRole, bool useAltFont, int nativeFontH, int nativeTextW);
+	void uiPushStatusInternal(const Common::Rect &rect, const char *text, int fontId,
+	                          int penColor, int backColor, uint32 token,
+	                          int nativeFontH, int nativeTextW);
 	void onErase(const Common::Rect &rect) override;
 	void onSave(uint32 token, const Common::Rect &rect) override;
 	void onFree(uint32 token) override;
@@ -112,19 +125,14 @@ public:
 	bool tunePanelMouse(bool buttonDown, const Common::Point &gamePos) override;
 
 	// UI display-list capture (Roger hires dialogs) Ã¢â‚¬â€ see roger_art_provider.h.
-	void uiPushText(const Common::Rect &globalRect, const char *text, int penColor,
-	                int backColor, int fontId, int align, uint32 token,
-	                int textRole, bool useAltFont,
-	                int nativeFontH, int nativeTextW) override;
+	// (R4: uiPushText / uiPushStatus retired in favour of onText + the *Internal
+	// bodies declared above.)
 	void uiPushButton(const Common::Rect &globalRect, const char *text, int fontId,
 	                  int style, uint32 token,
 	                  int nativeFontH, int nativeTextW) override;
 	void uiPushTextEdit(const Common::Rect &globalRect, const char *text, int fontId,
 	                    int style, int cursorPos, uint32 token,
 	                    int nativeFontH, int nativeTextW) override;
-	void uiPushStatus(const Common::Rect &globalRect, const char *text, int fontId,
-	                  int penColor, int backColor, uint32 token,
-	                  int nativeFontH, int nativeTextW) override;
 	void uiClearAll(); // internal (room teardown); no longer an observer virtual
 	// R13 batch brackets (renamed from beginUiBatch/endUiBatch; bodies unchanged —
 	// pure depth counting + coalesced present at depth 0):

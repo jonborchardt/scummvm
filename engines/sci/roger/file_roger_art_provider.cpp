@@ -1852,10 +1852,10 @@ void FileRogerArtProvider::onWindowOpen(const Common::Rect &r, uint16 wndStyle,
 	}
 }
 
-void FileRogerArtProvider::uiPushText(const Common::Rect &r, const char *text, int penColor,
-                                      int backColor, int fontId, int align, uint32 token,
-                                      int textRole, bool useAltFont,
-                                      int nativeFontH, int nativeTextW) {
+void FileRogerArtProvider::uiPushTextInternal(const Common::Rect &r, const char *text, int penColor,
+                                              int backColor, int fontId, int align, uint32 token,
+                                              int textRole, bool useAltFont,
+                                              int nativeFontH, int nativeTextW) {
 	if (!overlayShown() || !_plate) return;
 	ensureUi();
 	Roger::UiElement e;
@@ -1992,9 +1992,9 @@ void FileRogerArtProvider::onDrawCelInternal(const Common::Rect &r, int viewId, 
 	presentBarrier();
 }
 
-void FileRogerArtProvider::uiPushStatus(const Common::Rect &r, const char *text, int fontId,
-                                        int penColor, int backColor, uint32 token,
-                                        int nativeFontH, int nativeTextW) {
+void FileRogerArtProvider::uiPushStatusInternal(const Common::Rect &r, const char *text, int fontId,
+                                                int penColor, int backColor, uint32 token,
+                                                int nativeFontH, int nativeTextW) {
 	// Remember the banner so it can be re-applied on room load / F10 enable, even if
 	// the overlay was not ready when the game first drew it.
 	_haveStatus = true; _statusRect = r; _statusText = text ? text : "";
@@ -2044,8 +2044,8 @@ void FileRogerArtProvider::uiPushStatus(const Common::Rect &r, const char *text,
 
 void FileRogerArtProvider::reapplyStatus() {
 	if (_haveStatus)
-		uiPushStatus(_statusRect, _statusText.c_str(), _statusFont, _statusPen, _statusBack, _statusToken,
-		             _statusNativeFontH, _statusNativeTextW);
+		uiPushStatusInternal(_statusRect, _statusText.c_str(), _statusFont, _statusPen, _statusBack, _statusToken,
+		                     _statusNativeFontH, _statusNativeTextW);
 }
 
 // Generic text-out captures live in the 0x6------- namespace. The low bits carry the
@@ -2639,9 +2639,48 @@ void FileRogerArtProvider::onShowInternal(const Common::Rect &screenRect, uint32
 	_foregroundRegions.push_back(r); // persistent foreground-sprite capture (was _genRegions)
 }
 
-void FileRogerArtProvider::onNativeText(const Common::Rect &nativeRect, const char *text,
-                                        int fontId, int penColor, int align,
-                                        int nativeFontH, int nativeTextW, uint32 winToken) {
+void FileRogerArtProvider::onText(const Common::Rect &rect, const char *text, int fontId,
+                                  int penColor, int backColor, int align,
+                                  int nativeFontH, int nativeTextW, uint32 token,
+                                  TextSource source, uint16 itemId) {
+	// itemId feeds the Task 11 menu model; the pre-exile dispatcher ignores it.
+	(void)itemId;
+	switch (source) {
+	case kTextSourceBox:
+		// Box body forces backColor=-1 / role=body itself; the 8-param internal keeps that.
+		onTextBoxInternal(rect, text, fontId, penColor, align, nativeFontH, nativeTextW, token);
+		break;
+	case kTextSourceStatus:
+		uiPushStatusInternal(rect, text, fontId, penColor, backColor, token,
+		                     nativeFontH, nativeTextW);
+		break;
+	case kTextSourceControl:
+	case kTextSourceListRow:
+	case kTextSourceFill:
+		// Body role, no alt font. Fill is text="" -> the internal draws only the bg box.
+		uiPushTextInternal(rect, text, penColor, backColor, fontId, align, token,
+		                   Roger::kRoleBody, false, nativeFontH, nativeTextW);
+		break;
+	case kTextSourceMenuBar:
+		// Heading role + alt (header) font (menu exile Task 11 emits this).
+		uiPushTextInternal(rect, text, penColor, backColor, fontId, align, token,
+		                   Roger::kRoleHeading, true, nativeFontH, nativeTextW);
+		break;
+	case kTextSourceMenuRow:
+		// Body role + alt font (dropdown rows).
+		uiPushTextInternal(rect, text, penColor, backColor, fontId, align, token,
+		                   Roger::kRoleBody, true, nativeFontH, nativeTextW);
+		break;
+	default:
+		uiPushTextInternal(rect, text, penColor, backColor, fontId, align, token,
+		                   Roger::kRoleBody, false, nativeFontH, nativeTextW);
+		break;
+	}
+}
+
+void FileRogerArtProvider::onTextBoxInternal(const Common::Rect &nativeRect, const char *text,
+                                             int fontId, int penColor, int align,
+                                             int nativeFontH, int nativeTextW, uint32 winToken) {
 	if (!overlayShown() || _nativeDrawDepth > 0 || !_plate)
 		return; // overlay off, inside a Roger-handled draw, or no hires plate
 	if (!text || !*text || nativeRect.isEmpty())

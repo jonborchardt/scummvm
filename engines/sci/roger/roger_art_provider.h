@@ -62,15 +62,8 @@ public:
 	// pointer (especially during blocking dialogs/menus that do not tick animate).
 	virtual void onMouseMoved() {}
 
-	// Generic text-out capture (game-agnostic): SCI drew `text` at native `nativeRect`
-	// in font `fontId`, color `penColor`, alignment `align`. nativeFontH is the SCI font
-	// cell height (px) and nativeTextW is the single-line string width (0 = multi-line).
-	// `winToken` scopes the text to the window/port it was drawn in (generic namespace
-	// 0x60000000 | port->id), so the text is dropped when that window is disposed
-	// (GfxPorts::removeWindow) — exactly like controls16/menu text. Default no-op.
-	virtual void onNativeText(const Common::Rect &nativeRect, const char *text,
-	                          int fontId, int penColor, int align,
-	                          int nativeFontH, int nativeTextW, uint32 winToken) {}
+	// R4: generic text-out capture migrated to SciGfxObserver::onText (source
+	// kTextSourceBox); the old onNativeText virtual is deleted.
 
 	// Called from GfxTransitions::doit() when a room transition is about to run (gated on
 	// g_sciRogerProvider + enabled). The provider mirrors the effect in the overlay; SCI's
@@ -107,25 +100,17 @@ public:
 	// push resolution-independent elements (global 320x200 rects) here; the provider
 	// composites them over the cached hires scene. All default to no-op so the base
 	// provider (and null provider) are unaffected; FileRogerArtProvider overrides.
-	// textRole: 0 = body (dialog/message/list text), 1 = heading (titles); see
-	// Roger::UiTextRole. useAltFont: render with the header/menu font.
-	// nativeFontH: SCI font cell height (px) for the line; 0 = unknown.
+	// R4: uiPushText / uiPushStatus migrated to SciGfxObserver::onText (sources
+	// kTextSourceControl/kTextSourceListRow/kTextSourceFill/kTextSourceMenuBar/
+	// kTextSourceMenuRow and kTextSourceStatus respectively); those virtuals are
+	// deleted. nativeFontH: SCI font cell height (px) for the line; 0 = unknown.
 	// nativeTextW: native single-line string width (px); 0 = multi-line/unknown.
-	virtual void uiPushText(const Common::Rect &globalRect, const char *text, int penColor,
-	                        int backColor, int fontId, int align, uint32 token,
-	                        int textRole = 0, bool useAltFont = false,
-	                        int nativeFontH = 0, int nativeTextW = 0) {}
 	virtual void uiPushButton(const Common::Rect &globalRect, const char *text, int fontId,
 	                          int style, uint32 token,
 	                          int nativeFontH = 0, int nativeTextW = 0) {}
 	virtual void uiPushTextEdit(const Common::Rect &globalRect, const char *text, int fontId,
 	                            int style, int cursorPos, uint32 token,
 	                            int nativeFontH = 0, int nativeTextW = 0) {}
-	// Score/title status banner (top strip): rendered hires (exact fit, opaque) so it
-	// occludes the native low-res bar instead of showing through the overlay strip.
-	virtual void uiPushStatus(const Common::Rect &globalRect, const char *text, int fontId,
-	                          int penColor, int backColor, uint32 token,
-	                          int nativeFontH = 0, int nativeTextW = 0) {}
 	// kGraphFrameBox selection highlight: frame-only (no fill), room-scoped.
 	// globalRect is already in global 320x200 screen space. Any previous frame
 	// pushed under the same token is replaced so the highlight tracks movement.

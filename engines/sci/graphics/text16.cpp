@@ -687,7 +687,7 @@ void GfxText16::Box(const char *text, uint16 languageSplitter, bool show, const 
 		// drifted lines overlapped), and (b) never satisfied the save-under rollback's
 		// containment test (the restore rect covers only the DRAWN pixels), so
 		// dismissed text ghosted until room change.
-		if (g_sciRogerProvider && g_sciRogerProvider->enabled && textWidth > 0) {
+		if (g_sciGfxObserver && textWidth > 0) {
 			Common::String lineText(curTextLine, (uint32)charCount);
 			while (lineText.size() &&
 			       (lineText.lastChar() == '\n' || lineText.lastChar() == '\r' || lineText.lastChar() == ' '))
@@ -703,13 +703,14 @@ void GfxText16::Box(const char *text, uint16 languageSplitter, bool show, const 
 				// generic text namespace (0x60000000 | port->id) — GfxPorts::removeWindow
 				// clears this token on dispose; picture-port text survives to room change.
 				const Port *curPort = _ports->getPort();
-				const uint32 winToken = 0x60000000u | (uint32)(curPort ? curPort->id : 0);
+				const uint32 winToken = gfxTextPortToken((uint32)(curPort ? curPort->id : 0));
 				// NOTE: capture regardless of `show` — SCI0 EGA draws almost all text
 				// with show=false (flushed later via kGraphUpdateBox/bitsShow); gating
 				// on show missed all of it.
-				g_sciRogerProvider->onNativeText(lineRect, lineText.c_str(), fontId,
-				                                 previousPenColor, SCI_TEXT16_ALIGNMENT_LEFT,
-				                                 textHeight, textWidth, winToken);
+				g_sciGfxObserver->onText(lineRect, lineText.c_str(), fontId,
+				                         previousPenColor, -1 /*no fill*/, SCI_TEXT16_ALIGNMENT_LEFT,
+				                         textHeight, textWidth, winToken,
+				                         SciGfxObserver::kTextSourceBox, 0 /*itemId*/);
 			}
 		}
 		lineCount++;

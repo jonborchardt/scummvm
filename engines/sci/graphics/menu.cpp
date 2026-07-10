@@ -447,9 +447,9 @@ void GfxMenu::rogerPushBarOverlay() {
 			continue; // graphical glyph (Sierra icon) -> leave the native bar showing
 		int16 nfw = 0, nfh = 0;
 		_text16->StringWidth(t.text, 0, nfw, nfh);
-		g_sciRogerProvider->uiPushText(t.rect, t.text.c_str(), 0 /*black*/, -1 /*no fill*/, 0,
-		                               SCI_TEXT16_ALIGNMENT_LEFT, tok, 1 /*heading*/, true /*alt font*/,
-		                               nfh, nfw);
+		g_sciGfxObserver->onText(t.rect, t.text.c_str(), 0 /*fontId*/, 0 /*black pen*/, -1 /*no fill*/,
+		                         SCI_TEXT16_ALIGNMENT_LEFT, nfh, nfw, tok,
+		                         SciGfxObserver::kTextSourceMenuBar, 0 /*itemId*/);
 	}
 	g_sciGfxObserver->endBatch();
 }
@@ -831,9 +831,9 @@ void GfxMenu::rogerPushMenuOverlay() {
 		const int back = sel ? 0 : -1; // selected row drawn inverted (white on black)
 		int16 nfw = 0, nfh = 0;
 		_text16->StringWidth(r.text, 0, nfw, nfh);
-		g_sciRogerProvider->uiPushText(r.rect, r.text.c_str(), pen, back, 0,
-		                               SCI_TEXT16_ALIGNMENT_LEFT, tok, 0 /*body*/, true,
-		                               nfh, nfw);
+		g_sciGfxObserver->onText(r.rect, r.text.c_str(), 0 /*fontId*/, pen, back,
+		                         SCI_TEXT16_ALIGNMENT_LEFT, nfh, nfw, tok,
+		                         SciGfxObserver::kTextSourceMenuRow, r.id /*itemId*/);
 	}
 	g_sciGfxObserver->endBatch();
 }
@@ -1176,11 +1176,12 @@ void GfxMenu::kernelDrawStatus(const char *text, int16 colorPen, int16 colorBack
 
 	// Roger hires dialogs: render the score/title banner into the overlay's top strip
 	// (opaque, exact-fit) so it appears hires instead of the native bar showing through.
-	if (g_sciRogerProvider && g_sciRogerProvider->enabled) {
+	if (g_sciGfxObserver) {
 		int16 nfw = 0, nfh = 0;
 		_text16->StringWidth(text, _text16->GetFontId(), nfw, nfh);
-		g_sciRogerProvider->uiPushStatus(_ports->_menuBarRect, text, _text16->GetFontId(),
-		                                 colorPen, colorBack, 0x10000000u, nfh, nfw);
+		g_sciGfxObserver->onText(_ports->_menuBarRect, text, _text16->GetFontId(),
+		                         colorPen, colorBack, 0 /*align*/, nfh, nfw,
+		                         kGfxTokenStatus, SciGfxObserver::kTextSourceStatus, 0 /*itemId*/);
 	}
 
 	_ports->setPort(oldPort);

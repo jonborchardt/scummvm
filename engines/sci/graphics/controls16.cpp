@@ -118,19 +118,19 @@ void GfxControls16::drawListControl(Common::Rect rect, reg_t obj, int16 maxChars
 			// window (already captured by drawWindow). The selected row is rendered
 			// inverted (white on black). Token = active window id, so disposing the
 			// inventory window clears the rows too.
-			if (g_sciRogerProvider && g_sciRogerProvider->enabled) {
+			if (g_sciGfxObserver) {
 				Common::Rect g = workerRect;
 				_ports->offsetRect(g);
 				const Port *p = _ports->getPort();
-				const uint32 tok = 0x40000000u | (uint32)(p ? p->id : 0);
+				const uint32 tok = gfxWindowToken((uint32)(p ? p->id : 0));
 				const bool sel = (!isAlias) && (i == cursorPos);
 				const int pen = sel ? 15 : (p ? p->penClr : 0);
 				const int back = sel ? 0 : -1;
 				int16 nfw = 0, nfh = 0;
 				_text16->StringWidth(textString, fontId, nfw, nfh);
-				g_sciRogerProvider->uiPushText(g, textString.c_str(), pen, back, fontId,
-				                               SCI_TEXT16_ALIGNMENT_LEFT, tok, 0 /*body*/, false,
-				                               nfh, nfw);
+				g_sciGfxObserver->onText(g, textString.c_str(), fontId, pen, back,
+				                         SCI_TEXT16_ALIGNMENT_LEFT, nfh, nfw, tok,
+				                         SciGfxObserver::kTextSourceListRow, 0 /*itemId*/);
 			}
 		}
 		workerRect.translate(0, fontSize);
@@ -441,15 +441,15 @@ void GfxControls16::kernelDrawButton(Common::Rect rect, reg_t obj, const char *t
 void GfxControls16::kernelDrawText(Common::Rect rect, reg_t obj, const char *text, uint16 languageSplitter, int16 fontId, TextAlignment alignment, int16 style, bool hilite) {
 	g_sci->_tts->text(text);
 
-	if (g_sciRogerProvider && g_sciRogerProvider->enabled) {
+	if (g_sciGfxObserver) {
 		Common::Rect g = rect;
 		_ports->offsetRect(g);
 		const Port *p = _ports->getPort();
-		const uint32 tok = 0x40000000u | (uint32)(p ? p->id : 0);
+		const uint32 tok = gfxWindowToken((uint32)(p ? p->id : 0));
 		int16 nfw = 0, nfh = 0;
 		_text16->StringWidth(text, fontId, nfw, nfh);
-		g_sciRogerProvider->uiPushText(g, text, p ? p->penClr : 0, p ? p->backClr : -1,
-		                               fontId, alignment, tok, 0, false, nfh, nfw);
+		g_sciGfxObserver->onText(g, text, fontId, p ? p->penClr : 0, p ? p->backClr : -1,
+		                         alignment, nfh, nfw, tok, SciGfxObserver::kTextSourceControl, 0 /*itemId*/);
 	}
 
 	if (!hilite) {

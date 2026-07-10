@@ -658,11 +658,11 @@ reg_t GfxPaint16::kernelDisplay(const char *text, uint16 languageSplitter, int a
 	// per-line captures). Only the opaque background fill still needs a hires
 	// mirror; token = the save-under handle, so the box dies with the restore
 	// exactly like the old element did.
-	if (doSaveUnder && g_sciRogerProvider && g_sciRogerProvider->enabled && colorBack != -1) {
-		const uint32 tok = ((uint32)result.getSegment() << 16) | result.getOffset();
-		g_sciRogerProvider->uiPushText(rect, "", colorPen >= 0 ? colorPen : 0,
-		                               colorBack, -1, alignment, tok,
-		                               0 /*body*/, false, 0, 0);
+	if (doSaveUnder && g_sciGfxObserver && colorBack != -1) {
+		g_sciGfxObserver->onText(rect, "", -1 /*fontId n/a*/,
+		                         colorPen >= 0 ? colorPen : 0, colorBack, alignment,
+		                         0, 0, gfxHandleToken(result.getSegment(), result.getOffset()),
+		                         SciGfxObserver::kTextSourceFill, 0 /*itemId*/);
 	}
 
 	if (colorBack != -1)

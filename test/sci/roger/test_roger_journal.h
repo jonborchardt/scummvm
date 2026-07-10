@@ -61,9 +61,9 @@ public:
 
 	void test_generic_text_does_not_supersede_control_at_same_rect() {
 		// The dialog-text-size-flip bug (this fix): a QFG1 Print/look narration is drawn
-		// by BOTH the semantic control hook (kControlText -> uiPushText, token 0x40000003,
+		// by BOTH the semantic control hook (kControlText -> onText source=control, token 0x40000003,
 		// accurate native font height + single-line width cap) AND the generic GfxText16::Box
-		// hook (onNativeText, token 0x60000003, no width cap -> wrap-fit). They are the SAME
+		// hook (onText source=box, token 0x60000003, no width cap -> wrap-fit). They are the SAME
 		// native draw seen by two hooks â€” reconciled by dedupeGenericText (keeps the control).
 		// append()'s geometry-only supersede must NOT let the later generic copy replace the
 		// control copy: doing so left the multi-line wrap-fit generic in the journal, which
