@@ -150,6 +150,78 @@ Disposition values: `→ <event> (L1..L4)` / `observer-side` / `fork-only` / `st
 <!-- coverage: 2 hunks (transitions.cpp), diff order:
   1=TR1(roger include); 2=TR2(doit claim early-return block). -->
 
+### 3.7 engines/sci/graphics/controls16.cpp (94 lines, 9 hunks)
+
+| # | Site (file:line) | What it does | Bucket | Defensibility verdict | Disposition |
+|---|---|---|---|---|---|
+| C1 | controls16.cpp:42 | `#include "sci/roger/roger_art_provider.h"` in the controls file | W (+concern) | Not mechanical: same `roger/`-path leak as P1/K1 — a neutral observer header belongs here | → replace with `sci_gfx_observer.h`; observer-side |
+| C2 | controls16.cpp:117-134 | drawListControl per-row hook: for each list row, `offsetRect` to global space, window-scoped token `0x40000000\|port->id`, selected-row inversion (pen 15 / back 0), `StringWidth` metrics, `uiPushText(...)` | N | Mechanical observe: one `offsetRect` + `StringWidth` marshal + the `0x40000000` token — the boilerplate §4.3 folds behind a helper; the sel-branch pen/back is content the event already carries | → onText(rect, text, font, pen, back, align, metrics, token, source=listRow) (L3); token+offsetRect helper observer-side |
+| C3 | controls16.cpp:295-303 | kernelTexteditChange width-cap relaxation: `if (!rogerActive && textWidth >= rect.width())` — the native "does it fit?" early-return is skipped while Roger is active, so typing is not capped at the native nsRect pixel width (buffer still bound by `maxChars`) | **C** | Behavior change — the NATIVE input path is altered when the provider is active (SCI would stop accepting keystrokes; Roger keeps taking them). A genuine, defensible claim: the hires field is rendered far wider so the native pixel cap is wrong, and `maxChars` still bounds the buffer. Currently an inline `enabled`-gated fork branch, not a documented override | → wantsUnclampedTextEdit() -> bool (L4) |
+| C4 | controls16.cpp:321-334 | kernelTexteditChange live-typing push: after the buffer write-back, `offsetRect` + `0x40000000\|port->id` token + `editStyle` from the state selector + `StringWidth`, `uiPushTextEdit(...)` so the hires field tracks each keystroke (live typing redraws here, not via kernelDrawTextEdit) | N | Mechanical observe (separate concern from C3's claim): the marshalling boilerplate §4.3 consolidates; same token+rect as C8 so it replaces that element in place | → onControl(kind=textEdit, ...) (L3); token+offsetRect helper observer-side |
+| C5 | controls16.cpp:356-364 | kernelDrawButton push: `offsetRect` + `0x40000000\|port->id` token + `StringWidth`, `uiPushButton(g, text, fontId, style, tok, ...)` | N | Mechanical observe; identical marshalling shape to C4 | → onControl(kind=button, ...) (L3); helper observer-side |
+| C6 | controls16.cpp:444-452 | kernelDrawText push: `offsetRect` + `0x40000000\|port->id` token + `StringWidth`, `uiPushText(..., port penClr/backClr, align, ..., source=body)` | N | Mechanical observe; one of the five text paths §4.2 folds into `onText` | → onText(rect, text, font, pen, back, align, metrics, token, source=control) (L3); helper observer-side |
+| C7 | controls16.cpp:465-478 | kernelDrawText SELECTED branch: after `frameRect(rect)`, when `style & SELECTED`, `offsetRect` the frame rect and `uiPushFrameBox(gSel, port penClr)` (gates internally on change so no per-cycle present storm) | N | Mechanical observe + one `offsetRect` marshal; the second of the two `uiPushFrameBox` call sites (the other is paint16 P16) | → onFrameBox(rect, pen) (L3) |
+| C8 | controls16.cpp:503-511 | kernelDrawTextEdit push: `offsetRect` + `0x40000000\|port->id` token + `StringWidth`, `uiPushTextEdit(g, text, fontId, style, cursorPos, tok, ...)` | N | Mechanical observe; pairs with C4 (same token/rect, replace-in-place) — both fold to the textEdit `onControl` kind | → onControl(kind=textEdit, ...) (L3); helper observer-side |
+| C9 | controls16.cpp:539-546 | kernelDrawIcon push: `offsetRect` + `0x40000000\|port->id` token, `uiPushIcon(g, viewId, loopNo, celNo, tok)` | N | Mechanical observe; the icon source of the consolidated `onCel` | → onCel(rect, view, loop, cel, priority, owner, source=icon) (L3); token+offsetRect helper observer-side |
+
+<!-- coverage: 9 hunks (controls16.cpp), diff order:
+  1=C1(roger include); 2=C2(drawListControl row push); 3=C3(kernelTexteditChange width-cap relaxation);
+  4=C4(kernelTexteditChange live-typing push); 5=C5(kernelDrawButton push); 6=C6(kernelDrawText push);
+  7=C7(kernelDrawText SELECTED frameBox); 8=C8(kernelDrawTextEdit push); 9=C9(kernelDrawIcon push). -->
+
+### 3.8 engines/sci/graphics/menu.{cpp,h} (141+22 lines, 9+3 hunks)
+
+The audit's **S-bucket centerpiece**. `GfxMenu` today stores captured menu state
+(`RogerMenuRow` arrays, box, highlight) and hosts three `rogerPush*` methods that
+emit overlay pushes at draw time. The redesign (spec §4.2 "menu state exile,
+killing bucket S") deletes all of it: `GfxMenu` emits neutral L3 events at draw
+time and the **observer** keeps whatever row state it needs. The M-rows below carry
+the −100-line delta claim, so each state member's post-redesign home is stated
+individually.
+
+| # | Site (file:line) | What it does | Bucket | Defensibility verdict | Disposition |
+|---|---|---|---|---|---|
+| M1 | menu.h:25-28 | Adds `#include` of `common/{array,list,rect,str}.h` — needed only so the header can declare the `RogerMenuRow` struct and the `Common::Array` state members | S | Header-weight added purely to carry Roger state (M11) into `GfxMenu` — vanishes when the state is exiled | delete with M11 (observer-side keeps the state) |
+| M2 | menu.h:107-114 | Declares `rogerPushMenuOverlay()`, `rogerClearMenuOverlay()`, `rogerPushBarOverlay()` (three private methods) with their doc comments | S | Roger method decls inside an SCI class — the S-bucket signature; the bodies (M6, M8, M10) live in `menu.cpp` | delete; the emit logic they contain becomes observer-side, reached via the L3 events at M6/M8/M10 |
+| M3 | menu.h:144-151 | `struct RogerMenuRow { Common::Rect rect; Common::String text; uint16 id; }` + four state members: `_rogerMenuRows` (Array), `_rogerMenuBox` (Rect), `_rogerMenuHighlight` (uint16), `_rogerBarTitles` (Array) | S | The core state intrusion — Roger data living in `GfxMenu`. Per-member post-redesign home (spec §4.4, "the observer keeps whatever row state it needs"): **`_rogerMenuRows`** → reconstructed observer-side from the stream of `onText(source=menuRow)` emits (each row's rect/text/id arrives on the event) between the dropdown's `onWindowOpen(token=dropdown)` and `onWindowClose`; **`_rogerMenuBox`** → the `onWindowOpen(rect, ..., token=dropdown)` rect payload — the observer holds it under the dropdown token; **`_rogerMenuHighlight`** → carried by `onMenuHighlight(itemId)` and stored observer-side (the observer re-composites its retained rows on each highlight); **`_rogerBarTitles`** → reconstructed observer-side from the `onText(source=menuBar)` emits collected between `beginBatch`/`endBatch` at bar-draw time | delete (menu state exile); all four members live observer-side, keyed by onText(menuRow)/onText(menuBar)/onWindowOpen(dropdown)/onMenuHighlight |
+| M4 | menu.cpp:39 | `#include "sci/roger/roger_art_provider.h"` in the menu file | W (+concern) | Same `roger/`-path leak as P1/K1 | → replace with `sci_gfx_observer.h`; observer-side |
+| M5 | menu.cpp:372-405 | drawBar bar-title collection: `_rogerBarTitles.clear()` before the loop, and inside it builds a `RogerMenuRow` per title (start-x to pen-end rect over the bar-strip height) and `push_back`s it; calls `rogerPushBarOverlay()` after the loop | S/N hybrid | The per-title collection into the SCI-class array is S (state mutation in `GfxMenu`); the *content* it gathers (rect+text per bar title) is exactly what a neutral `onText(menuBar)` carries | → onText(rect, text, ..., source=menuBar) (L3) per title, inside beginBatch/endBatch; the array + push_back go observer-side (delete here) |
+| M6 | menu.cpp:408-455 | `rogerTitleIsText()` static helper (ASCII-printable test) + `rogerPushBarOverlay()` body: `beginUiBatch` / `uiClearToken(0x10000000)` / `uiPushWindow` white bar + `uiPushWindow` black `_menuLine` underline / per-title `uiPushText(source=heading)` (skipping graphical-glyph titles) / `endUiBatch` | S/N hybrid | Method body living in the SCI class = S; the observe calls it makes are neutral L3/L1. `rogerTitleIsText` is an observer-side rendering-policy concern (which titles the TTF header font can render), not SCI's business | body → observer-side; its emits map to beginBatch/endBatch (L1), onWindowOpen (L3, the bar+underline strip), onText(source=menuBar) (L3); `rogerTitleIsText` → observer-side. NOTE the bar and banner share token `0x10000000` (mutual-exclusion) — token discipline §4.3 |
+| M7 | menu.cpp:605-606 | kernelSelect: `rogerClearMenuOverlay()` after the menu closes (drops the composited dropdown) | S/N hybrid | The call is a mechanical dispose signal; it lands in an SCI method but carries no Roger state itself | → onWindowClose(token=dropdown) (L3) — the dropdown-close analogue |
+| M8 | menu.cpp:739-744 | drawMenu dropdown-box capture: `_rogerMenuBox = _menuRect` (before the draw-time inset mutations) + `_rogerMenuRows.clear()` | S | State mutation in `GfxMenu` — stores the box rect and resets the row array | → onWindowOpen(rect=box, ..., token=dropdown) (L3) carries the box; the observer clears its rows on that open (delete the members here) |
+| M9 | menu.cpp:773-779 | drawMenu per-row capture: builds a `RogerMenuRow` (global rect, text, item id) and `push_back`s it for each drawn row | S/N hybrid | Collection into the SCI-class array is S; the content (rect/text/id) is what `onText(menuRow)` carries | → onText(rect, text, ..., token=dropdown, source=menuRow) (L3) per row; array/push_back observer-side (delete here) |
+| M10 | menu.cpp:811-845 | drawMenu tail (`_rogerMenuHighlight = 0` + `rogerPushMenuOverlay()`) + the `rogerPushMenuOverlay()` body (batch / `uiClearToken(0x20000000)` / white framed `uiPushWindow` box / per-row `uiPushText` with sel inversion / batch) + `rogerClearMenuOverlay()` body (`uiClearToken(0x20000000)` + `_rogerMenuRows.clear()`) | S/N hybrid | Method bodies in the SCI class = S (and they consume the exiled `_rogerMenuRows`/`_rogerMenuBox`/`_rogerMenuHighlight` state); the observe calls are neutral | bodies → observer-side; emits map to beginBatch/endBatch (L1), onWindowOpen(token=dropdown) (L3), onText(source=menuRow) (L3), onWindowClose(token=dropdown) (L3); the observer owns the re-composite loop |
+| M11 | menu.cpp:850-857 | invertMenuSelection highlight re-push: when `itemId != 0 && itemId != _rogerMenuHighlight`, set `_rogerMenuHighlight = itemId` and `rogerPushMenuOverlay()` (skips the no-op old-row re-invert) | S/N hybrid | Reads/writes the exiled `_rogerMenuHighlight` (S), but the *signal* is a pure highlight-change notification — exactly `onMenuHighlight` | → onMenuHighlight(itemId) (L3); the observer holds the highlight and re-composites its retained rows (the `!= _rogerMenuHighlight` dedup moves observer-side) |
+| M12 | menu.cpp:875-877 | interactiveStart comment-only hunk explaining the overlay stays up (menu bar shows through the strip, dropdown composited via rogerPushMenuOverlay) — no code change | D | Pure fork war-story comment; no behavior | delete (comment relocates to FORK_AUDIT / observer impl) |
+| M13 | menu.cpp:1177-1184 | kernelDrawStatus banner push: `StringWidth` + `uiPushStatus(_menuBarRect, text, font, pen, back, 0x10000000, ...)` — renders the score/title banner into the overlay's top strip | N | Mechanical observe; one of the five text paths (the `status` source) that §4.2 folds into `onText` | → onText(rect, text, ..., token=0x10000000, source=status) (L3) |
+
+<!-- coverage: 9 hunks (menu.cpp) + 3 hunks (menu.h), diff order.
+  menu.cpp hunk map (verified @@ markers):
+    hunk 1 (@@ -36)   = M4(roger include);
+    hunk 2 (@@ -368)  = M5-partial(drawBar `_rogerBarTitles.clear()` prologue);
+    hunk 3 (@@ -379)  = M5-rest(drawBar per-title collect + rogerPushBarOverlay() call) + M6(rogerTitleIsText static + rogerPushBarOverlay body) — one hunk;
+    hunk 4 (@@ -534)  = M7(kernelSelect rogerClearMenuOverlay);
+    hunk 5 (@@ -666)  = M8(drawMenu box capture);
+    hunk 6 (@@ -693)  = M9(drawMenu per-row capture);
+    hunk 7 (@@ -723)  = M10(drawMenu tail + rogerPushMenuOverlay/rogerClearMenuOverlay bodies) + M11(invertMenuSelection highlight re-push) — one hunk;
+    hunk 8 (@@ -744)  = M12(interactiveStart comment);
+    hunk 9 (@@ -1042) = M13(kernelDrawStatus uiPushStatus).
+  (M5 spans hunks 2+3; every hunk maps to >=1 row.)
+  menu.h hunk map: 1=M1(common/* includes); 2=M2(3 roger method decls); 3=M3(RogerMenuRow struct + 4 state members). -->
+
+### 3.9 engines/sci/graphics/ports.cpp (54 lines, 2 hunks)
+
+| # | Site (file:line) | What it does | Bucket | Defensibility verdict | Disposition |
+|---|---|---|---|---|---|
+| PO1 | ports.cpp:37 | `#include "sci/roger/roger_art_provider.h"` in the ports file | W (+concern) | Same `roger/`-path leak as P1/K1 | → replace with `sci_gfx_observer.h`; observer-side |
+| PO2 | ports.cpp:524-551 | drawWindow open hook: `0x40000000\|pWnd->id` token, `offsetRect(globalDims)`, `uiPushWindow(globalDims, back, pen, style, tok)`; when `STYLE_TITLE && !title.empty()`, a titlebar `uiPushText(source ~ windowTitle)` (centered white on grey/black); then the terminal `bitsShow(pWnd->dims, tok)` is tagged with the window token (drawWindow runs with `_wmgrPort` current, so `bitsShow` cannot derive the owner itself) | N | Mechanical observe: `offsetRect`/token/`StringWidth` marshalling §4.3 folds behind a helper; the tokened `bitsShow` is the same signature change audited at P10 (the default-arg keeps native callers byte-identical) | → onWindowOpen(rect, style, colors, title, token) (L3) — the title push folds into it (spec §4.2, `onText(source=windowTitle)` is subsumed by the window-open payload); tokened show → onShow(rect, owner) (L2), owner derived observer-side |
+| PO3 | ports.cpp:557-585 | removeWindow close hook: two `uiClearToken` calls (`0x40000000\|id` controls, `0x60000000\|id` generic window text) + a diag `warning()`; then `hadNoSaveUnder` detection and, on the `!reanimate` path, an explicit `onNativeRestoreRect(0, restoreRect)` **reveal plant** for no-save-under windows (the subsequent `bitsShow(restoreRect)` is thereby covered and not re-stamped by Feeder B) | N (+D for the diag line) | Mechanical: the two clears are the window-dispose signal (`onWindowClose` subsumes both — spec §4.2 explicitly folds "the two `uiClearToken` calls in `removeWindow`"). The reveal plant is defensible and **load-bearing**: it is one of the **two documented duty-3 exceptions** in CLAUDE.md's invariants (no-save-under window disposals have no `bitsRestore` rect, so the cycle-diff net is blind — the manual reveal is the only same-present invalidation for that class). The diag `warning()` is fork noise | → onWindowClose(token) (L3) for both clears; the reveal plant → onRestore(token=0, rect) (L2) (documented duty-3 exception, retained); diag line: delete |
+
+<!-- coverage: 2 hunks (ports.cpp), diff order:
+  hunk 1 (@@ -34,6 +34,7) = PO1(roger include);
+  hunk 2 (@@ -520,20 +521,67) = PO2(drawWindow open hook) + PO3(removeWindow close hook) — the two functions are adjacent, so the diff emits ONE hunk spanning both.
+  So: hunk 1 -> PO1; hunk 2 -> PO2, PO3. -->
+
 <!-- Tasks 2-5 append per-file subsections here -->
 
 ## 4. Seam inventory
