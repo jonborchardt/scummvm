@@ -134,7 +134,7 @@ Disposition values: `→ <event> (L1..L4)` / `observer-side` / `fork-only` / `st
 | T1 | text16.cpp:39 | `#include "sci/roger/roger_art_provider.h"` in the text file | W (+concern) | Same `roger/`-path leak as P1/K1/A2 | → replace with `sci_gfx_observer.h`; observer-side |
 | T2 | text16.cpp:570 | `int16 textWidth, maxTextWidth, textHeight = 0;` — adds `= 0` initializer to `textHeight` | G | Standalone upstreamable fix, no Roger needed: silences a real uninitialized-read path (`textHeight` is read into `hline` accumulation before assignment on a degenerate empty-box path) | standalone-PR (independent of observer work) |
 | T3 | text16.cpp:597 | `int16 lineCount = 0;` local declared before the draw loop | N (+concern) | Support variable for the per-line capture (T4), incremented but only consumed by the fork path — dead outside Roger | → folds into onText per-line emit (L3); observer-side (drop if unused upstream) |
-| T4 | text16.cpp:681-715,723-725 | Per-line capture block inside Box's draw loop: builds the exact placed line rect (offset+hline, measured textWidth/textHeight), `offsetRect` to global space, window-scoped token `0x60000000\|port->id`, emits `onNativeText(...)` per drawn line regardless of `show`; `lineCount++`; plus the post-loop comment noting the old whole-box hook was deleted | N | Mechanical observe (the load-bearing per-line-rect fix), but carries the token/offsetRect marshalling §4.3/§4.2 consolidate; the war-story comments relocate here | → onText(rect, text, font, pen, back, align, metrics, token, source=textBox) (L3); token+offsetRect helper observer-side; comments → FORK_AUDIT |
+| T4 | text16.cpp:681-715,723-725 | Per-line capture block inside Box's draw loop: builds the exact placed line rect (offset+hline, measured textWidth/textHeight), `offsetRect` to global space, window-scoped token `0x60000000\|port->id`, emits `onNativeText(...)` per drawn line regardless of `show` (the align arg is hardcoded `SCI_TEXT16_ALIGNMENT_LEFT` at text16.cpp:711 — the per-line offset already encodes placement; relevant to the future `onText(align, …)` signature); `lineCount++`; plus the post-loop comment noting the old whole-box hook was deleted | N | Mechanical observe (the load-bearing per-line-rect fix), but carries the token/offsetRect marshalling §4.3/§4.2 consolidate; the war-story comments relocate here | → onText(rect, text, font, pen, back, align, metrics, token, source=textBox) (L3); token+offsetRect helper observer-side; comments → FORK_AUDIT |
 
 <!-- coverage: 4 hunks (text16.cpp), diff order:
   1=T1(roger include); 2=T2(textHeight = 0 init); 3=T3(lineCount decl);
@@ -181,7 +181,7 @@ individually.
 
 | # | Site (file:line) | What it does | Bucket | Defensibility verdict | Disposition |
 |---|---|---|---|---|---|
-| M1 | menu.h:25-28 | Adds `#include` of `common/{array,list,rect,str}.h` — needed only so the header can declare the `RogerMenuRow` struct and the `Common::Array` state members | S | Header-weight added purely to carry Roger state (M3) into `GfxMenu` — vanishes when the state is exiled | delete with M3 (observer-side keeps the state) |
+| M1 | menu.h:25-28 | Adds `#include` of `common/{array,list,rect,str}.h` — the `array`/`rect`/`str` includes serve only the `RogerMenuRow` struct and the `Common::Array` state members; `list.h` is NOT Roger's (it serves the pre-existing `GuiMenuList`/`GuiMenuItemList` typedefs at menu.h:55/80) and stays regardless | S | Header-weight added purely to carry Roger state (M3) into `GfxMenu` — vanishes when the state is exiled | delete with M3 (observer-side keeps the state) |
 | M2 | menu.h:107-114 | Declares `rogerPushMenuOverlay()`, `rogerClearMenuOverlay()`, `rogerPushBarOverlay()` (three private methods) with their doc comments | S | Roger method decls inside an SCI class — the S-bucket signature; the bodies (M6, M8, M10) live in `menu.cpp` | delete; the emit logic they contain becomes observer-side, reached via the L3 events at M6/M8/M10 |
 | M3 | menu.h:144-151 | `struct RogerMenuRow { Common::Rect rect; Common::String text; uint16 id; }` + four state members: `_rogerMenuRows` (Array), `_rogerMenuBox` (Rect), `_rogerMenuHighlight` (uint16), `_rogerBarTitles` (Array) | S | The core state intrusion — Roger data living in `GfxMenu`. Per-member post-redesign home (spec §4.4, "the observer keeps whatever row state it needs"): **`_rogerMenuRows`** → reconstructed observer-side from the stream of `onText(source=menuRow)` emits (each row's rect/text/id arrives on the event) between the dropdown's `onWindowOpen(token=dropdown)` and `onWindowClose`; **`_rogerMenuBox`** → the `onWindowOpen(rect, ..., token=dropdown)` rect payload — the observer holds it under the dropdown token; **`_rogerMenuHighlight`** → carried by `onMenuHighlight(itemId)` and stored observer-side (the observer re-composites its retained rows on each highlight); **`_rogerBarTitles`** → reconstructed observer-side from the `onText(source=menuBar)` emits collected between `beginBatch`/`endBatch` at bar-draw time | delete (menu state exile); all four members live observer-side, keyed by onText(menuRow)/onText(menuBar)/onWindowOpen(dropdown)/onMenuHighlight |
 | M4 | menu.cpp:39 | `#include "sci/roger/roger_art_provider.h"` in the menu file | W (+concern) | Same `roger/`-path leak as P1/K1 | → replace with `sci_gfx_observer.h`; observer-side |
@@ -336,7 +336,7 @@ by delegating to a hooked leaf is marked hooked with a "(via …)" note.
 | kernelGraphDrawLine | derivable-from-L2 | clips/offsets then `_screen->drawLine` into the buffer; no bitsShow — reaches screen only via a bitsShow/kernelGraphUpdateBox the caller issues (L2 onShow, the §3.2 "line never hooked" note). No text/owner semantics lost |
 | kernelGraphSaveBox | hooked | (via bitsSave) → `bitsSave` (paint16.cpp:564), captured at P12 |
 | kernelGraphRestoreBox | hooked | (via bitsRestore) → `bitsRestore` (paint16.cpp:568), captured at P13 |
-| kernelGraphUpdateBox | hooked | paint16.cpp:571-574 → `bitsShow(rect)` (row P17 diag; the show itself is L2 onShow via P10/P11) |
+| kernelGraphUpdateBox | derivable-from-L2 | paint16.cpp:571-574 → `bitsShow(rect)`; the show itself is L2 onShow via P10/P11. (The P17 diag line here is a to-be-deleted dev warning, not a distinct hook — coverage is the bitsShow funnel, not P17) |
 | kernelGraphRedrawBox | hooked | paint16.cpp:577-581 `onNativeEraseRect` on the global rect (row P18) |
 | kernelDisplay | hooked | paint16.cpp:705-717 background-fill push + :740-764 flush brackets (rows P19, P20); per-line text captured downstream at GfxText16::Box (T4) |
 | kernelPortraitLoad | excluded | no-op stub (returns NULL_REG; body commented out); no draw effect |
@@ -599,6 +599,10 @@ overrides. Per §3.3 this is *checked by enumeration, not asserted*: every
 `copyRectToScreen`/`copyToScreen` caller in the SCI graphics stack is listed and
 classified.
 
+This §5 enumeration was run at commit **14509d438c3** and must be re-run if the branch
+advances before the reshaping work consumes it (the line/hit counts and classifications
+below are pinned to that commit).
+
 **Reproducible enumeration (run at 14509d438c3 on branch jon-update-core-audit):**
 
 ```
@@ -660,8 +664,11 @@ sub-labels that are honestly *covered*, not gaps — each justified inline):
   the driver/backend transport beneath it (reached only through `GfxScreen`).
 - **bracketed** — inside a begin/endNativeDraw self-draw bracket a §3 row documents.
 - **claimed (L4)** — a native path the observer overrides via a documented L4 claim
-  (transitions early-return, §3.6 TR2 → `claimTransition`); never runs while the
-  overlay is visible, so no unobserved pixel escapes. Covered, not a gap.
+  (transitions early-return, §3.6 TR2 → `claimTransition`). The claim's early-return
+  prevents the ANIMATED transition paths (rows 63–89) from running; rows 60–62
+  (`setNewScreen`, transitions.cpp:204/306–313) DO run under the claim but write only the
+  native surface beneath the opaque overlay, with the observer notified via
+  `claimTransition`/`onTransition` — so no unobserved pixel escapes. Covered, not a gap.
 - **SCI32-only** — excluded; compiled only under `ifdef ENABLE_SCI32` (module.mk:143).
 - **debug/console** — excluded developer instrumentation (SCI debugger console,
   `#ifdef DEBUG_*` / `#if 0` visualizers, `kDebugLevelAvoidPath` channel); not part
@@ -873,7 +880,10 @@ no invented precision.
 
 **Arithmetic** (per-row Δs, summed by hand): negatives 25+30+55+125+30+15+15+10+10+30+5
 +15+5+5+5+5+25+85+35+25 = 555; positives +200; ΣΔ = 200 − 555 = **−355**; projected =
-830 − 355 = **475** (consolidation only; the kept §7 gap adds +10 → **485** final).
+830 − 355 = **475** (consolidation only; the kept §7 gap adds +10 → **485** final). The
+total row derives from the rounded per-row Δs (the authoritative sum); the "Cur →
+reshaped" column's own reshaped estimates sum to ≈480, the ~5-line rounding slack — the
+830 − ΣΔ = 475 figure is the one to quote.
 
 **Budget verdict: 485 (475 consolidation + 10 kept palette gap, §7) ≤ 830 target (cap 1000) — PASS.**
 
@@ -882,7 +892,8 @@ cap is nowhere near threatened — no §9 cap contradiction. **Robustness bound:
 every contested estimate to its conservative value at once — menu exile only −100
 (spec's own guess), wiring Δ 0 (nested module.mk impossible), the fork-only carve-out
 disallowed and counted back in (+85), text and bracket rows −15 shallower each — lands
-at 475 + 25 + 35 + 85 + 30 = **650, still PASS**. The projection does land well below
+at 475 + 25 + 35 + 85 + 30 = **650 consolidation-only / 660 including the kept +10 gap —
+still PASS vs 830**. The projection does land well below
 spec §2's "~780 ± 100" — logged as a §9 finding for Task 10 (the spec's projection
 under-counted the D/W/G departures its own dispositions imply). *(Resolved
 2026-07-10: spec §2's projection updated to the audited numbers — §9 resolution 2.)*
@@ -977,7 +988,7 @@ inline for traceability.
 
 - Task 7 (§4.8): the spec's L1-L4 event vocabulary (§4.2) has **no palette event**, yet the seam inventory finds a real-gap for the per-tick palette-vary/cycle path (`palVaryUpdate`/`palVaryProcess`, `kernelAnimate`/`kernelAnimateSet`) — a smooth fade/cycle emits no L2 pixel event and its intermediate LUT is unrecoverable from pixels, and CLAUDE.md already lists palette-vary-per-tick as the highest-value underused signal. The design needs a new event (proposed `onPaletteChanged(palette, step, total)`, likely L1/L2-adjacent) to cover it; per the §2 budget it should be one event folding all four palette-vary/cycle call sites. Task 8/10 to place it in the layer model.
   **Resolution: spec amended** — `onPaletteChanged(palette, step, total)` added to spec §4.2's **L2** table (placed per §7's layer argument: the palette sibling of `onShow` — every visible state change is either pixels crossing `onShow` or a LUT change crossing `onPaletteChanged`), with the one-hook/+10-line rationale citing this audit's §4.8/§7; the L2 funnel paragraph now names it as the second half of the pixel/LUT truth pair.
-- Task 8 (§6): the projected reshaped footprint — **475** consolidation-only, **485** with the kept palette gap — lands **well below** spec §2's "~780 ± 100" projection. Not a budget violation (success-criterion 4 passes with a 345-line margin), but §2's projection paragraph under-counts three departures the audit's own dispositions make explicit: the fork-only D-bucket carve-out (−85: E3/E4/S1/S4-dev/S5, carried downstream outside the neutral seam), wiring → registration + plugin module.mk (−35), and G-bucket standalone-PR departures (−25); it also under-estimates the menu exile (−125 grounded in the measured 163 menu lines vs the −100 guess). Task 10 should update spec §2's projection, or state explicitly which measurement rule (with vs without the fork-only carve-out) its number assumes — even with the carve-out counted back in, the conservative bound is 650, still under the 830 target.
+- Task 8 (§6): the projected reshaped footprint — **475** consolidation-only, **485** with the kept palette gap — lands **well below** spec §2's "~780 ± 100" projection. Not a budget violation (success-criterion 4 passes with a 345-line margin), but §2's projection paragraph under-counts three departures the audit's own dispositions make explicit: the fork-only D-bucket carve-out (−85: E3/E4/S1/S4-dev/S5, carried downstream outside the neutral seam), wiring → registration + plugin module.mk (−35), and G-bucket standalone-PR departures (−25); it also under-estimates the menu exile (−125 grounded in the measured 163 menu lines vs the −100 guess). Task 10 should update spec §2's projection, or state explicitly which measurement rule (with vs without the fork-only carve-out) its number assumes — even with the carve-out counted back in, the conservative bound is 650 consolidation-only / 660 including the kept +10 gap — still PASS vs 830.
   **Resolution: spec amended** — spec §2's projection paragraph replaced with the audited numbers (ΣΔ = −355, projected 475 / 485 with the kept gap, robustness bound 650, citing §6/§7 here) and it now states the measurement rule explicitly (fork-only D-bucket rows carried downstream outside the neutral-seam measurement); §2's 822 baseline carries a supersession note (re-measured **830 / 18 files / 83 hunks** at 14509d438c3, per §2 here); §4.2's menu-exile "~-100" guess tagged with the measured −125; spec §9 criteria 4/5 tagged with the measured 830 baseline and 49-virtual count.
 - Task 9 (§5): the L2-completeness claim (spec §3.3 / success-criterion 3) as stated — "every pixel reaching the screen in **SCI16** paths crosses `onShow` or a self-draw bracket" — is **falsified by one enumerated path**: the Macintosh icon bar (`GfxMacIconBar::drawImage`, maciconbar.cpp:203/209/211) writes directly to `_screen->gfxDriver()->copyRectToScreen`, bypassing `bitsShow` and any bracket, and is SCI16 (compiled unconditionally, module.mk:54), not SCI32. It is gated on `hasMacIconBar()` (Mac SCI game versions only), so it is outside Roger's shipping EGA-DOS scope and not a live bug — but the claim is over-broad. Resolution options (Task 10): (a) **scope the claim to non-Mac SCI16** — the honest, zero-code fix, matching Roger's actual EGA-DOS target; or (b) emit an L2 `onShow` from `GfxMacIconBar::drawImage` (one hook), making the claim literally true. The 91 other copy-to-screen callers are all funnel / claimed-L4 / SCI32 / debug-console — the funnel itself is complete for the game render loop; this is the lone platform-UI gap.
   **Resolution: spec amended** — option **(a)** taken (this is a docs-only effort; option (b) is a code change and the spec's own structure supports scoping): spec §3.3's verification bullet and §4.2's L2 funnel paragraph now scope the claim to **non-Mac SCI16**, name `GfxMacIconBar::drawImage` as the sole game-reachable exception (citing §5.3 here), and record the one-line `onShow` hook as the noted future fix if Mac SCI ever enters scope.
@@ -997,7 +1008,7 @@ in the spec itself).
 | 1 | every hunk classified | PASS | 83/83 hunks mapped across 18 files (per-subsection coverage comments at §3.1–3.13; the §3 coverage-total comment sums 18+6+2+14+4+2+9+12+2+4+4+3+3 = 83, matching §2's measured 83) |
 | 2 | every public entry point inventoried | PASS | §4.1–4.10: per-class method count == table row count for all ten classes (36/43/22/7/9/18/3/41/16/7; ctor+dtor collapsed to one row per the §4 convention) |
 | 3 | L2 completeness verified by enumeration | PASS | §5: 92 copy-to-screen callers + 43 `bitsShow(` hits enumerated and classified (funnel 38, claimed-L4 31, SCI32-only 7, debug/console 13, UNCOVERED 3 — the one Mac-icon-bar path). The claim holds **scoped to non-Mac SCI16**; the spec now carries that scoping (§9 resolution 3) |
-| 4 | projected diff ≤ 830 (cap 1000) | PASS | §6 + §7: 475 consolidation + 10 kept palette gap = **485 ≤ 830** (345-line margin; conservative robustness bound 650; the 1000 cap nowhere near threatened). Baseline evidence note: the 830 target is the 2026-07-10 re-measure (§2) superseding the plan's literal 825 and spec §9's "~800" — both supersessions recorded (§2 note here; spec §2/§9 amendments) |
+| 4 | projected diff ≤ 830 (cap 1000) | PASS | §6 + §7: 475 consolidation + 10 kept palette gap = **485 ≤ 830** (345-line margin; conservative robustness bound 650 consolidation-only / 660 including the kept +10 gap — still PASS vs 830; the 1000 cap nowhere near threatened). Baseline evidence note: the 830 target is the 2026-07-10 re-measure (§2) superseding the plan's literal 825 and spec §9's "~800" — both supersessions recorded (§2 note here; spec §2/§9 amendments) |
 | 5 | all 49 virtuals mapped, no orphans | PASS | §6: the virtual-coverage comment maps all 49 `roger_art_provider.h` virtuals (measured count, incl. the dtor) to rows R2–R23, per-row counts summing to exactly 49; every §3 disposition family also lands in a row (disposition-family check comment) |
 | 6 | G-bucket PR candidates with effort | PASS | §8 (finalized): four PR candidates covering all five G rows (F1+F2 as one PR, W2, S3, T2), each with an effort estimate and an explicit "Depends on Roger? No" |
 
