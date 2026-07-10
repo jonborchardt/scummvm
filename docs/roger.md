@@ -97,7 +97,9 @@ Select a game and click **Launch** to proceed. The picker can be bypassed with
 **Background:** The picker background is a procedural dark-navy vertical gradient (no image support).
 
 **Card rows:** each game shows a title, a second line with detection facts
-(platform/language | gameid | EGA | SCI version for the running game | game path),
+(target name | platform/language | gameid | EGA | SCI version for the running
+game | game path — the target name leads so identical installs configured twice
+stay distinguishable),
 and a badge — green **Cached** (a current marker file exists) or amber
 **Not Cached**. A **Precache** button and a per-row **Remove** button appear on
 each row (Remove is enabled for every row including the running game — it removes
