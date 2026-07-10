@@ -47,16 +47,15 @@ enum PickerWidgetKind {
 	kPickLaunch
 };
 
-// ── Cache stamp ─────────────────────────────────────────────────────────────
-// "Ready for current passes" is a completion stamp in the game's ini section
-// (roger_cache_stamp), written when a precache run drains its queue.
-// Format: "v<kTransformVersion>:<passes>".
-Common::String cacheStamp(int version, const Common::String &passes);
-bool cacheStampMatches(const Common::String &stamp, int version, const Common::String &passes);
-
-// The roger_omyac_passes three-state rule projected to the stamp's passes part:
-// unset -> defaultPasses; set (even empty after trim) -> the trimmed ini value.
-Common::String stampPasses(bool hasKey, const Common::String &iniValue, const char *defaultPasses);
+// ── Cache marker ─────────────────────────────────────────────────────────────
+// "Ready for current passes" is tracked by an empty marker file in the game's
+// cache directory: <gameId>.done.v<version>.<passStamp>.marker
+// passStamp = omyacPassStamp(effectivePasses(...)) — same canonical form as
+// the cache PNGs. Multiple markers accumulate so switching passes back finds
+// the old marker instantly. Markers live next to the files they describe, so
+// they survive transient ConfMan domains and ini edits.
+Common::String cacheMarkerName(const Common::String &gameId, int version,
+                               const Common::String &passStamp);
 
 // Split "Space Quest III: ... (DOS/English)" into title + "DOS/English".
 // No trailing parenthesized group -> outTitle = desc, outSubtitle empty.

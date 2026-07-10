@@ -24,20 +24,10 @@
 namespace Sci {
 namespace Roger {
 
-Common::String cacheStamp(int version, const Common::String &passes) {
-	return Common::String::format("v%d:%s", version, passes.c_str());
-}
-
-bool cacheStampMatches(const Common::String &stamp, int version, const Common::String &passes) {
-	return !stamp.empty() && stamp == cacheStamp(version, passes);
-}
-
-Common::String stampPasses(bool hasKey, const Common::String &iniValue, const char *defaultPasses) {
-	if (!hasKey)
-		return Common::String(defaultPasses);
-	Common::String v = iniValue;
-	v.trim();
-	return v;
+Common::String cacheMarkerName(const Common::String &gameId, int version,
+                               const Common::String &passStamp) {
+	return Common::String::format("%s.done.v%d.%s.marker",
+	                              gameId.c_str(), version, passStamp.c_str());
 }
 
 void splitGameDescription(const Common::String &desc,

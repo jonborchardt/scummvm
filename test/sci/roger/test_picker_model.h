@@ -7,23 +7,11 @@ using namespace Sci::Roger;
 
 class PickerModelTestSuite : public CxxTest::TestSuite {
 public:
-	void test_cache_stamp_format() {
-		TS_ASSERT_EQUALS(cacheStamp(6, "affffflaaa"), Common::String("v6:affffflaaa"));
-		TS_ASSERT_EQUALS(cacheStamp(7, ""), Common::String("v7:"));
-	}
-
-	void test_cache_stamp_match() {
-		TS_ASSERT(cacheStampMatches("v6:fla", 6, "fla"));
-		TS_ASSERT(!cacheStampMatches("v6:fla", 7, "fla"));  // version bump invalidates
-		TS_ASSERT(!cacheStampMatches("v6:fla", 6, "flaa")); // passes change invalidates
-		TS_ASSERT(!cacheStampMatches("", 6, "fla"));        // no stamp = never cached
-	}
-
-	void test_stamp_passes_three_state() {
-		// unset -> default; set -> trimmed value; set+empty -> "" (wireframe)
-		TS_ASSERT_EQUALS(stampPasses(false, "ignored", "affffflaaa"), Common::String("affffflaaa"));
-		TS_ASSERT_EQUALS(stampPasses(true, "  fla ", "affffflaaa"), Common::String("fla"));
-		TS_ASSERT_EQUALS(stampPasses(true, "", "affffflaaa"), Common::String(""));
+	void test_cache_marker_name() {
+		TS_ASSERT_EQUALS(cacheMarkerName("sq3", 6, "affffflaaa"),
+		                 Common::String("sq3.done.v6.affffflaaa.marker"));
+		TS_ASSERT_EQUALS(cacheMarkerName("qfg1", 7, "none"),
+		                 Common::String("qfg1.done.v7.none.marker"));
 	}
 
 	void test_split_description() {

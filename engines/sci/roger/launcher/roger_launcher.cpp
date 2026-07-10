@@ -7,6 +7,7 @@
 #include "sci/sci.h"
 #include "sci/resource/resource.h"
 #include "common/config-manager.h"
+#include "common/file.h"
 #include "common/fs.h"
 #include "common/events.h"
 #include "common/system.h"
@@ -105,15 +106,26 @@ void RogerLauncher::discoverGames() {
 	_state.selectedIndex = 0;
 }
 
+Common::String RogerLauncher::currentPassStamp(const Common::String &domain) const {
+	const bool hasKey = ConfMan.hasKey("roger_omyac_passes", domain);
+	const Common::String iniVal = hasKey ? ConfMan.get("roger_omyac_passes", domain) : Common::String();
+	return omyacPassStamp(effectivePasses(hasKey, iniVal));
+}
+
 void RogerLauncher::refreshCacheState(GameEntry &entry) const {
 	const Common::String &dom = entry.targetName;
-	const bool hasKey = ConfMan.hasKey("roger_omyac_passes", dom);
-	const Common::String passes = stampPasses(
-		hasKey, hasKey ? ConfMan.get("roger_omyac_passes", dom) : Common::String(),
-		kDefaultPassString);
-	const Common::String stamp = ConfMan.hasKey("roger_cache_stamp", dom)
-		? ConfMan.get("roger_cache_stamp", dom) : Common::String();
-	entry.cached = cacheStampMatches(stamp, kTransformVersion, passes);
+
+	// One-time cleanup: remove legacy ini stamp if present (it's superseded by
+	// the marker-file scheme and would accumulate stale data in the ini).
+	if (ConfMan.hasKey("roger_cache_stamp", dom)) {
+		ConfMan.removeKey("roger_cache_stamp", dom);
+		ConfMan.flushToDisk();
+	}
+
+	const Common::String stamp = currentPassStamp(dom);
+	const Common::String markerName = cacheMarkerName(entry.gameId, kTransformVersion, stamp);
+	const Common::Path markerPath = entry.rogerPath.appendComponent("cache").appendComponent(markerName);
+	entry.cached = Common::FSNode(markerPath).exists();
 }
 
 void RogerLauncher::loadSettingsForSelected() {
@@ -243,18 +255,22 @@ bool RogerLauncher::precacheStep() {
 	}
 	_state.precaching = false;
 	if (!_state.cancelPrecache) {
-		const Common::String dom = ConfMan.getActiveDomainName();
-		const bool hasKey = ConfMan.hasKey("roger_omyac_passes", dom);
-		ConfMan.set("roger_cache_stamp",
-		            cacheStamp(kTransformVersion,
-		                       stampPasses(hasKey,
-		                                   hasKey ? ConfMan.get("roger_omyac_passes", dom)
-		                                          : Common::String(),
-		                                   kDefaultPassString)),
-		            dom);
-		ConfMan.flushToDisk();
-		if (!_state.games.empty())
-			refreshCacheState(_state.games[0]); // row 0 == active game
+		if (_state.games.empty()) {
+			warning("RogerLauncher::precacheStep: games list empty at completion, skipping marker write");
+		} else {
+			GameEntry &active = _state.games[0]; // row 0 == active game
+			const Common::String stamp = currentPassStamp(active.targetName);
+			const Common::String markerName = cacheMarkerName(active.gameId, kTransformVersion, stamp);
+			// Ensure the cache directory exists (the precache just wrote files there, but
+			// best-effort create in case of an unusual edge).
+			const Common::Path cachePath = active.rogerPath.appendComponent("cache");
+			Common::FSNode(cachePath).createDirectory();
+			// Write an empty marker file; existence is the signal.
+			Common::DumpFile f;
+			if (f.open(cachePath.appendComponent(markerName)))
+				f.close();
+			refreshCacheState(active);
+		}
 	}
 	_state.precacheStatus = Common::String::format(
 		"Caching complete: %d items", _state.precacheDone);

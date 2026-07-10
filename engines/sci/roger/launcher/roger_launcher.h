@@ -18,7 +18,7 @@ struct GameEntry {
 	Common::String gameId;       // ConfMan "gameid" (e.g. "sq3")
 	Common::Path   gamePath;
 	Common::Path   rogerPath;    // <gamepath>/../<gameid>-roger/
-	bool           cached = false; // roger_cache_stamp matches version + passes
+	bool           cached = false; // marker file exists in cache dir for current (version, passes)
 };
 
 struct LauncherSettings {
@@ -61,8 +61,9 @@ public:
 	// Returns false and pushes EVENT_RETURN_TO_LAUNCHER if switching games.
 	bool handleLaunch();
 
-	// Recompute entry.cached from its domain's roger_cache_stamp vs. the
-	// current kTransformVersion + its effective roger_omyac_passes.
+	// Recompute entry.cached by checking for the marker file in the cache dir
+	// (current kTransformVersion + effective roger_omyac_passes). Removes the
+	// legacy roger_cache_stamp ini key when present (one-time cleanup).
 	void refreshCacheState(GameEntry &entry) const;
 
 	// Immediate write-through settings (selected game's ini section + flush).
@@ -90,6 +91,9 @@ private:
 	// Add one game to _state.games, creating the roger dir if needed.
 	void tryAddEntry(const Common::String &dom, const Common::Path &gamePath,
 	                 const Common::String &gameId, const Common::String &desc);
+
+	// Canonical pass stamp for a domain (used to key marker files).
+	Common::String currentPassStamp(const Common::String &domain) const;
 };
 
 } // namespace Roger
