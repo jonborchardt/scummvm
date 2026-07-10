@@ -25,12 +25,10 @@
 
 namespace Sci {
 
-// No-op provider. hasBackground() always returns false.
-// Used in tests and as a safe fallback.
+// No-op provider: inherits the SciGfxObserver no-op virtuals unchanged.
+// Used in tests and as a safe fallback. (hasBackground/loadBuffers were
+// removed from the abstract interface by the observer migration — R2.)
 class NullRogerArtProvider : public RogerArtProvider {
-public:
-	bool hasBackground(GuiResourceId) const override { return false; }
-	bool loadBuffers(GuiResourceId, GfxScreen *) override { return false; }
 };
 
 } // namespace Sci

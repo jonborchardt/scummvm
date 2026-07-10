@@ -44,17 +44,6 @@ class RogerArtProvider : public SciGfxObserver {
 public:
 	virtual ~RogerArtProvider() {}
 
-	// Called when a room transition begins — provider may prefetch assets.
-	// Currently a no-op for the filesystem provider (room entry generates the plate
-	// synchronously in pushHiresBackground, and roger_precache warms the cache up
-	// front so entry is normally all hits).
-	//
-	// Transition seam (parent spec roadmap B5): when the room-transition feature
-	// lands, prefetch should generate the *next* room's plate ahead of the
-	// transition — ideally asynchronously — so the ~1.8 s/pic cold-generation cost
-	// never blocks the transition itself. Until then, precache covers it.
-	virtual void prefetch(GuiResourceId pictureId) {}
-
 	// Optional one-time startup warm-up: when roger_precache is set (and a
 	// generating roger_gen_mode is active), generate every art-backed pic's
 	// plate into the content cache up front, so in-game room entry is all hits
@@ -67,32 +56,6 @@ public:
 	virtual bool precacheOnePic(GuiResourceId /*picId*/, uint32 & /*ms*/) { return false; }
 	// Generates one view's cels (all loops×cels for viewId). Returns false on failure.
 	virtual bool precacheOneView(int /*viewId*/) { return false; }
-
-	// Returns true if replacement assets exist for this picture resource.
-	virtual bool hasBackground(GuiResourceId pictureId) const = 0;
-
-	// Obsolete: under in-engine generation the priority/control buffers are filled
-	// by SCI's own native render (the hybrid drawPicture hook still draws the native
-	// picture), so the provider no longer replaces them from prebuilt PNGs. Kept as a
-	// documented no-op for source/ABI stability. Walkability + native occlusion ride
-	// SCI's native buffers; overlay sprite occlusion is derived in-engine (priorityBands).
-	virtual bool loadBuffers(GuiResourceId /*pictureId*/, GfxScreen * /*screen*/) { return false; }
-
-	// Shows the hires visual for this picture in ScummVM's OSystem overlay
-	// (a higher-resolution layer composited above the 320x200 game surface).
-	// Base implementation is a no-op.
-	virtual void pushHiresBackground(GuiResourceId pictureId) {}
-
-	// Called when kDrawPic draws a picture WITHOUT clearing the screen first
-	// (addToFlag): the pic's commands paint over the scene the previous
-	// kDrawPic(s) produced (e.g. the SQ3 intro title/scanner overlays). The
-	// provider must ADD the pic to the displayed scene, not replace it.
-	// Base implementation is a no-op.
-	virtual void pushHiresBackgroundAddTo(GuiResourceId pictureId) {}
-
-	// Called when a full-screen picture with NO replacement art is drawn: drop any
-	// hires overlay left over from a previous room so it does not bleed through.
-	virtual void onNativePicture() {}
 
 	// Called from the SCI event loop when the mouse has moved. Roger composites its
 	// cursor into the overlay, so it re-presents here to keep the cursor tracking the

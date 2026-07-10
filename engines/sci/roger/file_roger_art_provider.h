@@ -50,15 +50,21 @@ public:
 	~FileRogerArtProvider();
 
 	bool isOverlayVisible() const override;
-	bool hasBackground(GuiResourceId pictureId) const override;
+	// Concrete provider members (no longer abstract observer virtuals — R2):
+	// hasBackground/pushHiresBackground*/onNativePicture are called by the new
+	// onPicture/onPictureAbsent dispatchers and by the launcher precache path.
+	bool hasBackground(GuiResourceId pictureId) const;
 	void precacheAll() override;
 	bool precacheOnePic(GuiResourceId picId, uint32 &ms) override;
 	bool precacheOneView(int viewId) override;
-	void pushHiresBackground(GuiResourceId pictureId) override;
-	void pushHiresBackgroundAddTo(GuiResourceId pictureId) override;
+	void pushHiresBackground(GuiResourceId pictureId);
+	void pushHiresBackgroundAddTo(GuiResourceId pictureId);
 	void onAnimateFrame(const AnimateList &list) override;
 	void onFrameStart() override;
-	void onNativePicture() override;
+	void onNativePicture();
+	// SciGfxObserver picture family (R2):
+	void onPicture(GuiResourceId picId, bool addToFlag) override;
+	void onPictureAbsent() override;
 	void onMouseMoved() override;
 	void onDrawCel(const Common::Rect &globalRect, int viewId, int loopNo, int celNo) override;
 	void onAddToPicCel(int viewId, int loopNo, int celNo,

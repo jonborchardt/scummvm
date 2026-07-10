@@ -3213,6 +3213,38 @@ void FileRogerArtProvider::onNativePicture() {
 	g_system->hideOverlay();
 }
 
+void FileRogerArtProvider::onPicture(GuiResourceId picId, bool addToFlag) {
+	// The pre-gate that used to live in GfxPaint16::drawPicture: replace only when
+	// enabled and we actually have replacement art for this pic. hasBackground checks
+	// enabled itself, but keep the explicit gate here so a disabled provider produces
+	// identical behavior (native render already ran; we add nothing).
+	if (!enabled)
+		return;
+	if (hasBackground(picId)) {
+		// prefetch was a no-op for the filesystem provider; pushHiresBackground*
+		// generates + presents the plate synchronously (cache-warm in the common case).
+		if (addToFlag)
+			pushHiresBackgroundAddTo(picId);
+		else
+			pushHiresBackground(picId);
+	} else if (!addToFlag) {
+		// Full-screen room with no replacement: drop any stale overlay from the
+		// previous room (Hard Constraint 6). addToPic overlays must not evict it.
+		onNativePicture();
+	}
+}
+
+void FileRogerArtProvider::onPictureAbsent() {
+	// Reserved companion to onPicture (spec §4.2): the caller emits it where a
+	// full-screen pic with no observer replacement is drawn. drawPicture routes that
+	// case through onPicture (!addToFlag && !hasBackground -> onNativePicture) so this
+	// direct entry point is a no-op for the filesystem provider; kept for observers
+	// that split the two signals.
+	if (!enabled)
+		return;
+	onNativePicture();
+}
+
 void FileRogerArtProvider::onMouseMoved() {
 	// DEBUG TOOL: tune-panel hover tracking (game-space hit test).
 	if (_tunePanel.open && _mode == Roger::kModeEnhanced) {

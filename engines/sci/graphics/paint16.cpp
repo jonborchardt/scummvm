@@ -89,21 +89,6 @@ void GfxPaint16::debugSetEGAdrawingVisualize(bool state) {
 }
 
 void GfxPaint16::drawPicture(GuiResourceId pictureId, bool mirroredFlag, bool addToFlag, GuiResourceId paletteId) {
-	// Roger art replacement. We still render the NATIVE (original low-res) picture
-	// below, so the real room exists in the game surface as a fallback whenever the
-	// hires overlay is hidden (toggled off, or behind a text box / menu). After the
-	// native draw we overwrite priority/control with Roger's maps (so game logic +
-	// occlusion use them) and cache the hires plate for the overlay compositor.
-	const bool rogerReplace = g_sciRogerProvider && g_sciRogerProvider->enabled
-			&& g_sciRogerProvider->hasBackground(pictureId);
-	if (rogerReplace) {
-		g_sciRogerProvider->prefetch(pictureId);
-	} else if (!addToFlag && g_sciRogerProvider && g_sciRogerProvider->enabled) {
-		// Full-screen room with no replacement: drop any stale overlay from the
-		// previous room (Hard Constraint 6). addToPic overlays must not evict it.
-		g_sciRogerProvider->onNativePicture();
-	}
-
 	// Self-draw bracket: the picture render is composited semantically.
 	if (g_sciGfxObserver)
 		g_sciGfxObserver->beginSelfDraw();
@@ -127,21 +112,13 @@ void GfxPaint16::drawPicture(GuiResourceId pictureId, bool mirroredFlag, bool ad
 	// Reset custom per-picture palette mod
 	_screen->setCurPaletteMapValue(0);
 
-	// Roger: cache the hires plate (and the overlay's own occlusion priority map)
-	// for the OSystem overlay compositor. We deliberately do NOT overwrite SCI's
-	// priority/control buffers here - the native picture just filled them with the
-	// game's ORIGINAL maps, which are correct for walkability and native occlusion.
-	// (The overlay's per-pixel occlusion uses its own priority map, loaded inside
-	// pushHiresBackground.)
-	if (rogerReplace) {
-		if (addToFlag)
-			g_sciRogerProvider->pushHiresBackgroundAddTo(pictureId);
-		else
-			g_sciRogerProvider->pushHiresBackground(pictureId);
-	}
-
-	if (g_sciGfxObserver)
+	// The native picture render is complete in SCI's buffers. The observer decides
+	// whether it has replacement art for this pic (replace) or must drop a stale
+	// scene (absent) — that knowledge is the observer's, not SCI's.
+	if (g_sciGfxObserver) {
+		g_sciGfxObserver->onPicture(pictureId, addToFlag);
 		g_sciGfxObserver->endSelfDraw();
+	}
 }
 
 // This one is the only one that updates screen!
