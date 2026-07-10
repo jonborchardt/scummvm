@@ -1922,7 +1922,7 @@ void FileRogerArtProvider::onDrawCel(const Common::Rect &r, int viewId, int loop
 		e.iconSurface = hi; // borrowed from the ViewCache (hires path)
 	} else {
 		// No hires art: fall back to a rendered native cel so it stays visible under
-		// the opaque overlay. beginNativeDraw suppressed bitsShow, so Feeder B won't
+		// the opaque overlay. beginSelfDraw suppressed bitsShow, so Feeder B won't
 		// pick this up Ã¢â‚¬â€ we must inject it here. renderNativeCel already bakes mirroring.
 		// Use a (viewId,loopNo,celNo)-keyed cache so the same cel drawn at N positions
 		// renders once and is referenced N times (no per-call growth, no leak).
@@ -2374,7 +2374,7 @@ void FileRogerArtProvider::processForegroundCaptures(const Common::Array<Common:
 			continue;
 		// A region a bitsRestore this cycle just revealed is restored background, not
 		// content Ã¢â‚¬â€ do NOT pixel-stamp it (structural replacement for the deleted
-		// beginNativeDraw suppressions). The check must be HERE, at process time, not
+		// beginSelfDraw suppressions). The check must be HERE, at process time, not
 		// only at capture time: a menu's dropdown show is captured during the FROZEN
 		// menu-open cycle (kernelAnimate does not tick, so no reveal exists yet), then
 		// this pending region survives to the resumed close cycle where the restore has
@@ -2494,8 +2494,17 @@ void FileRogerArtProvider::onInitCel(int viewId, int loopNo, int celNo,
 		        celRect.left, celRect.top, celRect.right, celRect.bottom, owner, (unsigned)_initCels.size());
 }
 
-void FileRogerArtProvider::beginNativeDraw() { _nativeDrawDepth++; }
-void FileRogerArtProvider::endNativeDraw()   { if (_nativeDrawDepth > 0) _nativeDrawDepth--; }
+// Self-draw depth (SciGfxObserver::beginSelfDraw/endSelfDraw). Bracketed sites:
+// GfxPaint16::drawPicture, drawCelAndShow, drawHiresCelAndShow, kernelDisplay's
+// two flush shows, GfxAnimate::updateScreen and reAnimate. While depth > 0 the
+// generic onShow capture ignores shows (content already composited semantically).
+// History: unbracketed kDisplay flush shows pixel-stamped doubles of every
+// kDisplay line next to the TTF render (SQ3 intro doubled credits) — and
+// bracketing Box itself depth-suppressed the per-line text capture; only the
+// flush shows are bracketed. Deliberately NOT gated on `enabled`: the depth
+// must stay balanced no matter what flags flip between begin and end.
+void FileRogerArtProvider::beginSelfDraw() { _nativeDrawDepth++; }
+void FileRogerArtProvider::endSelfDraw()   { if (_nativeDrawDepth > 0) _nativeDrawDepth--; }
 
 void FileRogerArtProvider::onNativeShowRect(const Common::Rect &screenRect, uint32 ownerToken) {
 	// Ã‚Â§3.1 exact invalidation: SCI showed these native pixels, so the overlay
@@ -2515,7 +2524,7 @@ void FileRogerArtProvider::onNativeShowRect(const Common::Rect &screenRect, uint
 		return;
 	// A show inside a rect we just rolled back is SCI revealing restored
 	// background Ã¢â‚¬â€ capture nothing (structural replacement for the hand-placed
-	// beginNativeDraw suppressions on restore paths; kills the menu-close class).
+	// beginSelfDraw suppressions on restore paths; kills the menu-close class).
 	// Coverage-based (>=90%), not strict containment: after a bitsRestore SCI
 	// re-shows the region through kGraphRedrawBox / bitsShow grown by the element's
 	// 1px frame (the menu dropdown's restore rect is (7,9,141,27) but its follow-up

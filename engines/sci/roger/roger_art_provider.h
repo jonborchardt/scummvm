@@ -134,11 +134,6 @@ public:
 	virtual void onAddToPicCel(int viewId, int loopNo, int celNo,
 	                           const Common::Rect &celRect, int priority) {}
 
-	// Re-entrancy guard: SCI brackets a Roger-handled draw (picture/cel/animate) with
-	// begin/endNativeDraw so the generic bitsShow capture below can ignore shows that
-	// Roger already composites semantically (avoids double-compositing). No-op in base.
-	virtual void beginNativeDraw() {}
-	virtual void endNativeDraw() {}
 	// Generic native show (Feeder B): SCI is about to blit `screenRect` (320x200 screen
 	// coords) of its native visual buffer to the display through a path Roger does not
 	// hook semantically. Recorded for the per-frame generic composite. `ownerToken` scopes

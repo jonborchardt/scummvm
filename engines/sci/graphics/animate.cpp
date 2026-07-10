@@ -509,11 +509,9 @@ void GfxAnimate::updateScreen(byte oldPicNotValid) {
 	Common::Rect lsRect;
 	Common::Rect workerRect;
 
-	// Roger hires overlay: these bitsShow calls redraw animate cels that
-	// renderFromAnimateList composites semantically as hires sprites — exclude them
-	// from Feeder B's generic native-draw capture (avoids double-compositing).
-	if (g_sciRogerProvider && g_sciRogerProvider->enabled)
-		g_sciRogerProvider->beginNativeDraw();
+	// Self-draw bracket: these bitsShow calls redraw semantically-composited animate cels.
+	if (g_sciGfxObserver)
+		g_sciGfxObserver->beginSelfDraw();
 
 	for (it = _list.begin(); it != end; ++it) {
 		if (it->showBitsFlag || !(it->signal & (kSignalRemoveView | kSignalNoUpdate) ||
@@ -548,8 +546,8 @@ void GfxAnimate::updateScreen(byte oldPicNotValid) {
 	// use this for debug purposes
 	// _screen->copyToScreen();
 
-	if (g_sciRogerProvider && g_sciRogerProvider->enabled)
-		g_sciRogerProvider->endNativeDraw();
+	if (g_sciGfxObserver)
+		g_sciGfxObserver->endSelfDraw();
 }
 
 void GfxAnimate::restoreAndDelete(int argc, reg_t *argv) {
@@ -582,11 +580,9 @@ void GfxAnimate::restoreAndDelete(int argc, reg_t *argv) {
 }
 
 void GfxAnimate::reAnimate(Common::Rect rect) {
-	// Roger hires overlay: these bitsShow calls redraw animate cels that
-	// renderFromAnimateList composites semantically as hires sprites — exclude them
-	// from Feeder B's generic native-draw capture (avoids double-compositing).
-	if (g_sciRogerProvider && g_sciRogerProvider->enabled)
-		g_sciRogerProvider->beginNativeDraw();
+	// Self-draw bracket: these bitsShow calls redraw semantically-composited animate cels.
+	if (g_sciGfxObserver)
+		g_sciGfxObserver->beginSelfDraw();
 
 	if (!_lastCastData.empty()) {
 		AnimateArray::iterator it;
@@ -605,8 +601,8 @@ void GfxAnimate::reAnimate(Common::Rect rect) {
 		_paint16->bitsShow(rect);
 	}
 
-	if (g_sciRogerProvider && g_sciRogerProvider->enabled)
-		g_sciRogerProvider->endNativeDraw();
+	if (g_sciGfxObserver)
+		g_sciGfxObserver->endSelfDraw();
 
 	// Roger hires overlay: re-composite after the background is restored (e.g. after a dialog dismissal).
 	if (g_sciRogerProvider && g_sciRogerProvider->enabled)

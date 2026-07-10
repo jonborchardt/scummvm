@@ -63,8 +63,8 @@ public:
 	                   const Common::Rect &celRect, int priority) override;
 	void onInitCel(int viewId, int loopNo, int celNo,
 	               const Common::Rect &celRect, int priority, uint32 owner) override;
-	void beginNativeDraw() override;
-	void endNativeDraw() override;
+	void beginSelfDraw() override;
+	void endSelfDraw() override;
 	void onNativeShowRect(const Common::Rect &screenRect, uint32 ownerToken) override;
 	void onNativeText(const Common::Rect &nativeRect, const char *text,
 	                  int fontId, int penColor, int align,

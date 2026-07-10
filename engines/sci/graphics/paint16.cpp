@@ -107,11 +107,9 @@ void GfxPaint16::drawPicture(GuiResourceId pictureId, bool mirroredFlag, bool ad
 		g_sciRogerProvider->onNativePicture();
 	}
 
-	// Roger re-entrancy guard: prevent bitsShow calls emitted during this native
-	// picture draw from being captured by Feeder B (they are already composited via
-	// pushHiresBackground / the plate path).
-	if (g_sciRogerProvider && g_sciRogerProvider->enabled)
-		g_sciRogerProvider->beginNativeDraw();
+	// Self-draw bracket: the picture render is composited semantically.
+	if (g_sciGfxObserver)
+		g_sciGfxObserver->beginSelfDraw();
 
 	// Set up custom per-picture palette mod
 	doCustomPicPalette(_screen, pictureId);
@@ -145,8 +143,8 @@ void GfxPaint16::drawPicture(GuiResourceId pictureId, bool mirroredFlag, bool ad
 			g_sciRogerProvider->pushHiresBackground(pictureId);
 	}
 
-	if (g_sciRogerProvider && g_sciRogerProvider->enabled)
-		g_sciRogerProvider->endNativeDraw();
+	if (g_sciGfxObserver)
+		g_sciGfxObserver->endSelfDraw();
 }
 
 // This one is the only one that updates screen!
@@ -158,10 +156,9 @@ void GfxPaint16::drawCelAndShow(GuiResourceId viewId, int16 loopNo, int16 celNo,
 		if (g_sciRogerProvider && g_sciRogerProvider->enabled && g_sciRogerProvider->diagEnabled())
 			warning("ROGER-DIAG[drawCelAndShow]: view=%d loop=%d cel=%d at(%d,%d) picNotValid=%d",
 			        viewId, loopNo, celNo, leftPos, topPos, _screen->_picNotValid);
-		// Roger re-entrancy guard: cels in the animate list are composited semantically
-		// via renderFromAnimateList; their bitsShow should not be double-captured by Feeder B.
-		if (g_sciRogerProvider && g_sciRogerProvider->enabled)
-			g_sciRogerProvider->beginNativeDraw();
+		// Self-draw bracket: animate-cast cels are composited semantically.
+		if (g_sciGfxObserver)
+			g_sciGfxObserver->beginSelfDraw();
 
 		celRect.left = leftPos;
 		celRect.top = topPos;
@@ -186,8 +183,8 @@ void GfxPaint16::drawCelAndShow(GuiResourceId viewId, int16 loopNo, int16 celNo,
 				bitsShow(celRect);
 		}
 
-		if (g_sciRogerProvider && g_sciRogerProvider->enabled)
-			g_sciRogerProvider->endNativeDraw();
+		if (g_sciGfxObserver)
+			g_sciGfxObserver->endSelfDraw();
 	}
 }
 
@@ -224,10 +221,9 @@ void GfxPaint16::drawHiresCelAndShow(GuiResourceId viewId, int16 loopNo, int16 c
 		return;
 	}
 
-	// Roger re-entrancy guard: hires cel draws are composited semantically via
-	// onDrawCel; their native shows should not be captured by Feeder B.
-	if (g_sciRogerProvider && g_sciRogerProvider->enabled)
-		g_sciRogerProvider->beginNativeDraw();
+	// Self-draw bracket: hires cels are composited semantically (onDrawCel).
+	if (g_sciGfxObserver)
+		g_sciGfxObserver->beginSelfDraw();
 
 	Common::Rect picRect;
 	_screen->bitsGetRect(memoryPtr, &picRect);
@@ -247,8 +243,8 @@ void GfxPaint16::drawHiresCelAndShow(GuiResourceId viewId, int16 loopNo, int16 c
 	if (storeDrawingInfo && !hasHiresDrawObjectAt(leftPos, topPos))
 		_hiresDrawObjs = new HiresDrawData(_hiresDrawObjs, hiresHandle, viewId, loopNo, celNo, leftPos, topPos, paletteNo, priority, picRect.top < _ports->_curPort->top);
 
-	if (g_sciRogerProvider && g_sciRogerProvider->enabled)
-		g_sciRogerProvider->endNativeDraw();
+	if (g_sciGfxObserver)
+		g_sciGfxObserver->endSelfDraw();
 }
 
 void GfxPaint16::redrawHiresCels() {
@@ -728,29 +724,26 @@ reg_t GfxPaint16::kernelDisplay(const char *text, uint16 languageSplitter, int a
 	// display area before printing the text. The other (non-PQ2) PC-98 versions use a lowres font here, so this fix is only for
 	// PQ2 PC-98 and for the Korean fan translations.
 	bool needCJKFix = (g_sci->getLanguage() == Common::KO_KOR || (g_sci->getPlatform() == Common::kPlatformPC98 && g_sci->getGameId() == GID_PQ2));
-	// Roger: bracket the kDisplay flush shows so Feeder B does not pixel-stamp
-	// text that is already composited semantically (per-line capture inside
-	// GfxText16::Box) — the stamp duplicated every kDisplay line at its native
-	// draw position next to the TTF render (the SQ3 intro's doubled credits).
-	// Only the two bitsShow calls are bracketed: Box must stay OUTSIDE the
-	// bracket or its onNativeText capture is depth-suppressed.
+	// Self-draw bracket on the flush shows ONLY — Box must stay OUTSIDE the
+	// bracket or its per-line text capture is depth-suppressed (see
+	// SciGfxObserver::beginSelfDraw).
 	if (needCJKFix && !_screen->_picNotValid && bRedraw) {
-		if (g_sciRogerProvider && g_sciRogerProvider->enabled)
-			g_sciRogerProvider->beginNativeDraw();
+		if (g_sciGfxObserver)
+			g_sciGfxObserver->beginSelfDraw();
 		bitsShow(rect);
-		if (g_sciRogerProvider && g_sciRogerProvider->enabled)
-			g_sciRogerProvider->endNativeDraw();
+		if (g_sciGfxObserver)
+			g_sciGfxObserver->endSelfDraw();
 	}
 
 	_text16->Box(text, languageSplitter, needCJKFix, rect, alignment, -1);
 
 	// See comment above.
 	if (!needCJKFix && _screen->_picNotValid == 0 && bRedraw) {
-		if (g_sciRogerProvider && g_sciRogerProvider->enabled)
-			g_sciRogerProvider->beginNativeDraw();
+		if (g_sciGfxObserver)
+			g_sciGfxObserver->beginSelfDraw();
 		bitsShow(rect);
-		if (g_sciRogerProvider && g_sciRogerProvider->enabled)
-			g_sciRogerProvider->endNativeDraw();
+		if (g_sciGfxObserver)
+			g_sciGfxObserver->endSelfDraw();
 	}
 
 	// restoring port and cursor pos
