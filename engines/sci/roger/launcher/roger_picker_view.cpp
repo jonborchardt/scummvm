@@ -270,8 +270,23 @@ void PickerViewWidget::drawRow(int visIdx, int row) {
 	drawTextIn(kFBody, Common::String::format("%d. %s", row + 1, g.description.c_str()),
 	           titleR, selected ? kBlue.r : kText.r, selected ? kBlue.g : kText.g,
 	           selected ? kBlue.b : kText.b, Graphics::kTextAlignLeft);
-	drawTextIn(kFSmall, g.subtitle, subR, kTextDim.r, kTextDim.g, kTextDim.b,
-	           Graphics::kTextAlignLeft);
+
+	// Second line: join non-empty facts with "  |  " (ASCII, byte-safe).
+	{
+		Common::String info;
+		auto append = [&](const Common::String &part) {
+			if (part.empty()) return;
+			if (!info.empty()) info += "  |  ";
+			info += part;
+		};
+		append(g.subtitle);
+		append(g.gameId);
+		if (g.ega) append("EGA");
+		append(g.sciVersion);
+		append(g.gamePath.toString());
+		drawTextIn(kFSmall, info, subR, kTextDim.r, kTextDim.g, kTextDim.b,
+		           Graphics::kTextAlignLeft);
+	}
 
 	// Badge area: precache progress on the active row while running, else status.
 	const bool isActive = (row == _state.activeRow);

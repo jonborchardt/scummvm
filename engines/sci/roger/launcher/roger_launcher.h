@@ -19,6 +19,8 @@ struct GameEntry {
 	Common::Path   gamePath;
 	Common::Path   rogerPath;    // <gamepath>/../<gameid>-roger/
 	bool           cached = false; // marker file exists in cache dir for current (version, passes)
+	bool           ega = false;           // guioptions contains the "ega" token
+	Common::String sciVersion;            // active game only, e.g. "Early SCI0" (else empty)
 };
 
 struct LauncherSettings {

@@ -6,12 +6,14 @@
 #include "sci/roger/gen/roger_passes.h"
 #include "sci/sci.h"
 #include "sci/resource/resource.h"
+#include "sci/version.h"
 #include "common/config-manager.h"
 #include "common/file.h"
 #include "common/fs.h"
 #include "common/events.h"
 #include "common/system.h"
 #include "common/textconsole.h"
+#include "common/tokenizer.h"
 #include "engines/engine.h"      // ChainedGamesMan (engine-initiated game switch)
 #include "engines/metaengine.h"
 
@@ -46,6 +48,24 @@ void RogerLauncher::tryAddEntry(const Common::String &dom,
 	splitGameDescription(desc.empty() ? gameId : desc, title, subtitle);
 	entry.description = title;
 	entry.subtitle    = subtitle;
+
+	// EGA flag: check for the "ega" token in guioptions (exact token match).
+	if (ConfMan.hasKey("guioptions", dom)) {
+		Common::String guiOpts = ConfMan.get("guioptions", dom);
+		Common::StringTokenizer tok(guiOpts, " \t");
+		while (!tok.empty()) {
+			if (tok.nextToken() == "ega") {
+				entry.ega = true;
+				break;
+			}
+		}
+	}
+
+	// SCI version: available only for the active (running) game.
+	if (dom == ConfMan.getActiveDomainName() && g_sci) {
+		entry.sciVersion = Common::String(getSciVersionDesc(getSciVersion()));
+	}
+
 	refreshCacheState(entry);
 	_state.games.push_back(entry);
 }
