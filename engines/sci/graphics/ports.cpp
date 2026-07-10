@@ -573,9 +573,10 @@ void GfxPorts::removeWindow(Window *pWnd, bool reanimate) {
 	pWnd->hSaved2 = NULL_REG;
 	if (!reanimate) {
 		// transparent/no-save-under windows have no hunk to restore; plant the
-		// reveal explicitly so the show below is never captured.
-		if (g_sciRogerProvider && g_sciRogerProvider->enabled && hadNoSaveUnder)
-			g_sciRogerProvider->onNativeRestoreRect(0, pWnd->restoreRect);
+		// reveal explicitly so the show below is never captured (documented
+		// duty-3 exception — see SciGfxObserver::onRestore; do not delete).
+		if (g_sciGfxObserver && hadNoSaveUnder)
+			g_sciGfxObserver->onRestore(0, pWnd->restoreRect);
 		// The reveal gate in onNativeShowRect suppresses Feeder B capture of this
 		// show: it blits the just-restored native background via bitsRestore (via
 		// hSaved1/hSaved2 above), which already pushed a _revealRect, so the

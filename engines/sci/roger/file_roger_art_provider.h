@@ -69,10 +69,10 @@ public:
 	void onNativeText(const Common::Rect &nativeRect, const char *text,
 	                  int fontId, int penColor, int align,
 	                  int nativeFontH, int nativeTextW, uint32 winToken) override;
-	void onNativeEraseRect(const Common::Rect &nativeRect) override;
-	void onNativeSaveRect(uint32 handleToken, const Common::Rect &rect) override;
-	void onNativeFreeSave(uint32 handleToken) override;
-	void onNativeRestoreRect(uint32 handleToken, const Common::Rect &rect) override;
+	void onErase(const Common::Rect &rect) override;
+	void onSave(uint32 token, const Common::Rect &rect) override;
+	void onFree(uint32 token) override;
+	void onRestore(uint32 token, const Common::Rect &rect) override;
 	void snapshotNativeBaseline() override;
 	void onTransition(int sciType, const Common::Rect &picRect, int blackoutSciType) override;
 	void onShake(int shakeCount, int directions) override;

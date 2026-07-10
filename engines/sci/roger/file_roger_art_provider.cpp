@@ -1514,7 +1514,7 @@ void FileRogerArtProvider::markVacatedDirty(const Common::Rect &nativeRect) {
 	_barrierDirty = true;
 	if (_lastGameRect.isEmpty()) { _compositor->forceFullPresent(); return; }
 	// Exact rect + TTF pad. The compositor-overdraw ring beyond it is covered by
-	// bitsRestore's exact erase rect (markNativeDirty in onNativeEraseRect). Phase 2
+	// bitsRestore's exact erase rect (markNativeDirty in onErase). Phase 2
 	// proved the gate cannot verify invalidation marks either way (layered redundancy:
 	// _dirtyPrev loop + scene seed union) Ã¢â‚¬â€ invalidation changes are soak-verified.
 	const Common::Rect dest = Roger::uiVacatedExtent(nativeRect, _lastGameRect);
@@ -1891,7 +1891,7 @@ void FileRogerArtProvider::onDrawCel(const Common::Rect &r, int viewId, int loop
 	// cels (e.g. the 13 stat graphics on the QFG1 char sheet) coexist in the layer, and a
 	// redraw at the SAME rect replaces in place. Clearing the shared token at the start of
 	// every call would erase the previous cel, leaving only the last one visible.
-	// Lifetime: an icon dies when a native erase rect covers it (onNativeEraseRect) or on
+	// Lifetime: an icon dies when a native erase rect covers it (onErase) or on
 	// room change (uiClearAll) Ã¢â‚¬â€ never via a blanket namespace clear.
 	const uint32 tok = Roger::kDrawCelIconTokenNs;
 
@@ -2025,7 +2025,7 @@ void FileRogerArtProvider::endUiBatch() {
 }
 
 void FileRogerArtProvider::uiClearToken(uint32 token) {
-	// The save-under restore path (bitsRestore) now goes through onNativeRestoreRect
+	// The save-under restore path (bitsRestore) now goes through onRestore
 	// (checkpoint rollback) and no longer arrives here. Actual callers:
 	//   - GfxPorts::removeWindow Ã¢â‚¬â€ bracket close (0x40000000|id + 0x60000000|id)
 	//   - menu.cpp Ã¢â‚¬â€ status strip (0x10000000) and dropdown (0x20000000) singletons
@@ -2087,7 +2087,9 @@ void FileRogerArtProvider::uiClearToken(uint32 token) {
 	presentBarrier();
 }
 
-void FileRogerArtProvider::onNativeEraseRect(const Common::Rect &nativeRect) {
+void FileRogerArtProvider::onErase(const Common::Rect &nativeRect) {
+	if (!enabled)
+		return;
 	// Ã‚Â§3.1 exact invalidation: the restored save-under rect, straight from SCI.
 	// This is what makes the SQ3 white-line class structurally dead Ã¢â‚¬â€ the region
 	// is invalidated no matter what any element bookkeeping thought was there.
@@ -2122,18 +2124,22 @@ void FileRogerArtProvider::journalAppend(const Roger::UiElement &e) {
 	_journal->append(e);
 }
 
-void FileRogerArtProvider::onNativeSaveRect(uint32 handleToken, const Common::Rect &rect) {
-	if (!_journal) return;
+void FileRogerArtProvider::onSave(uint32 handleToken, const Common::Rect &rect) {
+	if (!enabled || !_journal)
+		return;
 	_journal->checkpoint(handleToken, rect);
 }
 
-void FileRogerArtProvider::onNativeFreeSave(uint32 handleToken) {
-	if (!_journal) return;
+void FileRogerArtProvider::onFree(uint32 handleToken) {
+	if (!enabled || !_journal)
+		return;
 	_journal->dropCheckpoint(handleToken);
 }
 
-void FileRogerArtProvider::onNativeRestoreRect(uint32 handleToken, const Common::Rect &rect) {
-	// Ã‚Â§3.1 invalidation first, exactly like onNativeEraseRect (the barrier defers
+void FileRogerArtProvider::onRestore(uint32 handleToken, const Common::Rect &rect) {
+	if (!enabled)
+		return;
+	// Ã‚Â§3.1 invalidation first, exactly like onErase (the barrier defers
 	// mid-cycle; a frozen cycle flushes the mark).
 	markNativeDirty(rect);
 	patchNativeBaseline(rect); // SBS: patch frozen-cycle draws into the native right-panel baseline

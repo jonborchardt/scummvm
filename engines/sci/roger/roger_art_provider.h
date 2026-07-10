@@ -160,21 +160,6 @@ public:
 	                          int fontId, int penColor, int align,
 	                          int nativeFontH, int nativeTextW, uint32 winToken) {}
 
-	// SCI erased/redrew a native region (bitsRestore of saved-under bits, or kGraphRedrawBox).
-	// The provider drops persisted generic captured text inside it so transient text does not
-	// ghost in the overlay after SCI removes it. Default no-op.
-	virtual void onNativeEraseRect(const Common::Rect &nativeRect) {}
-
-	// SCI is saving a screen region (bitsSave): journal a checkpoint so a later
-	// bitsRestore can roll back everything drawn over the saved area since this moment.
-	virtual void onNativeSaveRect(uint32 handleToken, const Common::Rect &rect) {}
-	// SCI is freeing a save-under without restoring (bitsFree): drop the checkpoint.
-	virtual void onNativeFreeSave(uint32 handleToken) {}
-	// SCI is restoring a save-under (bitsRestore): roll back overlay elements appended
-	// since the matching checkpoint and invalidate the region. Replaces the old
-	// uiClearToken + onNativeEraseRect pair on the bitsRestore path.
-	virtual void onNativeRestoreRect(uint32 handleToken, const Common::Rect &rect) {}
-
 	// Feeder B diff backstop: snapshot the native visual buffer as the "known" state
 	// (plate-source + addToPic + animate sprites), taken right after SCI's updateScreen.
 	// A later composite diffs against it to catch native draws no hook recorded. No-op base.

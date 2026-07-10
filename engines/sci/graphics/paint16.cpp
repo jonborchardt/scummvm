@@ -425,12 +425,8 @@ reg_t GfxPaint16::bitsSave(const Common::Rect &rect, byte screenMask, bool hires
 	byte *memoryPtr = _segMan->getHunkPointer(memoryId);
 	if (memoryPtr)
 		_screen->bitsSave(workerRect, screenMask, memoryPtr);
-	// Roger: a save-under is a journal checkpoint — its restore must roll back
-	// everything drawn over the saved region since this moment.
-	if (g_sciRogerProvider && g_sciRogerProvider->enabled && !memoryId.isNull()) {
-		const uint32 tok = ((uint32)memoryId.getSegment() << 16) | memoryId.getOffset();
-		g_sciRogerProvider->onNativeSaveRect(tok, workerRect);
-	}
+	if (g_sciGfxObserver && !memoryId.isNull())
+		g_sciGfxObserver->onSave(gfxHandleToken(memoryId.getSegment(), memoryId.getOffset()), workerRect);
 	return memoryId;
 }
 
@@ -449,14 +445,10 @@ void GfxPaint16::bitsRestore(reg_t memoryHandle) {
 		byte *memoryPtr = _segMan->getHunkPointer(memoryHandle);
 
 		if (memoryPtr) {
-			// Roger: roll back overlay elements appended since the matching bitsSave
-			// checkpoint and invalidate the restored region (subsumes the old
-			// uiClearToken + onNativeEraseRect pair on this path).
-			if (g_sciRogerProvider && g_sciRogerProvider->enabled) {
+			if (g_sciGfxObserver) {
 				Common::Rect restored;
 				_screen->bitsGetRect(memoryPtr, &restored);
-				const uint32 tok = ((uint32)memoryHandle.getSegment() << 16) | memoryHandle.getOffset();
-				g_sciRogerProvider->onNativeRestoreRect(tok, restored);
+				g_sciGfxObserver->onRestore(gfxHandleToken(memoryHandle.getSegment(), memoryHandle.getOffset()), restored);
 			}
 			_screen->bitsRestore(memoryPtr);
 			bitsFree(memoryHandle);
@@ -469,10 +461,8 @@ void GfxPaint16::bitsRestore(reg_t memoryHandle) {
 }
 
 void GfxPaint16::bitsFree(reg_t memoryHandle) {
-	if (g_sciRogerProvider && g_sciRogerProvider->enabled && !memoryHandle.isNull()) {
-		const uint32 tok = ((uint32)memoryHandle.getSegment() << 16) | memoryHandle.getOffset();
-		g_sciRogerProvider->onNativeFreeSave(tok);
-	}
+	if (g_sciGfxObserver && !memoryHandle.isNull())
+		g_sciGfxObserver->onFree(gfxHandleToken(memoryHandle.getSegment(), memoryHandle.getOffset()));
 	if (!memoryHandle.isNull())	// happens in KQ5CD
 		_segMan->freeHunkEntry(memoryHandle);
 }
@@ -577,8 +567,8 @@ void GfxPaint16::kernelGraphUpdateBox(const Common::Rect &rect) {
 void GfxPaint16::kernelGraphRedrawBox(Common::Rect rect) {
 	_coordAdjuster->kernelLocalToGlobal(rect.left, rect.top);
 	_coordAdjuster->kernelLocalToGlobal(rect.right, rect.bottom);
-	if (g_sciRogerProvider && g_sciRogerProvider->enabled)
-		g_sciRogerProvider->onNativeEraseRect(rect); // rect already global here
+	if (g_sciGfxObserver)
+		g_sciGfxObserver->onErase(rect); // rect already global here
 	Port *oldPort = _ports->setPort((Port *)_ports->_picWind);
 	_coordAdjuster->kernelGlobalToLocal(rect.left, rect.top);
 	_coordAdjuster->kernelGlobalToLocal(rect.right, rect.bottom);

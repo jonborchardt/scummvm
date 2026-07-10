@@ -787,7 +787,7 @@ public:
 
 // Round-2 residue #1: the stuck menu-title strip. On the mouse menu path SCI closes the
 // menu with bitsRestore of the full menu strip (reverting native to the score banner)
-// WITHOUT a follow-up kernelDrawStatus, so onNativeRestoreRect is the only seam that can
+// WITHOUT a follow-up kernelDrawStatus, so onRestore is the only seam that can
 // re-apply the enhanced banner. The provider gates that re-apply on the restore rect
 // covering the status strip (>= 90% of _statusRect) so a dropdown's own narrower restore
 // (which never touches the banner row 0) does not spuriously re-push the banner. These
