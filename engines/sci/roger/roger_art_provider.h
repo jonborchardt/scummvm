@@ -103,18 +103,10 @@ public:
 	// R4: uiPushText / uiPushStatus migrated to SciGfxObserver::onText (sources
 	// kTextSourceControl/kTextSourceListRow/kTextSourceFill/kTextSourceMenuBar/
 	// kTextSourceMenuRow and kTextSourceStatus respectively); those virtuals are
-	// deleted. nativeFontH: SCI font cell height (px) for the line; 0 = unknown.
-	// nativeTextW: native single-line string width (px); 0 = multi-line/unknown.
-	virtual void uiPushButton(const Common::Rect &globalRect, const char *text, int fontId,
-	                          int style, uint32 token,
-	                          int nativeFontH = 0, int nativeTextW = 0) {}
-	virtual void uiPushTextEdit(const Common::Rect &globalRect, const char *text, int fontId,
-	                            int style, int cursorPos, uint32 token,
-	                            int nativeFontH = 0, int nativeTextW = 0) {}
-	// kGraphFrameBox selection highlight: frame-only (no fill), room-scoped.
-	// globalRect is already in global 320x200 screen space. Any previous frame
-	// pushed under the same token is replaced so the highlight tracks movement.
-	virtual void uiPushFrameBox(const Common::Rect &globalRect, int penColor) {}
+	// deleted.
+	// R7/R8: uiPushButton / uiPushTextEdit migrated to SciGfxObserver::onControl
+	// (kinds kControlButton/kControlTextEdit); uiPushFrameBox migrated to
+	// SciGfxObserver::onFrameBox. Those virtuals are deleted here.
 
 	// Debug/runtime toggles, invoked from the SCI event loop (see event.cpp):
 	// toggleOverlay flips between the upscaled overlay and the original native

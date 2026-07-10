@@ -497,11 +497,11 @@ void GfxPaint16::kernelGraphFrameBox(const Common::Rect &rect, int16 color) {
 	// is NOT called for the QFG1/SQ3 control-list selection frame — that is drawn in
 	// controls16.cpp kernelDrawText's SELECTED branch (see the hook there). This hook
 	// captures the kGraph(FrameBox) primitive for any other callers (e.g. kpathing debug).
-	// uiPushFrameBox gates internally on change, so repeated calls are O(1).
-	if (g_sciRogerProvider && g_sciRogerProvider->enabled) {
+	// onFrameBox gates internally on change (observer-side), so repeated calls are O(1).
+	if (g_sciGfxObserver) {
 		Common::Rect g = rect;
 		_ports->offsetRect(g);
-		g_sciRogerProvider->uiPushFrameBox(g, color);
+		g_sciGfxObserver->onFrameBox(g, color);
 	}
 }
 

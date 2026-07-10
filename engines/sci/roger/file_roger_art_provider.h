@@ -127,18 +127,24 @@ public:
 	// UI display-list capture (Roger hires dialogs) Ã¢â‚¬â€ see roger_art_provider.h.
 	// (R4: uiPushText / uiPushStatus retired in favour of onText + the *Internal
 	// bodies declared above.)
-	void uiPushButton(const Common::Rect &globalRect, const char *text, int fontId,
-	                  int style, uint32 token,
-	                  int nativeFontH, int nativeTextW) override;
-	void uiPushTextEdit(const Common::Rect &globalRect, const char *text, int fontId,
-	                    int style, int cursorPos, uint32 token,
-	                    int nativeFontH, int nativeTextW) override;
+	// R7/R8/R17: controls + frame box + textedit claim migrated to the observer.
+	void onControl(ControlKind kind, const Common::Rect &rect, const char *text,
+	               int fontId, int style, int cursorPos, uint32 token,
+	               int nativeFontH, int nativeTextW) override;
+	void onFrameBox(const Common::Rect &rect, int penColor) override;
+	bool wantsUnclampedTextEdit() const override;
+	// Per-kind bodies (formerly uiPushButton / uiPushTextEdit / uiPushFrameBox):
+	void uiPushButtonInternal(const Common::Rect &rect, const char *text, int fontId,
+	                          int style, uint32 token, int nativeFontH, int nativeTextW);
+	void uiPushTextEditInternal(const Common::Rect &rect, const char *text, int fontId,
+	                            int style, int cursorPos, uint32 token,
+	                            int nativeFontH, int nativeTextW);
+	void uiPushFrameBoxInternal(const Common::Rect &rect, int penColor);
 	void uiClearAll(); // internal (room teardown); no longer an observer virtual
 	// R13 batch brackets (renamed from beginUiBatch/endUiBatch; bodies unchanged —
 	// pure depth counting + coalesced present at depth 0):
 	void beginBatch() override;
 	void endBatch() override;
-	void uiPushFrameBox(const Common::Rect &globalRect, int penColor) override;
 
 	// Compose and present the current room to the OSystem overlay.
 	// Called each frame by the GfxAnimate hook (Task 7).

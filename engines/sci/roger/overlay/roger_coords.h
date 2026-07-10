@@ -235,7 +235,7 @@ inline Common::Rect uiPaintExtent(const Common::Rect &nr, const Common::Rect &ga
  * Overlay extent a REMOVED element must invalidate: exact native rect + the TTF
  * overshoot pad only. The compositor-overdraw ring beyond it is covered by
  * bitsRestore's exact erase rect (§3.1). Live callers are the two documented
- * duty-3 exceptions (markVacatedDirty from clearWindowToken / uiPushFrameBox), where
+ * duty-3 exceptions (markVacatedDirty from clearWindowToken / uiPushFrameBoxInternal), where
  * no bitsRestore rect ever fires. Gate greens cannot verify this either way
  * (Phase 2: layered redundancy) — coverage is soak-verified.
  */

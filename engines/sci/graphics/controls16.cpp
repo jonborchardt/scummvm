@@ -292,12 +292,16 @@ void GfxControls16::kernelTexteditChange(reg_t controlObject, reg_t eventObject)
 				textWidth += _text16->_font->getCharWidth((byte)*textPtr++);
 			textWidth += _text16->_font->getCharWidth(eventKey);
 
-			// Does it fit? SCI caps input at the native nsRect pixel width. With the
-			// Roger hires overlay the field is rendered far wider, so this native cap
-			// would stop typing after only a few characters (the buffer is still bound
-			// by maxChars, checked above). Relax it while Roger is active.
-			const bool rogerActive = g_sciRogerProvider && g_sciRogerProvider->enabled;
-			if (!rogerActive && textWidth >= rect.width()) {
+			// Does it fit? SCI caps input at the native nsRect pixel width (stops
+			// accepting keystrokes once textWidth >= rect.width()). An observer that
+			// renders the field far wider than the native nsRect needs those keystrokes,
+			// so wantsUnclampedTextEdit() lifts this pixel-width cap. SKIPPED native
+			// behavior: the pixel-width keystroke cap. OBSERVER GUARANTEE: the script-side
+			// maxChars buffer bound (checked earlier in this function) still applies —
+			// nothing overflows the buffer; only the pixel cap lifts. Observer-null or a
+			// claim-false observer keeps the native cap (byte-identical).
+			const bool unclamp = g_sciGfxObserver && g_sciGfxObserver->wantsUnclampedTextEdit();
+			if (!unclamp && textWidth >= rect.width()) {
 				_text16->SetFont(oldFontId);
 				return;
 			}
@@ -321,16 +325,16 @@ void GfxControls16::kernelTexteditChange(reg_t controlObject, reg_t eventObject)
 		// Roger hires dialogs: live typing redraws here (not via kernelDrawTextEdit),
 		// so push the updated buffer + caret so the hires field tracks each keystroke.
 		// Same token+rect as kernelDrawTextEdit => replaces that element in place.
-		if (g_sciRogerProvider && g_sciRogerProvider->enabled) {
+		if (g_sciGfxObserver) {
 			Common::Rect g = rect;
 			_ports->offsetRect(g);
 			const Port *p = _ports->getPort();
-			const uint32 tok = 0x40000000u | (uint32)(p ? p->id : 0);
+			const uint32 tok = gfxWindowToken((uint32)(p ? p->id : 0));
 			const int16 editStyle = readSelectorValue(_segMan, controlObject, SELECTOR(state));
 			int16 nfw = 0, nfh = 0;
 			_text16->StringWidth(text, fontId, nfw, nfh);
-			g_sciRogerProvider->uiPushTextEdit(g, text.c_str(), fontId, editStyle, cursorPos, tok,
-			                                   nfh, nfw);
+			g_sciGfxObserver->onControl(SciGfxObserver::kControlTextEdit, g, text.c_str(),
+			                            fontId, editStyle, cursorPos, tok, nfh, nfw);
 		}
 	} else {
 		if (g_system->getMillis() >= _texteditBlinkTime) {
@@ -353,14 +357,15 @@ int GfxControls16::getPicNotValid() {
 void GfxControls16::kernelDrawButton(Common::Rect rect, reg_t obj, const char *text, uint16 languageSplitter, int16 fontId, int16 style, bool hilite) {
 	g_sci->_tts->button(text);
 
-	if (g_sciRogerProvider && g_sciRogerProvider->enabled) {
+	if (g_sciGfxObserver) {
 		Common::Rect g = rect;
 		_ports->offsetRect(g);
 		const Port *p = _ports->getPort();
-		const uint32 tok = 0x40000000u | (uint32)(p ? p->id : 0);
+		const uint32 tok = gfxWindowToken((uint32)(p ? p->id : 0));
 		int16 nfw = 0, nfh = 0;
 		_text16->StringWidth(text, fontId, nfw, nfh);
-		g_sciRogerProvider->uiPushButton(g, text, fontId, style, tok, nfh, nfw);
+		g_sciGfxObserver->onControl(SciGfxObserver::kControlButton, g, text,
+		                            fontId, style, -1 /*no caret*/, tok, nfh, nfw);
 	}
 
 	if (!hilite) {
@@ -467,14 +472,16 @@ void GfxControls16::kernelDrawText(Common::Rect rect, reg_t obj, const char *tex
 			// Roger hires overlay: capture the selection frame so it appears at the
 			// correct hires position. rect is local (port-relative); offsetRect converts
 			// to global 320x200 screen space. penClr is the current port pen color,
-			// which is what frameRect() draws with. uiPushFrameBox gates internally on
-			// change — no per-cycle present storm even though kernelDrawText can fire on
-			// every control redraw (TAB, hover, any redraw).
-			if (g_sciRogerProvider && g_sciRogerProvider->enabled) {
+			// which is what frameRect() draws with. The change-gate lives
+			// observer-side (onFrameBox gates internally on change — no per-cycle
+			// present storm even though kernelDrawText can fire on every control
+			// redraw: TAB, hover, any redraw), so the seam call stays a plain
+			// onFrameBox.
+			if (g_sciGfxObserver) {
 				Common::Rect gSel = rect;
 				_ports->offsetRect(gSel);
 				const Port *pSel = _ports->getPort();
-				g_sciRogerProvider->uiPushFrameBox(gSel, pSel ? pSel->penClr : 0);
+				g_sciGfxObserver->onFrameBox(gSel, pSel ? pSel->penClr : 0);
 			}
 		}
 
@@ -500,14 +507,15 @@ void GfxControls16::kernelDrawText(Common::Rect rect, reg_t obj, const char *tex
 }
 
 void GfxControls16::kernelDrawTextEdit(Common::Rect rect, reg_t obj, const char *text, uint16 languageSplitter, int16 fontId, int16 mode, int16 style, int16 cursorPos, int16 maxChars, bool hilite) {
-	if (g_sciRogerProvider && g_sciRogerProvider->enabled) {
+	if (g_sciGfxObserver) {
 		Common::Rect g = rect;
 		_ports->offsetRect(g);
 		const Port *p = _ports->getPort();
-		const uint32 tok = 0x40000000u | (uint32)(p ? p->id : 0);
+		const uint32 tok = gfxWindowToken((uint32)(p ? p->id : 0));
 		int16 nfw = 0, nfh = 0;
 		_text16->StringWidth(text, fontId, nfw, nfh);
-		g_sciRogerProvider->uiPushTextEdit(g, text, fontId, style, cursorPos, tok, nfh, nfw);
+		g_sciGfxObserver->onControl(SciGfxObserver::kControlTextEdit, g, text,
+		                            fontId, style, cursorPos, tok, nfh, nfw);
 	}
 
 	Common::Rect textRect = rect;

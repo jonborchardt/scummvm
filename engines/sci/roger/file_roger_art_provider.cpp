@@ -1870,9 +1870,39 @@ void FileRogerArtProvider::uiPushTextInternal(const Common::Rect &r, const char 
 	presentBarrier();
 }
 
-void FileRogerArtProvider::uiPushButton(const Common::Rect &r, const char *text, int fontId,
-                                        int style, uint32 token,
-                                        int nativeFontH, int nativeTextW) {
+// R7/R8: dispatch onControl by kind to the per-kind bodies below.
+void FileRogerArtProvider::onControl(ControlKind kind, const Common::Rect &rect,
+                                     const char *text, int fontId, int style, int cursorPos,
+                                     uint32 token, int nativeFontH, int nativeTextW) {
+	switch (kind) {
+	case kControlButton:
+		uiPushButtonInternal(rect, text, fontId, style, token, nativeFontH, nativeTextW);
+		break;
+	case kControlTextEdit:
+		uiPushTextEditInternal(rect, text, fontId, style, cursorPos, token,
+		                       nativeFontH, nativeTextW);
+		break;
+	default:
+		break;
+	}
+}
+
+void FileRogerArtProvider::onFrameBox(const Common::Rect &rect, int penColor) {
+	uiPushFrameBoxInternal(rect, penColor); // change-gating (present-storm guard) is inside
+}
+
+// R17: relaxes the native kernelTexteditChange pixel-width keystroke cap. The hires
+// field is rendered far wider than the native nsRect, so the native cap is wrong here;
+// the script-side maxChars buffer bound (checked earlier in kernelTexteditChange) still
+// applies, so nothing overflows. Returns the exact prior condition (the old inline C3
+// gate was `enabled` only) — no behavior change: observer-null / disabled keeps the cap.
+bool FileRogerArtProvider::wantsUnclampedTextEdit() const {
+	return enabled;
+}
+
+void FileRogerArtProvider::uiPushButtonInternal(const Common::Rect &r, const char *text, int fontId,
+                                                int style, uint32 token,
+                                                int nativeFontH, int nativeTextW) {
 	if (!overlayShown() || !_plate) return;
 	ensureUi();
 	Roger::UiElement e;
@@ -1886,9 +1916,9 @@ void FileRogerArtProvider::uiPushButton(const Common::Rect &r, const char *text,
 	presentBarrier();
 }
 
-void FileRogerArtProvider::uiPushTextEdit(const Common::Rect &r, const char *text, int fontId,
-                                          int style, int cursorPos, uint32 token,
-                                          int nativeFontH, int nativeTextW) {
+void FileRogerArtProvider::uiPushTextEditInternal(const Common::Rect &r, const char *text, int fontId,
+                                                  int style, int cursorPos, uint32 token,
+                                                  int nativeFontH, int nativeTextW) {
 	if (!overlayShown() || !_plate) return;
 	ensureUi();
 	Roger::UiElement e;
@@ -2272,7 +2302,7 @@ void FileRogerArtProvider::uiClearAll() {
 // uiClearAll (called on every room change and onNativePicture). A single constant
 // token means each new push calls clearToken() first, so the highlight tracks
 // movement without accumulating stale elements even when the rect changes.
-void FileRogerArtProvider::uiPushFrameBox(const Common::Rect &r, int penColor) {
+void FileRogerArtProvider::uiPushFrameBoxInternal(const Common::Rect &r, int penColor) {
 	if (!overlayShown() || !_plate) return; // no hires scene Ã¢â‚¬â€ leave native highlight visible
 	ensureUi();
 	// Gate: if the frame element under Roger::kFrameBoxToken is already identical (same rect
