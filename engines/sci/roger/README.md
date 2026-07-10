@@ -106,7 +106,7 @@ invalidated automatically when the generation pipeline changes.
 
 | Area | Files |
 |------|-------|
-| Provider interface + wiring | `roger_art_provider.h`, `file_roger_art_provider.{h,cpp}` |
+| Provider wiring (observer impl) | `file_roger_art_provider.{h,cpp}` (implements `sci/sci_gfx_observer.h`) |
 | Art generation (omyac pipeline) | `roger_asset_gen.*`, `roger_pic_parser.*`, `roger_pic_native.*`, `roger_omyac.*`, `roger_scale.*`, `roger_ega_blend.*` |
 | Compositing & presentation | `roger_compositor.*`, `roger_ui_layer.*`, `roger_text.*`, `roger_cursor.*`, `roger_effects.*` |
 | Caching | `view_cache.*`, `png_loader.*` |

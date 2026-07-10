@@ -55,7 +55,6 @@
 #ifdef ENABLE_SCI32
 #include "sci/graphics/text32.h"
 #endif
-#include "sci/roger/roger_art_provider.h"
 #include "sci/sci_gfx_observer.h"
 
 namespace Sci {

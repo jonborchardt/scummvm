@@ -40,7 +40,7 @@
 #include "sci/graphics/transitions.h"
 
 #include "sci/graphics/scifx.h"
-#include "sci/roger/roger_art_provider.h"
+#include "sci/sci_gfx_observer.h"
 
 namespace Sci {
 

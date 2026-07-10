@@ -80,6 +80,17 @@ class GfxCompare;
 
 namespace Sci {
 
+// Fork-only downcast slot (see file_roger_art_provider.h): a single well-known
+// pointer the provider registration in SciEngine::run() sets alongside
+// setSciGfxObserver; rogerProvider() just reads it back. No RTTI - the fork
+// owns the only observer type. Cleared in the SciEngine destructor.
+// FIXME: non-const global var - set at SciEngine::run, cleared in ~SciEngine.
+FileRogerArtProvider *g_rogerProvider = nullptr;
+
+FileRogerArtProvider *rogerProvider() {
+	return g_rogerProvider;
+}
+
 FileRogerArtProvider::FileRogerArtProvider(const Common::String &gameId,
                                             const Common::Path &gamePath) {
 	// Build path: gamePath/../<gameId>-roger/ using pure path ops (no FS access).

@@ -71,8 +71,8 @@ without an engine (same isolation as the Studio's pure helpers in
 The glue lives in `file_roger_art_provider.{h,cpp}`: the provider owns a
 `TunePanelState`, draws the panel at the end of its composite pass, and
 implements `toggleTunePanel()` / `tunePanelMouse()`. `event.cpp` routes F12 and
-mouse events through those **abstract provider virtuals**
-(`roger_art_provider.h`) — it never sees a tunepanel type.
+mouse events through those **fork-only provider methods**
+(`file_roger_art_provider.h`, via `rogerProvider()`) — it never sees a tunepanel type.
 
 ## Quarantine contract
 

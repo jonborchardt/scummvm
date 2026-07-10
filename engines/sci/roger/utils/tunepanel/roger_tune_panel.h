@@ -37,7 +37,7 @@
 // engines/sci/module.mk, and build_tests.ps1's test registration
 // (test/sci/roger/test_tune_panel.h). Everything else — including
 // event.cpp's key/mouse routing — must go through the plain virtuals on the
-// abstract provider (roger_art_provider.h), which name no tunepanel types.
+// concrete provider (file_roger_art_provider.h), which names no tunepanel types.
 // This module may only consume stable SCI-free roger seams
 // (ui/roger_widgets.h, ui/roger_panel_style.h, roger_passes.h, roger_view_scaler.h, roger_coords.h) —
 // never provider/compositor internals, never SCI engine state, and never

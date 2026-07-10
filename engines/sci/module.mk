@@ -104,9 +104,13 @@ MODULE_OBJS := \
 	sound/drivers/pc9801.o \
 	video/seq_decoder.o
 
-# Roger art replacement
+# --- ROGER BEGIN (fork-only object list) ------------------------------------
+# Roger art replacement. Kept inline: create_project's module.mk parser
+# (devtools/create_project, createModuleList) reads MODULE_OBJS tokens line by
+# line and does NOT follow GNU-make `include` directives, so extracting this
+# block to a roger/-owned fragment would silently drop every roger object from
+# the generated MSVC project (R21 fallback branch, pre-authorized).
 MODULE_OBJS += \
-	roger/roger_art_provider.o \
 	roger/roger_capabilities.o \
 	roger/roger_input.o \
 	roger/gen/roger_asset_gen.o \
@@ -140,6 +144,7 @@ MODULE_OBJS += \
 	roger/utils/eyetest/roger_eyetest.o \
 	roger/file_roger_art_provider.o \
 	roger/png_loader.o
+# --- ROGER END ---------------------------------------------------------------
 
 
 ifdef ENABLE_SCI32

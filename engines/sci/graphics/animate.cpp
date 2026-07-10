@@ -41,7 +41,7 @@
 #include "sci/graphics/screen.h"
 #include "sci/graphics/transitions.h"
 #include "sci/graphics/animate.h"
-#include "sci/roger/roger_art_provider.h"
+#include "sci/sci_gfx_observer.h"
 
 namespace Sci {
 

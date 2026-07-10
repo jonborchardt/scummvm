@@ -7,7 +7,7 @@
 #include "sci/graphics/helpers.h"  // GuiResourceId
 
 namespace Sci {
-class RogerArtProvider;
+class FileRogerArtProvider;
 
 namespace Roger {
 
@@ -47,7 +47,7 @@ struct LauncherState {
 
 class RogerLauncher {
 public:
-	explicit RogerLauncher(RogerArtProvider *provider);
+	explicit RogerLauncher(FileRogerArtProvider *provider);
 
 	// Run the launcher modal dialog. Returns true to proceed with the current
 	// game, false if a game-switch event was pushed (caller should return).
@@ -87,7 +87,7 @@ public:
 	void discoverGames();
 
 private:
-	RogerArtProvider   *_provider;
+	FileRogerArtProvider *_provider;
 	LauncherState       _state;
 	bool                _switchTriggered = false;
 	bool                _autoLaunch = false;

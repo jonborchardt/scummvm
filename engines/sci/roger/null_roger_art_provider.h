@@ -21,14 +21,17 @@
 #ifndef SCI_ROGER_NULL_ROGER_ART_PROVIDER_H
 #define SCI_ROGER_NULL_ROGER_ART_PROVIDER_H
 
-#include "sci/roger/roger_art_provider.h"
+#include "sci/sci_gfx_observer.h" // GuiResourceId typedef
 
 namespace Sci {
 
-// No-op provider: inherits the SciGfxObserver no-op virtuals unchanged.
-// Used in tests and as a safe fallback. (hasBackground/loadBuffers were
-// removed from the abstract interface by the observer migration — R2.)
-class NullRogerArtProvider : public RogerArtProvider {
+// Baseline no-op provider for unit tests: hasBackground always false.
+// Standalone (no SciGfxObserver base needed — the test only exercises
+// hasBackground, which is a fork-only FileRogerArtProvider method now,
+// not an observer virtual).
+class NullRogerArtProvider {
+public:
+	bool hasBackground(GuiResourceId /*pictureId*/) const { return false; }
 };
 
 } // namespace Sci

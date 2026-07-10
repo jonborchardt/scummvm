@@ -228,9 +228,11 @@ SciEngine::SciEngine(OSystem *syst, const ADGameDescription *desc, SciGameId gam
 }
 
 SciEngine::~SciEngine() {
-	g_sciGfxObserver = nullptr; // aliases g_sciRogerProvider — clear before deleting it
-	delete g_sciRogerProvider;
-	g_sciRogerProvider = nullptr;
+	// ROGER-FORK-ONLY: clear the neutral seam BEFORE deleting the provider, then
+	// clear the fork-only downcast slot.
+	setSciGfxObserver(nullptr);
+	delete g_rogerProvider;
+	g_rogerProvider = nullptr;
 #ifdef ENABLE_SCI32
 	delete _gfxControls32;
 	delete _gfxPaint32;
@@ -412,12 +414,13 @@ Common::Error SciEngine::run() {
 			_system->setWindowCaption(qgd.description.decode());
 	}
 
-	g_sciRogerProvider = new FileRogerArtProvider(getGameIdStr(), ConfMan.getPath("path"));
-	// Strangler registration: the same object serves both seams while hook
-	// families migrate from RogerArtProvider onto SciGfxObserver.
-	g_sciGfxObserver = g_sciRogerProvider;
+	// ROGER-FORK-ONLY: construct the concrete provider and register it on the
+	// neutral observer seam. Upstream, this becomes plugin self-registration.
+	FileRogerArtProvider *rogerProv = new FileRogerArtProvider(getGameIdStr(), ConfMan.getPath("path"));
+	setSciGfxObserver(rogerProv);
+	g_rogerProvider = rogerProv; // fork-only downcast slot
 
-	// Roger Studio: tuning environment (quarantined dev utility,
+	// ROGER-FORK-ONLY: Roger Studio, tuning environment (quarantined dev utility,
 	// engines/sci/roger/utils/studio/) — build_and_run.ps1 -Studio /
 	// ROGER_STUDIO=1. Runs its own blocking loop at this seam — resources and
 	// graphics are alive, no game scripts have run — then exits the process.
@@ -428,7 +431,7 @@ Common::Error SciEngine::run() {
 		return Common::kNoError;
 	}
 
-	// Eye Exam: interactive OMYAC pass-sequence tuner (quarantined dev utility,
+	// ROGER-FORK-ONLY: Eye Exam, interactive OMYAC pass-sequence tuner (quarantined dev utility,
 	// engines/sci/roger/utils/eyetest/) — same seam and lifecycle as Roger
 	// Studio above. This env-gated block is its ONLY engine reference.
 	if (getenv("ROGER_EYETEST") != nullptr) {
@@ -437,7 +440,7 @@ Common::Error SciEngine::run() {
 		return Common::kNoError;
 	}
 
-	// Skip the picker when roger_no_launcher is set (scummvm.ini) OR the
+	// ROGER-FORK-ONLY: skip the picker when roger_no_launcher is set (scummvm.ini) OR the
 	// ROGER_NO_LAUNCHER env var is present. The env var is a non-sticky
 	// dev convenience so build_and_run.ps1 -SkipPicker can boot straight
 	// into the game / auto-loaded save without touching scummvm.ini.
@@ -450,13 +453,13 @@ Common::Error SciEngine::run() {
 		// log. Do NOT run the synchronous startup warm-up here — it would do all
 		// the work (potentially many seconds, fully blocking) before the dialog
 		// ever appears, with no visible progress.
-		Roger::RogerLauncher launcher(g_sciRogerProvider);
+		Roger::RogerLauncher launcher(rogerProv);
 		if (!launcher.run())
 			return Common::kNoError; // game-switch pushed; ScummVM restarts engine
 	} else {
 		// No launcher: fall back to the synchronous warm-up (roger_precache).
 		// No-op unless roger_precache is set and a generating roger_gen_mode is active.
-		g_sciRogerProvider->precacheAll();
+		rogerProv->precacheAll();
 	}
 
 	// Sound must be initialized after graphics because SysEx transfers at the

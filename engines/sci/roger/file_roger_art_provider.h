@@ -21,8 +21,8 @@
 #ifndef SCI_ROGER_FILE_ROGER_ART_PROVIDER_H
 #define SCI_ROGER_FILE_ROGER_ART_PROVIDER_H
 
-#include "sci/roger/roger_art_provider.h"
-#include "sci/roger/null_roger_art_provider.h"
+#include "sci/sci_gfx_observer.h"
+#include "sci/graphics/helpers.h"
 #include "sci/roger/gen/roger_asset_gen.h"
 #include "sci/roger/roger_capabilities.h"
 #include "sci/roger/overlay/roger_compositor.h"
@@ -40,7 +40,7 @@ namespace Graphics { struct Surface; class ManagedSurface; }
 namespace Sci {
 namespace Roger { struct Sprite; class RogerCompositor; class ViewCache; class RogerJournal; class RogerTextRenderer; }
 
-class FileRogerArtProvider : public RogerArtProvider, public Roger::ScriptHost {
+class FileRogerArtProvider : public SciGfxObserver, public Roger::ScriptHost {
 public:
 	// gameId: ScummVM game ID string (e.g. "sq3", "qfg1")
 	// gamePath: path to the game directory, as a Common::Path so native
@@ -50,13 +50,21 @@ public:
 	FileRogerArtProvider(const Common::String &gameId, const Common::Path &gamePath);
 	~FileRogerArtProvider();
 
+	// Fork-only enable flag (was RogerArtProvider::enabled). Public: the test and
+	// the fork-only blocks read it. Set false to disable Roger without destroying
+	// the provider — ScummVM native rendering is used when false.
+	bool enabled = true;
+
 	// Concrete provider members (no longer abstract observer virtuals — R2):
 	// hasBackground/pushHiresBackground*/onNativePicture are called by the new
 	// onPicture/onPictureAbsent dispatchers and by the launcher precache path.
 	bool hasBackground(GuiResourceId pictureId) const;
-	void precacheAll() override;
-	bool precacheOnePic(GuiResourceId picId, uint32 &ms) override;
-	bool precacheOneView(int viewId) override;
+	// Fork-only precache trio (NOT on SciGfxObserver; reached via rogerProvider()):
+	// precacheAll = optional one-time synchronous startup warm-up (roger_precache);
+	// the OnePic/OneView single-steps drive the launcher's handleTickle loop.
+	void precacheAll();
+	bool precacheOnePic(GuiResourceId picId, uint32 &ms);
+	bool precacheOneView(int viewId);
 	void pushHiresBackground(GuiResourceId pictureId);
 	void pushHiresBackgroundAddTo(GuiResourceId pictureId);
 	void onAnimateFrame(const AnimateList &list) override;
@@ -121,13 +129,19 @@ public:
 	void onCursorHidden(bool hidden) override;
 	void onCursorView(int viewId, int loopNo, int celNo) override;
 	bool claimCursor() const override;
-	void remapComparisonMouse(Common::Point &mousePos) override;
-	void toggleOverlay() override;   // F10: upscaled overlay <-> original native (display mode)
-	void toggleDebugLog() override;  // F11: per-frame Roger diagnostic logging
-	void toggleTunePanel() override;  // F12 (debug tool Ã¢â‚¬â€ kept)
-	bool tunePanelMouse(bool buttonDown, const Common::Point &gamePos) override;
+	// Fork-only methods (NOT on SciGfxObserver; reached via rogerProvider() from
+	// the `// ROGER-FORK-ONLY` blocks in event.cpp):
+	// Side-by-side compare mode: remap the game-space mouse coordinate so the LEFT
+	// panel (the enhanced view) acts as the whole 320x200 game. No-op otherwise.
+	void remapComparisonMouse(Common::Point &mousePos);
+	void toggleOverlay();   // F10: upscaled overlay <-> original native (display mode)
+	void toggleDebugLog();  // F11: per-frame Roger diagnostic logging
+	void toggleTunePanel();  // F12 (debug tool Ã¢â‚¬â€ kept)
+	bool tunePanelMouse(bool buttonDown, const Common::Point &gamePos);
+	// tunePanelMouse returns true when the panel consumed the button event
+	// (event.cpp then swallows it so the game never sees clicks on the panel).
 
-	// UI display-list capture (Roger hires dialogs) Ã¢â‚¬â€ see roger_art_provider.h.
+	// UI display-list capture (Roger hires dialogs) Ã¢â‚¬â€ see the decls above.
 	// (R4: uiPushText / uiPushStatus retired in favour of onText + the *Internal
 	// bodies declared above.)
 	// R7/R8/R17: controls + frame box + textedit claim migrated to the observer.
@@ -433,6 +447,21 @@ private:
 	void clearTextSprites();                                                       // free celOverride + clear
 	void flushGenericText();                                                       // emit _genTextPending into _journal, deduped
 };
+
+// Fork-only downcast slot: the registered observer as the concrete Roger
+// provider, or nullptr when none is registered. Set alongside setSciGfxObserver
+// in SciEngine::run(), cleared in the SciEngine destructor. No RTTI: the fork
+// owns the only observer type, so the pointer identity is known.
+// FIXME: non-const global var — set at SciEngine::run, cleared in ~SciEngine.
+extern FileRogerArtProvider *g_rogerProvider;
+
+// Fork-only accessor: the registered observer downcast to the concrete Roger
+// provider, or nullptr if no FileRogerArtProvider is registered.
+// Used ONLY inside `// ROGER-FORK-ONLY` blocks (event.cpp hotkeys/SBS remap/
+// tune-panel swallow, sci.cpp Studio/EyeTest/launcher) that call fork-only
+// methods NOT on the neutral SciGfxObserver interface
+// (precache*/toggle*/tunePanelMouse/remapComparisonMouse).
+FileRogerArtProvider *rogerProvider();
 
 } // namespace Sci
 

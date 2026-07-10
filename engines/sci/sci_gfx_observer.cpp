@@ -24,4 +24,12 @@ namespace Sci {
 
 SciGfxObserver *g_sciGfxObserver = nullptr;
 
+void setSciGfxObserver(SciGfxObserver *observer) {
+	g_sciGfxObserver = observer;
+}
+
+SciGfxObserver *sciGfxObserver() {
+	return g_sciGfxObserver;
+}
+
 } // namespace Sci

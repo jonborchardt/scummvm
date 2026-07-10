@@ -1,7 +1,7 @@
 #include "sci/roger/launcher/roger_launcher.h"
 #include "sci/roger/launcher/roger_launcher_dialog.h"
 #include "sci/roger/launcher/roger_picker_model.h"
-#include "sci/roger/roger_art_provider.h"
+#include "sci/roger/file_roger_art_provider.h"
 #include "sci/roger/gen/roger_asset_gen.h"
 #include "sci/roger/gen/roger_passes.h"
 #include "sci/sci.h"
@@ -20,7 +20,7 @@
 namespace Sci {
 namespace Roger {
 
-RogerLauncher::RogerLauncher(RogerArtProvider *provider)
+RogerLauncher::RogerLauncher(FileRogerArtProvider *provider)
 	: _provider(provider) {}
 
 // Helper: add one game entry if it's a valid SCI game at gamePath with domain dom.

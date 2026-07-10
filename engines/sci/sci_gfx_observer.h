@@ -377,6 +377,12 @@ public:
 // (no constructor), per the reentrancy rules.
 extern SciGfxObserver *g_sciGfxObserver;
 
+// Registration seam (Stage 3): the single slot is set/cleared through this, so the
+// concrete observer type never appears in SCI engine wiring. A future observer
+// LIST is a mechanical change here.
+void setSciGfxObserver(SciGfxObserver *observer);
+SciGfxObserver *sciGfxObserver();
+
 } // namespace Sci
 
 #endif // SCI_SCI_GFX_OBSERVER_H

@@ -37,7 +37,6 @@
 #include "sci/graphics/view.h"
 #include "sci/graphics/cursor.h"
 #include "sci/graphics/maciconbar.h"
-#include "sci/roger/roger_art_provider.h"
 #include "sci/sci_gfx_observer.h"
 
 namespace Sci {

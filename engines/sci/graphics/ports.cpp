@@ -34,7 +34,7 @@
 #include "sci/graphics/animate.h"
 #include "sci/graphics/text16.h"
 #include "sci/graphics/ports.h"
-#include "sci/roger/roger_art_provider.h"
+#include "sci/sci_gfx_observer.h"
 
 namespace Sci {
 

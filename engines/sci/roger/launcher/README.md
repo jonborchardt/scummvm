@@ -100,5 +100,5 @@ with the global art provider and calls `run()` before the game proper starts;
 a `false` return means a game-switch was pushed and the engine returns
 immediately. `RogerLauncherDialog` is a plain `GUI::Dialog`; precache work is
 driven from its `handleTickle` so progress stays visible. The launcher talks to
-generation only through `RogerArtProvider::precacheOnePic()` /
+generation only through `FileRogerArtProvider::precacheOnePic()` /
 `precacheOneView()`.
