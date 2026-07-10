@@ -1224,21 +1224,32 @@ void FileRogerArtProvider::buildCursorFromView(int viewId, int loopNo, int celNo
 	const int16 w = ci->width, h = ci->height;
 	const int16 dx = ci->displaceX, dy = ci->displaceY;
 
-	Graphics::Surface *native = renderNativeCel(viewId, loopNo, celNo);
-	if (!native) return;
-
-	const int kScale = 5;
-	const int W = native->w * kScale, H = native->h * kScale;
+	const int kScale = 6; // same enhanced scale as sprite cels
 	const Graphics::PixelFormat rgba(4, 8, 8, 8, 8, 24, 16, 8, 0);
-	_cursorSurf = new Graphics::Surface();
-	_cursorSurf->create(W, H, rgba);
-	for (int y = 0; y < native->h; y++) {
-		for (int x = 0; x < native->w; x++) {
-			const uint32 px = native->getPixel(x, y);
-			for (int sy = 0; sy < kScale; sy++)
-				for (int sx = 0; sx < kScale; sx++)
-					_cursorSurf->setPixel(x * kScale + sx, y * kScale + sy, px);
+
+	// Enhanced path: the same scale6x cel every sprite draws (borrowed — copy it,
+	// _cursorSurf is owned and freed on the next shape change).
+	const Graphics::Surface *hi = _viewCache ? _viewCache->getCel(viewId, loopNo, celNo) : nullptr;
+	if (hi && hi->w == w * kScale && hi->h == h * kScale) {
+		_cursorSurf = new Graphics::Surface();
+		_cursorSurf->copyFrom(*hi);
+	} else {
+		// Fallback (prebuilt mode / generation failure): nearest replication of the
+		// native cel at the same 6x so the hotspot math below holds either way.
+		Graphics::Surface *native = renderNativeCel(viewId, loopNo, celNo);
+		if (!native) return;
+		const int W = native->w * kScale, H = native->h * kScale;
+		_cursorSurf = new Graphics::Surface();
+		_cursorSurf->create(W, H, rgba);
+		for (int y = 0; y < native->h; y++) {
+			for (int x = 0; x < native->w; x++) {
+				const uint32 px = native->getPixel(x, y);
+				for (int sy = 0; sy < kScale; sy++)
+					for (int sx = 0; sx < kScale; sx++)
+						_cursorSurf->setPixel(x * kScale + sx, y * kScale + sy, px);
+			}
 		}
+		native->free(); delete native;
 	}
 	// Hotspot from VIEW cel metadata (matches GfxCursor::kernelSetView formula), scaled.
 	_cursorHotspot = Common::Point(
@@ -1246,8 +1257,6 @@ void FileRogerArtProvider::buildCursorFromView(int viewId, int loopNo, int celNo
 		(int)(h - dy - 1) * kScale
 	);
 	_compositeCacheValid = false;
-
-	native->free(); delete native;
 }
 
 void FileRogerArtProvider::compositeCursor(Graphics::ManagedSurface &scene,
@@ -1919,6 +1928,20 @@ void FileRogerArtProvider::uiPushStatus(const Common::Rect &r, const char *text,
 	bar.type = Roger::kUiWindow; bar.nativeRect = r; bar.backColor = backColor;
 	bar.penColor = penColor; bar.style = 2; bar.token = token;
 	journalAppend(bar);
+
+	// The native renderer always fills the underline row below the bar black
+	// (GfxPorts::_menuLine; menu.cpp drawBar/kernelDrawStatus). Mirror it so the
+	// WHOLE reserved strip is overlay-owned: a strip band left to native
+	// show-through can drift up to 1px against Roger's edge mapping depending on
+	// how the backend samples its game blit (the 1px-narrow bar, 2026-07-09).
+	const Common::Rect line = Roger::statusStripRemainder(r, _statusBarH);
+	if (!line.isEmpty()) {
+		Roger::UiElement ul;
+		ul.type = Roger::kUiWindow; ul.nativeRect = line; ul.backColor = 0;
+		ul.penColor = penColor; ul.style = 2; ul.token = token;
+		journalAppend(ul);
+		markUiDirty(line);
+	}
 
 	// Hybrid banner: crisp TTF for ASCII characters, game's own SCI font glyph spliced
 	// inline for non-ASCII bytes (e.g. SQ3's stylized "III"). No whole-native path.

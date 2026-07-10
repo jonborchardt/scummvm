@@ -116,6 +116,82 @@ public:
 		TS_ASSERT_EQUALS(r.height(), 600);
 	}
 
+	// --- Canonical edge mapping: rect edges must agree with the nearest sampler ---
+	//
+	// Every Roger scaler samples source row `dy * srcN / dstD` (top-left rational).
+	// The dest edge consistent with that sampling is ceil(v * dstD / srcN): dest
+	// pixels [0, edge) sample exactly source rows [0, v). Flooring the edge instead
+	// leaves the last dest pixel of a source row outside its rect — the 1px-short
+	// status bar (2026-07-09).
+
+	// Dest pixels whose top-left-rational sample lands before source row r.
+	static int pixelsBeforeSourceRow(int r, int srcN, int dstD) {
+		int count = 0;
+		for (int dy = 0; dy < dstD; dy++)
+			if (dy * srcN / dstD < r)
+				count++;
+		return count;
+	}
+
+	void test_rect_dest_edges_match_nearest_sampler() {
+		const int heights[] = { 499, 998, 1975, 1986, 333, 200 };
+		for (uint hi = 0; hi < ARRAYSIZE(heights); hi++) {
+			const int gh = heights[hi];
+			Common::Rect game(0, 0, 1600, gh);
+			for (int r = 1; r < 200; r++) {
+				const int edge = pixelsBeforeSourceRow(r, 200, gh);
+				Common::Rect below = Sci::Roger::sciRectToDest(Common::Rect(0, 0, 320, r), game);
+				Common::Rect above = Sci::Roger::sciRectToDest(Common::Rect(0, r, 320, 200), game);
+				TS_ASSERT_EQUALS(below.bottom, edge);
+				TS_ASSERT_EQUALS(above.top, edge);   // shared edge: adjacent rects abut
+			}
+		}
+		// Same rule on the x axis at a non-integral width.
+		Common::Rect gameX(0, 0, 799, 499);
+		for (int x = 1; x < 320; x++) {
+			const int edge = pixelsBeforeSourceRow(x, 320, 799);
+			Common::Rect left = Sci::Roger::sciRectToDest(Common::Rect(0, 0, x, 200), gameX);
+			TS_ASSERT_EQUALS(left.right, edge);
+		}
+	}
+
+	void test_status_bar_edges_at_measured_sbs_scale() {
+		// Measured 2026-07-09 (roger-300-bar capture, SBS panel 799x499): the nearest
+		// scaler rendered the native white bar (rows 0-8) 23px tall and started the
+		// scene at row 25. The banner rect and the picture rect must land on those
+		// same edges — floor gave 22 and 24 (bar 1px short, underline 1px thick).
+		Common::Rect game(0, 738, 799, 738 + 499);
+		Common::Rect bar = Sci::Roger::sciRectToDest(Common::Rect(0, 0, 320, 9), game);
+		TS_ASSERT_EQUALS(bar.top, game.top);
+		TS_ASSERT_EQUALS(bar.bottom - game.top, 23);      // ceil(9*499/200)
+		Common::Rect pic = Sci::Roger::computePictureRect(game, 10, 200);
+		TS_ASSERT_EQUALS(pic.top - game.top, 25);         // ceil(10*499/200)
+		// The picture rect's strip edge is the SAME mapping sciRectToDest uses.
+		Common::Rect strip = Sci::Roger::sciRectToDest(Common::Rect(0, 0, 320, 10), game);
+		TS_ASSERT_EQUALS(strip.bottom, pic.top);
+	}
+
+	void test_rect_dest_negative_edges_round_toward_ceiling() {
+		// Grown UI rects go off-screen (nr.grow(2)); ceil holds for negative edges
+		// too (C++ toward-zero truncation IS ceil there).
+		Common::Rect game(100, 50, 100 + 799, 50 + 499);
+		Common::Rect d = Sci::Roger::sciRectToDest(Common::Rect(-2, -2, 322, 202), game);
+		TS_ASSERT_EQUALS(d.left, 100 - 4);   // ceil(-2*799/320) = ceil(-4.99) = -4
+		TS_ASSERT_EQUALS(d.top, 50 - 4);     // ceil(-2*499/200) = ceil(-4.99) = -4
+	}
+
+	void test_status_strip_remainder_is_menu_line() {
+		// SCI0 pushes the bar as rows [0,9); the reserved strip is 10 rows. The
+		// remainder is GfxPorts::_menuLine (the black underline row), which Roger
+		// draws itself so the whole strip is overlay-owned.
+		Common::Rect line = Sci::Roger::statusStripRemainder(Common::Rect(0, 0, 320, 9), 10);
+		TS_ASSERT_EQUALS(line.left, 0);
+		TS_ASSERT_EQUALS(line.top, 9);
+		TS_ASSERT_EQUALS(line.right, 320);
+		TS_ASSERT_EQUALS(line.bottom, 10);
+		TS_ASSERT(Sci::Roger::statusStripRemainder(Common::Rect(0, 0, 320, 10), 10).isEmpty());
+	}
+
 	void test_game_rect_default_args_are_fit() {
 		// The 3-arg form must stay the aspect-true letterboxed fit.
 		Common::Rect def = Sci::Roger::computeGameRect(1600, 1600, false);

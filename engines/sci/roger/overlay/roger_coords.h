@@ -140,6 +140,30 @@ inline Common::Rect computeGameRect(int overlayW, int overlayH, bool aspectCorre
 }
 
 /**
+ * THE canonical native-edge -> dest-pixel mapping: ceil(v * dstSize / srcSize).
+ *
+ * Every Roger nearest scaler samples source coordinate `s = d * srcSize / dstSize`
+ * (top-left rational; see scaleBlitNearest / upscaleNativeRegionNearest). The
+ * dest-rect edge consistent with that sampling is the ceiling division: dest
+ * pixels [0, mapNativeEdge(v)) sample exactly source [0, v), adjacent native
+ * rects map to abutting dest rects, and a native rect's mapped rect contains
+ * exactly the dest pixels that show it. Flooring instead drops the last dest
+ * pixel of a source row out of its rect — sub-pixel seams at every boundary
+ * between separately-mapped content (the 1px-short status bar, 2026-07-09).
+ * All native->overlay rect conversions must go through this; do not open-code
+ * `v * dst / src` for an edge.
+ *
+ * C++ toward-zero truncation is already ceiling for negative numerators
+ * (off-screen edges, e.g. grown UI rects), so only v >= 0 needs the bias.
+ */
+inline int mapNativeEdge(int v, int srcSize, int dstSize) {
+	if (srcSize <= 0)
+		return 0;
+	const int num = v * dstSize;
+	return num >= 0 ? (num + srcSize - 1) / srcSize : num / srcSize;
+}
+
+/**
  * The picture sub-rect within the game rect. SCI0 reserves the top `statusBarH`
  * screen rows (of `screenLines`, normally 200) for the status/menu bar; the
  * upscaled picture plate occupies the rest. Leaving the reserved strip
@@ -148,9 +172,23 @@ inline Common::Rect computeGameRect(int overlayW, int overlayH, bool aspectCorre
 inline Common::Rect computePictureRect(const Common::Rect &gameRect, int statusBarH, int screenLines = 200) {
 	if (screenLines <= 0 || statusBarH <= 0)
 		return gameRect;
-	const int stripPx = gameRect.height() * statusBarH / screenLines;
+	const int stripPx = mapNativeEdge(statusBarH, screenLines, gameRect.height());
 	return Common::Rect(gameRect.left, (int16)(gameRect.top + stripPx),
 	                    gameRect.right, gameRect.bottom);
+}
+
+/**
+ * The part of the reserved status strip below the pushed bar rect — SCI0's
+ * _menuLine (GfxPorts), the black underline row the native renderer always
+ * fills under the bar. Roger draws it itself so the WHOLE strip
+ * [0, statusBarRows) is overlay-owned: no visible seam is left to depend on
+ * how the backend happens to rasterize native show-through. Empty when the
+ * pushed bar already covers the strip.
+ */
+inline Common::Rect statusStripRemainder(const Common::Rect &barRect, int statusBarRows) {
+	if (barRect.bottom >= statusBarRows)
+		return Common::Rect();
+	return Common::Rect(barRect.left, barRect.bottom, barRect.right, (int16)statusBarRows);
 }
 
 /**
@@ -173,10 +211,10 @@ inline Common::Rect sciCelRectToOverlay(const Common::Rect &r, int overlayW, int
 inline Common::Rect sciRectToDest(const Common::Rect &nr, const Common::Rect &gameRect) {
 	const int gw = gameRect.width(), gh = gameRect.height();
 	return Common::Rect(
-		(int16)(gameRect.left + nr.left   * gw / 320),
-		(int16)(gameRect.top  + nr.top    * gh / 200),
-		(int16)(gameRect.left + nr.right  * gw / 320),
-		(int16)(gameRect.top  + nr.bottom * gh / 200));
+		(int16)(gameRect.left + mapNativeEdge(nr.left, 320, gw)),
+		(int16)(gameRect.top  + mapNativeEdge(nr.top, 200, gh)),
+		(int16)(gameRect.left + mapNativeEdge(nr.right, 320, gw)),
+		(int16)(gameRect.top  + mapNativeEdge(nr.bottom, 200, gh)));
 }
 
 /**

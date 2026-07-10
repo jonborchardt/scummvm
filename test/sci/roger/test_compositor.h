@@ -601,6 +601,24 @@ public:
 		TS_ASSERT_EQUALS(half.bottom, 290);
 	}
 
+	void test_map_native_rect_edges_match_nearest_sampler() {
+		using namespace Sci::Roger;
+		// Non-integral scale (320x190 picture -> 799x474 overlay): every mapped edge
+		// must be ceil(v * dst / src) — the boundary consistent with the top-left
+		// rational sampling all Roger nearest scalers use — so Feeder-B stamps land
+		// exactly on the pixels that show their native rows.
+		Common::Rect picRect(0, 25, 799, 25 + 474);
+		for (int r = 1; r < 190; r++) {
+			int edge = 0;
+			for (int dy = 0; dy < 474; dy++)
+				if (dy * 190 / 474 < r)
+					edge++;
+			Common::Rect m = mapNativeRectToOverlay(Common::Rect(0, 10, 320, (int16)(10 + r)),
+			                                        picRect, 320, 190, 10);
+			TS_ASSERT_EQUALS(m.bottom - picRect.top, edge);
+		}
+	}
+
 	void test_upscale_native_region_nearest() {
 		using namespace Sci::Roger;
 		const Graphics::PixelFormat rgba(4, 8, 8, 8, 8, 24, 16, 8, 0);

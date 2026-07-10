@@ -109,10 +109,10 @@ Common::Rect mapNativeRectToOverlay(const Common::Rect &nativeRect,
 	const int ly0 = nativeRect.top - picScreenTop;
 	const int ly1 = nativeRect.bottom - picScreenTop;
 	return Common::Rect(
-		(int16)(picRect.left + lx0 * GW / picW),
-		(int16)(picRect.top  + ly0 * GH / picH),
-		(int16)(picRect.left + lx1 * GW / picW),
-		(int16)(picRect.top  + ly1 * GH / picH));
+		(int16)(picRect.left + mapNativeEdge(lx0, picW, GW)),
+		(int16)(picRect.top  + mapNativeEdge(ly0, picH, GH)),
+		(int16)(picRect.left + mapNativeEdge(lx1, picW, GW)),
+		(int16)(picRect.top  + mapNativeEdge(ly1, picH, GH)));
 }
 
 void upscaleNativeRegionNearest(Graphics::Surface &dest, const Common::Rect &overlayRect,

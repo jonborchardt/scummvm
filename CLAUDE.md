@@ -338,6 +338,15 @@ room-entry position or wiped the room signs — both shipped as bugs once.
   previous pics WITHOUT clearing: the provider keeps the kDrawPic sequence as `_picStack`
   and generates plate + priority map from the CONCATENATED command lists (exactly native
   replay semantics), content-keyed by all contributing pics' chained hashes.
+- Mapping a native rect edge to overlay space with **flooring** division (`v * dst / src`) →
+  sub-pixel seams at every boundary between separately-mapped content: the edge consistent
+  with the top-left rational sampling ALL Roger nearest scalers use is **ceiling** division
+  (`Roger::mapNativeEdge` in `roger_coords.h` — the enhanced status bar rendered 1px
+  narrower than native, 2026-07-09). Every native→overlay rect conversion goes through it;
+  never open-code the division. Related: the status strip is fully overlay-owned —
+  `uiPushStatus` + `rogerPushBarOverlay` draw the black underline row (`_menuLine`,
+  `statusStripRemainder`) so no visible seam depends on how the backend samples its game
+  blit (its convention differs from Roger's and is not observable).
 - Composing anything into `_scratchScene` other than renderFrame/presentWithUi's own frame →
   renderScene redraws only its seed union per frame and relies on the scratch's remaining
   pixels persisting; presentComparison composing the split layout there produced a RECURSIVE

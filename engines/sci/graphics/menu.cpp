@@ -437,6 +437,10 @@ void GfxMenu::rogerPushBarOverlay() {
 	Common::Rect barRect = _ports->_menuBarRect;
 	g_sciRogerProvider->uiPushWindow(barRect, _screen->getColorWhite(), 0,
 	                                 2 /*SCI_WINDOWMGR_STYLE_NOFRAME*/, tok);
+	// Mirror the black underline drawBar fills below the bar (_menuLine) so the
+	// whole reserved strip stays overlay-owned while the bar replaces the banner.
+	g_sciRogerProvider->uiPushWindow(_ports->_menuLine, 0, 0,
+	                                 2 /*SCI_WINDOWMGR_STYLE_NOFRAME*/, tok);
 	for (uint i = 0; i < _rogerBarTitles.size(); i++) {
 		const RogerMenuRow &t = _rogerBarTitles[i];
 		if (!rogerTitleIsText(t.text))
