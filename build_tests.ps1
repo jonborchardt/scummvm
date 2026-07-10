@@ -66,7 +66,7 @@ $RogerSources = @(
     "..\..\engines\sci\roger\overlay\roger_text.cpp",
     "..\..\engines\sci\roger\overlay\roger_palette_remap.cpp",
     "..\..\engines\sci\roger\roger_selftest.cpp",
-    "..\..\engines\sci\roger\roger_widgets.cpp",
+    "..\..\engines\sci\roger\ui\roger_widgets.cpp",
     "..\..\engines\sci\roger\utils\studio\roger_studio_render.cpp",
     "..\..\engines\sci\roger\roger_input.cpp",
     "..\..\engines\sci\roger\gen\roger_view_scaler.cpp",

@@ -39,7 +39,7 @@
 // event.cpp's key/mouse routing — must go through the plain virtuals on the
 // abstract provider (roger_art_provider.h), which name no tunepanel types.
 // This module may only consume stable SCI-free roger seams
-// (roger_widgets.h, roger_passes.h, roger_view_scaler.h, roger_coords.h) —
+// (ui/roger_widgets.h, roger_passes.h, roger_view_scaler.h, roger_coords.h) —
 // never provider/compositor internals, never SCI engine state, and never
 // anything under utils/studio/ (each utils/ tool is quarantined on its own).
 //
@@ -50,7 +50,7 @@
 #include "common/array.h"
 #include "common/rect.h"
 #include "common/str.h"
-#include "sci/roger/roger_widgets.h" // PanelWidget, widId, hitTestWidgets
+#include "sci/roger/ui/roger_widgets.h" // PanelWidget, widId, hitTestWidgets
 
 namespace Graphics { class ManagedSurface; }
 

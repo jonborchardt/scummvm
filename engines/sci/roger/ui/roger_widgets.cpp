@@ -18,7 +18,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "sci/roger/roger_widgets.h"
+#include "sci/roger/ui/roger_widgets.h"
 
 namespace Sci {
 namespace Roger {

@@ -21,7 +21,7 @@
 #include "sci/roger/launcher/roger_launcher_dialog.h"
 #include "sci/roger/launcher/roger_picker_view.h"
 #include "sci/roger/gen/roger_passes.h"
-#include "sci/roger/roger_widgets.h"
+#include "sci/roger/ui/roger_widgets.h"
 #include "gui/gui-manager.h"
 #include "gui/ThemeEngine.h"
 #include "gui/widget.h"

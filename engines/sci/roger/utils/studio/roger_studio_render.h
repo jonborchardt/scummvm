@@ -28,7 +28,7 @@
 // See roger_studio.h for the quarantine contract (who may reference
 // utils/studio/ â€” the env-gated sci.cpp hook + build lists + tests only).
 // The generic widget record / hit-testing lives in the neutral
-// sci/roger/roger_widgets.h (shared with the F12 tune panel); pass-list edit
+// sci/roger/ui/roger_widgets.h (shared with the F12 tune panel); pass-list edit
 // ops and stamps live in sci/roger/gen/roger_passes.h.
 
 #include "common/array.h"
@@ -36,7 +36,7 @@
 #include "common/str.h"
 #include "sci/roger/gen/roger_omyac.h"
 #include "sci/roger/gen/roger_scale.h"
-#include "sci/roger/roger_widgets.h"
+#include "sci/roger/ui/roger_widgets.h"
 
 namespace Sci {
 namespace Roger {

@@ -1,7 +1,7 @@
 #include <cxxtest/TestSuite.h>
 #include "common/util.h"
 #include "engines/sci/roger/launcher/roger_picker_model.h"
-#include "engines/sci/roger/roger_widgets.h"
+#include "engines/sci/roger/ui/roger_widgets.h"
 
 using namespace Sci::Roger;
 

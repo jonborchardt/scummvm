@@ -18,8 +18,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef SCI_ROGER_ROGER_WIDGETS_H
-#define SCI_ROGER_ROGER_WIDGETS_H
+#ifndef SCI_ROGER_UI_ROGER_WIDGETS_H
+#define SCI_ROGER_UI_ROGER_WIDGETS_H
 
 // Minimal immediate-mode widget primitives shared by the Roger debug panels
 // (the F12 tune panel in utils/tunepanel/ and the Studio in utils/studio/).
@@ -55,4 +55,4 @@ uint32 hitTestWidgets(const Common::Array<PanelWidget> &widgets, int x, int y);
 } // namespace Roger
 } // namespace Sci
 
-#endif // SCI_ROGER_ROGER_WIDGETS_H
+#endif // SCI_ROGER_UI_ROGER_WIDGETS_H

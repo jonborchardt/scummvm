@@ -29,7 +29,7 @@
 
 #include "gui/widget.h"
 #include "graphics/managed_surface.h"
-#include "sci/roger/roger_widgets.h"
+#include "sci/roger/ui/roger_widgets.h"
 #include "sci/roger/launcher/roger_launcher.h"
 #include "sci/roger/launcher/roger_picker_model.h"
 
