@@ -482,7 +482,7 @@ public:
 
 	void test_reset_for_room_change_forces_full_first_frame() {
 		// REGRESSION for the QFG1 fresh-start town breakage. A room entered via a real
-		// transition pre-warms the static-bg cache (onTransition -> composeRoomScene), so
+		// transition pre-warms the static-bg cache (claimTransition -> composeRoomScene), so
 		// the first post-transition renderFrame would otherwise take the BOUNDED-seed path
 		// (lastSceneWasFull()==false) using dirty-rect history from the PREVIOUS room.
 		// resetForRoomChange() must force the next renderScene back to a FULL seed and drop

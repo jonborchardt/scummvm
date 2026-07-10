@@ -30,6 +30,7 @@
 #include "sci/graphics/palette16.h"
 #include "sci/graphics/transitions.h"
 #include "sci/roger/roger_art_provider.h"
+#include "sci/sci_gfx_observer.h"
 
 namespace Sci {
 
@@ -181,30 +182,26 @@ void GfxTransitions::doit(Common::Rect picRect) {
 		}
 	}
 
-	// Roger overlay: mirror the transition in the hires overlay, then finalize SCI's
-	// native screen instantly (invisible under the opaque overlay). Skips SCI's animated
-	// transition to avoid double-blocking. Gated; no-op when Roger is inactive or the
-	// overlay is hidden (F10 A/B toggle) so the user sees the native SCI transition.
-	// _number is the *normalized* SCI_TRANSITIONS_* value at this point — the
-	// _translationTable block above has already translated any old SCI0 raw IDs in-place.
-	// This branch sits ABOVE the native blackout pre-pass: that pass animates black
-	// rects on the driver screen with real delays — pure invisible dead time under the
-	// opaque overlay. The blackout PRE-TYPE (the same table lookup the native path
-	// uses) is handed to the provider instead, so it can mirror the original's
-	// two-phase old->black->new form; -1 = no blackout.
-	if (g_sciRogerProvider && g_sciRogerProvider->enabled && g_sciRogerProvider->isOverlayVisible()) {
+	// Room transition claim (L4): an observer that renders its own transition claims
+	// this to skip SCI's animated one (pure invisible dead time under an opaque
+	// overlay — double-blocking). _number is the normalized SCI_TRANSITIONS_* value;
+	// blackoutNumber mirrors the two-phase old->black->new form (-1 = plain). The
+	// claim returns false while the observer's overlay is hidden, so the native
+	// transition still runs for the A/B (F10) original view.
+	if (g_sciGfxObserver) {
 		int16 blackoutNumber = -1;
 		if (_blackoutFlag) {
 			const GfxTransitionTranslateEntry *blackoutEntry = translateNumber(_number, blackoutTransitionIDs);
 			if (blackoutEntry)
 				blackoutNumber = blackoutEntry->newId;
 		}
-		_palette->palVaryPrepareForTransition();
-		g_sciRogerProvider->onTransition(_number, picRect, blackoutNumber);
-		setNewScreen(_blackoutFlag); // instant final pixels (the NONE path)
-		setNewPalette(_blackoutFlag);
-		_screen->_picNotValid = 0;
-		return;
+		if (g_sciGfxObserver->claimTransition(_number, picRect, blackoutNumber)) {
+			_palette->palVaryPrepareForTransition();
+			setNewScreen(_blackoutFlag); // instant final pixels (the NONE path)
+			setNewPalette(_blackoutFlag);
+			_screen->_picNotValid = 0;
+			return;
+		}
 	}
 
 	if (_blackoutFlag) {

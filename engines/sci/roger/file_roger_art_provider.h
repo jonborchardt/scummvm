@@ -50,7 +50,6 @@ public:
 	FileRogerArtProvider(const Common::String &gameId, const Common::Path &gamePath);
 	~FileRogerArtProvider();
 
-	bool isOverlayVisible() const override;
 	// Concrete provider members (no longer abstract observer virtuals — R2):
 	// hasBackground/pushHiresBackground*/onNativePicture are called by the new
 	// onPicture/onPictureAbsent dispatchers and by the launcher precache path.
@@ -113,12 +112,12 @@ public:
 	void onFree(uint32 token) override;
 	void onRestore(uint32 token, const Common::Rect &rect) override;
 	void onFrameEnd() override;
-	void onTransition(int sciType, const Common::Rect &picRect, int blackoutSciType) override;
-	void onShake(int shakeCount, int directions) override;
+	bool claimTransition(int sciType, const Common::Rect &picRect, int blackoutSciType) override;
+	bool claimShake(int shakeCount, int directions) override;
 	void onCursorShape(int cursorId) override;
 	void onCursorHidden(bool hidden) override;
 	void onCursorView(int viewId, int loopNo, int celNo) override;
-	bool hidesNativeCursor() const override;
+	bool claimCursor() const override;
 	void remapComparisonMouse(Common::Point &mousePos) override;
 	void toggleOverlay() override;   // F10: upscaled overlay <-> original native (display mode)
 	void toggleDebugLog() override;  // F11: per-frame Roger diagnostic logging

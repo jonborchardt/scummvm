@@ -182,7 +182,7 @@ FileRogerArtProvider::FileRogerArtProvider(const Common::String &gameId,
 	// Cursor: the backend hardware cursor is composited ABOVE the OSystem overlay
 	// and leaks at the screen edge (verified in live play), so Roger composites its
 	// own arrow into the overlay scene and actively hides the HW cursor while
-	// Enhanced/Side-by-Side is on-screen (see hidesNativeCursor()). Default to the
+	// Enhanced/Side-by-Side is on-screen (see claimCursor()). Default to the
 	// composited cursor. roger_hw_cursor=true opts back into the stock native
 	// cursor for experimentation. Default false.
 	_useHwCursor = false;
@@ -246,10 +246,6 @@ FileRogerArtProvider::FileRogerArtProvider(const Common::String &gameId,
 	);
 
 	applyNativeCursorVisibility();
-}
-
-bool FileRogerArtProvider::isOverlayVisible() const {
-	return overlayShown();
 }
 
 bool FileRogerArtProvider::hasBackground(GuiResourceId pictureId) const {
@@ -1177,7 +1173,7 @@ void FileRogerArtProvider::onCursorView(int viewId, int loopNo, int celNo) {
 	buildCursorFromView(viewId, loopNo, celNo);
 }
 
-bool FileRogerArtProvider::hidesNativeCursor() const {
+bool FileRogerArtProvider::claimCursor() const {
 	// prebuilt = native-only mode: the overlay is never presented and Roger
 	// composites no cursor, so keep the stock hardware cursor (don't veto it).
 	// The added generation gate is static per-run, so it cannot reintroduce
@@ -1190,7 +1186,7 @@ void FileRogerArtProvider::applyNativeCursorVisibility() {
 	// GfxCursor::_isVisible is the game's logical cursor state; may not exist yet
 	// at provider construction — default to visible, the first kernelShow re-syncs.
 	const bool gameVisible = (g_sci && g_sci->_gfxCursor) ? g_sci->_gfxCursor->isVisible() : true;
-	CursorMan.showMouse(gameVisible && !hidesNativeCursor());
+	CursorMan.showMouse(gameVisible && !claimCursor());
 }
 
 void FileRogerArtProvider::buildCursorForShape(int cursorId) {
@@ -3613,17 +3609,21 @@ void FileRogerArtProvider::composeRoomScene(Graphics::ManagedSurface &out,
 	_compositor->renderScene(out, sprites, gameRect);
 }
 
-void FileRogerArtProvider::onTransition(int sciType, const Common::Rect & /*picRect*/, int blackoutSciType) {
+bool FileRogerArtProvider::claimTransition(int sciType, const Common::Rect & /*picRect*/, int blackoutSciType) {
+	// Overlay hidden (Original / F10 A-B view) or Roger off/native-only: don't claim,
+	// so SCI's native animated transition runs. Every other path claims (returns true)
+	// so the caller finalizes the screen instantly — matches the old gate that skipped
+	// the native transition unconditionally once enabled && overlay visible.
 	if (!_transitionsEnabled || !overlayShown() || !_compositor || !_plate)
-		return;
+		return false;
 	diagDumpState("transition");
 	const Roger::TransitionFamily fam = Roger::transitionFamilyFor(sciType);
 	if (fam == Roger::kFxNone && blackoutSciType < 0)
-		return; // instant cut: the deferred first-frame present (existing path) handles it
+		return true; // instant cut: the deferred first-frame present (existing path) handles it
 	const Graphics::PixelFormat rgba(4, 8, 8, 8, 8, 24, 16, 8, 0);
 	const int OW = g_system->getOverlayWidth(), OH = g_system->getOverlayHeight();
 	if (OW <= 0 || OH <= 0)
-		return;
+		return true;
 	// `from` = the previous room's last composed scene (still in _sceneCache). If there
 	// is none (first room of the session), fade up from black.
 	Graphics::ManagedSurface from(OW, OH, rgba);
@@ -3707,19 +3707,27 @@ void FileRogerArtProvider::onTransition(int sciType, const Common::Rect & /*picR
 	// is fine). Reset the compositor to a clean first frame (full seed + full present, stale
 	// dirty rects dropped) so a transition-entry matches a save-restore/instant-cut entry.
 	_compositor->resetForRoomChange();
+	return true;
 }
 
-void FileRogerArtProvider::onShake(int shakeCount, int directions) {
-	if (!_transitionsEnabled || !overlayShown() || _mode == Roger::kModeSideBySide ||
+bool FileRogerArtProvider::claimShake(int shakeCount, int directions) {
+	// Overlay hidden / Roger off: don't claim, native shake runs. Once claimed the
+	// native (blocking) shake is skipped even if the finer guards below drop the FX —
+	// exactly the old gate, which suppressed the native shake whenever enabled &&
+	// overlay visible (side-by-side included).
+	if (!enabled || !overlayShown())
+		return false;
+	if (!_transitionsEnabled || _mode == Roger::kModeSideBySide ||
 	        !_compositor || !_haveScene || !_sceneCache)
-		return; // side-by-side: pure FX, would present the non-split layout Ã¢â‚¬â€ skip
+		return true; // side-by-side: pure FX, would present the non-split layout Ã¢â‚¬â€ skip
 	const int OW = g_system->getOverlayWidth(), OH = g_system->getOverlayHeight();
 	if (OW <= 0 || OH <= 0 || _sceneCache->w != OW || _sceneCache->h != OH)
-		return;
+		return true;
 	// Native SCI shake is ~10px of 200 rows; scale into overlay space.
 	const int mag = (10 * OH) / 200;
 	Graphics::ManagedSurface &scratch = *scratchScene(OW, OH);
 	_compositor->runShake(*_sceneCache, scratch, shakeCount, directions, mag);
+	return true;
 }
 
 FileRogerArtProvider::~FileRogerArtProvider() {

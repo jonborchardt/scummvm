@@ -37,9 +37,10 @@ class GfxScreen;
 // Strangler base (SciGfxObserver): during the observer migration this class
 // derives from the neutral seam; each task moves a hook family from the old
 // virtuals below onto SciGfxObserver and deletes the old virtual here. The
-// same-name redeclarations that remain during migration (onMouseMoved,
-// onCursorShape/onCursorView/onCursorHidden) intentionally OVERRIDE the base
-// no-ops — identical signatures, identical no-op bodies.
+// same-name redeclaration that remains during migration (onMouseMoved)
+// intentionally OVERRIDES the base no-op — identical signature, identical
+// no-op body. (The cursor notifications onCursorShape/onCursorView/
+// onCursorHidden now live only on the neutral base — R16.)
 class RogerArtProvider : public SciGfxObserver {
 public:
 	virtual ~RogerArtProvider() {}
@@ -65,36 +66,11 @@ public:
 	// R4: generic text-out capture migrated to SciGfxObserver::onText (source
 	// kTextSourceBox); the old onNativeText virtual is deleted.
 
-	// Called from GfxTransitions::doit() when a room transition is about to run (gated on
-	// g_sciRogerProvider + enabled). The provider mirrors the effect in the overlay; SCI's
-	// native transition is then finalized instantly (invisible under the opaque overlay).
-	// sciType is the *normalized* transitions.h enum value (SCI_TRANSITIONS_*) — raw
-	// game-script IDs have already been translated by GfxTransitions::doit() before this
-	// hook fires. picRect is the 320x200 picture rect. blackoutSciType mirrors the
-	// original's two-phase blackout form (SCI0 raw IDs 11-17): the screen first
-	// animates old -> BLACK with that (normalized) type, then black -> new with
-	// sciType. -1 = no blackout (plain old -> new).
-	virtual void onTransition(int sciType, const Common::Rect &picRect, int blackoutSciType) {}
-	// Called from kShakeScreen (gated). shakeCount jolts; directions bit0=vertical,
-	// bit1=horizontal. The provider jolts the overlay; native shake is skipped.
-	virtual void onShake(int shakeCount, int directions) {}
-
-	// Called when SCI sets a new cursor shape (SCI0 kSetCursor resourceId).
-	// The provider decodes the resource and rebuilds the hires cursor surface.
-	// cursorId < 0 -> treat as hidden. No-op in base.
-	virtual void onCursorShape(int cursorId) {}
-	// Called when SCI shows or hides the cursor (kSetCursor hide/show paths).
-	// When hidden the composited cursor is not drawn. No-op in base.
-	virtual void onCursorHidden(bool hidden) {}
-	// Called when SCI sets a VIEW-based cursor (SCI1 kSetCursor argc=3 path).
-	// Provider renders the native cel scaled 5x and stores it as the cursor surface.
-	virtual void onCursorView(int viewId, int loopNo, int celNo) {}
-
-	// True while the provider's composited cursor owns the pointer visual — the
-	// backend hardware cursor must not be drawn (it leaks at the overlay edge,
-	// where it is composited ABOVE the overlay by every backend). Default false:
-	// stock native cursor behavior when no provider / provider disabled.
-	virtual bool hidesNativeCursor() const { return false; }
+	// R14/R15/R16: transition/shake/cursor migrated to SciGfxObserver — the
+	// claims claimTransition/claimShake/claimCursor and the cursor notifications
+	// onCursorShape/onCursorView/onCursorHidden live on the neutral base; the old
+	// onTransition/onShake/hidesNativeCursor and the three cursor virtuals are
+	// deleted here.
 
 	// UI display-list capture (Roger hires dialogs). SCI's high-level UI draw calls
 	// push resolution-independent elements (global 320x200 rects) here; the provider
@@ -128,11 +104,9 @@ public:
 	virtual void toggleTunePanel() {}
 	virtual bool tunePanelMouse(bool buttonDown, const Common::Point &gamePos) { return false; }
 
-	// Returns true when the hires overlay is currently visible (i.e. F10 has not
-	// hidden it). Used to gate overlay-specific effects (transitions, shake): when
-	// the overlay is hidden the user is viewing the native 320x200 render, so native
-	// SCI transitions and shake should run instead of being suppressed.
-	virtual bool isOverlayVisible() const { return false; }
+	// R14/R15/R16: the old isOverlayVisible() gate is deleted — the overlay-hidden
+	// check now lives INSIDE FileRogerArtProvider's claim impls (claimTransition/
+	// claimShake/claimCursor return false while the overlay is hidden, so native runs).
 
 	// Set to false to disable Roger without destroying the provider.
 	// ScummVM native rendering is used when false.

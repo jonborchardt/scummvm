@@ -361,7 +361,7 @@ public:
 	void invalidateBackgroundCache() { _bgPlate = nullptr; }
 
 	// Force the next frame to be a CLEAN first frame after a room change that was reached
-	// via a real transition. onTransition()'s composeRoomScene() pre-warms _bgCache, which
+	// via a real transition. claimTransition()'s composeRoomScene() pre-warms _bgCache, which
 	// would otherwise let the first post-transition renderFrame take the bounded-seed +
 	// dirty-present path using the PREVIOUS room's stale dirty-rect history (never cleared
 	// on room change) â€” the QFG1 fresh-start town breakage (stale/missing regions, native

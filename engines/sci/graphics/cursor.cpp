@@ -38,6 +38,7 @@
 #include "sci/graphics/cursor.h"
 #include "sci/graphics/maciconbar.h"
 #include "sci/roger/roger_art_provider.h"
+#include "sci/sci_gfx_observer.h"
 
 namespace Sci {
 
@@ -81,7 +82,10 @@ GfxCursor::~GfxCursor() {
 }
 
 void GfxCursor::kernelShow() {
-	CursorMan.showMouse(!(g_sciRogerProvider && g_sciRogerProvider->hidesNativeCursor()));
+	// An observer that composites its own cursor claims the pointer visual, so the
+	// backend hardware cursor is suppressed (it draws above any overlay and leaks
+	// at the letterbox edge — see SciGfxObserver::claimCursor).
+	CursorMan.showMouse(!(g_sciGfxObserver && g_sciGfxObserver->claimCursor()));
 	_isVisible = true;
 }
 
