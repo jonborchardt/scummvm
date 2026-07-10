@@ -89,8 +89,9 @@ Everything else — including `event.cpp`'s key/mouse routing — must go throug
 the plain virtuals on the abstract provider, which name no tunepanel types.
 Panel visuals (colors, fonts, layout painting) use the shared
 `ui/roger_panel_style.h` kit (PanelStyle + PanelFonts + PanelPainter);
-the provider bakes the rendered surface into `_tuneBake` once per open
-so repeated presents are a surface copy, not a repaint.
+the provider bakes the rendered surface into `_tuneBake` and re-renders it
+only when the signature changes (state, hover, or dest-rect/scale);
+repeated presents at steady state are a surface copy, not a repaint.
 This module may only consume stable SCI-free roger seams
 (`ui/roger_widgets.h`, `ui/roger_panel_style.h`, `roger_passes.h`,
 `roger_view_scaler.h`, `roger_coords.h`) — never provider/compositor

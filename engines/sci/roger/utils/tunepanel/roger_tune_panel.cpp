@@ -168,9 +168,11 @@ void drawTunePanel(Graphics::ManagedSurface &scene, const Common::Rect &gameRect
 		panel.left, panel.top, panel.width(), panel.height(),
 		st.hoverId, tuneStatusLine(st).c_str());
 	for (uint i = 0; i < widgets.size(); i++)
-		sig += Common::String::format("%u:%s:%d%d;", widgets[i].id,
+		sig += Common::String::format("%u:%s:%d%d:%d,%d,%d,%d;", widgets[i].id,
 			widgets[i].label.c_str(), widgets[i].on ? 1 : 0,
-			widgets[i].enabled ? 1 : 0);
+			widgets[i].enabled ? 1 : 0,
+			widgets[i].rect.left, widgets[i].rect.top,
+			widgets[i].rect.right, widgets[i].rect.bottom);
 
 	if (sig != bake.sig) {
 		bake.sig = sig;
@@ -225,6 +227,8 @@ void drawTunePanel(Graphics::ManagedSurface &scene, const Common::Rect &gameRect
 		                 Graphics::kTextAlignLeft);
 	}
 
+	// blendBlitFrom is safe here: dst == src size and tunePanelRect is strictly
+	// inside 320x200, so the panel dest rect is always fully contained in the scene.
 	scene.blendBlitFrom(bake.surface,
 		Common::Rect(0, 0, bake.surface.w, bake.surface.h), panel);
 }

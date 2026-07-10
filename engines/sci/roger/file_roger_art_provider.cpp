@@ -1432,6 +1432,20 @@ void FileRogerArtProvider::presentWithUi() {
 		newCur.clip(fullR);
 		if (!newCur.isEmpty())
 			scene.copyRectToSurface(_compositeCache->rawSurface(), newCur.left, newCur.top, newCur);
+		// Tune panel: restore from cache before alpha-blending so the 216-alpha bake
+		// always composites over clean cache pixels, not last present's already-blended
+		// output (which would progressively darken toward opaque). Mirrors the cursor
+		// treatment above: restore base, then draw, then dirty the region.
+		if (_tunePanel.open && _mode == Roger::kModeEnhanced && !_lastGameRect.isEmpty()) {
+			Common::Rect panelR = Roger::sciRectToDest(
+				Roger::tunePanelRect(_tunePanel.leftSide), _lastGameRect);
+			panelR.clip(fullR);
+			if (!panelR.isEmpty()) {
+				scene.copyRectToSurface(_compositeCache->rawSurface(),
+				                        panelR.left, panelR.top, panelR);
+				_compositor->addDirtyRect(panelR);
+			}
+		}
 		compositeCursor(scene, _lastGameRect); // paints + addDirtyRect + _lastCursorDstRect
 		_compositor->presentToOverlay(scene);
 		maybeScriptCapture(scene, _lastGameRect); // grabs real overlay when _truthCapture; otherwise no-op (capture forces full path above)
