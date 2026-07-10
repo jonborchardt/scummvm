@@ -25,19 +25,22 @@
 #include "common/list.h"
 #include "common/rect.h"
 #include "sci/graphics/helpers.h"
+#include "sci/sci_gfx_observer.h"
 
 namespace Sci {
 
 class GfxScreen;
 
-// Forward declaration of the SCI animate list, so this base header stays
-// decoupled from the full SCI engine internals (it is included by sci.cpp /
-// paint16.cpp / animate.cpp). The concrete definition lives in
-// sci/graphics/animate.h, which only file_roger_art_provider.cpp includes.
-struct AnimateEntry;
-typedef Common::List<AnimateEntry> AnimateList;
+// AnimateEntry/AnimateList forward declarations now come from
+// sci/sci_gfx_observer.h (same decoupling rationale).
 
-class RogerArtProvider {
+// Strangler base (SciGfxObserver): during the observer migration this class
+// derives from the neutral seam; each task moves a hook family from the old
+// virtuals below onto SciGfxObserver and deletes the old virtual here. The
+// same-name redeclarations that remain during migration (onMouseMoved,
+// onCursorShape/onCursorView/onCursorHidden) intentionally OVERRIDE the base
+// no-ops — identical signatures, identical no-op bodies.
+class RogerArtProvider : public SciGfxObserver {
 public:
 	virtual ~RogerArtProvider() {}
 

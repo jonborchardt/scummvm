@@ -72,6 +72,7 @@
 #include "sci/graphics/screen.h"
 #include "sci/graphics/text16.h"
 #include "sci/graphics/transitions.h"
+#include "sci/sci_gfx_observer.h"
 #include "sci/roger/file_roger_art_provider.h"
 #include "sci/roger/launcher/roger_launcher.h"
 #include "sci/roger/utils/studio/roger_studio.h" // quarantined dev utility (Roger Studio)
@@ -227,6 +228,7 @@ SciEngine::SciEngine(OSystem *syst, const ADGameDescription *desc, SciGameId gam
 }
 
 SciEngine::~SciEngine() {
+	g_sciGfxObserver = nullptr; // aliases g_sciRogerProvider — clear before deleting it
 	delete g_sciRogerProvider;
 	g_sciRogerProvider = nullptr;
 #ifdef ENABLE_SCI32
@@ -411,6 +413,9 @@ Common::Error SciEngine::run() {
 	}
 
 	g_sciRogerProvider = new FileRogerArtProvider(getGameIdStr(), ConfMan.getPath("path"));
+	// Strangler registration: the same object serves both seams while hook
+	// families migrate from RogerArtProvider onto SciGfxObserver.
+	g_sciGfxObserver = g_sciRogerProvider;
 
 	// Roger Studio: tuning environment (quarantined dev utility,
 	// engines/sci/roger/utils/studio/) — build_and_run.ps1 -Studio /
