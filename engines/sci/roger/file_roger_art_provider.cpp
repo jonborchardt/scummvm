@@ -2387,6 +2387,45 @@ void FileRogerArtProvider::onRestore(uint32 handleToken, const Common::Rect &rec
 	// mid-cycle; a frozen cycle flushes the mark).
 	markNativeDirty(rect);
 	patchNativeBaseline(rect); // SBS: patch frozen-cycle draws into the native right-panel baseline
+	// An underbits restore whose rect exactly matches an init-captured cel's screen
+	// rect is the native ERASE of that object's init-frame pixels: actors get their
+	// save-under restored when they move, hide, or dispose, while genuinely baked
+	// props never do (their hunk is FREED, not restored, while _picNotValid is set
+	// — == 1, the only value SCI0 uses). Once natively erased the capture can never
+	// legitimately promote, so drop it — otherwise the owner leaving the animate
+	// list promotes a frozen duplicate at the capture position (SQ3 grabber ride:
+	// the parked grabber ghosted through the whole ride; same class as a duplicate
+	// ego frozen at the room-entry position). Exact match, not containment/coverage:
+	// a LARGER restore covering the rect (another actor passing over it, a dialog
+	// save-under) reverts pixels that still CONTAIN the baked prop, so those
+	// captures must survive. Both sides are port-clipped the same way bitsSave
+	// clipped the save-under, so edge-of-screen captures (room-entry positions)
+	// still match. Gated on the self-draw bracket: reAnimate's transient
+	// save/draw/restore dance fires an exact-rect restore for every cast cel on
+	// each dialog dismissal without erasing anything. Runs BEFORE the
+	// overlayShown() early return: the capture set mirrors the NATIVE buffer and
+	// must stay consistent while playing in Original mode too, or an erase missed
+	// there re-arms the ghost for the next F10 back to Enhanced.
+	if (_nativeDrawDepth == 0) {
+		// Cel rects are picture-window-local; restore rects are screen-global. The
+		// picture window starts below the status strip (_statusBarH rows; the
+		// compositor's picScreenTop() is 0 by design — its dest rect carries the
+		// offset instead).
+		const int picTop = _statusBarH;
+		const Common::Rect picArea(0, (int16)picTop, 320, 200);
+		for (uint i = _initCels.size(); i-- > 0;) {
+			Common::Rect s = _initCels[i].celRect; // picture-local
+			s.translate(0, (int16)picTop);         // -> screen space, as bitsSave saw it
+			s.clip(picArea);
+			if (s == rect) {
+				if (_diag)
+					warning("ROGER-DIAG[initCelDrop]: view=%d loop=%d cel=%d rect=(%d,%d,%d,%d) owner=%08x (natively erased)",
+					        _initCels[i].viewId, _initCels[i].loopNo, _initCels[i].celNo,
+					        rect.left, rect.top, rect.right, rect.bottom, _initCels[i].owner);
+				_initCels.remove_at(i);
+			}
+		}
+	}
 	if (!overlayShown() || !_plate || !_journal) { presentBarrier(); return; }
 	Common::Array<Common::Rect> removed;
 	bool did = _journal->rollback(handleToken, rect, &removed);
@@ -2418,41 +2457,6 @@ void FileRogerArtProvider::onRestore(uint32 handleToken, const Common::Rect &rec
 	for (uint i = _foregroundRegions.size(); i-- > 0;) {
 		if (Roger::restoreReclaimsStamp(rect, _foregroundRegions[i].rect, Roger::kCoverageThresholdPct))
 			_foregroundRegions.remove_at(i);
-	}
-	// An underbits restore whose rect exactly matches an init-captured cel's screen
-	// rect is the native ERASE of that object's init-frame pixels: actors get their
-	// save-under restored when they move, hide, or dispose, while genuinely baked
-	// props never do (their hunk is FREED, not restored, while _picNotValid is set).
-	// Once natively erased the capture can never legitimately promote, so drop it —
-	// otherwise the owner leaving the animate list promotes a frozen duplicate at
-	// the capture position (SQ3 grabber ride: the parked grabber ghosted through the
-	// whole ride; same class as a duplicate ego frozen at the room-entry position).
-	// Exact match, not containment/coverage: a LARGER restore covering the rect
-	// (another actor passing over it, a dialog save-under) reverts pixels that still
-	// CONTAIN the baked prop, so those captures must survive. Both sides are
-	// port-clipped the same way bitsSave clipped the save-under, so edge-of-screen
-	// captures (room-entry positions) still match. Gated on the self-draw bracket:
-	// reAnimate's transient save/draw/restore dance fires an exact-rect restore for
-	// every cast cel on each dialog dismissal without erasing anything.
-	if (_nativeDrawDepth == 0) {
-		// Cel rects are picture-window-local; restore rects are screen-global. The
-		// picture window starts below the status strip (_statusBarH rows; the
-		// compositor's picScreenTop() is 0 by design — its dest rect carries the
-		// offset instead).
-		const int picTop = _statusBarH;
-		const Common::Rect picArea(0, (int16)picTop, 320, 200);
-		for (uint i = _initCels.size(); i-- > 0;) {
-			Common::Rect s = _initCels[i].celRect; // picture-local
-			s.translate(0, (int16)picTop);         // -> screen space, as bitsSave saw it
-			s.clip(picArea);
-			if (s == rect) {
-				if (_diag)
-					warning("ROGER-DIAG[initCelDrop]: view=%d loop=%d cel=%d rect=(%d,%d,%d,%d) owner=%08x (natively erased)",
-					        _initCels[i].viewId, _initCels[i].loopNo, _initCels[i].celNo,
-					        rect.left, rect.top, rect.right, rect.bottom, _initCels[i].owner);
-				_initCels.remove_at(i);
-			}
-		}
 	}
 	for (uint i = 0; i < removed.size(); i++)
 		markVacatedDirty(removed[i]);
