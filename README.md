@@ -12,6 +12,21 @@ For more information, compatibility lists, details on donating, the
 latest release, progress reports and more, please visit the ScummVM [home
 page](https://www.scummvm.org/).
 
+## About this fork
+
+This repository is a downstream fork of ScummVM that carries the **Roger**
+display-layer enhancement for SCI0 EGA games (Space Quest III, Quest for
+Glory I EGA).  Roger replaces the display layer with hires art generated
+in-engine from the original game resources, while leaving all game logic
+intact.
+
+All modified ScummVM code in this fork is distributed under the GNU General
+Public License (version 3 or later); corresponding source is provided via
+this repository.  Game data is not included — see your game's own license.
+
+For details see [`docs/roger.md`](docs/roger.md) (user guide) and
+[`docs/roger/`](docs/roger/) (fork-maintenance and licensing documents).
+
 ## Quickstart
 
 For the impatient among you, here is how to get ScummVM running in five simple steps.
