@@ -25,7 +25,7 @@
 namespace Sci {
 namespace Roger {
 
-// Entry 0's module function: the shipping scale6x. clearKey is unused â€”
+// Entry 0's module function: the shipping scale6x. clearKey is unused  -- 
 // scale2x/scale3x carry the transparent index through like any other pixel.
 static IndexImage scale6xModule(const IndexImage &in, byte) {
 	return scale6x(in);
@@ -83,7 +83,7 @@ IndexImage applyViewScalerTo6x(int i, const IndexImage &in, byte clearKey) {
 	return out;
 }
 
-// -- View-enhance modes (registry + trailing nearest) -------------------------
+// -- View-enhance modes (registry + trailing nearest) ---
 
 int viewEnhanceModeCount() {
 	return viewScalerCount() + 1;

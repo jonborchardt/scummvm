@@ -36,7 +36,7 @@
 namespace Sci {
 namespace Roger {
 
-// â”€â”€â”€ Constants â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// --- Constants ---
 // CMD_NONE/CMD_LINE/CMD_FILL and the OMYAC_* dimensions come from
 // roger_pic_native.h.
 
@@ -60,7 +60,7 @@ static const int DIAGONALS[4][3] = {
 // Sentinel for enhance(): no winning colour found (outside 0x00-0xff).
 static const int ENHANCE_NO_RESULT = -1;
 
-// â”€â”€â”€ Internal data shapes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// --- Internal data shapes ---
 // Anchor positions in upscaled coords + 8-direction connection bitfield.
 struct Anchor {
 	int screenX;
@@ -69,7 +69,7 @@ struct Anchor {
 	int connects;
 };
 
-// â”€â”€â”€ Step 2: Build anchors â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// --- Step 2: Build anchors ---
 // projectOntoSegment returns (qx, qy) via out params and the squared distance.
 // Math.round on non-negative coords == (int)floorf(x + 0.5f).
 static float projectOntoSegment(float cx, float cy, float sx, float sy,
@@ -147,7 +147,7 @@ static void buildAnchors(const NativeRef &ref, Common::Array<Anchor> &anchors) {
 	}
 }
 
-// â”€â”€â”€ Step 3: Detect line endpoints â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// --- Step 3: Detect line endpoints ---
 static void detectLineEndings(const NativeRef &ref, Common::Array<Anchor> &anchors,
                               int endpointMaxSame) {
 	for (int y = 0; y < OMYAC_NATIVE_H; y++) {
@@ -170,7 +170,7 @@ static void detectLineEndings(const NativeRef &ref, Common::Array<Anchor> &ancho
 	}
 }
 
-// â”€â”€â”€ Step 4: Connect line anchors â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// --- Step 4: Connect line anchors ---
 static bool isLineCmd(const NativeRef &ref, int idx) {
 	return ref.cmdType[idx] == CMD_LINE;
 }
@@ -279,7 +279,7 @@ static void connectLineAnchors(const NativeRef &ref, Common::Array<Anchor> &anch
 	}
 }
 
-// â”€â”€â”€ Step 5: Connect fill anchors â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// --- Step 5: Connect fill anchors ---
 static void connectFillAnchors(const NativeRef &ref, Common::Array<Anchor> &anchors,
                                bool diagFlankSuppress) {
 	for (int y = 0; y < OMYAC_NATIVE_H; y++) {
@@ -335,7 +335,7 @@ static void connectFillAnchors(const NativeRef &ref, Common::Array<Anchor> &anch
 	}
 }
 
-// â”€â”€â”€ Step 6: Hybrid render â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// --- Step 6: Hybrid render ---
 // Half-A/half-B Bresenham used by the hybrid render pass.
 static void drawHybridLine(Common::Array<byte> &buf, Common::Array<byte> &typeBuf,
                            int x0, int y0, int x1, int y1,
@@ -459,7 +459,7 @@ static void hybridRender(const NativeRef &ref, Common::Array<Anchor> &anchors,
 	}
 }
 
-// â”€â”€â”€ Step 7: enhance() kernel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// --- Step 7: enhance() kernel ---
 static bool enhanceEligible(int pixType, int mode) {
 	if (mode == 1)
 		return pixType == CMD_LINE;
@@ -649,7 +649,7 @@ static void enhance(Common::Array<byte> &buf, Common::Array<byte> &typeBuf, int 
 	}
 }
 
-// â”€â”€â”€ Step 8: Final null-pixel mode fill â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// --- Step 8: Final null-pixel mode fill ---
 static void fillNullPixels(const NativeRef &ref, Common::Array<byte> &buf,
                            Common::Array<byte> &typeBuf, Common::Array<byte> &backfilled,
                            const OmyacParams &params) {
@@ -662,7 +662,7 @@ static void fillNullPixels(const NativeRef &ref, Common::Array<byte> &buf,
 		// Bounded, direction-neutral backfill (shipping default). Phase 1: up to
 		// backfillFloodRounds breadth-first majority rounds. Each round votes on a
 		// FROZEN copy of the buffers, so claimed colours advance exactly 1 px per
-		// round and opposing fronts meet symmetrically â€” unlike the legacy path
+		// round and opposing fronts meet symmetrically  --  unlike the legacy path
 		// below, whose in-place scan-order vote let a foreign colour cascade
 		// arbitrarily far down-right (the pod-door "cyan through the transparent
 		// corner" artifact). Interior gaps between hybrid strokes are <= ~3 px, so
@@ -767,7 +767,7 @@ static void fillNullPixels(const NativeRef &ref, Common::Array<byte> &buf,
 	}
 }
 
-// â”€â”€â”€ Top-level entry point â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// --- Top-level entry point ---
 Common::Array<int> defaultPasses() {
 	return parsePassString(kDefaultPassString);
 }

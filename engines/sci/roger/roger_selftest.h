@@ -42,7 +42,7 @@ struct SelfTestResult {
 	const char *firstFailure = nullptr; // first invariant that failed, or nullptr
 };
 
-// Pure evaluation — no engine access, unit-testable.
+// Pure evaluation  --  no engine access, unit-testable.
 SelfTestResult evaluateInvariants(const SelfTestInputs &in, const RogerCapabilities &caps);
 
 // Emit a single PASS/FAIL line keyed on gameId (data artifact, Constraint 9 OK).

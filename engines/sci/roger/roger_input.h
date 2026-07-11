@@ -21,16 +21,15 @@
 #ifndef SCI_ROGER_ROGER_INPUT_H
 #define SCI_ROGER_ROGER_INPUT_H
 
-// Input automation for the Roger verification loop (design spec:
-// docs/superpowers/specs/2026-07-01-roger-input-automation-design.md).
+// Input automation for the Roger verification loop.
 //
 // MCP-READINESS BOUNDARY: this unit speaks pure Common::Event and may include
-// ONLY common/* headers — no SCI/Roger engine types. It is the engine-agnostic
+// ONLY common/* headers  --  no SCI/Roger engine types. It is the engine-agnostic
 // core a future MCP server (or any other front-end) would reuse unchanged.
 //
 // .rin grammar (game-space 320x200 coords; '#' comments; blank lines skipped):
 //   click X Y | rclick X Y | move X Y | mousedown X Y | mouseup X Y | key <token> | type "text"
-//   (mousedown/mouseup bracket a press-and-hold drag: mousedown, intervening moves, mouseup —
+//   (mousedown/mouseup bracket a press-and-hold drag: mousedown, intervening moves, mouseup  -- 
 //    e.g. the SCI0 mouse menu path that opens dropdowns while the button is held)
 //   wait <ms> | waituntil <key> <value> <timeoutMs>
 //   capture <label> | snap <label> | state
@@ -83,7 +82,7 @@ struct ScriptCommand {
 
 // Parse one script line. Returns true and fills cmd for a real command; false
 // for blank/comment lines (cmd.type = kCmdNone) and for malformed lines (a
-// warning() is emitted; the caller skips the line — never fatal).
+// warning() is emitted; the caller skips the line  --  never fatal).
 bool parseScriptLine(const Common::String &line, ScriptCommand &cmd);
 
 // Map a key token to keycode + ascii. Case-sensitive single chars (a-z, 0-9),
@@ -120,7 +119,7 @@ struct TimedAction {
 
 // Timed synthetic-event source. Registered with the backend EventDispatcher
 // (EventManager::getEventDispatcher()->registerSource) so due events are
-// delivered through the normal pollEvent path — during blocking dialogs too
+// delivered through the normal pollEvent path  --  during blocking dialogs too
 // (their own poll drives the dispatch). allowMapping() = false keeps the
 // keymapper out of the loop. The per-poll cost is O(1): one due-time compare.
 class InputScriptDriver : public Common::EventSource {

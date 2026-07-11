@@ -25,20 +25,20 @@
 namespace Sci {
 namespace Roger {
 // Format of a SCI picture resource, detected from the first 2 bytes.
-// kPicSci0Ega   â€” SCI0 EGA vector data (Roger omyac pipeline).
-// kPicSci11VgaCel â€” SCI1.1 VGA: LE header word 0x0026, cel background + vector overlay.
-// kPicSci1VgaVector â€” SCI1.0 VGA vector (same opcodes as EGA but 256-color palette);
+// kPicSci0Ega    --  SCI0 EGA vector data (Roger omyac pipeline).
+// kPicSci11VgaCel  --  SCI1.1 VGA: LE header word 0x0026, cel background + vector overlay.
+// kPicSci1VgaVector  --  SCI1.0 VGA vector (same opcodes as EGA but 256-color palette);
 //                     currently unsupported (returns nullptr from generate*).
 enum PicFormat { kPicSci0Ega = 0, kPicSci11VgaCel = 1, kPicSci1VgaVector = 2 };
 
 // Detect the format from the raw resource bytes. Never reads past `size` bytes.
 // Returns kPicSci0Ega for unknown/short resources (safe fallback).
-// Note: kPicSci1VgaVector cannot be detected from bytes alone â€” caller must pass
+// Note: kPicSci1VgaVector cannot be detected from bytes alone  --  caller must pass
 // isEga=false to distinguish it from kPicSci0Ega when the engine is in VGA mode.
 PicFormat picResourceFormat(const byte *data, uint32 size, bool isEga = true);
 
 // Port of sci.js parse-pic.ts. Returns commands; stops cleanly on unknown
-// opcode or EOF (never throws, never crashes â€” Hard Constraint 6).
+// opcode or EOF (never throws, never crashes  --  Hard Constraint 6).
 Common::Array<DrawCommand> parsePic(const byte *data, uint32 size);
 } // namespace Roger
 } // namespace Sci

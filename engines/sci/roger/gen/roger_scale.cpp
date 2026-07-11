@@ -41,7 +41,7 @@
 namespace Sci {
 namespace Roger {
 
-// ---------------------------------------------------------------------------
+// ---
 // scale2x
 // Verbatim port of scale2x.ts lines 18-43.
 //
@@ -53,7 +53,7 @@ namespace Roger {
 // Output 2x2 block written as:
 //   p1 p2
 //   p3 p4
-// ---------------------------------------------------------------------------
+// ---
 IndexImage scale2x(const IndexImage &in) {
 	IndexImage out;
 	if (in.w <= 0 || in.h <= 0 || in.pixels.empty()) {
@@ -104,7 +104,7 @@ IndexImage scale2x(const IndexImage &in) {
 	return out;
 }
 
-// ---------------------------------------------------------------------------
+// ---
 // s9 (file-private helper)
 // Verbatim port of s9.ts lines 8-37.
 //
@@ -116,7 +116,7 @@ IndexImage scale2x(const IndexImage &in) {
 //
 // Any position that falls outside [0,width) x [0,height) is clamped to the
 // centre index e, i.e. the centre pixel value is replicated at the border.
-// ---------------------------------------------------------------------------
+// ---
 static void s9(int width, int height, int ix, int iy, int dest[9]) {
 	const int e = iy * width + ix;
 
@@ -138,7 +138,7 @@ static void s9(int width, int height, int ix, int iy, int dest[9]) {
 	dest[8] = (dOk && rOk) ? (iy + 1) * width + (ix + 1) : e;
 }
 
-// ---------------------------------------------------------------------------
+// ---
 // epx9 (file-private helper)
 // Verbatim port of epx.ts lines 3-42.
 //
@@ -148,7 +148,7 @@ static void s9(int width, int height, int ix, int iy, int dest[9]) {
 //              D=3 E=4 F=5
 //              G=6 H=7 I=8
 // out9    -- receives 9 output values in the same 3x3 layout
-// ---------------------------------------------------------------------------
+// ---
 static void epx9(const byte *src, const int s9idx[9], byte out9[9]) {
 	// Read source values at each neighbour position (epx.ts:9-17)
 	const byte A = src[s9idx[0]];
@@ -179,10 +179,10 @@ static void epx9(const byte *src, const int s9idx[9], byte out9[9]) {
 	}
 }
 
-// ---------------------------------------------------------------------------
+// ---
 // scale3x
 // Verbatim port of scale3x.ts lines 18-46.
-// ---------------------------------------------------------------------------
+// ---
 IndexImage scale3x(const IndexImage &in) {
 	IndexImage out;
 	if (in.w <= 0 || in.h <= 0 || in.pixels.empty()) {
@@ -225,17 +225,17 @@ IndexImage scale3x(const IndexImage &in) {
 	return out;
 }
 
-// ---------------------------------------------------------------------------
+// ---
 // scale6x = scale3x(scale2x(in))
 // Matches create-pic-pipeline.ts lines 60-63.
-// ---------------------------------------------------------------------------
+// ---
 IndexImage scale6x(const IndexImage &in) {
 	return scale3x(scale2x(in));
 }
 
-// ---------------------------------------------------------------------------
-// scaleNearest â€” integer nearest-neighbour (pixel replication) by `factor`.
-// ---------------------------------------------------------------------------
+// ---
+// scaleNearest  --  integer nearest-neighbour (pixel replication) by `factor`.
+// ---
 IndexImage scaleNearest(const IndexImage &in, int factor) {
 	IndexImage out;
 	if (in.w <= 0 || in.h <= 0 || in.pixels.empty() || factor <= 0) {

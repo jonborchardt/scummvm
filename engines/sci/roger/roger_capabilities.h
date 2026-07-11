@@ -25,7 +25,7 @@ namespace Sci {
 namespace Roger {
 
 // What the *currently running* game can do, answered from live SCI engine state
-// only — never from a game id (Hard Constraint 9). Populated once at provider
+// only  --  never from a game id (Hard Constraint 9). Populated once at provider
 // startup and read-only thereafter. The single authoritative source for "what
 // does this game support" at every render/UI decision point.
 struct RogerCapabilities {
@@ -34,7 +34,7 @@ struct RogerCapabilities {
 	int  statusBarRows = 10;   // SCI0 status/menu bar height, derived from geometry
 	bool hasParser = false;    // text-parser game (vs icon/menu-only)
 
-	// Pure builder from explicit probe inputs. No engine access — unit-testable.
+	// Pure builder from explicit probe inputs. No engine access  --  unit-testable.
 	// statusBarRows is the SCI0 status-bar height, a function of the screen class,
 	// NOT of the game id.
 	static RogerCapabilities fromProbes(bool isEga, bool hasParser, int sciScriptHeight) {

@@ -359,15 +359,15 @@ bool InputScriptDriver::pollDue(uint32 nowMs, Common::Event &ev) {
 		if (_next >= _actions.size())
 			return false;
 	}
-	// Re-anchor after a slow host-side command (snap — grabOverlay + PNG encode is
+	// Re-anchor after a slow host-side command (snap  --  grabOverlay + PNG encode is
 	// ~1s at overlay resolution). Such a command runs synchronously INSIDE the previous
 	// pollDue, so by the time the caller re-polls with a fresh g_system->getMillis() the
-	// wall clock has jumped past every following action's due time — they would all fire
+	// wall clock has jumped past every following action's due time  --  they would all fire
 	// in one bunch. During a FROZEN blocking loop (menu/dialog) that bunching means an
 	// injected drag's intermediate `move`s never coincide with the loop's position read,
 	// so a snapped mid-drag dropdown-switch is impossible. Slide the schedule base forward
 	// by the drift so downstream `wait`-relative spacings resume from the command's own due
-	// time — the same correction waituntil applies for time it consumed while gating.
+	// time  --  the same correction waituntil applies for time it consumed while gating.
 	if (_reanchorPending) {
 		_reanchorPending = false;
 		if (nowMs > _reanchorDueMs)
@@ -376,7 +376,7 @@ bool InputScriptDriver::pollDue(uint32 nowMs, Common::Event &ev) {
 	while (_next < _actions.size()) {
 		const TimedAction &a = _actions[_next];
 		if (nowMs < _baseMs + a.relMs)
-			return false; // front not due; O(1) exit — the steady-state path
+			return false; // front not due; O(1) exit  --  the steady-state path
 		if (!a.isEvent && a.ctrl == kCmdWaitUntil) {
 			// Gate: hold the queue until the host state matches or the timeout
 			// elapses, then shift the schedule base by the time actually spent

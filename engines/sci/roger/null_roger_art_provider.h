@@ -26,7 +26,7 @@
 namespace Sci {
 
 // Baseline no-op provider for unit tests: hasBackground always false.
-// Standalone (no SciGfxObserver base needed — the test only exercises
+// Standalone (no SciGfxObserver base needed  --  the test only exercises
 // hasBackground, which is a fork-only FileRogerArtProvider method now,
 // not an observer virtual).
 class NullRogerArtProvider {

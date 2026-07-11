@@ -26,13 +26,12 @@
 namespace Sci {
 namespace Roger {
 
-// Per-cycle ROGER-CYCLE telemetry state (formerly a function-static
-// s_prevCycleT0 in animate.cpp — upstream-forbidden reentrancy: a non-const
-// function static survives return-to-launcher / in-process restart). Member
-// state on the provider resets with it.
+// Per-cycle ROGER-CYCLE telemetry state. Kept as member state on the provider
+// (non-const function statics are forbidden: they survive return-to-launcher /
+// in-process restart and cannot be reset from outside the function).
 //
 // period = kernelAnimate entry-to-entry, measured between EMITTED cycles (an
-// early-return cycle folds into the next period) — the walking-speed number.
+// early-return cycle folds into the next period)  --  the walking-speed number.
 // busy   = this cycle's entry to end-of-composite span.
 // Arm/consume: frameStart arms; the first frameRendered consumes. A
 // reAnimate-driven composite outside a cycle therefore never emits.

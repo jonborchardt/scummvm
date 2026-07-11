@@ -28,13 +28,13 @@ namespace Sci {
 namespace Roger {
 
 // The pass vocabulary for roger_omyac_passes, shared by the provider, the
-// game picker, the Studio, and the tune panel. SCI-free and ConfMan-free —
+// game picker, the Studio, and the tune panel. SCI-free and ConfMan-free  -- 
 // callers pass in the config lookup results (see effectivePasses).
 //
 // A pass value is a renderOmyac MODE_BY_NAME int: fill=2, line=1, all=0.
 
 // Canonical default enhance-pass sequence as a compact character string
-// (one char per pass: f=fill, l=line, a=all). The single source of truth —
+// (one char per pass: f=fill, l=line, a=all). The single source of truth  -- 
 // defaultPasses() parses this, the picker shows it when the ini key is unset,
 // and the Eye Exam starts its search from it. THE swap point for promoting a
 // new best: change the string literal in roger_passes.cpp (keep it matching

@@ -36,13 +36,13 @@ struct OmyacResult {
 	Common::Array<byte> pixels;  // OMYAC_HYBRID_W * OMYAC_HYBRID_H
 	Common::Array<byte> cmdType; // OMYAC_HYBRID_W * OMYAC_HYBRID_H
 	// Backfill mask (OMYAC_HYBRID_W * OMYAC_HYBRID_H): 1 where fillNullPixels
-	// painted the pixel (nothing else â€” no draw command, no enhance pass â€”
+	// painted the pixel (nothing else  --  no draw command, no enhance pass  -- 
 	// touched it), else 0. Diagnostic only; does NOT affect pixels/cmdType, so
 	// the golden checksum is unchanged. Studio recolours these hot pink.
 	Common::Array<byte> backfilled;
 };
 
-// Default enhance pass sequence: parsePassString(kDefaultPassString) â€”
+// Default enhance pass sequence: parsePassString(kDefaultPassString)  -- 
 // see roger_passes.cpp for the current string (MODE_BY_NAME: fill=2,
 // line=1, all=0). Kept as a convenience wrapper over roger_passes.h.
 Common::Array<int> defaultPasses();
@@ -62,27 +62,26 @@ struct OmyacParams {
 	bool tieBreakBlend = true;          // tie-break by BLEND_TABLE-nearest (false = first tied)
 	bool diagFlankSuppress = true;      // fill-anchor diagonal-flanking suppression rule
 	// fillNullPixels mode. true (shipping default since kTransformVersion 6):
-	// bounded, direction-neutral backfill â€” backfillFloodRounds breadth-first
+	// bounded, direction-neutral backfill  --  backfillFloodRounds breadth-first
 	// majority rounds (each round votes on a FROZEN copy, so claimed colours
 	// spread exactly 1 px per round and opposing fronts meet symmetrically),
 	// then any pixel still unclaimed takes its OWN native cell's colour.
 	// Interior lattice gaps between strokes are <= ~3 px, so the smooth
 	// flood-rasterized look is preserved; what dies is the legacy cascade.
-	// false: the original TS-port behaviour â€” an 8-neighbour majority vote
+	// false: the original TS-port behaviour  --  an 8-neighbour majority vote
 	// computed IN SCAN ORDER on the buffer being mutated, which lets a foreign
 	// colour at a null region's top-left frontier cascade arbitrarily far
 	// down-right (the SQ3 pic-2 "cyan through the pod door's transparent
 	// corner" artifact: the doorway fill, natively hidden under the baked door
 	// cel, flooded the dark ring's cells). A pure own-cell fill (rounds = 0)
-	// was tried first and reads too blocky under sparse pass lists ("2 1") â€”
+	// was tried first and reads too blocky under sparse pass lists ("2 1")  -- 
 	// the flood is what rasterizes between the hybrid strokes.
 	bool backfillOwnCell = true;
 	int backfillFloodRounds = 3; // bounded-flood rounds before the own-cell fill
-	// (A "foreign fill fringe erosion" step shipped briefly as v7/v8 and was
-	// withdrawn â€” bounding the fringes visibly blockified scenes; the fringes
-	// ARE the boundary smoothing. The baked-view seam it chased (SQ3 pod door)
-	// is fixed in the compositor instead: game cels draw slightly larger
-	// (Sprite::coverGrow). The removed code is in git history at e23ff7f7151.)
+	// NOTE: do NOT add a "foreign fill fringe erosion" step here  --  bounding
+	// fringes visibly blockifies scenes; the fringes ARE the boundary smoothing.
+	// The baked-view seam (SQ3 pod door) is fixed in the compositor instead via
+	// Sprite::coverGrow.
 
 	bool isDefault() const {
 		const OmyacParams d;
