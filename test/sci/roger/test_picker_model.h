@@ -82,4 +82,15 @@ public:
 		TS_ASSERT_EQUALS(widKind(id), (int)kPickRowRemove);
 		TS_ASSERT_EQUALS(widIndex(id), 7);
 	}
+
+	// Standalone-picker gate: default ON; ROGER_NO_LAUNCHER env or an ini
+	// roger_no_launcher=true opt out; an explicit roger_no_launcher=false
+	// does not.
+	void test_standalone_gate() {
+		TS_ASSERT(standalonePickerWanted(false, false, false));   // default: on
+		TS_ASSERT(!standalonePickerWanted(false, false, true));   // env opt-out
+		TS_ASSERT(!standalonePickerWanted(true, true, false));    // ini opt-out
+		TS_ASSERT(standalonePickerWanted(true, false, false));    // explicit false = on
+		TS_ASSERT(!standalonePickerWanted(true, true, true));     // both = off
+	}
 };

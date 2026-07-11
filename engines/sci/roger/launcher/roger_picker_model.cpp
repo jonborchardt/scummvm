@@ -124,5 +124,14 @@ int clampScroll(int scroll, int gameCount, int rowsVisible) {
 	return CLIP(scroll, 0, MAX(0, gameCount - rowsVisible));
 }
 
+bool standalonePickerWanted(bool hasNoLauncherKey, bool noLauncherValue,
+                            bool envNoLauncher) {
+	if (envNoLauncher)
+		return false;
+	if (hasNoLauncherKey && noLauncherValue)
+		return false;
+	return true;
+}
+
 } // namespace Roger
 } // namespace Sci

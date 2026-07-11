@@ -91,6 +91,15 @@ Common::Rect passOptionRect(const PickerLayout &l, int index, int count, int can
 
 int clampScroll(int scroll, int gameCount, int rowsVisible);
 
+// ── Standalone-picker gate ───────────────────────────────────────────────────
+// Decides whether the pre-engine standalone picker replaces the stock ScummVM
+// launcher this round. Callers marshal the reads: hasNoLauncherKey/-Value from
+// ConfMan "roger_no_launcher" (no active domain -> the [scummvm] section),
+// envNoLauncher from the ROGER_NO_LAUNCHER env var. Default is ON; either
+// opt-out wins.
+bool standalonePickerWanted(bool hasNoLauncherKey, bool noLauncherValue,
+                            bool envNoLauncher);
+
 } // namespace Roger
 } // namespace Sci
 
