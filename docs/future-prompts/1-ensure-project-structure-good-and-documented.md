@@ -46,13 +46,13 @@ Categorize every changed file into one of these buckets:
 * Asset/data files that should not be in the engine source repo  
 * Documentation/legal/release packaging changes/downstream-only dev tooling
 
-Produce a short markdown report at docs/roger/FORK\_AUDIT.md listing each changed file, its category, and what should happen to it.
+Produce a short markdown report at docs/roger/FORK\_AUDIT.md listing each changed file, its category, and what should happen to it. (Already done as of 2026-07-10: docs/roger/FORK\_AUDIT.md exists — written on jon-update-core-audit, re-measured at 14509d438c3, synced 2026-07-11. Verify/refresh it against the current diff rather than recreating it.)
 
 ## **Step 2: Quarantine Roger-specific code**
 
-Move or refactor Roger-specific logic into engines/sci/roger/ wherever possible.
+Move or refactor Roger-specific logic into engines/sci/roger/ wherever possible. (Largely already done as of 2026-07-10: the fork's changes outside engines/sci/roger/ carry zero Roger references — grep-enforced, `git grep -in "roger" -- engines/sci ':(exclude)engines/sci/roger'` shows only upstream game text and module.mk object paths; dev tools are quarantined under engines/sci/roger/utils/{studio,tunepanel,eyetest}/. Verify with the grep rather than assuming leakage.)
 
-Hook sites elsewhere in engines/sci/ are expected and allowed, but must stay mechanical: a null-guarded call to a virtual on the abstract provider (roger\_art\_provider.h) plus minimal argument marshalling — no Roger logic inline, and SCI code never names FileRogerArtProvider.
+Hook sites elsewhere in engines/sci/ are expected and allowed, but must stay mechanical: a null-guarded `g_sciGfxObserver` call to a virtual on the neutral, engine-owned observer interface (`SciGfxObserver` in engines/sci/sci\_gfx\_observer.h — the observer migration landed 2026-07-10; the old roger\_art\_provider.h abstract provider was deleted) plus minimal argument marshalling — no Roger logic inline, and SCI code never names FileRogerArtProvider.
 
 Do not modify any other engine. Do not modify ScummVM core behavior unless the change is generic and defensible independent of Roger.
 
@@ -60,7 +60,7 @@ If a non-engine change is required, make the smallest possible API/hook/helper, 
 
 ## **Step 3: Shape Roger like an upstreamable provider**
 
-Normalize the layout so it resembles what upstream could accept: a neutral, engine-owned observer/provider seam in engines/sci/ (future setArtProvider() registration API per CLAUDE.md Stage 3), with Roger as the sole implementation, compiled out by default. There is no metaengine, detection table, or engine class to create — do not create them.
+Normalize the layout so it resembles what upstream could accept: a neutral, engine-owned observer/provider seam in engines/sci/, with Roger as the sole implementation. (Already done as of 2026-07-10: the `SciGfxObserver` seam with `setSciGfxObserver()` registration and the neutral `createSciGfxObserver()` factory (defined in roger/roger\_register.cpp) is live; the concrete provider is named nowhere outside engines/sci/roger/. Note the current design is compiled in unconditionally but byte-identical to stock when the observer is null — per CLAUDE.md Stage 3, which is authoritative over any "compiled out by default" framing; moving to compile-time exclusion would be a change, not the status quo.) There is no metaengine, detection table, or engine class to create — do not create them.
 
 Prefer ScummVM common APIs for:
 
@@ -95,6 +95,8 @@ Add documentation under docs/roger/:
 * DATA\_LAYOUT.md: expected game data files, directory layout, cache versioning, and what is not included  
 * LEGAL.md: GPL notes for modified ScummVM/Roger code, plus a clear statement that game data/assets are separately licensed
 
+(Partial state as of 2026-07-11: docs/roger/ exists with FORK\_AUDIT.md (written 2026-07-10) and a README.md that serves as an INDEX of this doc set — it defers "what Roger is / build / run" to docs/roger.md and engines/sci/roger/README.md and lists UPSTREAMING\_PLAN.md, PR\_PLAN.md, FORK\_MAINTENANCE.md etc. as placeholders. Those placeholder docs plus DATA\_LAYOUT.md and LEGAL.md are still to write. Separately, per-directory code READMEs already exist and were synced to code on 2026-07-11 (commit bf4e9da5321): engines/sci/roger/README.md and gen/, overlay/, launcher/, utils/{studio,tunepanel,eyetest}/ READMEs, plus docs/roger.md — audit, don't recreate. A README for engines/sci/ itself (the roger folder + the generic hook alterations) is also landing 2026-07-11 in a parallel task.)
+
 Also update existing user-facing material as needed so it stays consistent with the new docs/roger/ set: docs/roger.md (the how-to), any README-level notes, examples/sample commands, and license/COPYING references touched by the fork.
 
 All documentation written or updated in this pass is upstream-facing unless explicitly downstream-only: write it in neutral engineering terms with no references to Claude, AI agents, or assistant workflows. Downstream-only files that legitimately need such references (CLAUDE.md, .claude/, docs/superpowers/ working specs/plans) stay out of any upstream-facing set.
@@ -124,7 +126,7 @@ Identify candidate upstream PRs:
 * The Roger provider itself  
 * Documentation
 
-Identify changes that should remain downstream-only (build\_and\_run.ps1, build\_tests.ps1, roger\_run.ps1, CLAUDE.md, .claude/, .gitignore, docs/superpowers/).
+Identify changes that should remain downstream-only (build\_and\_run.ps1, build\_tests.ps1, CLAUDE.md, .claude/, .gitignore, docs/superpowers/ — the latter is gitignored/untracked entirely as of 2026-07-11, so it cannot leak into an upstream set; there is no roger\_run.ps1).
 
 Identify large commits that should be split.
 

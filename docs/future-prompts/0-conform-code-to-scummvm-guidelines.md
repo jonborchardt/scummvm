@@ -14,7 +14,7 @@ These are snapshots of the wiki pages (the wiki itself is bot-gated and fetch to
 
 The commit guidelines forbid mixing style/whitespace changes with functional changes in one commit. Prompt 2 will manufacture a clean upstreamable branch from the final diff — if style drift is still present at that point, every manufactured slice either carries style noise or needs splitting. Fixing conformance now, as its own pass on the working deploy branch, means:
 
-* Prompt 1's audit (docs/roger/FORK_AUDIT.md) evaluates already-conformant code and stays focused on structure, not style.
+* Prompt 1's audit (docs/roger/FORK_AUDIT.md) evaluates already-conformant code and stays focused on structure, not style. *(Overtaken as of 2026-07-11: the audit already ran — docs/roger/FORK_AUDIT.md exists, with dated re-measure notes through 2026-07-11 (21 files, 1075 raw lines outside roger/), and the observer redesign it proposed landed 2026-07-10. This pass now runs after it; use its per-hunk dispositions as input — re-verify verdicts against current code, and don't style-polish hunks it slates for deletion.)*
 * Prompt 2's manufactured commits are purely functional.
 * Upstream review never sees convention drift (fixing it in the fork beforehand is cheaper than during review — CLAUDE.md Stage 3 says exactly this).
 
@@ -33,8 +33,8 @@ Only touch code this fork added or modified (diff vs origin/master). **Never do 
 Targets, in priority order:
 
 1. `engines/sci/roger/**` — the provider (moves wholesale to any upstream PR)
-2. Hook sites in `engines/sci/**` (paint16, animate, controls16, menu, ports, text16, transitions, kgraphics, scifont — see the Stage 3 diff inventory)
-3. The generic `.rin` input driver (`common/events`-adjacent code in `event.cpp`, `gui/EventRecorder.h`) — held to the *stricter* common-code bar (Doxygen required)
+2. The observer seam + hook sites in `engines/sci/**` (`sci_gfx_observer.{h,cpp}` — the fork-owned neutral seam — plus paint16, animate, controls16, menu, ports, text16, transitions, palette16, cursor, event, kgraphics, scifont, sci.cpp; see the Stage 3 diff inventory / FORK_AUDIT.md re-measures — list current as of 2026-07-11), and the `base/main.cpp` launcher seam (~13 lines, fork-only but still C++)
+3. The common-code diff: `gui/EventRecorder.h` (the fork's only change outside engines/ + base/, a ~6-line declaration-gating fix) — held to the *stricter* common-code bar (Doxygen required). *(Premise update 2026-07-11: the `.rin` input driver proper lives at `engines/sci/roger/roger_input.{h,cpp}` — covered by target 1 — and `engines/sci/event.cpp` carries the observer `interceptEvent`/`onMouseMoved` seam — covered by target 2; there is no `common/events` diff.)*
 4. `test/sci/roger/**` (CxxTest sources)
 
 Exempt: downstream-only dev tooling (build_and_run.ps1, build_tests.ps1, CLAUDE.md, .claude/, .gitignore, docs/superpowers/) — the C++ rules don't apply and these never go upstream.
@@ -56,9 +56,9 @@ Work through each target file against the docs/scumm/ rules. The high-value chec
 
 **Portability / conventions (coding-conventions.md):**
 
-* No forbidden symbols (`printf`, `fopen`, `getenv`, `rand`, `sprintf`, ...) — compiler-enforced by `common/forbidden.h`; verify no `FORBIDDEN_SYMBOL_EXCEPTION_*` was ever added
-* No C++ exceptions, no global objects with constructors (POD/pointer globals like `g_sciRogerProvider` are fine)
-* **No non-const static locals inside function bodies** — strictly forbidden (return-to-launcher reentrancy). The two known Roger violations (roger_studio.cpp warn-once flag, file_roger_art_provider.cpp diag-dedup signature) were already fixed by moving to member state; grep `static (bool|int|uint32)` under `engines/sci/roger/` and the hook files to verify none crept back
+* No forbidden symbols (`printf`, `fopen`, `getenv`, `rand`, `sprintf`, ...) — compiler-enforced by `common/forbidden.h`; verify no `FORBIDDEN_SYMBOL_EXCEPTION_*` was ever added. *(Known exception as of 2026-07-11: three `FORBIDDEN_SYMBOL_EXCEPTION_getenv` defines exist inside `engines/sci/roger/` — file_roger_art_provider.cpp, roger_register.cpp, launcher/roger_standalone.cpp — for the per-launch `ROGER_*` env-var dev knobs; FORK_AUDIT flags them upstream-forbidden (S1/R20). Replacing them with ConfMan/CLI gates is a FUNCTIONAL change deferred to a later pass — do not "fix" it here; just confirm no NEW exceptions appeared.)*
+* No C++ exceptions, no global objects with constructors (POD/pointer globals like `g_sciGfxObserver` are fine — `g_sciRogerProvider` is a retired name, gone since the 2026-07-10 observer migration)
+* **No non-const static locals inside function bodies** — strictly forbidden (return-to-launcher reentrancy). The two known Roger violations (roger_studio.cpp warn-once flag, file_roger_art_provider.cpp diag-dedup signature) were already fixed by moving to member state; grep `static (bool|int|uint32)` under `engines/sci/roger/` and the hook files to verify none crept back (re-verified clean 2026-07-11 — remaining hits are file-scope static helper *functions*, which are fine)
 * Non-const globals need a justification comment saying why + where they are re-set at engine start (else `// FIXME: non-const global var`)
 * Endian-safe data access (`READ_LE_UINT32` etc. or stream `readUint32LE` methods — never pointer-cast struct overlays); packed structs only via `common/pack-start.h`/`pack-end.h` + `PACKED_STRUCT`
 * Use `Common::` classes directly (the `Std::` wrappers are only for ported STL codebases); file access via `Common::File`/SaveFileManager only
@@ -66,7 +66,7 @@ Work through each target file against the docs/scumm/ rules. The high-value chec
 **Comments / documentation:**
 
 * `FIXME` / `TODO` / `WORKAROUND` used per their defined meanings; every WORKAROUND must explain what original-game bug it works around
-* Doxygen (JavaDoc style, `@param`, `@` not `\`) on the common-code additions outside engines/ — this is a hard requirement for the input-driver code in `gui/`/event.cpp; encouraged but not required inside `engines/sci/roger/`
+* Doxygen (JavaDoc style, `@param`, `@` not `\`) on the common-code additions outside engines/ — this is a hard requirement for the `gui/EventRecorder.h` change (the only common-code diff as of 2026-07-11); encouraged but not required inside `engines/sci/roger/`
 * Sweep for stray debug leftovers, commented-out prototype code, and dead TODOs in the diff
 * **Remove stale or wrong comments** in the fork diff: comments that describe removed behavior or an abandoned approach, narrate change history ("was X, now Y", "fixed in this commit"), restate the adjacent code, or make claims the code no longer backs. A comment earns its place only by stating a constraint the code can't show. (Same scope rules apply: only our hunks — never touch upstream comments.)
 * **No references to Claude, AI agents, or assistant tooling** in code comments, identifiers, strings, commit-bound docs, or anything else in the fork diff. Describe what the code does in neutral engineering terms. Such references are permitted only in downstream-only files that need them (CLAUDE.md, .claude/, docs/superpowers/ specs/plans) — all already exempt from this pass and never upstreamed.
@@ -79,7 +79,7 @@ Work through each target file against the docs/scumm/ rules. The high-value chec
 3. **Commit style-only fixes separately from any functional fix you happen to discover** — never mix, per the commit guidelines. Use `SCI: ROGER:` / `SCI:` prefixed, present-tense subject lines ≤50 chars. The deploy-branch attribution footer stays for now on this branch; eventual upstream PR commits must not mention Claude or AI agents anywhere — no attribution footers, no co-author trailers, no references in subject or body (Prompt 2 enforces this when manufacturing the clean branch).
 4. If you find something that looks like a bug (not style), flag it and ask before fixing — bug fixes are functional changes and belong in their own commit with their own verification.
 5. Verify after the sweep: `build_and_run.ps1` builds and the smoke script runs (`-Script test/sci/roger/scripts/qfg1-smoke.rin` or the SQ3 smoke), and `build_tests.ps1` unit tests pass. This is a Windows/MSVC environment — do not assume configure/make.
-6. Update the CLAUDE.md Stage 3 diff inventory if line counts shifted materially, and note in CLAUDE.md that the conformance pass has run.
+6. Update the CLAUDE.md Stage 3 diff inventory if line counts shifted materially (docs/roger/FORK_AUDIT.md carries the dated re-measure notes — append a new dated note there rather than editing old ones), and note in CLAUDE.md that the conformance pass has run.
 
 ## Output expected
 
