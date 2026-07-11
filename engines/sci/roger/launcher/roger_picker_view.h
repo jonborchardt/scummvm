@@ -21,11 +21,11 @@
 #ifndef SCI_ROGER_LAUNCHER_ROGER_PICKER_VIEW_H
 #define SCI_ROGER_LAUNCHER_ROGER_PICKER_VIEW_H
 
-// Custom-drawn picker view (spec 2026-07-08): composes the entire picker into
-// a ManagedSurface (background PNG, card panels, styled buttons, text) and
-// hit-tests clicks itself — the same immediate-mode pattern as the F12 tune
-// panel / Studio, hosted inside the GUI::Dialog shell. All geometry comes from
-// layoutPicker() (roger_picker_model, unit-tested); this file only paints.
+// Custom-drawn picker view: composes the entire picker into a ManagedSurface
+// (background gradient, card panels, styled buttons, text) and hit-tests clicks
+// itself -- the same immediate-mode pattern as the F12 tune panel / Studio,
+// hosted inside the GUI::Dialog shell. All geometry comes from layoutPicker()
+// (roger_picker_model, unit-tested); this file only paints.
 
 #include "gui/widget.h"
 #include "graphics/managed_surface.h"

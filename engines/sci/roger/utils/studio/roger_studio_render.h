@@ -21,12 +21,12 @@
 #ifndef SCI_ROGER_UTILS_STUDIO_ROGER_STUDIO_RENDER_H
 #define SCI_ROGER_UTILS_STUDIO_ROGER_STUDIO_RENDER_H
 
-// ROGER STUDIO (kept dev utility, quarantined 2026-07-07): SCI-free pure
-// helpers for the Studio â€” param registry, panel layout, export names, the
-// diff/alignment diagnostics. Everything here is unit-testable without a
-// running engine (test/sci/roger/test_studio_render.h, test_shift_lock.h).
+// ROGER STUDIO (kept dev utility, quarantined): SCI-free pure helpers for the
+// Studio -- param registry, panel layout, export names, the diff/alignment
+// diagnostics. Everything here is unit-testable without a running engine
+// (test/sci/roger/test_studio_render.h, test_shift_lock.h).
 // See roger_studio.h for the quarantine contract (who may reference
-// utils/studio/ â€” the env-gated sci.cpp hook + build lists + tests only).
+// utils/studio/ -- the env-gated sci.cpp hook + build lists + tests only).
 // The generic widget record / hit-testing lives in the neutral
 // sci/roger/ui/roger_widgets.h (shared with the F12 tune panel); pass-list edit
 // ops and stamps live in sci/roger/gen/roger_passes.h.

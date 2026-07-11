@@ -1,3 +1,23 @@
+/* ScummVM - Graphic Adventure Engine
+ *
+ * ScummVM is the legal property of its developers, whose names
+ * are too numerous to list here. Please refer to the COPYRIGHT
+ * file distributed with this source distribution.
+ *
+ * This program is free software: you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 3 of
+ * the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+
 #include "sci/roger/launcher/roger_launcher.h"
 #include "sci/roger/launcher/roger_launcher_dialog.h"
 #include "sci/roger/launcher/roger_picker_model.h"
@@ -29,15 +49,19 @@ void RogerLauncher::tryAddEntry(const Common::String &dom,
                                 const Common::Path &gamePath,
                                 const Common::String &gameId,
                                 const Common::String &desc) {
-	if (dom.empty() || gamePath.empty() || gameId.empty()) return;
-	for (uint i = 0; i < _state.games.size(); ++i)
-		if (_state.games[i].targetName == dom) return; // deduplicate
+	if (dom.empty() || gamePath.empty() || gameId.empty())
+		return;
+	for (uint i = 0; i < _state.games.size(); ++i) {
+		if (_state.games[i].targetName == dom)
+			return; // deduplicate
+	}
 
 	Common::Path rogerPath = gamePath.getParent().appendComponent(gameId + "-roger");
 	// Create the roger directory if it doesn't exist yet (best-effort; silently ignore failure).
 	Common::FSNode rogerNode(rogerPath);
-	if (!rogerNode.exists())
+	if (!rogerNode.exists()) {
 		rogerNode.createDirectory();
+	}
 
 	GameEntry entry;
 	entry.targetName = dom;
@@ -77,7 +101,8 @@ void RogerLauncher::discoverGames() {
 	// EngineMan for command-line launches where no "description" key was written.
 	auto resolveDesc = [](const Common::String &gameId,
 	                       const Common::String &confDesc) -> Common::String {
-		if (!confDesc.empty()) return confDesc;
+		if (!confDesc.empty())
+			return confDesc;
 		QualifiedGameList matches = EngineMan.findGamesMatching("sci", gameId);
 		if (!matches.empty()) return matches[0].description;
 		return gameId;  // last resort: raw gameId
@@ -88,10 +113,12 @@ void RogerLauncher::discoverGames() {
 	for (Common::ConfigManager::DomainMap::const_iterator it = domains.begin();
 	     it != domains.end(); ++it) {
 		const Common::String &dom = it->_key;
-		if (!ConfMan.hasKey("engineid", dom) || ConfMan.get("engineid", dom) != "sci")
+		if (!ConfMan.hasKey("engineid", dom) || ConfMan.get("engineid", dom) != "sci") {
 			continue;
-		if (!ConfMan.hasKey("path", dom))
+		}
+		if (!ConfMan.hasKey("path", dom)) {
 			continue;
+		}
 		tryAddEntry(dom,
 		            ConfMan.getPath("path", dom),
 		            ConfMan.hasKey("gameid", dom) ? ConfMan.get("gameid", dom) : dom,
@@ -157,7 +184,8 @@ void RogerLauncher::refreshCacheState(GameEntry &entry) const {
 }
 
 void RogerLauncher::loadSettingsForSelected() {
-	if (_state.games.empty()) return;
+	if (_state.games.empty())
+		return;
 	const Common::String &dom = _state.games[_state.selectedIndex].targetName;
 	LauncherSettings &s = _state.settings;
 	s.passes = ConfMan.hasKey("roger_omyac_passes", dom)
@@ -170,7 +198,8 @@ void RogerLauncher::loadSettingsForSelected() {
 // Empty -> key removed (unset -> defaultPasses()); wireframe (explicit "")
 // stays ini-only.
 void RogerLauncher::setPassesForSelected(const Common::String &raw) {
-	if (_state.games.empty()) return;
+	if (_state.games.empty())
+		return;
 	GameEntry &g = _state.games[_state.selectedIndex];
 	Common::String v = raw;
 	v.trim();
@@ -186,7 +215,8 @@ void RogerLauncher::setPassesForSelected(const Common::String &raw) {
 }
 
 void RogerLauncher::setDebugLogForSelected(bool on) {
-	if (_state.games.empty()) return;
+	if (_state.games.empty())
+		return;
 	const Common::String &dom = _state.games[_state.selectedIndex].targetName;
 	ConfMan.setBool("roger_debug", on, dom);
 	ConfMan.flushToDisk();
@@ -194,13 +224,15 @@ void RogerLauncher::setDebugLogForSelected(bool on) {
 }
 
 void RogerLauncher::selectGame(int index) {
-	if (index < 0 || index >= (int)_state.games.size()) return;
+	if (index < 0 || index >= (int)_state.games.size())
+		return;
 	_state.selectedIndex = index;
 	loadSettingsForSelected();
 }
 
 void RogerLauncher::requestCrossGame(int index, bool launchAfter) {
-	if (index < 0 || index >= (int)_state.games.size()) return;
+	if (index < 0 || index >= (int)_state.games.size())
+		return;
 	const Common::String &dom = _state.games[index].targetName;
 	// One-shot: consumed (removed + flushed) by the picker on the other side
 	// BEFORE acting, so a crash mid-precache cannot loop the trigger.
@@ -221,7 +253,8 @@ void RogerLauncher::requestCrossGame(int index, bool launchAfter) {
 }
 
 bool RogerLauncher::handleLaunch() {
-	if (_state.games.empty()) return true;
+	if (_state.games.empty())
+		return true;
 	const Common::String &active = ConfMan.getActiveDomainName();
 	if (_state.games[_state.selectedIndex].targetName != active) {
 		requestCrossGame(_state.selectedIndex, true);
@@ -238,17 +271,20 @@ void RogerLauncher::buildPrecacheQueues() {
 		return;
 	}
 	ResourceManager *resMan = g_sci->getResMan();
-	if (!resMan) return;
+	if (!resMan)
+		return;
 
 	{
 		Common::List<ResourceId> pics = resMan->listResources(kResourceTypePic);
-		for (Common::List<ResourceId>::const_iterator it = pics.begin(); it != pics.end(); ++it)
+		for (Common::List<ResourceId>::const_iterator it = pics.begin(); it != pics.end(); ++it) {
 			_state.picQueue.push_back((GuiResourceId)it->getNumber());
+		}
 	}
 	{
 		Common::List<ResourceId> views = resMan->listResources(kResourceTypeView);
-		for (Common::List<ResourceId>::const_iterator it = views.begin(); it != views.end(); ++it)
+		for (Common::List<ResourceId>::const_iterator it = views.begin(); it != views.end(); ++it) {
 			_state.viewQueue.push_back((int)it->getNumber());
+		}
 	}
 	_state.precacheDone  = 0;
 	_state.precacheTotal = (int)(_state.picQueue.size() + _state.viewQueue.size());
@@ -330,8 +366,9 @@ bool RogerLauncher::run() {
 		}
 	}
 	// Cross-game launch of an already-cached game: straight in, no dialog.
-	if (_autoLaunch && _state.activeRow >= 0 && _state.games[_state.activeRow].cached)
+	if (_autoLaunch && _state.activeRow >= 0 && _state.games[_state.activeRow].cached) {
 		return true;
+	}
 
 	RogerLauncherDialog dialog(*this);
 	dialog.runModal();

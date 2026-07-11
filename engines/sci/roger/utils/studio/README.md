@@ -7,10 +7,6 @@ slots (A and B)**, and lets you flip, split, and diff them until you can see
 exactly what a parameter or pass change does. Everything is generated in RAM —
 the generation disk cache is never read or written.
 
-Specs: `docs/superpowers/specs/2026-07-02-roger-studio-design.md` (v1) and
-`2026-07-02-roger-studio-v2-ui-design.md` (the shipping v2 UI) — both removed
-from the tree; see git history.
-
 ---
 
 ## Launching

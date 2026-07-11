@@ -21,25 +21,23 @@
 #ifndef SCI_ROGER_UTILS_STUDIO_ROGER_STUDIO_H
 #define SCI_ROGER_UTILS_STUDIO_ROGER_STUDIO_H
 
-// ROGER STUDIO (kept dev utility, quarantined 2026-07-07). Standalone,
-// mouse-driven tuning environment for the omyac enhance pipeline: one scene
-// (plate + view cel composited game-style), two live A/B setting slots,
-// Split/Diff comparison with an automatic alignment readout, a per-module
-// cel-comparison grid, and stamped PNG export. Launched via ROGER_STUDIO=1
-// (build_and_run.ps1 -Studio) at the sci.cpp seam where resources are alive
-// but no game scripts have run; owns the overlay; never touches the
-// generation disk cache (kGenMemory); zero effect on any launch without the
-// env var. Specs: docs/superpowers/specs/2026-07-02-roger-studio-design.md +
-// 2026-07-02-roger-studio-v2-ui-design.md; usage: utils/studio/README.md.
+// ROGER STUDIO (kept dev utility, quarantined). Standalone, mouse-driven tuning
+// environment for the omyac enhance pipeline: one scene (plate + view cel
+// composited game-style), two live A/B setting slots, Split/Diff comparison with
+// an automatic alignment readout, a per-module cel-comparison grid, and stamped
+// PNG export. Launched via ROGER_STUDIO=1 (build_and_run.ps1 -Studio) at the
+// sci.cpp seam where resources are alive but no game scripts have run; owns the
+// overlay; never touches the generation disk cache (kGenMemory); zero effect on
+// any launch without the env var. See utils/studio/README.md for usage.
 //
-// QUARANTINE CONTRACT â€” see utils/studio/README.md. The only permitted
+// QUARANTINE CONTRACT -- see utils/studio/README.md. The only permitted
 // references to utils/studio/ are: the env-gated ROGER_STUDIO hook in
 // sci.cpp, the engines/sci/module.mk object list, build_tests.ps1's source +
 // test registration, and the unit tests (test/sci/roger/test_studio_render.h,
 // test_shift_lock.h). Production code must never include it. This module may
 // only consume stable roger seams (roger_asset_gen.h, roger_view_scaler.h,
 // roger_passes.h, ui/roger_widgets.h, ui/roger_panel_style.h, png_loader.h)
-// â€” never provider/compositor internals.
+// -- never provider/compositor internals.
 
 #include "common/array.h"
 #include "common/rect.h"
@@ -100,8 +98,8 @@ private:
 	void ensureGridCels();                     // (re)build _gcSurf for the current cel
 	void freeGridCels();
 	void stepAnimCel();                        // advance shared cel index (wraps)
-	void drawPanel();                // Task 6
-	void dispatchWidget(uint32 id);  // Task 6
+	void drawPanel();
+	void dispatchWidget(uint32 id);
 	void markDirty() { _dirty = true; }
 
 	// Rendering
@@ -120,10 +118,10 @@ private:
 	void invalidateCelOnly() { _slots[0].stale = _slots[1].stale = true; _diffStale = true; markDirty(); }
 	void ensureFresh(Slot &slot) { if (slot.stale) renderSlot(slot); }
 	Common::String slotStamp(const Slot &slot) const; // "default-ffflffaaaa-6x[-nref]"
-	void ensureDiff();               // Task 8: (re)build _diffSurf + SAD readout when stale
-	void exportShown();              // Task 8 extends for split/diff
+	void ensureDiff();               // (re)build _diffSurf + SAD readout when stale
+	void exportShown();
 
-	// Scene-area geometry (Task 7 fills the interaction)
+	// Scene-area geometry
 	Common::Rect sceneArea() const;  // _display minus the panel strip
 	void fitView();                  // zoom/pan so the plate fits sceneArea
 	bool displayToNative(int mx, int my, int &nx, int &ny) const;
@@ -192,15 +190,15 @@ private:
 	bool _panning = false;
 	int _dragLastX = 0, _dragLastY = 0;
 
-	// Panel (Task 6)
+	// Panel
 	Common::Array<PanelWidget> _widgets;    // panel-local small coords
 	uint32 _hoverWid = 0;
 	PanelFonts _panelFonts;
 
 	Common::String _status;
-	Common::String _offsetReadout;   // Task 8: SAD readout line (Diff only)
+	Common::String _offsetReadout;   // SAD readout line (Diff mode only)
 
-	// Task 8: cached diff map (A vs B), rebuilt only when a slot changes.
+	// Cached diff map (A vs B), rebuilt only when a slot changes.
 	Graphics::Surface *_diffSurf = nullptr; // 1920x1140 RGBA white-on-black diff
 	bool _diffStale = true;
 

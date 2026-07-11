@@ -150,8 +150,10 @@ void PickerViewWidget::drawRow(PanelPainter &paint, int visIdx, int row) {
 	{
 		Common::String info;
 		auto append = [&](const Common::String &part) {
-			if (part.empty()) return;
-			if (!info.empty()) info += "  |  ";
+			if (part.empty())
+				return;
+			if (!info.empty())
+				info += "  |  ";
 			info += part;
 		};
 		append(g.targetName);

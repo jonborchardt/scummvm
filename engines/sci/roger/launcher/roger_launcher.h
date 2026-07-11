@@ -90,7 +90,7 @@ public:
 	bool autoLaunchPending() const { return _autoLaunch; }
 	bool autoPrecachePending() const { return _autoPrecache; }
 
-	// Public so Task 5 Add Game can trigger re-discovery.
+	// Public so the Add Game flow can trigger re-discovery.
 	void discoverGames();
 
 private:

@@ -21,7 +21,7 @@
 #ifndef SCI_ROGER_UTILS_EYETEST_ROGER_EYETEST_SEARCH_H
 #define SCI_ROGER_UTILS_EYETEST_ROGER_EYETEST_SEARCH_H
 
-// EYE EXAM (kept dev utility, quarantined 2026-07-07): pure search logic for
+// EYE EXAM (kept dev utility, quarantined): pure search logic for
 // the interactive OMYAC pass-sequence tuner in roger_eyetest.{h,cpp}. SCI-free
 // so it unit-tests without an engine (same isolation as the Studio's pure
 // helpers in utils/studio/roger_studio_render.h).

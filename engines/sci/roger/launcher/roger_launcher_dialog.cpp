@@ -43,7 +43,7 @@ static int gW() { return g_system->getOverlayWidth(); }
 static int gH() { return g_system->getOverlayHeight(); }
 
 // ---------------------------------------------------------------------------
-// PassBuilderWidget — custom-drawn, mouse-first pass builder in the picker's
+// PassBuilderWidget -- custom-drawn, mouse-first pass builder in the picker's
 // own visual language (dark navy, blue accents, PanelWidget hit-testing).
 // Private to this translation unit.
 // ---------------------------------------------------------------------------
@@ -281,7 +281,7 @@ bool PassBuilderWidget::handleKeyDown(Common::KeyState state) {
 }
 
 // ---------------------------------------------------------------------------
-// PassBuilderDialog — modal shell hosting PassBuilderWidget.
+// PassBuilderDialog -- modal shell hosting PassBuilderWidget.
 // Same stacking as the old PassInputDialog (runModal from pickerPassOption).
 // ---------------------------------------------------------------------------
 class PassBuilderDialog : public GUI::Dialog {

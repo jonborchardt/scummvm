@@ -21,14 +21,14 @@
 #ifndef SCI_ROGER_UTILS_EYETEST_ROGER_EYETEST_H
 #define SCI_ROGER_UTILS_EYETEST_ROGER_EYETEST_H
 
-// EYE EXAM (kept dev utility, quarantined 2026-07-07). Studio-style interactive
-// tool: renders small batches of OMYAC pass-sequence candidates ("Which looks
-// better?"); the choices drive a simple genetic search (roger_eyetest_search.h),
+// EYE EXAM (kept dev utility, quarantined). Studio-style interactive tool:
+// renders small batches of OMYAC pass-sequence candidates (“Which looks
+// better?”); the choices drive a simple genetic search (roger_eyetest_search.h),
 // or a round-robin showdown of listed finalists. Launched via ROGER_EYETEST=1
 // (build_and_run.ps1 -EyeTest) at the same sci.cpp seam as RogerStudio; owns the
 // overlay; never touches the generation disk cache (kGenMemory); zero effect on
 // any launch without the env var. See roger_eyetest_search.h for the quarantine
-// contract (who may reference utils/eyetest/ â€” sci.cpp hook + build lists only).
+// contract (who may reference utils/eyetest/ -- sci.cpp hook + build lists only).
 
 #include "common/array.h"
 #include "common/rect.h"

@@ -21,15 +21,13 @@
 #ifndef SCI_ROGER_UTILS_TUNEPANEL_ROGER_TUNE_PANEL_H
 #define SCI_ROGER_UTILS_TUNEPANEL_ROGER_TUNE_PANEL_H
 
-// TUNE PANEL (kept dev utility, quarantined 2026-07-07) — the in-game
-// quick-tune debug dialog (F12), spec
-// docs/superpowers/specs/2026-07-05-roger-tune-panel-design.md. Session-only.
-// Three toggle rows (log mirror, "view enhance:" cycling the view-scaler modes
-// + a synthetic nearest, "pic enhance:" cycling the available OMYAC pass modes)
-// plus a linear pass builder (+f/+l/+a/clear) whose "add" registers the built
-// sequence as a new pic-enhance mode and applies it. The MMPX judging this
-// panel was built for concluded 2026-07-06 (s2>s3 won); the panel stays as the
-// pass-tuning debug tool. Everything here is engine-free and unit-testable.
+// TUNE PANEL (kept dev utility, quarantined) — the in-game quick-tune debug
+// dialog (F12). Session-only. Three toggle rows (log mirror, "view enhance:"
+// cycling the view-scaler modes + a synthetic nearest, "pic enhance:" cycling
+// the available OMYAC pass modes) plus a linear pass builder (+f/+l/+a/clear)
+// whose "add" registers the built sequence as a new pic-enhance mode and
+// applies it. The view-scaler judging concluded (6x won); the panel stays as
+// the pass-tuning debug tool. Everything here is engine-free and unit-testable.
 //
 // QUARANTINE CONTRACT — see utils/tunepanel/README.md. The only permitted
 // references to utils/tunepanel/ are: the F12 integration block in

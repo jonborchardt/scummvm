@@ -46,8 +46,8 @@ namespace Roger {
 static const int kEyeCelX = 160;
 static const int kEyeCelY = 150;
 
-// Mutation position bias, tuned from the 2026-07-06 session's data: the head
-// structure f f f f f f l _ _ _ held up, so concentrate the search on the tail
+// Mutation position bias, tuned empirically: the head structure f f f f f f l
+// _ _ _ held up, so concentrate the search on the tail
 // (positions 7-9), probe the l-slots at 3 and 6 occasionally, and keep every
 // position reachable (eyeMutate requires all weights >= 1; the 60/25/10/5
 // large-mutation escape hatch is untouched).
@@ -55,8 +55,8 @@ static const int kEyeTailBias[kEyeSeqLen] = {1, 1, 1, 2, 1, 1, 2, 5, 5, 5};
 
 RogerEyeTest::RogerEyeTest(const Common::String &gameId)
 	: _assetGen(gameId, "", kGenMemory), _rng(g_system->getMillis()), _gameId(gameId) {
-	// Per-game evaluation pic pools (user-curated, 2026-07-07): scenes worth
-	// judging pass sequences on. The launched game decides which pool applies
+	// Per-game evaluation pic pools: scenes worth judging pass sequences on.
+	// The launched game decides which pool applies
 	// (sq3 is the default launch; use build_and_run.ps1 -Game qfg1 for qfg1's).
 	static const int sq3Pics[] = {2, 3, 4, 5, 7, 8, 13, 14, 15, 25, 28, 49, 52, 62, 69, 74, 81, 153, 156};
 	static const int qfg1Pics[] = {10, 13, 16, 21, 28, 29, 30, 37, 38, 39, 40, 54, 65, 82, 88, 93, 94, 96, 97, 300, 301, 310, 320, 460};
