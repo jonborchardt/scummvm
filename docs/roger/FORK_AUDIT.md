@@ -1064,8 +1064,22 @@ reproduces exactly), its module.mk object path (+1), and a doc-comment expansion
 
 Measurement note (2026-07-11, jon-first-pass-prompt0 at b69fffeb828): style-conformance
 pass (Prompt 0, plan `docs/future-prompts/0-conform-code-to-scummvm-guidelines.md`) ran
-on this branch — e2f7e4500dd..b69fffeb828 (10 commits). Changes outside `engines/sci/roger/`:
-ASCII-ification of fork hunk comments (5 comment rewrites in the observer seam files);
-no code logic changed. Same-scope `git diff --stat` vs `origin/master`:
-21 files, 1053(+)/15(−) = **1068 raw** (down 7 from the previous note's 1075 raw).
-The 7-line reduction is comment compression in the seam files from the ASCII sweep.
+on this branch — 10 pass commits, 00dc60541d9..b69fffeb828
+(`git log --oneline 00dc60541d9..b69fffeb828 | wc -l` = 10). Changes outside
+`engines/sci/roger/`: ASCII-ification of fork hunk comments (5 comment rewrites in the
+observer seam files); no code logic changed. Reproducible measurement command and output:
+
+    git diff --stat origin/master...b69fffeb828 -- engines/sci base gui \
+        ":(exclude)engines/sci/roger" ":(exclude)engines/sci/README.md"
+    # 20 files changed, 1047 insertions(+), 15 deletions(-)  → 1062 raw
+
+Same command at the pre-pass head (00dc60541d9):
+
+    git diff --stat origin/master...00dc60541d9 -- engines/sci base gui \
+        ":(exclude)engines/sci/roger" ":(exclude)engines/sci/README.md"
+    # 20 files changed, 1054 insertions(+), 15 deletions(-)  → 1069 raw
+
+The pass removed 7 net insertion lines (comment compression in the seam files).
+The previous note's figures (21 files / 1060(+) / 1075 raw) do not reproduce with
+this command (off by one file and ~6 lines — measurement-convention drift); future
+notes should cite this exact command.
