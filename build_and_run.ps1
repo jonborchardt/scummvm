@@ -18,6 +18,10 @@ param(
     [switch]$SkipPicker,      # skip the Roger game-picker dialog and boot straight into the
                               # game (or -SaveSlot save). Sets ROGER_NO_LAUNCHER for the launch.
                               # Implied automatically whenever -Game is passed.
+    [switch]$Standalone,      # launch with NO game target: exercises the standalone Roger
+                              # picker that replaces the stock ScummVM launcher. Never sets
+                              # ROGER_NO_LAUNCHER. Not combinable with -Game/-SkipPicker/
+                              # -Script/-Live (those all imply a known target).
     [switch]$Regenerate,      # force-regenerate scummvm.sln (e.g. after changing enabled
                               # features like the event recorder). Deletes the existing solution.
     [string]$Script   = "",   # .rin input script: drive the game automatically, blocking
@@ -328,6 +332,10 @@ function Test-ScriptFail {
     return (Test-Path $log) -and (Select-String -Path $log -Pattern 'ROGER-SCRIPT: FAIL' -Quiet)
 }
 
+if ($Standalone -and ($Game -or $SkipPicker -or $Script -or $Live)) {
+    Write-Error "-Standalone cannot be combined with -Game/-SkipPicker/-Script/-Live."
+}
+
 # Boot straight into the game, bypassing the Roger picker dialog, when either
 # -SkipPicker is set OR a specific -Game target was passed (a named target means
 # the caller already knows what to launch, so the picker is just in the way).
@@ -338,7 +346,14 @@ if ($SkipPicker -or $Game) {
     Write-Host "Bypassing the Roger game-picker dialog (SkipPicker or -Game)." -ForegroundColor DarkGray
 }
 
-if ($Game) {
+if ($Standalone) {
+    # No game target: base/main.cpp's launcher round runs the standalone
+    # Roger picker. Force a logfile so the ROGER-PICKER marker is greppable.
+    $shots = "$Root\screenshots"
+    if (-not (Test-Path $shots)) { New-Item -ItemType Directory -Force $shots | Out-Null }
+    Write-Host "Launching with NO game target (standalone Roger picker)..." -ForegroundColor Green
+    $gameArgs = @("--logfile=$shots\roger-run.log")
+} elseif ($Game) {
     # Launch a configured target by id (uses scummvm.ini: game path + Roger settings).
     if ($SaveSlot -ge 0) {
         Write-Host "Launching target '$Game' (auto-loading save slot $SaveSlot)..." -ForegroundColor Green
