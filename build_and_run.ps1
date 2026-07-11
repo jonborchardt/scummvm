@@ -55,6 +55,10 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+if ($Standalone -and ($Game -or $SkipPicker -or $Script -or $Live)) {
+    Write-Error "-Standalone cannot be combined with -Game/-SkipPicker/-Script/-Live."
+}
+
 $Root     = $PSScriptRoot
 $DistsDir = "$Root\dists\msvc"
 $GameDir  = "J:\SteamLibrary\steamapps\common\Space Quest Collection\sq3"
@@ -330,10 +334,6 @@ function Test-ScriptFail {
     if (-not $Script) { return $false }
     $log = "$Root\screenshots\roger-run.log"
     return (Test-Path $log) -and (Select-String -Path $log -Pattern 'ROGER-SCRIPT: FAIL' -Quiet)
-}
-
-if ($Standalone -and ($Game -or $SkipPicker -or $Script -or $Live)) {
-    Write-Error "-Standalone cannot be combined with -Game/-SkipPicker/-Script/-Live."
 }
 
 # Boot straight into the game, bypassing the Roger picker dialog, when either
