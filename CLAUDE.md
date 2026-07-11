@@ -396,6 +396,26 @@ seam" above for the mapping):
   nested split once a full `_compositeCache` copy baked the corruption in (fixed 3da842f10c4 —
   the SBS present has its own `_sbsScratch`, forced fully opaque because the backend's native
   render is misaligned with both panels and bled through the transparent status strip).
+- A ScummVM GUI modal (save/load chooser, GMM) COMMANDEERS the overlay: `ThemeEngine::enable`
+  → `showOverlay` + `clearAll` (=`clearOverlay` `fill(0)` + `grabOverlay`), `redrawInternal`
+  calls `clearAll` UNCONDITIONALLY every full redraw, and `disable` → `hideOverlay` restoring
+  nothing — all while the game cycle is FROZEN (kSaveGame runs the chooser with NO engine
+  pause, so no observer event fires). Two consequences: (1) after close the overlay keeps the
+  dialog pixels and only mouse-move cursor presents / the 300-present heal repaint it — fixed
+  by the `onFrameStart` GUI self-heal poll (`overlayShown() && !isOverlayVisible()` →
+  `markFullDirty`, commit 367b8c0b8fb); (2) the dialog BACKDROP is architectural — the OpenGL
+  backend draws `_gameScreen` unconditionally then alpha-blends the overlay, and `clearOverlay`
+  is `fill(0)` (transparent), so the user sees NATIVE art behind the dialog, never the enhanced
+  frame (which lives only in the overlay the GUI zeroes). An `enable()`-only "grab don't clear"
+  fix is overwritten by `redrawInternal`'s clearAll; the reported save flow is TWO GUI sessions
+  (grid chooser closes → `SavenameDialog` opens with overlay already hidden), defeating
+  enable-time capture. A real backdrop fix needs coordinated shared-GUI changes
+  (enable/disable + clearAll/redrawInternal) verifiable only by a human (see below).
+- **`snap`/grabOverlay captures the OVERLAY BUFFER ONLY, not the game-behind composite.** It
+  cannot show or verify anything that depends on what shows THROUGH a transparent overlay
+  region (e.g. the GUI-dialog backdrop = native `_gameScreen` behind a `fill(0)` overlay). A
+  white/transparent snap outside a dialog does NOT mean the user sees white. Use a real
+  window/desktop grab for composite verification; snap only proves overlay contents.
 
 **Underused SCI signals worth exploiting later** (highest value first): a **palette-vary
 per-tick** hook for smooth fades/cycling (current re-apply is binary); semantic TextEdit-caret
