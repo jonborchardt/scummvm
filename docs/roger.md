@@ -104,6 +104,14 @@ Select a game and click **Launch** to proceed. The picker can be bypassed with
 `build_and_run.ps1 -SkipPicker` sets the env var for one launch, and passing
 `-Game <target>` skips it automatically.
 
+**Starting ScummVM with no game target** also goes straight to the Roger picker
+(the standalone mode): ScummVM's normal launcher is replaced for each launcher
+round by the Roger picker, so you see the game list immediately on a fresh
+install. The `+ Add Game` button is the way in when the list is empty.
+Setting `roger_no_launcher=true` in the `[scummvm]` ini section (or the env
+var) restores the stock ScummVM launcher. Use `build_and_run.ps1 -Standalone`
+to test this path from the harness.
+
 **Background:** The picker background is a procedural dark-navy vertical gradient (no image support).
 
 **Card rows:** each game shows a title, a second line with detection facts

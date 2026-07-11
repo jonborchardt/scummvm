@@ -288,6 +288,26 @@ individually.
   3.13 wiring 3 (module.mk 1 + EventRecorder.h 1 + test/module.mk 1).
   Sum = 18+6+2+14+4+2+9+12+2+4+4+3+3 = 83 hunks across 18 files. Matches §2 baseline (830 lines / 83 hunks / 18 files). -->
 
+### 3.14 base/main.cpp (post-audit addition, 2026-07-10)
+
+Added on branch `jon-standalone-picker` (after the audit baseline at 14509d438c3).
+Measured: **13 lines added, 0 deleted** (`git diff 4e23cc4859e..HEAD -- base/main.cpp`
+filtered for true `+`/`-` lines, excluding diff headers).
+
+| # | Site (file:line) | What it does | Bucket | Defensibility verdict | Disposition |
+|---|---|---|---|---|---|
+| B1 | main.cpp: include block | `#if PLUGIN_ENABLED_STATIC(SCI)` guard + `#include "sci/roger/launcher/roger_standalone.h"` — pulls the standalone-launcher declaration into the main translation unit | **D/W** | Fork plumbing: a `roger/`-path include inside a core ScummVM file, guarded so it compiles away when SCI is not a static plugin. The guard keeps it out of dynamic-plugin builds but the include still leaks the concrete path into `base/` | fork-only; the include rides with the call (B2); not part of any upstream slice |
+| B2 | main.cpp: launcherDialog() do-while body | `#if PLUGIN_ENABLED_STATIC(SCI)` guard + `if (Sci::Roger::rogerStandaloneLauncher()) { status = true; continue; }` — runs the Roger picker as the launcher round; if it returns true (picker handled the round), skips the stock GUI::LauncherDialog | **D/W** | Fork-only behavior change: the stock launcher is replaced by the Roger picker for each no-target launcher round, unless `roger_no_launcher` / `ROGER_NO_LAUNCHER` opts out. Never upstreamable as-is (hardcodes a concrete engine's picker in the shared `base/` bootstrap) | fork-only |
+
+**Line-budget note:** the §2 baseline (830 lines / 18 files) predates this file.
+The measured addition is **+13 lines** in `base/main.cpp` (1 new file in the
+inventory). These lines fall entirely in bucket D/W with disposition fork-only, so
+they do not affect the §6 neutral-seam projection (fork-only rows are carved out of
+the seam measurement per the R20 rule); the §2 raw baseline grows from 830 to **843**.
+
+<!-- coverage: 2 hunks (main.cpp), diff order:
+  hunk 1 (@@ -34) = B1(PLUGIN_ENABLED_STATIC(SCI) include block);
+  hunk 2 (@@ -116) = B2(launcherDialog do-while call block). -->
 
 ## 4. Seam inventory
 

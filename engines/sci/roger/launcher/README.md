@@ -89,16 +89,49 @@ var (per-process, preferred for automation):
 When skipped, the synchronous startup warm-up honors `roger_precache` instead
 of the dialog's interactive precache.
 
+## Standalone mode (no game target)
+
+When ScummVM starts with no game target, `base/main.cpp`'s launcher round
+calls `Sci::Roger::rogerStandaloneLauncher()` (`roger_standalone.{h,cpp}`)
+instead of the stock ScummVM launcher, unless `roger_no_launcher=true` is set
+in the `[scummvm]` ini section or the `ROGER_NO_LAUNCHER` env var is present
+(the same knob that skips the in-engine picker; it is also the escape hatch
+for users with non-SCI games, which this picker does not list). This works
+with **zero configured games**: the picker opens to its empty state and
+`+ Add Game` is the way in.
+
+Standalone differences from the in-engine picker:
+
+- Constructed as `RogerLauncher(nullptr, /*standalone=*/true)` — no provider,
+  no `g_sci`, `activeRow == -1` (no row is "running").
+- **Every** launch is a cross-game launch: `requestCrossGame` writes the usual
+  one-shot key (`roger_picker_launch` / `roger_picker_precache`) and then sets
+  the active ConfMan domain (pre-engine there is no engine for
+  `ChainedGamesMan` / return-to-launcher to unwind). The main loop boots the
+  game and the **in-engine** picker instance consumes the one-shot: cached ->
+  straight into the game; uncached -> auto-precache with progress, then launch.
+- Inline precache never runs standalone (it needs the engine's ResourceManager);
+  the per-row Precache button takes the one-shot path above.
+- Closing the picker without launching exits ScummVM (matches the stock
+  launcher's close semantics).
+
+Testing: `build_and_run.ps1 -Standalone` launches with no target; the log
+marker is `ROGER-PICKER: standalone launcher round`.
+
 ## Background
 
 The picker background is a procedural dark-navy vertical gradient (no image support).
 
 ## Wiring
 
-`SciEngine::run()` (`engines/sci/sci.cpp`) constructs `Roger::RogerLauncher`
-with the global art provider and calls `run()` before the game proper starts;
-a `false` return means a game-switch was pushed and the engine returns
-immediately. `RogerLauncherDialog` is a plain `GUI::Dialog`; precache work is
-driven from its `handleTickle` so progress stays visible. The launcher talks to
-generation only through `FileRogerArtProvider::precacheOnePic()` /
-`precacheOneView()`.
+The picker has two entry points. **In-engine:** `SciEngine::run()`
+(`engines/sci/sci.cpp`) constructs `Roger::RogerLauncher` with the global art
+provider and calls `run()` before the game proper starts; a `false` return means
+a game-switch was pushed and the engine returns immediately. **Pre-engine
+(standalone):** `base/main.cpp`'s `launcherDialog()` calls
+`Sci::Roger::rogerStandaloneLauncher()` (`roger_standalone.{h,cpp}`) as the
+first statement in its do-while, replacing the stock ScummVM launcher for each
+round (see "Standalone mode" above for the differences). `RogerLauncherDialog`
+is a plain `GUI::Dialog`; precache work is driven from its `handleTickle` so
+progress stays visible. The launcher talks to generation only through
+`FileRogerArtProvider::precacheOnePic()` / `precacheOneView()`.
