@@ -678,7 +678,7 @@ void GfxText16::Box(const char *text, uint16 languageSplitter, bool show, const 
 			Draw(curTextLine, 0, charCount, fontId, previousPenColor);
 		}
 
-		// Roger: capture each drawn LINE with its exact placed rect (offset already
+		// Observer: capture each drawn LINE with its exact placed rect (offset already
 		// encodes the alignment; textWidth/textHeight are the measured extent). A
 		// single whole-box capture (the old post-loop hook) carried the caller's
 		// REQUESTED rect — much wider/taller than the pixels actually drawn — which
@@ -721,7 +721,7 @@ void GfxText16::Box(const char *text, uint16 languageSplitter, bool show, const 
 	SetFont(previousFontId);
 	_ports->penColor(previousPenColor);
 
-	// Roger text capture happens PER LINE inside the draw loop above (exact placed
+	// Observer text capture happens PER LINE inside the draw loop above (exact placed
 	// rect per line); the old whole-box capture that lived here was deleted — see
 	// the in-loop comment for why (re-wrap drift + rollback containment misses).
 }

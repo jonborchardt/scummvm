@@ -19,10 +19,6 @@
  *
  */
 
-// Roger: build_and_run.ps1 -SkipPicker sets ROGER_NO_LAUNCHER to boot straight
-// into the game, read via getenv() below.
-#define FORBIDDEN_SYMBOL_EXCEPTION_getenv
-
 #include "common/system.h"
 #include "common/config-manager.h"
 #include "common/debug-channels.h"
@@ -73,10 +69,6 @@
 #include "sci/graphics/text16.h"
 #include "sci/graphics/transitions.h"
 #include "sci/sci_gfx_observer.h"
-#include "sci/roger/file_roger_art_provider.h"
-#include "sci/roger/launcher/roger_launcher.h"
-#include "sci/roger/utils/studio/roger_studio.h" // quarantined dev utility (Roger Studio)
-#include "sci/roger/utils/eyetest/roger_eyetest.h" // quarantined dev utility (eye exam)
 
 #ifdef ENABLE_SCI32
 #include "sci/graphics/controls32.h"
@@ -228,11 +220,11 @@ SciEngine::SciEngine(OSystem *syst, const ADGameDescription *desc, SciGameId gam
 }
 
 SciEngine::~SciEngine() {
-	// ROGER-FORK-ONLY: clear the neutral seam BEFORE deleting the provider, then
-	// clear the fork-only downcast slot.
+	// Clear the neutral observer seam BEFORE deleting the registered observer,
+	// so no hook site can reach a half-destroyed object.
+	SciGfxObserver *gfxObserver = sciGfxObserver();
 	setSciGfxObserver(nullptr);
-	delete g_rogerProvider;
-	g_rogerProvider = nullptr;
+	delete gfxObserver;
 #ifdef ENABLE_SCI32
 	delete _gfxControls32;
 	delete _gfxPaint32;
@@ -414,53 +406,18 @@ Common::Error SciEngine::run() {
 			_system->setWindowCaption(qgd.description.decode());
 	}
 
-	// ROGER-FORK-ONLY: construct the concrete provider and register it on the
-	// neutral observer seam. Upstream, this becomes plugin self-registration.
-	FileRogerArtProvider *rogerProv = new FileRogerArtProvider(getGameIdStr(), ConfMan.getPath("path"));
-	setSciGfxObserver(rogerProv);
-	g_rogerProvider = rogerProv; // fork-only downcast slot
+	// Construct and register the display-enhancement observer (nullptr = none).
+	// The factory is defined by the observer implementation module; the engine
+	// core never names a concrete type.
+	setSciGfxObserver(createSciGfxObserver(getGameIdStr(), ConfMan.getPath("path")));
 
-	// ROGER-FORK-ONLY: Roger Studio, tuning environment (quarantined dev utility,
-	// engines/sci/roger/utils/studio/) — build_and_run.ps1 -Studio /
-	// ROGER_STUDIO=1. Runs its own blocking loop at this seam — resources and
-	// graphics are alive, no game scripts have run — then exits the process.
-	// This env-gated block is its ONLY engine reference.
-	if (getenv("ROGER_STUDIO") != nullptr) {
-		Roger::RogerStudio studio(getGameIdStr());
-		studio.run();
+	// One-time observer startup hook: the observer may run interactive tooling
+	// or warm its caches here (resources and graphics are alive, no game
+	// scripts have run). Returning true means a standalone tool ran (or an
+	// engine restart was pushed) and the engine must exit without running the
+	// game.
+	if (sciGfxObserver() && sciGfxObserver()->onEngineStartup())
 		return Common::kNoError;
-	}
-
-	// ROGER-FORK-ONLY: Eye Exam, interactive OMYAC pass-sequence tuner (quarantined dev utility,
-	// engines/sci/roger/utils/eyetest/) — same seam and lifecycle as Roger
-	// Studio above. This env-gated block is its ONLY engine reference.
-	if (getenv("ROGER_EYETEST") != nullptr) {
-		Roger::RogerEyeTest eyetest(getGameIdStr());
-		eyetest.run();
-		return Common::kNoError;
-	}
-
-	// ROGER-FORK-ONLY: skip the picker when roger_no_launcher is set (scummvm.ini) OR the
-	// ROGER_NO_LAUNCHER env var is present. The env var is a non-sticky
-	// dev convenience so build_and_run.ps1 -SkipPicker can boot straight
-	// into the game / auto-loaded save without touching scummvm.ini.
-	const bool skipLauncher =
-		(ConfMan.hasKey("roger_no_launcher") && ConfMan.getBool("roger_no_launcher")) ||
-		(getenv("ROGER_NO_LAUNCHER") != nullptr);
-
-	if (!skipLauncher) {
-		// The launcher owns precaching and shows on-screen progress + a per-item
-		// log. Do NOT run the synchronous startup warm-up here — it would do all
-		// the work (potentially many seconds, fully blocking) before the dialog
-		// ever appears, with no visible progress.
-		Roger::RogerLauncher launcher(rogerProv);
-		if (!launcher.run())
-			return Common::kNoError; // game-switch pushed; ScummVM restarts engine
-	} else {
-		// No launcher: fall back to the synchronous warm-up (roger_precache).
-		// No-op unless roger_precache is set and a generating roger_gen_mode is active.
-		rogerProv->precacheAll();
-	}
 
 	// Sound must be initialized after graphics because SysEx transfers at the
 	// start of the game must pump the event loop to avoid making the OS think

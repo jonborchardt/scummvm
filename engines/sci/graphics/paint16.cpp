@@ -491,7 +491,7 @@ void GfxPaint16::kernelGraphFrameBox(const Common::Rect &rect, int16 color) {
 	_ports->penColor(color);
 	frameRect(rect);
 	_ports->penColor(oldColor);
-	// Roger hires overlay: capture any frame-box drawn here as a no-fill overlay
+	// Observer (hires overlay): capture any frame-box drawn here as a no-fill overlay
 	// element (game-agnostic backstop). rect is in local (port-relative) coords —
 	// offsetRect converts to global 320x200 screen space. Note: kernelGraphFrameBox
 	// is NOT called for the QFG1/SQ3 control-list selection frame — that is drawn in
@@ -651,7 +651,7 @@ reg_t GfxPaint16::kernelDisplay(const char *text, uint16 languageSplitter, int a
 	if (doSaveUnder)
 		result = bitsSave(rect, GFX_SCREEN_MASK_VISUAL);
 
-	// Roger: the kDisplay TEXT itself is captured PER LINE inside GfxText16::Box
+	// Observer: the kDisplay TEXT itself is captured PER LINE inside GfxText16::Box
 	// (exact placed rects — the whole-string element this hook used to push
 	// re-wrapped multi-line text at TTF metrics, drifting/overlapping the SQ3
 	// intro credits, and its 70%-coverage dedupe then dropped the accurate

@@ -80,11 +80,12 @@ class GfxCompare;
 
 namespace Sci {
 
-// Fork-only downcast slot (see file_roger_art_provider.h): a single well-known
-// pointer the provider registration in SciEngine::run() sets alongside
-// setSciGfxObserver; rogerProvider() just reads it back. No RTTI - the fork
-// owns the only observer type. Cleared in the SciEngine destructor.
-// FIXME: non-const global var - set at SciEngine::run, cleared in ~SciEngine.
+// Roger-internal downcast slot (see file_roger_art_provider.h): set by
+// createSciGfxObserver() in roger_register.cpp, read back via rogerProvider().
+// No RTTI - the fork owns the only observer type. Cleared in
+// ~FileRogerArtProvider so it can never dangle past the provider.
+// FIXME: non-const global var - set at createSciGfxObserver, cleared in
+// ~FileRogerArtProvider.
 FileRogerArtProvider *g_rogerProvider = nullptr;
 
 FileRogerArtProvider *rogerProvider() {
@@ -3291,6 +3292,47 @@ void FileRogerArtProvider::onFrameStart() {
 	_pendingShowOwner = 0;
 }
 
+// SciGfxObserver::interceptEvent — the single event seam (event.cpp calls it
+// null-guarded on the neutral interface). May mutate ev.mouse (SBS remap) and
+// returns true to consume the event (debug hotkeys, tune-panel clicks).
+bool FileRogerArtProvider::interceptEvent(Common::Event &ev) {
+	// Side-by-side compare mode: remap so the left (enhanced) panel drives the
+	// game. No-op in the other display modes. Runs FIRST so the tune-panel
+	// hit-test below sees remapped game-space coordinates.
+	remapComparisonMouse(ev.mouse);
+
+	// Debug hotkeys, consumed (never passed to the game), bound to plain F-keys:
+	//   F10 - toggle the upscaled hires overlay vs the original (display mode)
+	//   F11 - toggle per-frame Roger diagnostic logging
+	//   F12 - toggle the quick-tune debug panel
+	// Both F10 and F11 are also mirrored as clickable rows inside the F12 panel.
+	if (ev.type == Common::EVENT_KEYDOWN) {
+		const Common::KeyCode kc = ev.kbd.keycode;
+		if (kc == Common::KEYCODE_F10) {
+			toggleOverlay();
+			return true;
+		}
+		if (kc == Common::KEYCODE_F11) {
+			toggleDebugLog();
+			return true;
+		}
+		if (kc == Common::KEYCODE_F12) {
+			toggleTunePanel();
+			return true;
+		}
+	}
+	// While the tune panel is open, button events over the panel are consumed
+	// by it (coordinates are game-space 320x200; the panel hit-tests in the
+	// same space); everything else passes through so the game stays playable.
+	// Delete the swallow with the tune panel.
+	if (ev.type == Common::EVENT_LBUTTONDOWN || ev.type == Common::EVENT_LBUTTONUP ||
+	    ev.type == Common::EVENT_RBUTTONDOWN || ev.type == Common::EVENT_RBUTTONUP) {
+		if (tunePanelMouse(ev.type == Common::EVENT_LBUTTONDOWN, ev.mouse))
+			return true;
+	}
+	return false;
+}
+
 void FileRogerArtProvider::remapComparisonMouse(Common::Point &mousePos) {
 	if (_mode != Roger::kModeSideBySide)
 		return;
@@ -3782,6 +3824,11 @@ bool FileRogerArtProvider::claimShake(int shakeCount, int directions) {
 }
 
 FileRogerArtProvider::~FileRogerArtProvider() {
+	// Clear the roger-internal downcast slot exactly once (set in
+	// createSciGfxObserver); the neutral seam is cleared by the engine before
+	// it deletes the observer.
+	if (g_rogerProvider == this)
+		g_rogerProvider = nullptr;
 	CursorMan.showMouse((g_sci && g_sci->_gfxCursor) ? g_sci->_gfxCursor->isVisible() : true);
 	if (_inputDriver) {
 		g_system->getEventManager()->getEventDispatcher()->unregisterSource(_inputDriver);

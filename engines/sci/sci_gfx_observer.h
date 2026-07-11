@@ -25,14 +25,20 @@
 #include "common/list.h"
 #include "common/rect.h"
 
+namespace Common {
+class String;
+class Path;
+struct Event;
+} // namespace Common
+
 namespace Sci {
 
 struct Palette;
 
 // Forward declaration of the SCI animate list so this header stays decoupled
 // from the engine internals: it is included by every graphics hook site and,
-// via roger_tokens.h, by SCI-free unit-test translation units. The concrete
-// definition lives in sci/graphics/animate.h.
+// through observer-side wrapper headers, by SCI-free unit-test translation
+// units. The concrete definition lives in sci/graphics/animate.h.
 struct AnimateEntry;
 typedef Common::List<AnimateEntry> AnimateList;
 
@@ -128,6 +134,20 @@ inline uint32 gfxTokenNamespace(uint32 token) {
 class SciGfxObserver {
 public:
 	virtual ~SciGfxObserver() {}
+
+	// ── L0: engine lifecycle & input ────────────────────────────────────────
+
+	// Called once after registration, after graphics init, before the game
+	// loop. The observer may run interactive tooling or warm its caches here.
+	// Return true if it ran a standalone tool and the engine should exit
+	// without running the game.
+	virtual bool onEngineStartup() { return false; }
+
+	// Called for each event before engine processing. The observer may MUTATE
+	// the event (e.g. remap mouse coordinates for a comparison view) and/or
+	// CONSUME it (return true = engine never sees it; used for the observer's
+	// own hotkeys and in-overlay UI).
+	virtual bool interceptEvent(Common::Event &ev) { return false; }
 
 	// Provenance of an onText emission. The observer derives PRESENTATION
 	// (heading vs body role, alternate font, bar styling) from this source —
@@ -385,6 +405,11 @@ extern SciGfxObserver *g_sciGfxObserver;
 // LIST is a mechanical change here.
 void setSciGfxObserver(SciGfxObserver *observer);
 SciGfxObserver *sciGfxObserver();
+
+// Constructs and returns the display-enhancement observer for this game, or
+// nullptr. Defined by the observer implementation module; the engine core
+// never names a concrete type.
+SciGfxObserver *createSciGfxObserver(const Common::String &gameId, const Common::Path &gamePath);
 
 } // namespace Sci
 

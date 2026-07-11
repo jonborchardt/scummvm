@@ -35,10 +35,6 @@
 #endif
 #include "sci/graphics/screen.h"
 #include "sci/sci_gfx_observer.h"
-// ROGER-FORK-ONLY include: the fork-only downcast accessor rogerProvider() and
-// the concrete provider type for the hotkey/SBS-remap/tune-panel blocks below.
-// This is the one sanctioned roger/ include outside sci.cpp's construction site.
-#include "sci/roger/file_roger_art_provider.h"
 
 namespace Sci {
 
@@ -248,12 +244,25 @@ SciEvent EventManager::getScummVMEvent() {
 	}
 #endif
 
-	// ROGER-FORK-ONLY: side-by-side compare mode — remap so the left (enhanced)
-	// panel drives the game. No-op in the other display modes.
-	if (FileRogerArtProvider *roger = rogerProvider())
-		roger->remapComparisonMouse(mousePos);
+	// Hand the polled event to the registered observer: it may MUTATE it
+	// (e.g. remap mouse coordinates so a comparison-view panel drives the
+	// game) and/or CONSUME it (its own hotkeys and in-overlay UI — the game
+	// never sees those). The mouse position is round-tripped through ev.mouse
+	// so a remap applies to every poll, including empty ones (SCI stamps the
+	// current pointer position on every event).
+	bool consumedByObserver = false;
+	if (g_sciGfxObserver) {
+		if (!found)
+			ev = Common::Event(); // no event polled: a blank event still carries the pointer
+		ev.mouse = mousePos;
+		consumedByObserver = g_sciGfxObserver->interceptEvent(ev);
+		mousePos = ev.mouse;
+	}
 
 	noEvent.mousePos = input.mousePos = mousePos;
+
+	if (consumedByObserver)
+		return noEvent;
 
 	if (!found || ev.type == Common::EVENT_MOUSEMOVE) {
 		int modifiers = em->getModifierState();
@@ -269,40 +278,6 @@ SciEvent EventManager::getScummVMEvent() {
 	if (ev.type == Common::EVENT_QUIT || ev.type == Common::EVENT_RETURN_TO_LAUNCHER) {
 		input.type = kSciEventQuit;
 		return input;
-	}
-
-	// ROGER-FORK-ONLY: Roger debug hotkeys + tune-panel mouse swallow (fork-only
-	// methods, reached via the downcast accessor). Hotkeys are consumed, not
-	// passed to the game, bound to plain F-keys:
-	//   F10 - toggle the upscaled hires overlay vs the original (display mode)
-	//   F11 - toggle per-frame Roger diagnostic logging
-	//   F12 - toggle the quick-tune debug panel
-	// Both F10 and F11 are also mirrored as clickable rows inside the F12 panel.
-	// While the tune panel is open, button events over the panel are consumed by
-	// it (mousePos is game-space 320x200; the provider hit-tests in the same
-	// space); everything else passes through so the game stays playable. Delete
-	// the swallow with the tune panel.
-	if (FileRogerArtProvider *roger = rogerProvider()) {
-		if (ev.type == Common::EVENT_KEYDOWN) {
-			const Common::KeyCode kc = ev.kbd.keycode;
-			if (kc == Common::KEYCODE_F10) {
-				roger->toggleOverlay();
-				return noEvent;
-			}
-			if (kc == Common::KEYCODE_F11) {
-				roger->toggleDebugLog();
-				return noEvent;
-			}
-			if (kc == Common::KEYCODE_F12) {
-				roger->toggleTunePanel();
-				return noEvent;
-			}
-		}
-		if (ev.type == Common::EVENT_LBUTTONDOWN || ev.type == Common::EVENT_LBUTTONUP ||
-		    ev.type == Common::EVENT_RBUTTONDOWN || ev.type == Common::EVENT_RBUTTONUP) {
-			if (roger->tunePanelMouse(ev.type == Common::EVENT_LBUTTONDOWN, mousePos))
-				return noEvent;
-		}
 	}
 
 	int scummVMKeyFlags;

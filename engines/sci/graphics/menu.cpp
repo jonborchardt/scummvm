@@ -1100,7 +1100,7 @@ void GfxMenu::kernelDrawStatus(const char *text, int16 colorPen, int16 colorBack
 	_paint16->fillRect(_ports->_menuLine, 1, 0);
 	_paint16->bitsShow(_ports->_menuLine);
 
-	// Roger hires dialogs: render the score/title banner into the overlay's top strip
+	// Observer (hires dialogs): render the score/title banner into the overlay's top strip
 	// (opaque, exact-fit) so it appears hires instead of the native bar showing through.
 	if (g_sciGfxObserver) {
 		int16 nfw = 0, nfh = 0;

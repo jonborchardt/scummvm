@@ -114,7 +114,7 @@ void GfxControls16::drawListControl(Common::Rect rect, reg_t obj, int16 maxChars
 				_paint16->invertRect(workerRect);
 			}
 
-			// Roger hires dialogs: capture this list row as text on top of the list
+			// Observer (hires dialogs): capture this list row as text on top of the list
 			// window (already captured by drawWindow). The selected row is rendered
 			// inverted (white on black). Token = active window id, so disposing the
 			// inventory window clears the rows too.
@@ -322,7 +322,7 @@ void GfxControls16::kernelTexteditChange(reg_t controlObject, reg_t eventObject)
 		// Write back string
 		_segMan->strcpy_(textReference, text.c_str());
 
-		// Roger hires dialogs: live typing redraws here (not via kernelDrawTextEdit),
+		// Observer (hires dialogs): live typing redraws here (not via kernelDrawTextEdit),
 		// so push the updated buffer + caret so the hires field tracks each keystroke.
 		// Same token+rect as kernelDrawTextEdit => replaces that element in place.
 		if (g_sciGfxObserver) {
@@ -469,7 +469,7 @@ void GfxControls16::kernelDrawText(Common::Rect rect, reg_t obj, const char *tex
 		}
 		if (style & SCI_CONTROLS_STYLE_SELECTED) {
 			_paint16->frameRect(rect);
-			// Roger hires overlay: capture the selection frame so it appears at the
+			// Observer (hires overlay): capture the selection frame so it appears at the
 			// correct hires position. rect is local (port-relative); offsetRect converts
 			// to global 320x200 screen space. penClr is the current port pen color,
 			// which is what frameRect() draws with. The change-gate lives

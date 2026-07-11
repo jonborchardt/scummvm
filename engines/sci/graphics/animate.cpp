@@ -416,7 +416,7 @@ void GfxAnimate::update() {
 		if (it->signal & kSignalAlwaysUpdate) {
 			// draw corresponding cel
 			_paint16->drawCel(it->viewId, it->loopNo, it->celNo, it->celRect, it->priority, it->paletteNo, it->scaleX, it->scaleY);
-			// Roger: a cast draw during room init (_picNotValid) bakes into the native
+			// Observer: a cast draw during room init (_picNotValid) bakes into the native
 			// picture if its object disposes before ever being erased — capture it, tagged
 			// with its owner so it only promotes once the owner leaves the animate list.
 			if (g_sciGfxObserver && _screen->_picNotValid)
@@ -456,7 +456,7 @@ void GfxAnimate::update() {
 		if (it->signal & kSignalNoUpdate && !(it->signal & kSignalHidden)) {
 			// draw corresponding cel
 			_paint16->drawCel(it->viewId, it->loopNo, it->celNo, it->celRect, it->priority, it->paletteNo, it->scaleX, it->scaleY);
-			// Roger: init-frame cast draw — see the kSignalAlwaysUpdate capture above.
+			// Observer: init-frame cast draw — see the kSignalAlwaysUpdate capture above.
 			if (g_sciGfxObserver && _screen->_picNotValid)
 				g_sciGfxObserver->onCel(it->celRect, it->viewId, it->loopNo, it->celNo,
 				                        it->priority,
@@ -487,7 +487,7 @@ void GfxAnimate::drawCels() {
 
 			// draw corresponding cel
 			_paint16->drawCel(it->viewId, it->loopNo, it->celNo, it->celRect, it->priority, it->paletteNo, it->scaleX, it->scaleY, it->scaleSignal);
-			// Roger: init-frame cast draw — see the kSignalAlwaysUpdate capture in update().
+			// Observer: init-frame cast draw — see the kSignalAlwaysUpdate capture in update().
 			if (g_sciGfxObserver && _screen->_picNotValid)
 				g_sciGfxObserver->onCel(it->celRect, it->viewId, it->loopNo, it->celNo,
 				                        it->priority,
@@ -646,7 +646,7 @@ void GfxAnimate::addToPicDrawCels() {
 
 		// draw corresponding cel
 		_paint16->drawCel(view, it->loopNo, it->celNo, it->celRect, it->priority, it->paletteNo, it->scaleX, it->scaleY);
-		// Roger hires overlay: capture this addToPic cel so it appears in the overlay
+		// Observer (hires overlay): capture this addToPic cel so it appears in the overlay
 		// (it is baked into the native pic and is not in the animate list afterwards).
 		if (g_sciGfxObserver)
 			g_sciGfxObserver->onCel(it->celRect, it->viewId, it->loopNo, it->celNo,
@@ -668,7 +668,7 @@ void GfxAnimate::addToPicDrawView(GuiResourceId viewId, int16 loopNo, int16 celN
 	// Create rect according to coordinates and given cel
 	view->getCelRect(loopNo, celNo, x, y, 0, celRect);
 	_paint16->drawCel(view, loopNo, celNo, celRect, priority, 0);
-	// Roger hires overlay: capture this single addToPic view.
+	// Observer (hires overlay): capture this single addToPic view.
 	if (g_sciGfxObserver)
 		g_sciGfxObserver->onCel(celRect, viewId, loopNo, celNo,
 		                        priority, 0, SciGfxObserver::kCelSourceAddToPic);
