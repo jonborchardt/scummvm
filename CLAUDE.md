@@ -82,7 +82,13 @@ Coordinates are game space (320×200). Smoke script:
 parser scripts, each opening with a claude-index section (phase table with unique
 grep anchors, launch targets, save points, arcade/deadly sequences a `.rin` driver
 must handle); grep the index to reach a location/item/scene instead of reading the
-whole file. The injection seam is a registered backend
+whole file. **The walkthrough `command` lines (`enter inn`, `go north`,
+`ask sheriff about brigands`) are human-readable INTENT notes, NOT literal input —
+you cannot `type "enter inn"` into the game.** SQ3 and QFG1 EGA are icon/mouse
+driven (walk/look/hand/talk icon bar + click), not text-parser games, so a `.rin`
+driver must translate each walkthrough step into `click`/`move`/`key`/icon
+interactions in game space, never a typed sentence. (Confirmed with the user
+2026-07-10 while chasing a phantom "QFG1 has no sound" report.) The injection seam is a registered backend
 `EventSource` — keep `roger_input.{h,cpp}` free of SCI includes (engine-agnostic).
 The phase-gate regression suite for the present-barrier refactor lives at
 `test/sci/roger/run-regression.ps1` (manifest-driven; see the spec §8) — run it
