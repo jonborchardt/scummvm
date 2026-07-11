@@ -131,7 +131,7 @@ public:
 	void loadScriptFromString(const Common::String &text);
 	// Read a script file (absolute or cwd-relative path). False if unreadable.
 	bool loadScriptFile(const Common::String &path);
-	// Enable live mode: tail an append-only command file (throttled, Task 3).
+	// Enable live mode: tail an append-only command file (throttled).
 	void setLiveFile(const Common::String &path);
 
 	// Common::EventSource
@@ -162,7 +162,7 @@ private:
 	void expandCommand(const ScriptCommand &cmd);
 	void pushMouse(Common::EventType type, int x, int y, uint32 relMs);
 	void pushKey(Common::EventType type, Common::KeyCode kc, uint16 ascii, uint32 relMs);
-	void tailLive(uint32 nowMs); // Task 3
+	void tailLive(uint32 nowMs);
 
 	Common::Array<TimedAction> _actions;
 	uint _next;            // next action index
@@ -172,10 +172,10 @@ private:
 	bool _done;            // quit delivered; stop yielding
 	bool _capturePending;
 	Common::String _captureLabel;
-	Common::String _livePath;   // Task 3
-	uint32 _liveOffset;         // Task 3: bytes consumed
-	uint32 _lastTailMs;         // Task 3: tail throttle
-	Common::String _livePartial; // Task 3: trailing incomplete line
+	Common::String _livePath;    // path of the live command file being tailed
+	uint32 _liveOffset;          // bytes consumed from _livePath
+	uint32 _lastTailMs;          // tail throttle: last poll wall-clock
+	Common::String _livePartial; // trailing incomplete line from last tail
 	ScriptHost *_host = nullptr; // borrowed; registered by the art provider
 	// Slow-command schedule re-anchor: a snap (grabOverlay + PNG, ~1s) runs synchronously
 	// inside pollDue, so the next poll's clock has jumped ahead. On the next poll we slide

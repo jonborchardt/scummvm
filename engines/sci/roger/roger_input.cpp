@@ -355,7 +355,7 @@ bool InputScriptDriver::pollDue(uint32 nowMs, Common::Event &ev) {
 	}
 	if (_next >= _actions.size()) {
 		if (!_livePath.empty())
-			tailLive(nowMs); // Task 3 (no-op stub until then)
+			tailLive(nowMs);
 		if (_next >= _actions.size())
 			return false;
 	}

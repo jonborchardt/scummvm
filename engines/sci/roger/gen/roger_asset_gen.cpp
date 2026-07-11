@@ -866,8 +866,12 @@ Graphics::Surface *RogerAssetGen::finishGlyphSurface(const IndexImage &idx, int 
 		uint32 *dst = (uint32 *)surf->getBasePtr(0, y);
 		for (int x = 0; x < sw; x++) {
 			const byte v = scaled.pixels[(uint32)(y * sw + x)];
-			if (v == ck) dst[x] = fmt.ARGBToColor(0, 0, 0, 0);
-			else { const Color &c = pal.colors[v]; dst[x] = fmt.ARGBToColor(255, c.r, c.g, c.b); }
+			if (v == ck) {
+				dst[x] = fmt.ARGBToColor(0, 0, 0, 0);
+			} else {
+				const Color &c = pal.colors[v];
+				dst[x] = fmt.ARGBToColor(255, c.r, c.g, c.b);
+			}
 		}
 	}
 	return surf;

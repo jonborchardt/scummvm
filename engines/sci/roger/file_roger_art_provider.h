@@ -75,14 +75,14 @@ public:
 	void onAnimateFrame(const AnimateList &list) override;
 	void onFrameStart() override;
 	void onNativePicture();
-	// SciGfxObserver picture family (R2):
+	// SciGfxObserver picture family:
 	void onPicture(GuiResourceId picId, bool addToFlag) override;
 	void onPictureAbsent() override;
 	void onMouseMoved() override;
-	// SciGfxObserver palette-truth (R18/sec.7): event-driven trigger for the live
+	// SciGfxObserver palette-truth: event-driven trigger for the live
 	// re-apply; latches _paletteDirty for the per-frame observeLivePalette poll.
 	void onPaletteChanged(const Palette &palette, int16 step, int16 total) override;
-	// SciGfxObserver cel family (R3): one dispatcher over the five sources.
+	// SciGfxObserver cel family: one dispatcher over the five sources.
 	void onCel(const Common::Rect &rect, int viewId, int loopNo, int celNo,
 	           int priority, uint32 owner, CelSource source) override;
 	// Per-source bodies:
@@ -157,7 +157,7 @@ public:
 	                            int style, int cursorPos, uint32 token,
 	                            int nativeFontH, int nativeTextW);
 	void uiPushFrameBoxInternal(const Common::Rect &rect, int penColor);
-	// R13 batch brackets: depth counting + per-batch menu-model routing. endBatch
+	// Batch brackets: depth counting + per-batch menu-model routing. endBatch
 	// rebuilds only what the batch touched (bar and/or dropdown) and presents ONCE.
 	void beginBatch() override;
 	void endBatch() override;
@@ -372,7 +372,7 @@ private:
 	bool _batchTouchedDropdown = false;
 	void menuRebuildBar();      // exiled bar-overlay emitter (token kGfxTokenStatus)
 	void menuRebuildDropdown(); // exiled dropdown-overlay emitter (token kGfxTokenMenuDropdown)
-	// R9 open->show attribution: onWindowOpen arms the just-opened window's token;
+	// Open->show attribution: onWindowOpen arms the just-opened window's token;
 	// the FIRST following onShow that self-derived owner 0 and is contained in the
 	// window rect adopts it (the drawWindow terminal show, which runs under
 	// _wmgrPort). Single-shot; reset at every frame boundary (onFrameStart) and at

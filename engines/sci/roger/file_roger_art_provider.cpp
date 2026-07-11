@@ -507,7 +507,8 @@ void FileRogerArtProvider::pushHiresBackgroundInternal(GuiResourceId pictureId) 
 
 	// New room: drop any dialogs/icons left from the previous room so they do not
 	// bleed onto the new scene. _haveScene is rebuilt by the next renderFrame.
-	if (_journal) _journal->clear();
+	if (_journal)
+		_journal->clear();
 	for (uint i = 0; i < _uiIcons.size(); i++) { _uiIcons[i]->free(); delete _uiIcons[i]; }
 	_uiIcons.clear();
 	_genericGlyphCache.clear(); // surfaces were owned by _uiIcons (freed above)
@@ -1781,7 +1782,7 @@ void FileRogerArtProvider::buildGlyphs(const char *text, int fontId, int penColo
 void FileRogerArtProvider::onWindowOpen(const Common::Rect &r, uint16 wndStyle,
                                         int backColor, int penColor, const char *title,
                                         uint32 token) {
-	// Menu exile (R5): the dropdown box is MODEL-owned  --  openDropdown resets the
+	// The dropdown box is MODEL-owned  --  openDropdown resets the
 	// retained rows and stores the box; the journal emit is menuRebuildDropdown at
 	// endBatch. Never treated as a real window (no bracket, no immediate append).
 	// The model ingestion runs UNCONDITIONALLY (matching the old menu.cpp
@@ -1795,7 +1796,7 @@ void FileRogerArtProvider::onWindowOpen(const Common::Rect &r, uint16 wndStyle,
 	}
 	if (!enabled)
 		return;
-	// Arm open->show attribution (R9): the window's content show follows immediately
+	// Arm open->show attribution: the window's content show follows immediately
 	// (GfxPorts::drawWindow emits onWindowOpen, then bitsShow(dims) under _wmgrPort,
 	// which self-derives owner 0  --  see onShow). Only real windows (control namespace)
 	// arm; the menu.cpp singletons (status strip / dropdown) never route a content
@@ -2232,7 +2233,7 @@ void FileRogerArtProvider::onMenuHighlight(uint16 itemId) {
 }
 
 void FileRogerArtProvider::onWindowClose(uint32 token) {
-	// Menu exile (R5): dropdown dispose (kernelSelect close). The dropdown is
+	// Dropdown dispose (kernelSelect close). The dropdown is
 	// drawn straight to the screen (no window, and this seam fires whether or not
 	// its save-under restored), so this is a manual-invalidation case: clear the
 	// model + journal, invalidate the retained box, present. Gated on an actual
@@ -2517,7 +2518,8 @@ void FileRogerArtProvider::uiPushFrameBoxInternal(const Common::Rect &r, int pen
 	journalAppend(e);
 	// No SCI save-under exists for the frame box, and the net cannot see overlay-only
 	// draws  --  old position would ghost without this explicit vacated-dirty mark.
-	if (!oldFrameRect.isEmpty()) markVacatedDirty(oldFrameRect);
+	if (!oldFrameRect.isEmpty())
+		markVacatedDirty(oldFrameRect);
 	markUiDirty(r);
 	presentBarrier();
 }
@@ -2807,12 +2809,15 @@ void FileRogerArtProvider::onInitCelInternal(int viewId, int loopNo, int celNo,
 // flush shows are bracketed. Deliberately NOT gated on `enabled`: the depth
 // must stay balanced no matter what flags flip between begin and end.
 void FileRogerArtProvider::beginSelfDraw() { _nativeDrawDepth++; }
-void FileRogerArtProvider::endSelfDraw()   { if (_nativeDrawDepth > 0) _nativeDrawDepth--; }
+void FileRogerArtProvider::endSelfDraw() {
+	if (_nativeDrawDepth > 0)
+		_nativeDrawDepth--;
+}
 
 void FileRogerArtProvider::onShow(const Common::Rect &screenRect, uint32 owner) {
 	if (!enabled)
 		return;
-	// R9 open->show attribution: a show that self-derived owner 0 immediately after
+	// Open->show attribution: a show that self-derived owner 0 immediately after
 	// an onWindowOpen (the drawWindow terminal show, which runs under _wmgrPort)
 	// adopts the just-opened window's token when contained in its rect. Single-shot:
 	// consumed by the first matching show; also reset at every frame boundary
@@ -2881,7 +2886,7 @@ void FileRogerArtProvider::onText(const Common::Rect &rect, const char *text, in
 		                   Roger::kRoleBody, false, nativeFontH, nativeTextW);
 		break;
 	case kTextSourceMenuBar:
-		// Menu exile (R5): accumulate into the retained model; the journal emit
+		// Accumulate into the retained model; the journal emit
 		// happens ONCE at endBatch (menuRebuildBar). The bar reset armed by
 		// beginBatch fires on the FIRST title only, so a dropdown batch (which
 		// emits no menuBar text) never wipes the retained bar titles.
@@ -3308,7 +3313,7 @@ void FileRogerArtProvider::onFrameStart() {
 	// `period` honest across -CycleLog toggles. Deliberately NOT gated on
 	// `enabled`: the old seam telemetry ran regardless of the enable flag.
 	_cycleTelemetry.frameStart(g_system->getMillis());
-	// R9: a pending open->show attribution never survives a frame boundary  --  the
+	// A pending open->show attribution never survives a frame boundary  --  the
 	// drawWindow content show is same-call, so a stale arm here is a bug, not a
 	// feature. O(1).
 	_pendingShowOwner = 0;
@@ -3404,8 +3409,14 @@ void FileRogerArtProvider::remapComparisonMouse(Common::Point &mousePos) {
 	const Common::Rect &f = (px < OW / 2) ? leftF : rightF;
 	int gx = (px - f.left) * 320 / f.width();
 	int gy = (py - f.top) * 200 / f.height();
-	if (gx < 0) gx = 0; else if (gx > 319) gx = 319;
-	if (gy < 0) gy = 0; else if (gy > 199) gy = 199;
+	if (gx < 0)
+		gx = 0;
+	else if (gx > 319)
+		gx = 319;
+	if (gy < 0)
+		gy = 0;
+	else if (gy > 199)
+		gy = 199;
 	mousePos.x = (int16)gx;
 	mousePos.y = (int16)gy;
 }
@@ -3637,7 +3648,8 @@ void FileRogerArtProvider::onNativePicture() {
 	if (_compositor)
 		_compositor->setRoom(nullptr, nullptr);
 	if (_plate) { _plate->free(); delete _plate; _plate = nullptr; }
-	if (_journal) _journal->clear();
+	if (_journal)
+		_journal->clear();
 	for (uint i = 0; i < _uiIcons.size(); i++) { _uiIcons[i]->free(); delete _uiIcons[i]; }
 	_uiIcons.clear();
 	_genericGlyphCache.clear(); // surfaces were owned by _uiIcons (freed above)

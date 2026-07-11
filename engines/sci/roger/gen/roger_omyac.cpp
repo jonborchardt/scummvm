@@ -22,7 +22,7 @@
 // hybrid upscaler, via sci.js render-omyac-upscaler.ts. Pipeline:
 //   build anchors -> detect line endings -> connect line/fill anchors ->
 //   hybrid 6x Bresenham -> enhance passes -> null-fill.
-// nativePreRender (Step 1) lives in roger_pic_native.{h,cpp} (Task 4); this
+// nativePreRender (Step 1) lives in roger_pic_native.{h,cpp}; this
 // file ports Steps 2-8 and the top-level entry point.
 
 #include "sci/roger/gen/roger_omyac.h"
