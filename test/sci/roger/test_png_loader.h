@@ -30,8 +30,9 @@ public:
 		Common::Array<byte> result = Sci::Roger::loadGrayscale8(
 			Common::String(FIXTURE_DIR) + "/4x4_p5.png");
 		TS_ASSERT_EQUALS(result.size(), (uint)16);
-		for (uint i = 0; i < result.size(); i++)
+		for (uint i = 0; i < result.size(); i++) {
 			TS_ASSERT_EQUALS(result[i], (byte)5);
+		}
 	}
 
 	void test_load_gradient_png_known_pixel_values() {

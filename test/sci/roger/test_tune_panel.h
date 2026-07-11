@@ -105,7 +105,12 @@ public:
 			case kTuneDebugLog:   haveLog = true; break;
 			case kTuneViewEnhance: haveView = true; break;
 			case kTunePicEnhance:  havePic = true; break;
-			case kTuneChip: chips++; if (w[i].enabled) chipsInert = false; break;
+			case kTuneChip:
+				chips++;
+				if (w[i].enabled) {
+					chipsInert = false;
+				}
+				break;
 			case kTuneChipAddF: haveF = true; break;
 			case kTuneChipAddL: haveL = true; break;
 			case kTuneChipAddA: haveA = true; break;
@@ -123,9 +128,11 @@ public:
 		// No pending edits -> Add not highlighted.
 		st.appliedPasses = st.stagedPasses;
 		buildTunePanel(st, w);
-		for (uint i = 0; i < w.size(); i++)
-			if (widKind(w[i].id) == kTuneAdd)
+		for (uint i = 0; i < w.size(); i++) {
+			if (widKind(w[i].id) == kTuneAdd) {
 				TS_ASSERT(!w[i].on);
+			}
+		}
 	}
 
 	// View/pic toggle labels reflect state; log row lights only while on.

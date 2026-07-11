@@ -1,7 +1,7 @@
 #include <cxxtest/TestSuite.h>
 #include "sci/roger/gen/roger_pic_native.h"
 #include "sci/roger/gen/roger_omyac.h"
-#include "sci/roger/gen/roger_passes.h" // parsePassString â€” golden tests pin a FIXED sequence
+#include "sci/roger/gen/roger_passes.h" // parsePassString -- golden tests pin a FIXED sequence
 using namespace Sci::Roger;
 
 // The pass sequence the golden-checksum tests below render with. Deliberately a
@@ -26,7 +26,7 @@ static NativeRef crossingLinesRef() {
 	Point a2 = {60, 2}, b2 = {2, 40}; c2.points.push_back(a2); c2.points.push_back(b2);
 	cmds.push_back(c2);
 	// Two short horizontal segments of the same colour that TOUCH at one end
-	// (c3 ends at x=80, c4 starts at x=81 â€” adjacent so the tip of c3 sees the
+	// (c3 ends at x=80, c4 starts at x=81 -- adjacent so the tip of c3 sees the
 	// start of c4 as a same-colour different-cmd neighbor). With isEndpoint=true
 	// (endpointMaxSame=2), phase-1 endpoint bridging fires and adds a connect bit
 	// toward c4; with endpointMaxSame=0 no endpoint is set and no bridging runs.
@@ -43,14 +43,16 @@ static int countDiffs(const OmyacResult &x, const OmyacResult &y) {
 	if (x.pixels.size() != y.pixels.size())
 		return -1;
 	int diffs = 0;
-	for (uint i = 0; i < x.pixels.size(); i++)
-		if (x.pixels[i] != y.pixels[i] || x.cmdType[i] != y.cmdType[i])
+	for (uint i = 0; i < x.pixels.size(); i++) {
+		if (x.pixels[i] != y.pixels[i] || x.cmdType[i] != y.cmdType[i]) {
 			diffs++;
+		}
+	}
 	return diffs;
 }
 
 // FNV-1a 32-bit hash over both output arrays. Dependency-free, C++11.
-// Used for the golden-checksum test â€” any pipeline change that shifts the
+// Used for the golden-checksum test -- any pipeline change that shifts the
 // default output must bump kTransformVersion AND update the golden constant.
 static uint32 omyacResultHash(const OmyacResult &r) {
 	const uint32 FNV_PRIME = 0x01000193u;
@@ -115,7 +117,7 @@ public:
 
 	// Golden-checksum test: pins the ACTUAL numeric output of the default pipeline
 	// over the crossing-lines fixture. If a default OmyacParams field drifts (or
-	// any pipeline logic changes), this hash changes and the test fails â€” even if
+	// any pipeline logic changes), this hash changes and the test fails -- even if
 	// every other param test stays green. When this fails intentionally (deliberate
 	// pipeline change), also bump kTransformVersion so stale cache files are
 	// invalidated, then re-run the test once to read the new hash from the failure
@@ -127,9 +129,9 @@ public:
 		// Pipeline: minVotesLine=1 minVotesFillAll=2 fillSuppressLineNeighbours=3
 		//           endpointMaxSame=2 isolatedPixelPass=true tieBreakBlend=true
 		//           diagFlankSuppress=true backfillOwnCell=true (kTransformVersion 6);
-		//           passes=3f1l2f4a (kGoldenPassSeq â€” a FIXED sequence, not the
+		//           passes=3f1l2f4a (kGoldenPassSeq -- a FIXED sequence, not the
 		//           swappable roger_omyac_passes default; see kGoldenPassSeq above).
-		// NOTE: identical to the legacy hash â€” the bounded backfill (v6) reproduces
+		// NOTE: identical to the legacy hash -- the bounded backfill (v6) reproduces
 		// the scan flood on this fixture; the change only manifests at long-range
 		// cascades.
 		static const uint32 kDefaultPipelineGolden = 0x40B38BFFu; // FNV-1a over pixels+cmdType
@@ -141,7 +143,7 @@ public:
 	}
 
 	// TS-port fidelity lock: with backfillOwnCell=false the pipeline reproduces the
-	// original agi-up/sci.js port bit-exactly â€” this hash is the pre-v5 default
+	// original agi-up/sci.js port bit-exactly -- this hash is the pre-v5 default
 	// pipeline golden and must never change.
 	void test_legacy_backfill_pipeline_golden_checksum() {
 		static const uint32 kLegacyPipelineGolden = 0x40B38BFFu; // FNV-1a over pixels+cmdType
@@ -155,7 +157,7 @@ public:
 	}
 
 	// backfillOwnCell invariant (bounded-flood disabled, rounds=0): every pixel
-	// fillNullPixels painted equals its own native cell's refPixel â€” an unclaimed
+	// fillNullPixels painted equals its own native cell's refPixel -- an unclaimed
 	// pixel never takes a neighbouring cell's colour (the down-right cascade of
 	// the legacy majority flood). The shipping default adds backfillFloodRounds
 	// bounded flood rounds before this terminal fill; rounds=0 isolates the
@@ -184,14 +186,14 @@ public:
 
 	// Plumbing check: a non-default param actually reaches the pipeline.
 	// If this fixture happens to produce identical output, strengthen the
-	// fixture (longer/more crossing lines), do NOT weaken the assertion â€”
+	// fixture (longer/more crossing lines), do NOT weaken the assertion --
 	// the point is that params change behavior.
 	void test_params_change_output() {
 		NativeRef ref = crossingLinesRef();
 		Common::Array<int> passes = defaultPasses();
 		OmyacResult defOut = renderOmyac(ref, passes, OmyacParams());
 		OmyacParams p;
-		p.minVotesLine = 3; // line passes need 3 votes instead of 1 â†’ less line growth
+		p.minVotesLine = 3; // line passes need 3 votes instead of 1 -> less line growth
 		OmyacResult tuned = renderOmyac(ref, passes, p);
 		TS_ASSERT(countDiffs(defOut, tuned) > 0);
 	}
@@ -199,13 +201,13 @@ public:
 	// Backfill mask (studio "unfilled pixels" diagnostic): sized to the hybrid
 	// buffer, records exactly the pixels fillNullPixels painted. For a sparse
 	// fixture it must contain both 1s (backfilled background) and 0s (drawn/
-	// enhanced pixels). Recording it must NOT alter pixels/cmdType â€” the golden
+	// enhanced pixels). Recording it must NOT alter pixels/cmdType -- the golden
 	// checksum test above already pins that invariant.
 	void test_backfill_mask_populated() {
 		NativeRef ref = crossingLinesRef();
 		// Zero enhance passes: raw wireframe leaves large CMD_NONE regions that
 		// fillNullPixels backfills, so the mask has both 1s (backfilled empty
-		// space) and 0s (the drawn line pixels) â€” the sparse-fixture assertion the
+		// space) and 0s (the drawn line pixels) -- the sparse-fixture assertion the
 		// studio "pink" toggle depends on. (The default-pass pipeline can flood the
 		// whole buffer, leaving little/no backfill; wireframe is the honest probe.)
 		Common::Array<int> passes; // empty == zero passes
@@ -224,8 +226,12 @@ public:
 		TS_ASSERT(zeros > 0);  // ...but the drawn line pixels are not backfilled
 		// A backfilled pixel must be CMD_FILL in the final cmdType (fillNullPixels
 		// stamps CMD_FILL), i.e. the mask never marks an untouched pixel.
-		for (uint i = 0; i < out.backfilled.size(); i++)
-			if (out.backfilled[i]) { TS_ASSERT(out.cmdType[i] != 0 /*CMD_NONE*/); break; }
+		for (uint i = 0; i < out.backfilled.size(); i++) {
+			if (out.backfilled[i]) {
+				TS_ASSERT(out.cmdType[i] != 0 /*CMD_NONE*/);
+				break;
+			}
+		}
 	}
 
 	// endpointMaxSame reaches detectLineEndings even with zero enhance passes
@@ -235,7 +241,7 @@ public:
 		Common::Array<int> passes = defaultPasses();
 		OmyacResult defOut = renderOmyac(ref, passes, OmyacParams());
 		OmyacParams p;
-		p.endpointMaxSame = 0; // nothing is an endpoint â†’ endpoint bridging disabled
+		p.endpointMaxSame = 0; // nothing is an endpoint -> endpoint bridging disabled
 		OmyacResult tuned = renderOmyac(ref, passes, p);
 		TS_ASSERT(countDiffs(defOut, tuned) > 0);
 	}

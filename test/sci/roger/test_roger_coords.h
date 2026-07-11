@@ -121,15 +121,17 @@ public:
 	// Every Roger scaler samples source row `dy * srcN / dstD` (top-left rational).
 	// The dest edge consistent with that sampling is ceil(v * dstD / srcN): dest
 	// pixels [0, edge) sample exactly source rows [0, v). Flooring the edge instead
-	// leaves the last dest pixel of a source row outside its rect — the 1px-short
-	// status bar (2026-07-09).
+	// leaves the last dest pixel of a source row outside its rect -- the 1px-short
+	// status bar.
 
 	// Dest pixels whose top-left-rational sample lands before source row r.
 	static int pixelsBeforeSourceRow(int r, int srcN, int dstD) {
 		int count = 0;
-		for (int dy = 0; dy < dstD; dy++)
-			if (dy * srcN / dstD < r)
+		for (int dy = 0; dy < dstD; dy++) {
+			if (dy * srcN / dstD < r) {
 				count++;
+			}
+		}
 		return count;
 	}
 
@@ -156,10 +158,10 @@ public:
 	}
 
 	void test_status_bar_edges_at_measured_sbs_scale() {
-		// Measured 2026-07-09 (roger-300-bar capture, SBS panel 799x499): the nearest
+		// Measured (roger-300-bar capture, SBS panel 799x499): the nearest
 		// scaler rendered the native white bar (rows 0-8) 23px tall and started the
 		// scene at row 25. The banner rect and the picture rect must land on those
-		// same edges — floor gave 22 and 24 (bar 1px short, underline 1px thick).
+		// same edges -- floor gave 22 and 24 (bar 1px short, underline 1px thick).
 		Common::Rect game(0, 738, 799, 738 + 499);
 		Common::Rect bar = Sci::Roger::sciRectToDest(Common::Rect(0, 0, 320, 9), game);
 		TS_ASSERT_EQUALS(bar.top, game.top);

@@ -180,7 +180,7 @@ public:
 		// Single line, cell 24 with ink rows 10..20 (TTF-style top leading):
 		// centring the INK in a 100-tall box puts the ink top at (100-10)/2 = 45,
 		// so the cell top the draw call needs is 45 - 10 = 35. Cell centring
-		// would have said (100-24)/2 = 38 â€” visibly low.
+		// would have said (100-24)/2 = 38 -- visibly low.
 		TS_ASSERT_EQUALS(opticalBlockTop(0, 100, 1, 24, 10, 20), 35);
 		// Ink that fills the cell exactly == the old cell centring.
 		TS_ASSERT_EQUALS(opticalBlockTop(0, 100, 1, 20, 0, 20), 40);
@@ -195,7 +195,7 @@ public:
 	}
 
 	void test_text_scale_group_unifies_generic_text_across_ports() {
-		// Generic text (0x6 namespace) is tokened by the CURRENT port at draw time â€”
+		// Generic text (0x6 namespace) is tokened by the CURRENT port at draw time --
 		// the QFG1 char sheet draws labels under the window port (id 3) and stat
 		// redraws under the picture port (id 2). Same screen, same font -> same group,
 		// or redrawn values change size relative to their labels.
@@ -257,7 +257,7 @@ public:
 		// The control-hook copy of a dialog carries a single-line width cap (nTextW)
 		// that is huge and never binds, so the width arm leaves the size at ideal.
 		// A long paragraph re-wraps (at the box width) to more lines than fit the box
-		// height, so the height arm MUST shrink it below ideal â€” otherwise the text
+		// height, so the height arm MUST shrink it below ideal -- otherwise the text
 		// overflows and clips the box bottom (QFG1 room 320 "look" overflow bug).
 		RogerTextRenderer tr("");
 		TS_ASSERT(tr.ok());
@@ -298,7 +298,7 @@ public:
 
 	void test_fit_px_width_capped_short_text_stays_at_ideal() {
 		// A short single-line control that already fits both its width cap and the
-		// box height must NOT be shrunk â€” the height arm is a no-op here (one wrapped
+		// box height must NOT be shrunk -- the height arm is a no-op here (one wrapped
 		// line). Pins "no needless shrink" for the short dialogs that render correctly.
 		RogerTextRenderer tr("");
 		TS_ASSERT(tr.ok());

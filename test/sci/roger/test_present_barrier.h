@@ -90,8 +90,11 @@ public:
 		TS_ASSERT_EQUALS(idx.size(), 1u);
 		const Common::Rect want = Roger::uiPaintExtent(Common::Rect(5, 5, 40, 40), gr());
 		bool covered = false;
-		for (uint i = 0; i < regions.size(); i++)
-			if (regions[i].contains(want)) covered = true;
+		for (uint i = 0; i < regions.size(); i++) {
+			if (regions[i].contains(want)) {
+				covered = true;
+			}
+		}
 		TS_ASSERT(covered);
 	}
 
@@ -111,8 +114,11 @@ public:
 		TS_ASSERT_EQUALS(idx.size(), 2u);
 		const Common::Rect wantB = Roger::uiPaintExtent(Common::Rect(200, 150, 240, 170), gr());
 		bool covered = false;
-		for (uint i = 0; i < regions.size(); i++)
-			if (regions[i].contains(wantB)) covered = true;
+		for (uint i = 0; i < regions.size(); i++) {
+			if (regions[i].contains(wantB)) {
+				covered = true;
+			}
+		}
 		TS_ASSERT(covered);
 	}
 
@@ -140,7 +146,11 @@ public:
 		Graphics::ManagedSurface sceneNoUi(W, H, rgba);
 		sceneNoUi.clear(rgba.ARGBToColor(255, 0, 0, 80)); // dark blue "scene"
 		byte pal[256 * 3];
-		for (int i = 0; i < 256; i++) { pal[i * 3] = (byte)i; pal[i * 3 + 1] = (byte)i; pal[i * 3 + 2] = (byte)i; }
+		for (int i = 0; i < 256; i++) {
+			pal[i * 3] = (byte)i;
+			pal[i * 3 + 1] = (byte)i;
+			pal[i * 3 + 2] = (byte)i;
+		}
 		const Common::Rect gameRect(0, 0, W, H); // 1:1 native->overlay for simplicity
 
 		Common::Array<Roger::UiElement> elems;
@@ -170,10 +180,13 @@ public:
 		expanded.push_back(Common::Rect(30, 30, 70, 70));
 		Common::Array<uint> idx;
 		Roger::expandRegionsToElements(expanded, elems, gameRect, Common::Rect(0, 0, W, H), idx);
-		for (uint r = 0; r < expanded.size(); r++)
-			for (int y = expanded[r].top; y < expanded[r].bottom; y++)
-				for (int x = expanded[r].left; x < expanded[r].right; x++)
+		for (uint r = 0; r < expanded.size(); r++) {
+			for (int y = expanded[r].top; y < expanded[r].bottom; y++) {
+				for (int x = expanded[r].left; x < expanded[r].right; x++) {
 					TS_ASSERT_EQUALS(patched.surfacePtr()->getPixel(x, y), full.surfacePtr()->getPixel(x, y));
+				}
+			}
+		}
 
 		// A pixel far outside every expanded region keeps the sentinel.
 		TS_ASSERT_EQUALS(patched.surfacePtr()->getPixel(300, 190), rgba.ARGBToColor(255, 255, 0, 0));

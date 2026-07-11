@@ -47,7 +47,7 @@ public:
 	void test_plate_then_sprite_with_priority_occlusion() {
 		// 8x8 gray plate (64,64,64). One green sprite of priority 1 covering the whole
 		// picture, supplied via celOverride (the cel source after spritesheet loading
-		// was removed â€” cels now come from the generator or a pre-rendered override).
+		// was removed -- cels now come from the generator or a pre-rendered override).
 		// An 8x8 priority map: left half band 0 (<= sprite -> sprite shows), right half
 		// band 15 (> sprite -> occluded, the plate's pixels are restored). picture ==
 		// 8x8, no menu offset.
@@ -62,9 +62,11 @@ public:
 		// Priority map: byte per pixel; cols 0..3 = band 0, cols 4..7 = band 15.
 		Common::Array<byte> prio;
 		prio.resize(8 * 8);
-		for (int y = 0; y < 8; y++)
-			for (int x = 0; x < 8; x++)
+		for (int y = 0; y < 8; y++) {
+			for (int x = 0; x < 8; x++) {
 				prio[y * 8 + x] = (x < 4) ? 0 : 15;
+			}
+		}
 
 		Sci::Roger::RogerCompositor comp;
 		comp.setRoom(plate, nullptr);            // no ViewCache -> uses celOverride
@@ -164,11 +166,15 @@ public:
 		const int probeY = DH / 4;
 		for (int x = 0; x < DW; x++) {
 			if (destA.surfacePtr()->getPixel(x, probeY) == white) {
-				if (aL < 0) aL = x;
+				if (aL < 0) {
+					aL = x;
+				}
 				aR = x;
 			}
 			if (destB.surfacePtr()->getPixel(x, probeY) == white) {
-				if (bL < 0) bL = x;
+				if (bL < 0) {
+					bL = x;
+				}
 				bR = x;
 			}
 		}
@@ -181,11 +187,15 @@ public:
 		const int probeX = DW / 4;
 		for (int y = 0; y < DH; y++) {
 			if (destA.surfacePtr()->getPixel(probeX, y) == white) {
-				if (aT < 0) aT = y;
+				if (aT < 0) {
+					aT = y;
+				}
 				aB = y;
 			}
 			if (destB.surfacePtr()->getPixel(probeX, y) == white) {
-				if (bT < 0) bT = y;
+				if (bT < 0) {
+					bT = y;
+				}
 				bB = y;
 			}
 		}
@@ -201,7 +211,7 @@ public:
 
 	void test_cover_grow_sprite_drawn_larger() {
 		// Game view cels (coverGrow) are drawn kCelCoverPx (3) larger on every
-		// side â€” capped at 1/8 of the dest size so tiny cels barely grow â€” so the
+		// side -- capped at 1/8 of the dest size so tiny cels barely grow -- so the
 		// cel's opaque content covers the plate's smoothed boundary fringe (the
 		// SQ3 pod-door cyan-seam class). coverGrow=false sprites (Feeder B
 		// stamps, exact-geometry tests) stay geometrically exact.
@@ -271,7 +281,7 @@ public:
 		// REGRESSION for the "views squish as they exit the screen" bug: the
 		// coverGrow block clipped the sprite's DEST rect to picRect, so a sprite
 		// partially off-screen had its whole off-screen extent amputated from the
-		// rect while the full cel was still scaled into what remained â€” visible
+		// rect while the full cel was still scaled into what remained -- visible
 		// compression at every screen edge. The dest rect must keep its off-screen
 		// extent; the BLIT is what clips (crop), sampling the source against the
 		// full rect, matching native SCI's port clipping.
@@ -323,7 +333,7 @@ public:
 		// REGRESSION for the "cursor vanishes at the right screen edge" bug: the
 		// composited cursor used ManagedSurface::blendBlitFrom, whose right/bottom
 		// clip computes the source crop against the SOURCE size instead of the dest
-		// surface — a dst rect hanging off the right edge emptied the src rect and
+		// surface -- a dst rect hanging off the right edge emptied the src rect and
 		// the whole cursor silently vanished. Cursor draws go through
 		// blendScaleBlitNearest (1:1 when dst == src size): the on-screen columns
 		// must be painted, the overhang cropped, never squished.
@@ -354,7 +364,7 @@ public:
 		// Outside the dst rect the background is untouched.
 		TS_ASSERT_EQUALS(dest.surfacePtr()->getPixel(47, 32), gray);
 
-		// Bottom edge, same rule: (16,48)-(48,80) — rows 48..63 painted.
+		// Bottom edge, same rule: (16,48)-(48,80) -- rows 48..63 painted.
 		Sci::Roger::blendScaleBlitNearest(dest, cur, Common::Rect(16, 48, 48, 80), false);
 		TS_ASSERT_EQUALS(dest.surfacePtr()->getPixel(16, 63), red); // bottom row painted
 
@@ -365,7 +375,7 @@ public:
 		// REGRESSION for the "splatted pixels are off by a few px" bug. When the plate
 		// is scaled into the game rect (plate wider than picRect), the occlusion
 		// punch-back must sample the plate with the SAME scaler the compositor used to
-		// draw the background â€” otherwise the restored foreground pixels drift from
+		// draw the background -- otherwise the restored foreground pixels drift from
 		// the background. Here: a 10x2 gradient plate scaled into a 6x2 rect, a
 		// sprite covering it all, priority everywhere > sprite -> splat everywhere.
 		// The result must be pixel-identical to the exact nearest scale (plate -> 6x2).
@@ -373,9 +383,11 @@ public:
 
 		Graphics::Surface plate;
 		plate.create(10, 2, rgba);
-		for (int y = 0; y < 2; y++)
-			for (int x = 0; x < 10; x++)
+		for (int y = 0; y < 2; y++) {
+			for (int x = 0; x < 10; x++) {
 				plate.setPixel(x, y, rgba.ARGBToColor(255, (byte)(x * 25), 0, 0)); // horiz gradient
+			}
+		}
 
 		Graphics::Surface cel;   // sprite content is irrelevant (fully splatted)
 		cel.create(6, 2, rgba);
@@ -383,8 +395,9 @@ public:
 
 		Common::Array<byte> prio;
 		prio.resize(6 * 2);
-		for (uint i = 0; i < prio.size(); i++)
+		for (uint i = 0; i < prio.size(); i++) {
 			prio[i] = 15;  // everywhere foreground -> always occlude
+		}
 
 		Sci::Roger::Sprite spr;
 		spr.viewId = -1; spr.loopNo = 0; spr.celNo = 0;
@@ -406,16 +419,18 @@ public:
 		Graphics::ManagedSurface ref(6, 2, rgba);
 		Sci::Roger::scaleBlitNearest(*ref.surfacePtr(), Common::Rect(0, 0, 6, 2), plate);
 
-		for (int y = 0; y < 2; y++)
-			for (int x = 0; x < 6; x++)
+		for (int y = 0; y < 2; y++) {
+			for (int x = 0; x < 6; x++) {
 				TS_ASSERT_EQUALS(dest.surfacePtr()->getPixel(x, y), ref.surfacePtr()->getPixel(x, y));
+			}
+		}
 
 		plate.free();
 		cel.free();
 	}
 
 	void test_sprite_history_survives_ui_only_present() {
-		// Regression: a UI-only present (presentWithUi â€” cursor move / dialog, with NO
+		// Regression: a UI-only present (presentWithUi -- cursor move / dialog, with NO
 		// renderScene) must not discard the previous sprite position. If sprite rects were
 		// rolled at present granularity, a present that lacks them (UI-only) clobbers the
 		// history, so when the sprite next MOVES its old position is never repainted ->
@@ -455,12 +470,12 @@ public:
 		comp.renderScene(dest, list, gameRect);
 		comp.rollPresentDirty();
 
-		// Frame 2: a UI-only present (no renderScene) â€” e.g. presentWithUi on a mouse move.
+		// Frame 2: a UI-only present (no renderScene) -- e.g. presentWithUi on a mouse move.
 		// Only a cursor rect is added; the sprite is static (still at P). The present rolls.
 		comp.addDirtyRect(Common::Rect(50, 4, 58, 12)); // "cursor"
 		comp.rollPresentDirty();
 
-		// Frame 3: the animation advances â€” the sprite moves to Q=(40,40,52,52).
+		// Frame 3: the animation advances -- the sprite moves to Q=(40,40,52,52).
 		spr.celRect = Common::Rect(40, 40, 52, 52);
 		list.clear(); list.push_back(spr);
 		comp.renderScene(dest, list, gameRect);
@@ -471,9 +486,11 @@ public:
 		Common::Array<Common::Rect> push;
 		comp.dirtyUnion(bounds, push);
 		bool pCovered = false;
-		for (uint i = 0; i < push.size(); i++)
-			if (push[i].contains(8, 8))
+		for (uint i = 0; i < push.size(); i++) {
+			if (push[i].contains(8, 8)) {
 				pCovered = true;
+			}
+		}
 		TS_ASSERT(pCovered);
 
 		cel.free();
@@ -549,12 +566,16 @@ public:
 		in.push_back(Common::Rect(50, 50, 70, 70));
 		in.push_back(Common::Rect(60, 60, 80, 80));
 		Sci::Roger::coalesceDirtyRects(in, bounds, out);
-		// Expect: clipped (0,0,20,20) and merged (50,50,80,80) â€” the outside one gone.
+		// Expect: clipped (0,0,20,20) and merged (50,50,80,80) -- the outside one gone.
 		TS_ASSERT_EQUALS(out.size(), (uint)2);
 		bool hasClip = false, hasMerge = false;
 		for (uint i = 0; i < out.size(); i++) {
-			if (out[i] == Common::Rect(0, 0, 20, 20)) hasClip = true;
-			if (out[i] == Common::Rect(50, 50, 80, 80)) hasMerge = true;
+			if (out[i] == Common::Rect(0, 0, 20, 20)) {
+				hasClip = true;
+			}
+			if (out[i] == Common::Rect(50, 50, 80, 80)) {
+				hasMerge = true;
+			}
 			// every output rect is within bounds
 			TS_ASSERT(out[i].left >= 0 && out[i].top >= 0 && out[i].right <= 100 && out[i].bottom <= 100);
 		}
@@ -581,15 +602,20 @@ public:
 		TS_ASSERT(!result.empty());
 		bool coversOld = false, coversNew = false;
 		for (uint i = 0; i < result.size(); i++) {
-			if (result[i].contains(oldCursor)) coversOld = true;
-			if (result[i].contains(newCursor)) coversNew = true;
+			if (result[i].contains(oldCursor)) {
+				coversOld = true;
+			}
+			if (result[i].contains(newCursor)) {
+				coversNew = true;
+			}
 		}
 		TS_ASSERT(coversOld);
 		TS_ASSERT(coversNew);
 		// Sanity: the dirty area must be much smaller than the full surface.
 		int totalArea = 0;
-		for (uint i = 0; i < result.size(); i++)
+		for (uint i = 0; i < result.size(); i++) {
 			totalArea += result[i].width() * result[i].height();
+		}
 		TS_ASSERT_LESS_THAN(totalArea, bounds.width() * bounds.height() / 10);
 	}
 
@@ -614,7 +640,7 @@ public:
 		// Ascending priority: 0,2,5,5.
 		TS_ASSERT_EQUALS(out[0].viewId, 21); // prio 0
 		TS_ASSERT_EQUALS(out[1].viewId, 10); // prio 2
-		// Two prio-5 entries: static (20) keeps its place BEFORE animate (11) â€” stable,
+		// Two prio-5 entries: static (20) keeps its place BEFORE animate (11) -- stable,
 		// and static was appended first.
 		TS_ASSERT_EQUALS(out[2].viewId, 20); // prio 5, static
 		TS_ASSERT_EQUALS(out[3].viewId, 11); // prio 5, animate
@@ -646,15 +672,17 @@ public:
 	void test_map_native_rect_edges_match_nearest_sampler() {
 		using namespace Sci::Roger;
 		// Non-integral scale (320x190 picture -> 799x474 overlay): every mapped edge
-		// must be ceil(v * dst / src) — the boundary consistent with the top-left
-		// rational sampling all Roger nearest scalers use — so Feeder-B stamps land
+		// must be ceil(v * dst / src) -- the boundary consistent with the top-left
+		// rational sampling all Roger nearest scalers use -- so Feeder-B stamps land
 		// exactly on the pixels that show their native rows.
 		Common::Rect picRect(0, 25, 799, 25 + 474);
 		for (int r = 1; r < 190; r++) {
 			int edge = 0;
-			for (int dy = 0; dy < 474; dy++)
-				if (dy * 190 / 474 < r)
+			for (int dy = 0; dy < 474; dy++) {
+				if (dy * 190 / 474 < r) {
 					edge++;
+				}
+			}
 			Common::Rect m = mapNativeRectToOverlay(Common::Rect(0, 10, 320, (int16)(10 + r)),
 			                                        picRect, 320, 190, 10);
 			TS_ASSERT_EQUALS(m.bottom - picRect.top, edge);
@@ -667,7 +695,9 @@ public:
 		// 2x1 native source: index 1 (red), index 2 (green). Pitch = 2.
 		byte visual[2] = {1, 2};
 		byte palette[256 * 3];
-		for (int i = 0; i < 256 * 3; i++) palette[i] = 0;
+		for (int i = 0; i < 256 * 3; i++) {
+			palette[i] = 0;
+		}
 		palette[1 * 3 + 0] = 255; // index 1 -> red
 		palette[2 * 3 + 1] = 255; // index 2 -> green
 
@@ -689,7 +719,10 @@ public:
 		using namespace Sci::Roger;
 		const int w = 8, h = 8;
 		byte prev[64], cur[64];
-		for (int i = 0; i < 64; i++) { prev[i] = 0; cur[i] = 0; }
+		for (int i = 0; i < 64; i++) {
+			prev[i] = 0;
+			cur[i] = 0;
+		}
 		// Change one pixel at (2,2) and an adjacent (3,2) -> one box.
 		cur[2 * w + 2] = 5; cur[2 * w + 3] = 5;
 		// A far-apart change at (6,6) -> a second box.
@@ -701,8 +734,12 @@ public:
 		TS_ASSERT_EQUALS(out.size(), (uint)2);
 		bool hasA = false, hasB = false;
 		for (uint i = 0; i < out.size(); i++) {
-			if (out[i].contains(2, 2) && out[i].contains(3, 2)) hasA = true;
-			if (out[i].contains(6, 6)) hasB = true;
+			if (out[i].contains(2, 2) && out[i].contains(3, 2)) {
+				hasA = true;
+			}
+			if (out[i].contains(6, 6)) {
+				hasB = true;
+			}
 		}
 		TS_ASSERT(hasA);
 		TS_ASSERT(hasB);
@@ -711,7 +748,10 @@ public:
 	void test_extract_changed_boxes_identical_is_empty() {
 		using namespace Sci::Roger;
 		byte a[16], b[16];
-		for (int i = 0; i < 16; i++) { a[i] = (byte)i; b[i] = (byte)i; }
+		for (int i = 0; i < 16; i++) {
+			a[i] = (byte)i;
+			b[i] = (byte)i;
+		}
 		Common::Array<Common::Rect> out;
 		extractChangedBoxes(a, b, 4, 4, out);
 		TS_ASSERT_EQUALS(out.size(), (uint)0);
@@ -801,7 +841,7 @@ public:
 		TS_ASSERT(Sci::Roger::rectCoverageFraction(statusRect, barRestore) >= 90);
 	}
 
-	// A dropdown's own save-under restore starts at row 9 and is far narrower â€” it must NOT
+	// A dropdown's own save-under restore starts at row 9 and is far narrower -- it must NOT
 	// be mistaken for a strip revert (else every dropdown close would re-push the banner).
 	void test_dropdown_restore_does_not_cover_status_rect() {
 		const Common::Rect statusRect(0, 0, 320, 9);
@@ -842,7 +882,7 @@ public:
 		TS_ASSERT_EQUALS(out[2].priority, 12);
 	}
 	// Same cel stamped at a second position (e.g. a repeated decoration) is
-	// two draws, not a duplicate â€” dedup key includes celRect.
+	// two draws, not a duplicate -- dedup key includes celRect.
 	void test_same_cel_different_rect_is_not_a_dup() {
 		Common::Array<Sci::Roger::Sprite> statics, initCels, out;
 		statics.push_back(mk(300, 2, 0, 5, 10, 20));

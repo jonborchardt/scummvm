@@ -55,7 +55,9 @@ public:
 		dest.fillRect(Common::Rect(0, 0, 320, 200), rgba.ARGBToColor(255, 0, 0, 0));
 
 		byte pal[256 * 3];
-		for (int i = 0; i < 256 * 3; i++) pal[i] = 0;
+		for (int i = 0; i < 256 * 3; i++) {
+			pal[i] = 0;
+		}
 		pal[5 * 3 + 0] = 0; pal[5 * 3 + 1] = 0; pal[5 * 3 + 2] = 255; // index 5 = blue
 
 		UiElement w;
@@ -146,7 +148,7 @@ public:
 
 		byte pal[256 * 3] = {};
 		pal[15*3+0] = pal[15*3+1] = pal[15*3+2] = 255; // index 15 = white (edit bg)
-		// palette[0] = black (zero-initialised) â€” used for border AND text
+		// palette[0] = black (zero-initialised) -- used for border AND text
 
 		UiElement e;
 		e.type       = kUiTextEdit;
@@ -160,18 +162,18 @@ public:
 		Common::Array<UiElement> elems;
 		elems.push_back(e);
 
-		RogerTextRenderer tr(""); // bitmap fallback â€” no game files needed
+		RogerTextRenderer tr(""); // bitmap fallback -- no game files needed
 		RogerCompositor comp;
 		comp.renderUiLayer(dst, elems, pal, Common::Rect(0, 0, 320, 200), &tr);
 
 		const Graphics::Surface *surf = dst.surfacePtr();
 		uint8 a, r, g, b;
 
-		// 1. x=0: the 1px border â€” must be black across the text rows.
+		// 1. x=0: the 1px border -- must be black across the text rows.
 		surf->format.colorToARGB(surf->getPixel(0, 5), a, r, g, b);
 		TS_ASSERT_EQUALS(r, 0); TS_ASSERT_EQUALS(g, 0); TS_ASSERT_EQUALS(b, 0);
 
-		// 2. x=1: the column immediately inside the border â€” must be pure white (background)
+		// 2. x=1: the column immediately inside the border -- must be pure white (background)
 		//    in EVERY interior row of the box. With the inset (textRect.left=2), the font
 		//    never draws there. Without it (textRect.left=0), "W" inks x=1 in >=1 row.
 		bool anyBlackAtX1 = false;

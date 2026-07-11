@@ -11,15 +11,17 @@ class EyeTestSearchSuite : public CxxTest::TestSuite {
 public:
 	void testBaseSeqIsSpec() {
 		// The search base IS the shipping default (single swap point in
-		// roger_passes) â€” this locks the two together whatever the default is.
+		// roger_passes) -- this locks the two together whatever the default is.
 		EyeSeq b = eyeBaseSeq();
 		TS_ASSERT_EQUALS(b.size(), (uint)kEyeSeqLen);
 		TS_ASSERT_EQUALS(eyeSeqCompact(b), Common::String(kDefaultPassString));
 		// And the default must be one of the curated known-good patterns.
 		bool inRegistry = false;
-		for (int i = 0; i < goodPassPatternCount(); i++)
-			if (Common::String(goodPassPattern(i).compact) == kDefaultPassString)
+		for (int i = 0; i < goodPassPatternCount(); i++) {
+			if (Common::String(goodPassPattern(i).compact) == kDefaultPassString) {
 				inRegistry = true;
+			}
+		}
 		TS_ASSERT(inRegistry);
 	}
 
@@ -34,18 +36,20 @@ public:
 		for (int n = 0; n < 50; n++) {
 			EyeSeq s = eyeRandomSeq(rng);
 			TS_ASSERT_EQUALS(s.size(), (uint)kEyeSeqLen);
-			for (uint i = 0; i < s.size(); i++)
+			for (uint i = 0; i < s.size(); i++) {
 				TS_ASSERT(s[i] >= 0 && s[i] <= 2);
+			}
 		}
 	}
 
 	void testRngDeterministic() {
 		EyeRng a(42), b(42);
-		for (int i = 0; i < 10; i++)
+		for (int i = 0; i < 10; i++) {
 			TS_ASSERT_EQUALS(a.next(), b.next());
+		}
 	}
 
-	// Structural assertions only â€” never assert exact RNG-dependent values.
+	// Structural assertions only -- never assert exact RNG-dependent values.
 	void testMutateChangesOneToFivePositions() {
 		EyeRng rng(7);
 		const EyeSeq base = eyeBaseSeq();
@@ -78,13 +82,17 @@ public:
 			Common::String desc;
 			EyeSeq m = eyeMutate(base, rng, desc);
 			int changed = 0;
-			for (int i = 0; i < kEyeSeqLen; i++)
-				if (m[i] != base[i])
+			for (int i = 0; i < kEyeSeqLen; i++) {
+				if (m[i] != base[i]) {
 					changed++;
+				}
+			}
 			int groups = 0;
-			for (uint p = 0; p + 4 <= desc.size(); p++)
-				if (desc[p] == '_' && desc[p+1] == 't' && desc[p+2] == 'o' && desc[p+3] == '_')
+			for (uint p = 0; p + 4 <= desc.size(); p++) {
+				if (desc[p] == '_' && desc[p+1] == 't' && desc[p+2] == 'o' && desc[p+3] == '_') {
 					groups++;
+				}
+			}
 			TS_ASSERT_EQUALS(groups, changed);
 		}
 	}
@@ -114,9 +122,11 @@ public:
 			EyeSeq m = eyeMutate(base, rng, desc, w);
 			TS_ASSERT_EQUALS(m.size(), (uint)kEyeSeqLen);
 			int changed = 0;
-			for (int i = 0; i < kEyeSeqLen; i++)
-				if (m[i] != base[i])
+			for (int i = 0; i < kEyeSeqLen; i++) {
+				if (m[i] != base[i]) {
 					changed++;
+				}
+			}
 			TS_ASSERT(changed >= 1 && changed <= 5); // distribution unchanged
 			if (m[9] != base[9])
 				touched9++;
@@ -128,20 +138,23 @@ public:
 		EyeRng rng(5);
 		EyeSeq a = eyeBaseSeq();
 		EyeSeq b;
-		for (int i = 0; i < kEyeSeqLen; i++)
+		for (int i = 0; i < kEyeSeqLen; i++) {
 			b.push_back(0); // "aaaaaaaaaa"
+		}
 		for (int n = 0; n < 100; n++) {
 			EyeSeq c = eyeCrossover(a, b, rng);
 			TS_ASSERT_EQUALS(c.size(), (uint)kEyeSeqLen);
-			for (int i = 0; i < kEyeSeqLen; i++)
+			for (int i = 0; i < kEyeSeqLen; i++) {
 				TS_ASSERT(c[i] == a[i] || c[i] == b[i]);
+			}
 		}
 	}
 
 	void testConvergedNeedsFullWindow() {
 		Common::Array<int> ch;
-		for (int i = 0; i < kEyeSameWindow - 1; i++)
+		for (int i = 0; i < kEyeSameWindow - 1; i++) {
 			ch.push_back(kEyeChoiceSame);
+		}
 		TS_ASSERT(!eyeConverged(ch, kEyeSameWindow)); // 11 Sames, window unfilled
 		ch.push_back(kEyeChoiceSame);
 		TS_ASSERT(eyeConverged(ch, kEyeSameWindow));  // 12/12
@@ -150,12 +163,15 @@ public:
 	void testConvergedHalfSameInLastWindow() {
 		Common::Array<int> ch;
 		// 12 old A-picks, then 6 Same + 6 A in the last 12 -> exactly 50% = converged.
-		for (int i = 0; i < 12; i++)
+		for (int i = 0; i < 12; i++) {
 			ch.push_back(kEyeChoiceA);
-		for (int i = 0; i < 6; i++)
+		}
+		for (int i = 0; i < 6; i++) {
 			ch.push_back(kEyeChoiceSame);
-		for (int i = 0; i < 6; i++)
+		}
+		for (int i = 0; i < 6; i++) {
 			ch.push_back(kEyeChoiceA);
+		}
 		TS_ASSERT(eyeConverged(ch, kEyeSameWindow));
 		ch.push_back(kEyeChoiceA); // last 12 now has 5 Sames -> not converged
 		TS_ASSERT(!eyeConverged(ch, kEyeSameWindow));
@@ -199,9 +215,11 @@ public:
 			// dedup: no offspring repeats base or b or an earlier sibling
 			const Common::String cs = eyeSeqCompact(kids[k].seq);
 			int hits = 0;
-			for (uint s = 0; s < seen.size(); s++)
-				if (seen[s] == cs)
+			for (uint s = 0; s < seen.size(); s++) {
+				if (seen[s] == cs) {
 					hits++;
+				}
+			}
 			TS_ASSERT_EQUALS(hits, 1); // exactly its own entry, appended by eyeBreed
 			// mutation/crossover offspring must record parent ids
 			if (kids[k].source.hasPrefix("mut") || kids[k].source == "cross")
@@ -235,8 +253,9 @@ public:
 		const Common::String compact = eyeSeqCompact(eyeBaseSeq());
 		TS_ASSERT(j.contains(Common::String("\"sequence_compact\": \"") + compact + "\""));
 		Common::String seqArr = "\"sequence\": [";
-		for (uint i = 0; i < compact.size(); i++)
+		for (uint i = 0; i < compact.size(); i++) {
 			seqArr += Common::String::format("%s\"%c\"", i ? ", " : "", compact[i]);
+		}
 		seqArr += "]";
 		TS_ASSERT(j.contains(seqArr));
 		TS_ASSERT(j.contains("\"output_file\": "));

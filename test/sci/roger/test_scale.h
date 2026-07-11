@@ -9,7 +9,9 @@ public:
 		IndexImage in; in.w = 2; in.h = 2; in.pixels.resize(4, 7); // all color 7
 		IndexImage out = scale2x(in);
 		TS_ASSERT_EQUALS(out.w, 4); TS_ASSERT_EQUALS(out.h, 4);
-		for (uint i = 0; i < out.pixels.size(); i++) TS_ASSERT_EQUALS(out.pixels[i], 7);
+		for (uint i = 0; i < out.pixels.size(); i++) {
+			TS_ASSERT_EQUALS(out.pixels[i], 7);
+		}
 	}
 	void test_scale6x_dims() {
 		IndexImage in; in.w = 3; in.h = 5; in.pixels.resize(15, 1);

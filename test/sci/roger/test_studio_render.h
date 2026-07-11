@@ -111,8 +111,9 @@ public:
 		st.addPending = true;
 		st.buildPasses.push_back(2); st.buildPasses.push_back(2); st.buildPasses.push_back(1);
 		OmyacParams p;
-		for (int i = 0; i < omyacParamCount(); i++)
+		for (int i = 0; i < omyacParamCount(); i++) {
 			st.paramValues.push_back(omyacParamGet(p, i));
+		}
 		return st;
 	}
 
@@ -140,20 +141,31 @@ public:
 			kWidChipClear, kWidChipAdd, kWidShowBackfill, kWidShowGrid };
 		for (uint m = 0; m < ARRAYSIZE(MUST); m++) {
 			bool found = false;
-			for (uint i = 0; i < w.size(); i++)
-				if (widKind(w[i].id) == MUST[m]) { found = true; break; }
+			for (uint i = 0; i < w.size(); i++) {
+				if (widKind(w[i].id) == MUST[m]) {
+					found = true;
+					break;
+				}
+			}
 			TS_ASSERT(found);
 		}
 		// Param rows: one minus+plus per int param, one toggle per bool param.
 		int minus = 0, plus = 0, toggles = 0;
 		for (uint i = 0; i < w.size(); i++) {
-			if (widKind(w[i].id) == kWidParamMinus) minus++;
-			if (widKind(w[i].id) == kWidParamPlus) plus++;
-			if (widKind(w[i].id) == kWidParamToggle) toggles++;
+			if (widKind(w[i].id) == kWidParamMinus) {
+				minus++;
+			}
+			if (widKind(w[i].id) == kWidParamPlus) {
+				plus++;
+			}
+			if (widKind(w[i].id) == kWidParamToggle) {
+				toggles++;
+			}
 		}
 		int intParams = 0, boolParams = 0;
-		for (int i = 0; i < omyacParamCount(); i++)
+		for (int i = 0; i < omyacParamCount(); i++) {
 			omyacParamDesc(i).isBool ? boolParams++ : intParams++;
+		}
 		TS_ASSERT_EQUALS(minus, intParams);
 		TS_ASSERT_EQUALS(plus, intParams);
 		TS_ASSERT_EQUALS(toggles, boolParams);
@@ -163,11 +175,21 @@ public:
 		int chipF = 0, chipL = 0;
 		bool addOn = false, viewLbl = false, picLbl = false;
 		for (uint i = 0; i < w.size(); i++) {
-			if (w[i].id == (uint32)kWidNone && w[i].label == "f") chipF++;
-			if (w[i].id == (uint32)kWidNone && w[i].label == "l") chipL++;
-			if (widKind(w[i].id) == kWidChipAdd) addOn = w[i].on;
-			if (widKind(w[i].id) == kWidViewEnhance && w[i].label.contains("6x (s2>s3)")) viewLbl = true;
-			if (widKind(w[i].id) == kWidPicEnhance && w[i].label.contains("ffl")) picLbl = true;
+			if (w[i].id == (uint32)kWidNone && w[i].label == "f") {
+				chipF++;
+			}
+			if (w[i].id == (uint32)kWidNone && w[i].label == "l") {
+				chipL++;
+			}
+			if (widKind(w[i].id) == kWidChipAdd) {
+				addOn = w[i].on;
+			}
+			if (widKind(w[i].id) == kWidViewEnhance && w[i].label.contains("6x (s2>s3)")) {
+				viewLbl = true;
+			}
+			if (widKind(w[i].id) == kWidPicEnhance && w[i].label.contains("ffl")) {
+				picLbl = true;
+			}
 		}
 		TS_ASSERT_EQUALS(chipF, 2);
 		TS_ASSERT_EQUALS(chipL, 1);
@@ -177,9 +199,13 @@ public:
 		for (uint i = 0; i < w.size(); i++) {
 			TS_ASSERT(w[i].rect.left >= panel.left && w[i].rect.top >= panel.top);
 			TS_ASSERT(w[i].rect.right <= panel.right && w[i].rect.bottom <= panel.bottom);
-			if (!w[i].enabled) continue;
+			if (!w[i].enabled) {
+				continue;
+			}
 			for (uint j = i + 1; j < w.size(); j++) {
-				if (!w[j].enabled) continue;
+				if (!w[j].enabled) {
+					continue;
+				}
 				Common::Rect a = w[i].rect, b = w[j].rect;
 				TS_ASSERT(!(a.left < b.right && b.left < a.right &&
 				            a.top < b.bottom && b.top < a.bottom));
@@ -192,7 +218,9 @@ public:
 		Common::Array<PanelWidget> w;
 		buildStudioPanel(panel, samplePanelState(), w);
 		for (uint i = 0; i < w.size(); i++) {
-			if (!w[i].enabled) continue;
+			if (!w[i].enabled) {
+				continue;
+			}
 			const int cx = (w[i].rect.left + w[i].rect.right) / 2;
 			const int cy = (w[i].rect.top + w[i].rect.bottom) / 2;
 			TS_ASSERT_EQUALS(hitTestWidgets(w, cx, cy), w[i].id);
@@ -221,7 +249,10 @@ public:
 	void test_diff_map() {
 		byte a[4 * 4], b[4 * 4], out[4 * 4]; // 2x2 px
 		memset(a, 0, sizeof(a)); memset(b, 0, sizeof(b));
-		for (int i = 0; i < 4; i++) { a[i * 4 + 3] = 255; b[i * 4 + 3] = 255; }
+		for (int i = 0; i < 4; i++) {
+			a[i * 4 + 3] = 255;
+			b[i * 4 + 3] = 255;
+		}
 		b[0] = 200; b[1] = 50; // pixel 0 differs: channel deltas 200, 50
 		diffMapRGBA(a, b, 2, 2, out);
 		TS_ASSERT_EQUALS(out[0], 200); // max delta
@@ -237,12 +268,16 @@ public:
 		const int W = 16, H = 16;
 		Common::Array<byte> a, shifted;
 		a.resize(W * H * 4, 0); shifted.resize(W * H * 4, 0);
-		for (int i = 0; i < W * H; i++) { a[i * 4 + 3] = 255; shifted[i * 4 + 3] = 255; }
-		for (int y = 6; y < 9; y++)
+		for (int i = 0; i < W * H; i++) {
+			a[i * 4 + 3] = 255;
+			shifted[i * 4 + 3] = 255;
+		}
+		for (int y = 6; y < 9; y++) {
 			for (int x = 6; x < 9; x++) {
 				a[(y * W + x) * 4 + 0] = 255;
 				shifted[(y * W + (x + 1)) * 4 + 0] = 255; // same square, 1 px right
 			}
+		}
 		int dx = 99, dy = 99;
 		TS_ASSERT(estimateOffsetSAD(a.begin(), a.begin(), W, H, 3, dx, dy));
 		TS_ASSERT_EQUALS(dx, 0); TS_ASSERT_EQUALS(dy, 0);
@@ -278,7 +313,7 @@ public:
 		TS_ASSERT_EQUALS(dy, 0);
 	}
 
-	// â”€â”€ New tests for polish wave â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+	// -- New tests for polish wave ----------------------------------------------
 
 	// Empty builder: the "(none - wireframe)" placeholder shows and no chip
 	// texts are emitted; add stays clickable.
@@ -293,7 +328,10 @@ public:
 		for (uint i = 0; i < w.size(); i++) {
 			if (w[i].id == (uint32)kWidNone && w[i].label.contains("wireframe"))
 				placeholder = true;
-			if (widKind(w[i].id) == kWidChipAdd) { addFound = true; addOn = w[i].on; }
+			if (widKind(w[i].id) == kWidChipAdd) {
+				addFound = true;
+				addOn = w[i].on;
+			}
 		}
 		TS_ASSERT(placeholder);
 		TS_ASSERT(addFound);
@@ -329,7 +367,7 @@ public:
 		TS_ASSERT(found);
 	}
 
-	// â”€â”€ Grid + animation helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+	// -- Grid + animation helpers -----------------------------------------
 
 	// 2x3 row-major tiling: 6 tiles inside the area, no overlaps, gutters.
 	// gridTileRect is a pure geometry helper covering all 6 positions regardless
@@ -350,12 +388,13 @@ public:
 		TS_ASSERT(r[1].left >= r[0].right);
 		TS_ASSERT(r[2].left >= r[1].right);
 		// No pairwise overlap.
-		for (int i = 0; i < 6; i++)
+		for (int i = 0; i < 6; i++) {
 			for (int j = i + 1; j < 6; j++) {
 				Common::Rect a = r[i];
 				a.clip(r[j]);
 				TS_ASSERT(a.isEmpty());
 			}
+		}
 	}
 
 	// Grid tiles map 1:1 onto the view-enhance modes (registry scalers +
@@ -363,8 +402,9 @@ public:
 	// the shipping 6x module; the last in-range tile is nearest.
 	void test_grid_preset_slots() {
 		TS_ASSERT_EQUALS(gridTileCount(), MIN(viewEnhanceModeCount(), 6));
-		for (int i = 0; i < gridTileCount(); i++)
+		for (int i = 0; i < gridTileCount(); i++) {
 			TS_ASSERT_EQUALS(gridPresetSlot(i), i);
+		}
 		TS_ASSERT_EQUALS(gridPresetSlot(gridTileCount()), -1);
 		TS_ASSERT_EQUALS(gridPresetSlot(-1), -1);
 		TS_ASSERT_EQUALS(strcmp(viewScaler(gridPresetSlot(0)).id, "s2-s3"), 0);
@@ -416,8 +456,12 @@ public:
 			const int k = widKind(w[i].id);
 			if (k == kWidGrid6) { haveGrid = true; TS_ASSERT(w[i].on); } // displayMode 4
 			if (k == kWidAnimPlay) { havePlay = true; TS_ASSERT(w[i].on); }
-			if (k == kWidAnimSlower) haveSlower = true;
-			if (k == kWidAnimFaster) haveFaster = true;
+			if (k == kWidAnimSlower) {
+				haveSlower = true;
+			}
+			if (k == kWidAnimFaster) {
+				haveFaster = true;
+			}
 		}
 		TS_ASSERT(haveGrid);
 		TS_ASSERT(havePlay);

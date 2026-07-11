@@ -11,18 +11,22 @@ IndexImage synthImgVS(int w, int h) {
 	IndexImage img;
 	img.w = w; img.h = h;
 	img.pixels.resize((size_t)w * h);
-	for (int y = 0; y < h; y++)
-		for (int x = 0; x < w; x++)
+	for (int y = 0; y < h; y++) {
+		for (int x = 0; x < w; x++) {
 			img.pixels[(size_t)y * w + x] = (byte)((x * 3 + y * 5) % 16);
+		}
+	}
 	return img;
 }
 
 bool sameImageVS(const IndexImage &a, const IndexImage &b) {
 	if (a.w != b.w || a.h != b.h)
 		return false;
-	for (uint i = 0; i < a.pixels.size(); i++)
-		if (a.pixels[i] != b.pixels[i])
+	for (uint i = 0; i < a.pixels.size(); i++) {
+		if (a.pixels[i] != b.pixels[i]) {
 			return false;
+		}
+	}
 	return true;
 }
 
@@ -43,10 +47,12 @@ public:
 			TS_ASSERT_EQUALS(out.h, in.h * s.factor);
 			TS_ASSERT(s.id && *s.id);
 			TS_ASSERT(s.label && *s.label);
-			for (const char *c = s.id; *c; c++)
+			for (const char *c = s.id; *c; c++) {
 				TS_ASSERT((*c >= 'a' && *c <= 'z') || (*c >= '0' && *c <= '9') || *c == '-');
-			for (int j = 0; j < i; j++)
+			}
+			for (int j = 0; j < i; j++) {
 				TS_ASSERT(strcmp(viewScaler(j).id, s.id) != 0);
+			}
 			TS_ASSERT_EQUALS(viewScalerIndexById(s.id), i);
 		}
 		TS_ASSERT_EQUALS(viewScalerIndexById("no-such-id"), -1);
@@ -56,7 +62,7 @@ public:
 	// Entry 0 is THE shipping module: id "s2-s3", factor 6, byte-identical to
 	// scale6x() both directly and through the 6x-grid helper. This is the lock
 	// that keeps the registry honest about the shipping path (and the proof
-	// that this refactor did not change cel output â€” kTransformVersion holds).
+	// that this refactor did not change cel output -- kTransformVersion holds).
 	void test_shipping_module_is_scale6x() {
 		IndexImage in = synthImgVS(8, 7);
 		TS_ASSERT_EQUALS(strcmp(viewScaler(0).id, "s2-s3"), 0);
@@ -91,10 +97,12 @@ public:
 		TS_ASSERT(sameImageVS(resampleNearestExact(in, 8, 8), in));
 		IndexImage down = resampleNearestExact(in, 6, 6);
 		TS_ASSERT_EQUALS(down.w, 6);
-		for (int y = 0; y < 6; y++)
-			for (int x = 0; x < 6; x++)
+		for (int y = 0; y < 6; y++) {
+			for (int x = 0; x < 6; x++) {
 				TS_ASSERT_EQUALS(down.pixels[(size_t)y * 6 + x],
 				                 in.pixels[(size_t)(y * 8 / 6) * 8 + (x * 8 / 6)]);
+			}
+		}
 		TS_ASSERT(sameImageVS(resampleNearestExact(in, 16, 16), scaleNearest(in, 2)));
 	}
 

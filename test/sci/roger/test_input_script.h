@@ -207,7 +207,7 @@ public:
 		d.loadScriptFromString("snap boot\nkey ENTER\n");
 		Common::Event ev;
 		// snap runs its (potentially ~1s) host callback then RETURNS false so the caller
-		// re-polls with a fresh clock — this is what keeps following actions from bunching
+		// re-polls with a fresh clock -- this is what keeps following actions from bunching
 		// after a slow grabOverlay+PNG. The keydown yields on the next poll.
 		TS_ASSERT(!d.pollDue(2000, ev));
 		TS_ASSERT_EQUALS((int)h.snaps.size(), 1);
@@ -230,7 +230,7 @@ public:
 		TS_ASSERT_EQUALS((int)h.snaps.size(), 1);
 		// The host callback consumed ~1000ms of wall time: next real poll clock is ~2000.
 		// Without re-anchor the move (due 1500) would be overdue and fire at 2000. With
-		// re-anchor, _baseMs slides +1000, so the move is due at 2500 — still 500ms out.
+		// re-anchor, _baseMs slides +1000, so the move is due at 2500 -- still 500ms out.
 		TS_ASSERT(!d.pollDue(2000, ev)); // re-anchored: move NOT yet due
 		TS_ASSERT(!d.pollDue(2499, ev));
 		TS_ASSERT(d.pollDue(2500, ev));  // authored 500ms spacing preserved past the snap

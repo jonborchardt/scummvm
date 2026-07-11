@@ -64,7 +64,7 @@ public:
 		// by BOTH the semantic control hook (kControlText -> onText source=control, token 0x40000003,
 		// accurate native font height + single-line width cap) AND the generic GfxText16::Box
 		// hook (onText source=box, token 0x60000003, no width cap -> wrap-fit). They are the SAME
-		// native draw seen by two hooks â€” reconciled by dedupeGenericText (keeps the control).
+		// native draw seen by two hooks -- reconciled by dedupeGenericText (keeps the control).
 		// append()'s geometry-only supersede must NOT let the later generic copy replace the
 		// control copy: doing so left the multi-line wrap-fit generic in the journal, which
 		// rendered too small once a later present re-fitted it (large-first -> small-settled).
@@ -83,7 +83,7 @@ public:
 	}
 
 	void test_same_namespace_value_redraw_still_supersedes() {
-		// Guard: the fix must NOT break the char-sheet stat-value refresh â€” a generic
+		// Guard: the fix must NOT break the char-sheet stat-value refresh -- a generic
 		// redraw at the same box within the SAME generic namespace still supersedes.
 		RogerJournal j;
 		UiElement a = op(kUiText, 170, 45, 192, 57, "25"); a.token = 0x60000003u;
@@ -121,7 +121,7 @@ public:
 	void test_bracket_assignment_ignores_draw_time_identity() {
 		// The QFG1 char sheet draws under port 3 AND port 2 while window 3 is the
 		// only open bracket over the rect: both draws must belong to window 3.
-		// (Geometry + bracket stack, never the current-port id â€” the 0x60000002
+		// (Geometry + bracket stack, never the current-port id -- the 0x60000002
 		// vs 0x60000003 doubling class from d8be4749b4e.)
 		RogerJournal j;
 		j.openBracket(3, Common::Rect(0, 9, 321, 200));
@@ -157,7 +157,7 @@ public:
 	}
 
 	void test_partial_overlap_never_erases() {
-		// The char-sheet-popup trap (CLAUDE.md): geometry may only remove on strict
+		// The char-sheet-popup trap: geometry may only remove on strict
 		// containment. Partial coverage keeps the op.
 		RogerJournal j;
 		j.append(op(kUiText, 10, 10, 40, 22, "stats"));
@@ -221,7 +221,7 @@ public:
 
 	void test_checkpoint_is_consumed_by_rollback_and_by_drop() {
 		// Contract: rollback returns true iff the handle HAD a checkpoint (even when
-		// zero ops are removed) â€” the caller uses the return value to decide whether
+		// zero ops are removed) -- the caller uses the return value to decide whether
 		// to fall back to plain eraseContained semantics. Both rollback and
 		// dropCheckpoint consume the checkpoint.
 		RogerJournal j;
@@ -237,11 +237,11 @@ public:
 		// Menu-close regression (this fix): closing the game menu restores the
 		// menu-bar save-under. The status banner (token 0x10000000) is redrawn into
 		// the top strip while the menu is open, so it postdates the bar's checkpoint
-		// and lies inside the restored strip â€” a plain rollback dropped it, reverting
+		// and lies inside the restored strip -- a plain rollback dropped it, reverting
 		// the enhanced TTF banner to the native bitmap font. Its lifetime is owned by
 		// its token (reapply / clearToken), never by a save-under, so rollback must
 		// spare it. Same for the overlay-only frame box (0x70000000). The menu dropdown
-		// (0x20000000) is NOT spared â€” its own restore is what must remove it.
+		// (0x20000000) is NOT spared -- its own restore is what must remove it.
 		RogerJournal j;
 		j.checkpoint(0x00170ab0u, Common::Rect(0, 0, 320, 10)); // bar save-under
 		UiElement banner = op(kUiWindow, 0, 0, 320, 10); banner.token = 0x10000000u;
@@ -261,7 +261,7 @@ public:
 	}
 
 	void test_popup_over_chars_sheet_rolls_back_cleanly() {
-		// THE historical trap (CLAUDE.md): a popup over the char sheet must not wipe
+		// Regression guard: a popup over the char sheet must not wipe
 		// the stat text beneath it. With checkpoints this is exact: the stats predate
 		// the popup's save, so rollback reveals them untouched.
 		RogerJournal j;
@@ -292,17 +292,16 @@ public:
 	}
 
 	void test_supersede_blocked_across_different_windows() {
-		// Deliberate contract change (Phase 2 final review, top item): a larger
-		// window-B op must not swallow window-A's still-open op of the same type.
-		// A's pixels return via A's save-under when B closes; A's ops die with A's
-		// bracket, not with B's overprint.
+		// Contract: a larger window-B op must not swallow window-A's still-open op
+		// of the same type. A's pixels return via A's save-under when B closes; A's
+		// ops die with A's bracket, not with B's overprint.
 		RogerJournal j;
 		j.openBracket(3, Common::Rect(40, 40, 200, 120));
 		UiElement a = op(kUiText, 50, 50, 120, 62, "window A text"); a.token = 0x40000003u;
 		j.append(a);
 		j.openBracket(5, Common::Rect(20, 20, 300, 180)); // larger window over it
 		UiElement b = op(kUiText, 45, 45, 260, 70, "window B text"); b.token = 0x40000005u;
-		j.append(b); // same type, contains A's rect â€” must NOT supersede
+		j.append(b); // same type, contains A's rect -- must NOT supersede
 		TS_ASSERT_EQUALS(j.ops().size(), 2u); // A text + B text, nothing removed
 		Common::Array<Common::Rect> removed;
 		TS_ASSERT(j.closeBracket(5, &removed));
@@ -334,7 +333,7 @@ public:
 
 	void test_append_preserves_preset_window_id() {
 		// onWindowOpen pre-tags the window's own box op with its id; a surrounding
-		// open bracket must not re-tag it (stated Phase 1 interface contract).
+		// open bracket must not re-tag it.
 		RogerJournal j;
 		j.openBracket(3, Common::Rect(0, 0, 320, 200));
 		UiElement e = op(kUiWindow, 60, 60, 260, 140); e.windowId = 5;

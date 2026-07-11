@@ -60,7 +60,7 @@ public:
 		TS_ASSERT_EQUALS(gfxTokenNamespace(kGfxTokenStatus), (uint32)kGfxTokenStatus);
 	}
 	// Contract: the base observer is a pure no-op and is directly constructible
-	// (no pure virtuals) — call sites may rely on default behavior being inert
+	// (no pure virtuals) -- call sites may rely on default behavior being inert
 	// and every claim returning false (native path runs).
 	void test_default_observer_is_noop_and_claims_nothing() {
 		SciGfxObserver obs;

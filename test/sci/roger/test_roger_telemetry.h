@@ -57,7 +57,7 @@ public:
 	void test_skipped_cycle_folds_into_next_period() {
 		// A kernelAnimate early return (frameStart with no frameRendered) must
 		// fold into the NEXT emitted period, measured from the last EMITTED
-		// cycle's entry — exactly the old s_prevCycleT0 discipline.
+		// cycle's entry -- exactly the old s_prevCycleT0 discipline.
 		CycleTelemetry t;
 		uint32 period = 0, busy = 0;
 		t.frameStart(1000); t.frameRendered(1012, period, busy);

@@ -37,7 +37,12 @@ public:
 		Common::Array<int> def = defaultPasses();
 		OmyacResult out = renderOmyac(ref, def);
 		bool anyNone = false;
-		for (uint i = 0; i < out.cmdType.size(); i++) if (out.cmdType[i] == CMD_NONE) { anyNone = true; break; }
+		for (uint i = 0; i < out.cmdType.size(); i++) {
+			if (out.cmdType[i] == CMD_NONE) {
+				anyNone = true;
+				break;
+			}
+		}
 		TS_ASSERT(!anyNone); // fillNullPixels leaves nothing unfilled
 	}
 

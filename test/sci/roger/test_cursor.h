@@ -53,7 +53,7 @@ public:
 		Common::Point hotspot;
 		Graphics::Surface *surf = Sci::Roger::decodeSci0Cursor(data, 68, hotspot);
 		TS_ASSERT(surf != nullptr);
-		TS_ASSERT_EQUALS(surf->w, 96); // 16 * 6 — same enhanced scale as view cels
+		TS_ASSERT_EQUALS(surf->w, 96); // 16 * 6 -- same enhanced scale as view cels
 		TS_ASSERT_EQUALS(surf->h, 96);
 		uint8 a, r, g, b;
 		surf->format.colorToARGB(surf->getPixel(0, 0), a, r, g, b);
@@ -160,7 +160,7 @@ public:
 	}
 
 	void test_both_masks_set_white_matches_plain_white() {
-		// Color 3 (both masks set) is white in SCI0 — it must scale identically
+		// Color 3 (both masks set) is white in SCI0 -- it must scale identically
 		// to color 1 white (no seam artifacts from the enhancer treating the two
 		// white encodings as different colors). All-3 image => uniformly white.
 		byte data[68];

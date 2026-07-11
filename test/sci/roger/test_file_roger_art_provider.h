@@ -73,7 +73,7 @@ public:
 	}
 
 	void test_load_priority_wrong_size_returns_empty() {
-		// A 4x4 PNG is not 320x200 — buffer fill should be rejected
+		// A 4x4 PNG is not 320x200 -- buffer fill should be rejected
 		Common::Array<byte> data = Sci::Roger::loadGrayscale8(
 			Common::String(FIXTURE_DIR) + "/4x4_p5.png");
 		// 16 != 320*200, so the size guard in loadBuffers() would reject it

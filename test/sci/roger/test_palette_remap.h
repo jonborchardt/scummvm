@@ -41,8 +41,9 @@ public:
 		byte live[48]; canonicalEga(live);
 		uint32 table[256];
 		buildLivePaletteTable(snap, live, table);
-		for (int i = 0; i < 256; i++)
+		for (int i = 0; i < 256; i++) {
 			TS_ASSERT_EQUALS(table[i], BLEND_TABLE[i]); // identity: snap==live
+		}
 	}
 	void test_uniform_half_intensity_halves_rgb() {
 		byte snap[48]; canonicalEga(snap);

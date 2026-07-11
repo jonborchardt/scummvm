@@ -12,8 +12,9 @@ class RogerPassesTestSuite : public CxxTest::TestSuite {
 		TS_ASSERT_EQUALS(got.size(), (uint)strlen(expect));
 		if (got.size() != strlen(expect))
 			return;
-		for (uint i = 0; i < got.size(); i++)
+		for (uint i = 0; i < got.size(); i++) {
 			TS_ASSERT_EQUALS(got[i], expect[i] - '0');
+		}
 	}
 
 public:
@@ -68,8 +69,9 @@ public:
 		const Common::Array<int> viaOmyac = defaultPasses();
 		const Common::Array<int> viaString = parsePassString(kDefaultPassString);
 		TS_ASSERT_EQUALS(viaOmyac.size(), viaString.size());
-		for (uint i = 0; i < viaOmyac.size() && i < viaString.size(); i++)
+		for (uint i = 0; i < viaOmyac.size() && i < viaString.size(); i++) {
 			TS_ASSERT_EQUALS(viaOmyac[i], viaString[i]);
+		}
 	}
 
 	void test_whole_word_keywords_and_trim() {

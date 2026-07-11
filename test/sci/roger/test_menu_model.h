@@ -99,7 +99,7 @@ public:
 		TS_ASSERT(m.rows()[1].selected(m.highlight()));
 	}
 	// closeDropdown drops the rows (dispose) but leaves bar titles intact (they are
-	// independent lifetimes — the bar strip survives a dropdown close).
+	// independent lifetimes -- the bar strip survives a dropdown close).
 	void test_close_dropdown_keeps_bar() {
 		MenuModel m;
 		m.beginBar(); m.addBarTitle(Common::Rect(0,0,10,10), "File"); m.endBar();
