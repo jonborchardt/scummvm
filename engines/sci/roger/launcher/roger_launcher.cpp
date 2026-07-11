@@ -20,8 +20,8 @@
 namespace Sci {
 namespace Roger {
 
-RogerLauncher::RogerLauncher(FileRogerArtProvider *provider)
-	: _provider(provider) {}
+RogerLauncher::RogerLauncher(FileRogerArtProvider *provider, bool standalone)
+	: _provider(provider), _standalone(standalone) {}
 
 // Helper: add one game entry if it's a valid SCI game at gamePath with domain dom.
 // rogerPath is created if it doesn't exist. No-ops if already in _state.games.
@@ -207,10 +207,16 @@ void RogerLauncher::requestCrossGame(int index, bool launchAfter) {
 	ConfMan.setBool(launchAfter ? "roger_picker_launch" : "roger_picker_precache",
 	                true, dom);
 	ConfMan.flushToDisk();
-	ChainedGamesMan.push(dom);
-	Common::Event e;
-	e.type = Common::EVENT_RETURN_TO_LAUNCHER;
-	g_system->getEventManager()->pushEvent(e);
+	if (_standalone) {
+		// Pre-engine: the main-loop launcher round reads the active domain
+		// after the dialog closes and boots the game from there.
+		ConfMan.setActiveDomain(dom);
+	} else {
+		ChainedGamesMan.push(dom);
+		Common::Event e;
+		e.type = Common::EVENT_RETURN_TO_LAUNCHER;
+		g_system->getEventManager()->pushEvent(e);
+	}
 	_switchTriggered = true;
 }
 

@@ -47,7 +47,11 @@ struct LauncherState {
 
 class RogerLauncher {
 public:
-	explicit RogerLauncher(FileRogerArtProvider *provider);
+	// standalone = constructed pre-engine from base/main.cpp's launcher round
+	// (no g_sci, provider is null): launches set the active ConfMan domain
+	// instead of pushing a ChainedGamesMan switch, and precache is deferred to
+	// the in-engine picker via the one-shot keys.
+	explicit RogerLauncher(FileRogerArtProvider *provider, bool standalone = false);
 
 	// Run the launcher modal dialog. Returns true to proceed with the current
 	// game, false if a game-switch event was pushed (caller should return).
@@ -76,7 +80,10 @@ public:
 	void setDebugLogForSelected(bool on);
 
 	// Write a one-shot key (roger_picker_launch / roger_picker_precache) into
-	// games[index]'s domain and switch engines to it via ChainedGamesMan.
+	// games[index]'s domain, then switch to it: in-engine via ChainedGamesMan
+	// + a return-to-launcher event; standalone via ConfMan.setActiveDomain
+	// (pre-engine there is no engine to return from, and chained games are
+	// only popped after an engine exits).
 	void requestCrossGame(int index, bool launchAfter);
 
 	// One-shot keys consumed from the ACTIVE domain at run() start.
@@ -88,10 +95,11 @@ public:
 
 private:
 	FileRogerArtProvider *_provider;
-	LauncherState       _state;
-	bool                _switchTriggered = false;
-	bool                _autoLaunch = false;
-	bool                _autoPrecache = false;
+	bool                 _standalone;
+	LauncherState        _state;
+	bool                 _switchTriggered = false;
+	bool                 _autoLaunch = false;
+	bool                 _autoPrecache = false;
 
 	// Add one game to _state.games, creating the roger dir if needed.
 	void tryAddEntry(const Common::String &dom, const Common::Path &gamePath,
