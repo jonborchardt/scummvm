@@ -34,6 +34,11 @@
 #include "engines/metaengine.h"
 #include "base/commandLine.h"
 #include "base/plugins.h"
+#if PLUGIN_ENABLED_STATIC(SCI)
+// Roger fork: standalone game picker replaces the stock launcher
+// (see engines/sci/roger/launcher/roger_standalone.h). Fork-only seam.
+#include "sci/roger/launcher/roger_standalone.h"
+#endif
 #include "base/version.h"
 
 #include "common/archive.h"
@@ -111,6 +116,14 @@ static bool launcherDialog() {
 	bool noQuit = g_system->hasFeature(OSystem::kFeatureNoQuit);
 	bool status = true;
 	do {
+#if PLUGIN_ENABLED_STATIC(SCI)
+		// Roger fork: the Roger picker handles this round unless
+		// roger_no_launcher / ROGER_NO_LAUNCHER opts out.
+		if (Sci::Roger::rogerStandaloneLauncher()) {
+			status = true;
+			continue;
+		}
+#endif
 #if defined(__DC__)
 		DCLauncherDialog dlg;
 #else
