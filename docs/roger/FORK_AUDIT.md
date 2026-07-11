@@ -1014,3 +1014,12 @@ in the spec itself).
 
 All six PASS — no loop-back required. With §9 fully resolved, the audit + amended
 spec pair is the go signal for the future observer-reshaping work (Stage 3).
+
+Measurement note (2026-07-10, genericization follow-up): the `createSciGfxObserver()`
+factory + `onEngineStartup()`/`interceptEvent()` follow-up removed the last named-type
+references outside `engines/sci/roger/` (the R20 fork-only carve-out blocks in
+sci.cpp/event.cpp are gone — zero Roger references remain outside `roger/` except
+module.mk object paths and upstream game text); same-scope `git diff --stat` vs
+merge-base re-measured at 20 files, 1043(+)/15(−) = **1058 raw** (down from Task 14's
+1094; the ~90-line R20 exclusion no longer applies, so raw ≈ rule-adjusted − the R22
+standalone-PR rows: ≈1033).
