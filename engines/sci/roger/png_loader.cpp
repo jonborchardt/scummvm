@@ -94,13 +94,17 @@ Graphics::Surface *loadSurfaceRGBA(const Common::String &path) {
 	return out;  // may be nullptr if conversion failed
 }
 
+bool encodeSurfacePng(const Graphics::Surface &surf, Common::WriteStream &out) {
+	// Image::writePNG handles RGBA32/RGB24/CLUT8 directly and converts other
+	// formats itself, so the composited RGBA scene can be passed straight through.
+	return Image::writePNG(out, surf);
+}
+
 bool dumpSurfacePng(const Graphics::Surface &surf, const Common::String &path) {
 	Common::DumpFile out;
 	if (!out.open(Common::Path(path)))
 		return false;
-	// Image::writePNG handles RGBA32/RGB24/CLUT8 directly and converts other
-	// formats itself, so the composited RGBA scene can be passed straight through.
-	const bool ok = Image::writePNG(out, surf);
+	const bool ok = encodeSurfacePng(surf, out);
 	out.close();
 	return ok;
 }

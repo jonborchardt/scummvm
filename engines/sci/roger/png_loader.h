@@ -47,6 +47,12 @@ Graphics::Surface *loadSurfaceRGBA(const Common::String &path);
 // Used by the .rin capture path (dumpAutoshot) to dump the composited scene.
 bool dumpSurfacePng(const Graphics::Surface &surf, const Common::String &path);
 
+// PNG-encode a Graphics::Surface into `out` (no file involved). Same format
+// handling as dumpSurfacePng (Image::writePNG converts as needed). Returns
+// false when the encoder fails. Shared by dumpSurfacePng and the Studio's
+// sweep-SVG export (which embeds the bytes as a base64 data URL).
+bool encodeSurfacePng(const Graphics::Surface &surf, Common::WriteStream &out);
+
 // True when a file exists and is readable at `path` (absolute or relative,
 // same path handling as loadSurfaceRGBA). Existence check only -- no decode.
 bool fileExists(const Common::String &path);
