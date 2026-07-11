@@ -98,7 +98,7 @@ Captured generic regions are intentionally blocky (nearest-neighbour upscale) be
 ## Launcher
 
 The Roger game picker appears at engine startup (before the game is loaded). It
-displays a custom-drawn list of detected EGA SCI0 games from ScummVM's config.
+displays a custom-drawn list of the configured SCI games from ScummVM's config.
 Select a game and click **Launch** to proceed. The picker can be bypassed with
 `roger_no_launcher=true` in `scummvm.ini` or the `ROGER_NO_LAUNCHER` env var —
 `build_and_run.ps1 -SkipPicker` sets the env var for one launch, and passing
