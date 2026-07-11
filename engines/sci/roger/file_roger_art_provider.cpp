@@ -3318,6 +3318,20 @@ void FileRogerArtProvider::onFrameStart() {
 	// drawWindow content show is same-call, so a stale arm here is a bug, not a
 	// feature. O(1).
 	_pendingShowOwner = 0;
+
+	// GUI self-heal: a ScummVM GUI dialog (GMM, save/load chooser) clears the
+	// overlay for its backdrop and hides it on close (ThemeEngine::enable/
+	// disable) while the game cycle is frozen — no observer event fires, and
+	// kSaveGame's chooser runs with no engine pause, so polling here is the
+	// only reliable seam. First cycle after it closes, the backend says hidden
+	// while Roger says shown: mark everything dirty so this cycle's barrier
+	// does a full present (which also re-shows the overlay). O(1) when nothing
+	// happened.
+	if (enabled && _haveScene && overlayShown() && !g_system->isOverlayVisible()) {
+		if (_diag)
+			warning("ROGER-DIAG[guiHeal] overlay hidden externally - full repaint");
+		markFullDirty();
+	}
 }
 
 // SciGfxObserver::interceptEvent — the single event seam (event.cpp calls it
