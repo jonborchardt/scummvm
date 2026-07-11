@@ -356,6 +356,11 @@ private:
 	void markVacatedDirty(const Common::Rect &nativeRect); // element removed at nr
 	void markNativeDirty(const Common::Rect &nativeRect);  // Ã‚Â§3.1: exact rect SCI touched
 	void markFullDirty();                                  // room/F10/font/plate change
+	// GUI self-heal: true when an external actor (a ScummVM GUI dialog) hid the
+	// overlay behind Roger's back; marks a full repaint. Called from
+	// onFrameStart (per cycle) and interceptEvent (covers GUI-closed-during-
+	// frozen-SCI-dialog, where no cycle runs until the SCI dialog dismisses).
+	bool healExternalOverlayHide();
 	// Overlay-space rect the cursor would occupy right now (empty when not drawable).
 	// Extracted from compositeCursor so the barrier can detect cursor movement.
 	Common::Rect cursorDstRect(const Common::Rect &gameRect);

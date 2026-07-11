@@ -3319,25 +3319,42 @@ void FileRogerArtProvider::onFrameStart() {
 	// feature. O(1).
 	_pendingShowOwner = 0;
 
-	// GUI self-heal: a ScummVM GUI dialog (GMM, save/load chooser) clears the
-	// overlay for its backdrop and hides it on close (ThemeEngine::enable/
-	// disable) while the game cycle is frozen — no observer event fires, and
-	// kSaveGame's chooser runs with no engine pause, so polling here is the
-	// only reliable seam. First cycle after it closes, the backend says hidden
-	// while Roger says shown: mark everything dirty so this cycle's barrier
-	// does a full present (which also re-shows the overlay). O(1) when nothing
-	// happened.
-	if (enabled && _haveScene && overlayShown() && !g_system->isOverlayVisible()) {
-		if (_diag)
-			warning("ROGER-DIAG[guiHeal] overlay hidden externally - full repaint");
-		markFullDirty();
-	}
+	// GUI self-heal (see healExternalOverlayHide): this cycle's barrier
+	// flushes the mark.
+	healExternalOverlayHide();
+}
+
+// GUI self-heal: a ScummVM GUI dialog (GMM, save/load chooser) clears the
+// overlay for its backdrop and hides it on close (ThemeEngine::enable/
+// disable) while the game cycle is frozen — no observer event fires, and
+// kSaveGame's chooser runs with no engine pause, so polling is the only
+// reliable seam. When the backend says hidden while Roger says shown, an
+// external actor was here: mark everything dirty for a full present (which
+// also re-shows the overlay via presentToOverlay's showOverlay). O(1) when
+// nothing happened. Cannot false-positive while a GUI dialog is OPEN: the
+// GUI keeps the overlay visible for its own drawing, and its modal loop
+// bypasses SCI event polling anyway.
+bool FileRogerArtProvider::healExternalOverlayHide() {
+	if (!enabled || !_haveScene || !overlayShown() || g_system->isOverlayVisible())
+		return false;
+	if (_diag)
+		warning("ROGER-DIAG[guiHeal] overlay hidden externally - full repaint");
+	markFullDirty();
+	return true;
 }
 
 // SciGfxObserver::interceptEvent — the single event seam (event.cpp calls it
 // null-guarded on the neutral interface). May mutate ev.mouse (SBS remap) and
 // returns true to consume the event (debug hotkeys, tune-panel clicks).
 bool FileRogerArtProvider::interceptEvent(Common::Event &ev) {
+	// GUI self-heal on the event seam: covers a GUI dialog closed while an SCI
+	// blocking dialog holds the cycle frozen (e.g. GMM over a Print box) —
+	// onFrameStart won't run until the SCI dialog dismisses, but events still
+	// flow through here, so heal and present immediately instead of leaving a
+	// hidden/stale overlay until then.
+	if (healExternalOverlayHide())
+		presentBarrier();
+
 	// Side-by-side compare mode: remap so the left (enhanced) panel drives the
 	// game. No-op in the other display modes. Runs FIRST so the tune-panel
 	// hit-test below sees remapped game-space coordinates.
