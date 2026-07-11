@@ -1,0 +1,26 @@
+# save-dialog-repro.rin - evidence script for the two save-dialog display bugs.
+# Drives the ScummVM GUI SaveLoadChooser (GRID variant, the default) through the
+# real user flow: F5 -> grid chooser -> click "New Save" -> SavenameDialog ->
+# type name -> Enter. The .rin driver ticks inside the GuiManager loop; while
+# the GUI is active, injected mouse coords are read as OVERLAY pixels (clamped
+# to 320x200, which still reaches the top-left "New Save" tile).
+# snap grabs the OVERLAY BUFFER at execution time - the evidence surface for
+# both bugs.
+wait 5000                       # boot + save-restore settle
+state
+snap pre-dialog                 # baseline: enhanced scene
+key f5                          # SCI0 Save Game shortcut -> kSaveGame -> GUI grid chooser
+wait 2500                       # dialog appear settle
+snap grid                       # full-screen grid chooser (opaque; backdrop not visible here)
+click 160 100                   # "New Save" tile (overlay px while GUI active)
+wait 1200                       # grid session closes, SavenameDialog session opens
+snap name-dialog                # BUG 1 evidence: backdrop behind the type-a-name dialog
+type "rogertest"
+key enter                       # OK -> save -> dialog closes, game resumes
+wait 1500                       # deliberately NO mouse move
+snap post-close-still           # BUG 2 evidence: stale dialog pixels, zero input
+state
+move 160 100
+wait 400
+snap post-close-after-move      # pre-fix: only cursor rects updated
+quit
