@@ -1237,3 +1237,34 @@ no-AI-references rule and the downstream-only exclusion list).
 No blockers. Known open flags carried forward from earlier passes (S1
 FORBIDDEN_SYMBOL_EXCEPTION_getenv, menu S-bucket state exile, A14 non-const static
 `s_prevCycleT0`) are documented in §3 and unchanged.
+
+### 11.9 Build and test verification (2026-07-11)
+
+Branch head: `a78571c8dc6` (`jon-first-pass-prompt-1`, documentation-only pass 1–5).
+
+| Gate | Command / check | Result |
+|---|---|---|
+| Unit tests | `.\build_tests.ps1` | PASS — 351/351 |
+| Game build | MSBuild (Release\|x64) | PASS — scummvm.exe produced |
+| Smoke (enhanced) | `-Game qfg1 -SaveSlot 1 -Script qfg1-smoke.rin` | PASS — exit 0 |
+| Smoke (original) | `-Mode original -Game qfg1 -SaveSlot 1 -Script qfg1-smoke.rin` | PASS — exit 0 |
+| Regression gate | `test\sci\roger\run-regression.ps1` | 41/42 PASS (1 known-stale FAIL) |
+| Other-engines diff | `git diff --stat origin/master...HEAD -- engines :(exclude)engines/sci` | PASS — empty (no other engine touched) |
+| Quarantine grep | `git grep -in "roger" -- engines/sci :(exclude)engines/sci/roger` | PASS — upstream game text + module.mk object paths only |
+
+Regression gate detail: the single failure is `qfg1-menu-cycle presence:m-after`
+(0 differing px < 6000 threshold). This is the documented KNOWN-STALE manifest
+entry — the window-height fraction regions in the manifest are stale since the
+2026-07-05 stretch-mode change (dcaa7e2625a); the top-4.5% band is now pure
+letterbox in both captures, but the menu opens correctly (verified standalone).
+Not a code regression; requires manifest re-derivation, not a code fix.
+
+Walk-perf entries: both PASS on this run (qfg1 median=83/p90=84/busy=10,
+sq3 median=83/p90=84/busy=4); no flakiness adjudication required.
+
+All SCI hook sites outside `engines/sci/roger/` are null-guarded `g_sciGfxObserver`
+events against the neutral `SciGfxObserver` interface; the concrete provider type
+appears nowhere outside `engines/sci/roger/`. This is enforced by the quarantine
+grep above and documented in §3 and §10. Roger-off (null observer) is byte-identical
+to stock SCI; original-mode smoke confirms the provider-present native path also exits
+cleanly.
