@@ -12,7 +12,8 @@ manufacturing an upstream branch from `upstream/master` are in
 Upstream branches are **manufactured fresh from `upstream/master`** and contain
 only the commits for one reviewable PR. They are not cherry-picked wholesale
 from the deploy line: the deploy line's history is raw material (see the History
-hygiene note at the end).
+hygiene note at the end). Individual clean commits may still be cherry-picked
+into a manufactured branch when one happens to satisfy the ground rules below.
 
 ## Ground rules
 
@@ -142,7 +143,7 @@ prefers. All are from FORK_AUDIT §8.
   2. `SCI: Emit observer events from graphics primitives`
      (the paint16/animate/controls16/text16/ports/transitions/cursor/palette16
      hook calls — mechanical, null-guarded).
-  3. `SCI: Route menu state through the graphics observer`
+  3. `SCI: Route menu state via graphics observer`
      (the menu.{cpp,h} exile — the largest single reshape, R5; kept separate
      because it carries the most behavior and the most review risk).
   4. `SCI: Wire graphics observer registration`
