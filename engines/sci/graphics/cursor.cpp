@@ -83,7 +83,7 @@ GfxCursor::~GfxCursor() {
 void GfxCursor::kernelShow() {
 	// An observer that composites its own cursor claims the pointer visual, so the
 	// backend hardware cursor is suppressed (it draws above any overlay and leaks
-	// at the letterbox edge — see SciGfxObserver::claimCursor).
+	// at the letterbox edge -- see SciGfxObserver::claimCursor).
 	CursorMan.showMouse(!(g_sciGfxObserver && g_sciGfxObserver->claimCursor()));
 	_isVisible = true;
 }

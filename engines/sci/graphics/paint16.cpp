@@ -114,7 +114,7 @@ void GfxPaint16::drawPicture(GuiResourceId pictureId, bool mirroredFlag, bool ad
 
 	// The native picture render is complete in SCI's buffers. The observer decides
 	// whether it has replacement art for this pic (replace) or must drop a stale
-	// scene (absent) — that knowledge is the observer's, not SCI's.
+	// scene (absent) -- that knowledge is the observer's, not SCI's.
 	if (g_sciGfxObserver) {
 		g_sciGfxObserver->onPicture(pictureId, addToFlag);
 		g_sciGfxObserver->endSelfDraw();
@@ -492,9 +492,9 @@ void GfxPaint16::kernelGraphFrameBox(const Common::Rect &rect, int16 color) {
 	frameRect(rect);
 	_ports->penColor(oldColor);
 	// Observer (hires overlay): capture any frame-box drawn here as a no-fill overlay
-	// element (game-agnostic backstop). rect is in local (port-relative) coords —
+	// element (game-agnostic backstop). rect is in local (port-relative) coords --
 	// offsetRect converts to global 320x200 screen space. Note: kernelGraphFrameBox
-	// is NOT called for the QFG1/SQ3 control-list selection frame — that is drawn in
+	// is NOT called for the QFG1/SQ3 control-list selection frame -- that is drawn in
 	// controls16.cpp kernelDrawText's SELECTED branch (see the hook there). This hook
 	// captures the kGraph(FrameBox) primitive for any other callers (e.g. kpathing debug).
 	// onFrameBox gates internally on change (observer-side), so repeated calls are O(1).
@@ -683,7 +683,7 @@ reg_t GfxPaint16::kernelDisplay(const char *text, uint16 languageSplitter, int a
 	// display area before printing the text. The other (non-PQ2) PC-98 versions use a lowres font here, so this fix is only for
 	// PQ2 PC-98 and for the Korean fan translations.
 	bool needCJKFix = (g_sci->getLanguage() == Common::KO_KOR || (g_sci->getPlatform() == Common::kPlatformPC98 && g_sci->getGameId() == GID_PQ2));
-	// Self-draw bracket on the flush shows ONLY — Box must stay OUTSIDE the
+	// Self-draw bracket on the flush shows ONLY -- Box must stay OUTSIDE the
 	// bracket or its per-line text capture is depth-suppressed (see
 	// SciGfxObserver::beginSelfDraw).
 	if (needCJKFix && !_screen->_picNotValid && bRedraw) {

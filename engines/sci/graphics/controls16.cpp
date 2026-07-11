@@ -297,7 +297,7 @@ void GfxControls16::kernelTexteditChange(reg_t controlObject, reg_t eventObject)
 			// renders the field far wider than the native nsRect needs those keystrokes,
 			// so wantsUnclampedTextEdit() lifts this pixel-width cap. SKIPPED native
 			// behavior: the pixel-width keystroke cap. OBSERVER GUARANTEE: the script-side
-			// maxChars buffer bound (checked earlier in this function) still applies —
+			// maxChars buffer bound (checked earlier in this function) still applies --
 			// nothing overflows the buffer; only the pixel cap lifts. Observer-null or a
 			// claim-false observer keeps the native cap (byte-identical).
 			const bool unclamp = g_sciGfxObserver && g_sciGfxObserver->wantsUnclampedTextEdit();
@@ -473,7 +473,7 @@ void GfxControls16::kernelDrawText(Common::Rect rect, reg_t obj, const char *tex
 			// correct hires position. rect is local (port-relative); offsetRect converts
 			// to global 320x200 screen space. penClr is the current port pen color,
 			// which is what frameRect() draws with. The change-gate lives
-			// observer-side (onFrameBox gates internally on change — no per-cycle
+			// observer-side (onFrameBox gates internally on change -- no per-cycle
 			// present storm even though kernelDrawText can fire on every control
 			// redraw: TAB, hover, any redraw), so the seam call stays a plain
 			// onFrameBox.

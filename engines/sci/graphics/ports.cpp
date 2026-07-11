@@ -553,7 +553,7 @@ void GfxPorts::removeWindow(Window *pWnd, bool reanimate) {
 	if (!reanimate) {
 		// transparent/no-save-under windows have no hunk to restore; plant the
 		// reveal explicitly so the show below is never captured (documented
-		// duty-3 exception — see SciGfxObserver::onRestore; do not delete).
+		// duty-3 exception -- see SciGfxObserver::onRestore; do not delete).
 		if (g_sciGfxObserver && hadNoSaveUnder)
 			g_sciGfxObserver->onRestore(0, pWnd->restoreRect);
 		// The observer's reveal gate (onShow) suppresses pixel capture of this

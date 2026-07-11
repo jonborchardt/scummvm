@@ -699,11 +699,11 @@ void GfxText16::Box(const char *text, uint16 languageSplitter, bool show, const 
 				                      rect.left + offset + textWidth, rect.top + hline + textHeight);
 				_ports->offsetRect(lineRect);
 				// Scope the capture to the window/port the text was drawn in, in the
-				// generic text namespace (0x60000000 | port->id) — GfxPorts::removeWindow
+				// generic text namespace (0x60000000 | port->id) -- GfxPorts::removeWindow
 				// clears this token on dispose; picture-port text survives to room change.
 				const Port *curPort = _ports->getPort();
 				const uint32 winToken = gfxTextPortToken((uint32)(curPort ? curPort->id : 0));
-				// NOTE: capture regardless of `show` — SCI0 EGA draws almost all text
+				// NOTE: capture regardless of `show` -- SCI0 EGA draws almost all text
 				// with show=false (flushed later via kGraphUpdateBox/bitsShow); gating
 				// on show missed all of it.
 				g_sciGfxObserver->onText(lineRect, lineText.c_str(), fontId,
@@ -720,7 +720,7 @@ void GfxText16::Box(const char *text, uint16 languageSplitter, bool show, const 
 	SetFont(previousFontId);
 	_ports->penColor(previousPenColor);
 	// Observer text is captured per line inside the draw loop above, at each line's
-	// exact placed rect — deliberately not once here at the whole-box rect.
+	// exact placed rect -- deliberately not once here at the whole-box rect.
 }
 
 void GfxText16::DrawString(const Common::String &textOrig) {

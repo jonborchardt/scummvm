@@ -417,7 +417,7 @@ void GfxAnimate::update() {
 			// draw corresponding cel
 			_paint16->drawCel(it->viewId, it->loopNo, it->celNo, it->celRect, it->priority, it->paletteNo, it->scaleX, it->scaleY);
 			// Observer: a cast draw during room init (_picNotValid) bakes into the native
-			// picture if its object disposes before ever being erased — capture it, tagged
+			// picture if its object disposes before ever being erased -- capture it, tagged
 			// with its owner so it only promotes once the owner leaves the animate list.
 			if (g_sciGfxObserver && _screen->_picNotValid)
 				g_sciGfxObserver->onCel(it->celRect, it->viewId, it->loopNo, it->celNo,
@@ -456,7 +456,7 @@ void GfxAnimate::update() {
 		if (it->signal & kSignalNoUpdate && !(it->signal & kSignalHidden)) {
 			// draw corresponding cel
 			_paint16->drawCel(it->viewId, it->loopNo, it->celNo, it->celRect, it->priority, it->paletteNo, it->scaleX, it->scaleY);
-			// Observer: init-frame cast draw — see the kSignalAlwaysUpdate capture above.
+			// Observer: init-frame cast draw -- see the kSignalAlwaysUpdate capture above.
 			if (g_sciGfxObserver && _screen->_picNotValid)
 				g_sciGfxObserver->onCel(it->celRect, it->viewId, it->loopNo, it->celNo,
 				                        it->priority,
@@ -487,7 +487,7 @@ void GfxAnimate::drawCels() {
 
 			// draw corresponding cel
 			_paint16->drawCel(it->viewId, it->loopNo, it->celNo, it->celRect, it->priority, it->paletteNo, it->scaleX, it->scaleY, it->scaleSignal);
-			// Observer: init-frame cast draw — see the kSignalAlwaysUpdate capture in update().
+			// Observer: init-frame cast draw -- see the kSignalAlwaysUpdate capture in update().
 			if (g_sciGfxObserver && _screen->_picNotValid)
 				g_sciGfxObserver->onCel(it->celRect, it->viewId, it->loopNo, it->celNo,
 				                        it->priority,

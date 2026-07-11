@@ -512,12 +512,12 @@ void GfxPalette::copySysPaletteToScreen(bool update) {
 
 	// Palette-truth event (L2): per-tick palVary fades and color cycling change only
 	// the LUT and emit no pixel event, so their content is unrecoverable from the
-	// pixel path — an observer needs the palette itself to re-apply a live EGA plate.
+	// pixel path -- an observer needs the palette itself to re-apply a live EGA plate.
 	// step/total mirror the vary progress (0/0 = plain set). This is the single hook
 	// for all palVary/cycle call sites (they all funnel through here). The only visible
 	// LUT change that does NOT funnel through here is GfxTransitions::fadeOut, which is
 	// neutralized by claimTransition (the observer owns the transition) plus the funneled
-	// fadeIn restore (FORK_AUDIT §5-adjudicated).
+	// fadeIn restore (FORK_AUDIT S5-adjudicated).
 	if (g_sciGfxObserver)
 		g_sciGfxObserver->onPaletteChanged(_sysPalette, _palVaryStep, _palVaryStepStop);
 }

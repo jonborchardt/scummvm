@@ -246,7 +246,7 @@ SciEvent EventManager::getScummVMEvent() {
 
 	// Hand the polled event to the registered observer: it may MUTATE it
 	// (e.g. remap mouse coordinates so a comparison-view panel drives the
-	// game) and/or CONSUME it (its own hotkeys and in-overlay UI — the game
+	// game) and/or CONSUME it (its own hotkeys and in-overlay UI -- the game
 	// never sees those). The mouse position is round-tripped through ev.mouse
 	// so a remap applies to every poll, including empty ones (SCI stamps the
 	// current pointer position on every event).

@@ -47,7 +47,7 @@ typedef Common::List<AnimateEntry> AnimateList;
 // helpers/detection headers into observer-only translation units.
 typedef int GuiResourceId;
 
-// ── Token scheme ────────────────────────────────────────────────────────────
+// ---- Token scheme -------------------------------------------------------
 // Every captured element is identified by a 32-bit token whose high nibble is
 // a namespace. The load-bearing rule (learned the hard way, see the window
 // token below): element LIFETIME is keyed off these tokens, never off
@@ -65,7 +65,7 @@ enum : uint32 {
 // Window/control element token. The window token is THE dispose signal:
 // GfxPorts::openWindow / removeWindow bracket every dialog, message, menu and
 // the picture port itself; an element's lifetime equals its window's lifetime.
-// Window ids are REUSED after dispose — an observer must clear a token's
+// Window ids are REUSED after dispose -- an observer must clear a token's
 // elements at window close or the next window reusing the id inherits ghosts.
 inline uint32 gfxWindowToken(uint32 windowId) {
 	return kGfxTokenNsWindow | windowId;
@@ -85,7 +85,7 @@ inline uint32 gfxIconToken(uint32 portId) {
 }
 
 // Save-handle token: journal-checkpoint identity for onSave/onRestore/onFree.
-// Packs a reg_t hunk handle as (segment << 16) | offset — deliberately
+// Packs a reg_t hunk handle as (segment << 16) | offset -- deliberately
 // unmasked, matching the historical packing so token streams are unchanged.
 inline uint32 gfxHandleToken(uint32 segment, uint32 offset) {
 	return (segment << 16) | offset;
@@ -94,7 +94,7 @@ inline uint32 gfxHandleToken(uint32 segment, uint32 offset) {
 // Animate-owner token for onCel(source=initBake): identifies the drawing
 // animate-list OBJECT, not the resource. SCI0 offsets fit 16 bits; the mask
 // makes the packing well-defined. Owner identity is the ONLY reliable
-// discriminator between a baked prop and a live actor — see onCel.
+// discriminator between a baked prop and a live actor -- see onCel.
 inline uint32 gfxOwnerToken(uint32 segment, uint32 offset) {
 	return (segment << 16) | (offset & 0xFFFFu);
 }
@@ -104,7 +104,7 @@ inline uint32 gfxTokenNamespace(uint32 token) {
 }
 
 /**
- * SciGfxObserver — neutral display-layer observer seam for the SCI16 engine.
+ * SciGfxObserver -- neutral display-layer observer seam for the SCI16 engine.
  *
  * A single registered observer (POD global g_sciGfxObserver, null by default)
  * receives structured notifications from SCI's graphics chokepoints, layered:
@@ -116,7 +116,7 @@ inline uint32 gfxTokenNamespace(uint32 token) {
  *   L4  claims            (documented overrides; return false = native runs)
  *
  * Contract for every event:
- *  - Null observer ⇒ SCI behavior is byte-identical to stock. Call sites are
+ *  - Null observer => SCI behavior is byte-identical to stock. Call sites are
  *    mechanical null-guarded calls with minimal marshalling; no observer
  *    logic, no game-specific branches, no concrete-observer types in SCI code.
  *  - Anything reachable per game cycle (from kernelAnimate) MUST be O(1) in
@@ -135,7 +135,7 @@ class SciGfxObserver {
 public:
 	virtual ~SciGfxObserver() {}
 
-	// ── L0: engine lifecycle & input ────────────────────────────────────────
+	// ---- L0: engine lifecycle & input --------------------------------------
 
 	// Called once after registration, after graphics init, before the game
 	// loop. The observer may run interactive tooling or warm its caches here.
@@ -148,7 +148,7 @@ public:
 	// CONSUME it (return true = engine never sees it; used for the observer's
 	// own hotkeys and in-overlay UI). Empty input polls deliver a
 	// default-constructed event (type EVENT_INVALID) whose ev.mouse carries
-	// the current mouse position — coordinate remapping therefore applies to
+	// the current mouse position -- coordinate remapping therefore applies to
 	// every poll; implementations must switch on ev.type accordingly.
 	virtual bool interceptEvent(Common::Event &ev) { return false; }
 
@@ -172,7 +172,7 @@ public:
 	enum CelSource {
 		kCelSourceAnimate,    // reserved: no seam emits it (animate-list cels ride onAnimateFrame)
 		kCelSourceAddToPic,   // kAddToPic cel baked into the room picture
-		kCelSourceInitBake,   // cel drawn while _picNotValid (room init) — may bake
+		kCelSourceInitBake,   // cel drawn while _picNotValid (room init) -- may bake
 		kCelSourceStandalone, // script kDrawCel (e.g. inventory look-at close-up)
 		kCelSourceIcon        // kDrawControl icon control
 	};
@@ -183,9 +183,9 @@ public:
 		kControlTextEdit
 	};
 
-	// ── L1: frame lifecycle ─────────────────────────────────────────────────
+	// ---- L1: frame lifecycle -----------------------------------------------
 
-	// Fired at GfxAnimate::kernelAnimate entry — the start of one game cycle.
+	// Fired at GfxAnimate::kernelAnimate entry -- the start of one game cycle.
 	// Early-return cycles (null cast list, script abort) fire this WITHOUT a
 	// matching onAnimateFrame; observers must tolerate that (arm/consume).
 	virtual void onFrameStart() {}
@@ -206,7 +206,7 @@ public:
 	// one text per row) so a presenting observer coalesces into ONE present at
 	// endBatch. Without this, each push during a FROZEN cycle (blocking
 	// menu/dialog loop, which never ticks kernelAnimate) flushes its own full
-	// present — a present storm per menu highlight change (the menu
+	// present -- a present storm per menu highlight change (the menu
 	// mouse-crawl bug). Depth-counted; generalized to any frozen-loop re-push.
 	virtual void beginBatch() {}
 	virtual void endBatch() {}
@@ -216,9 +216,9 @@ public:
 	// not tick kernelAnimate, so the cursor would otherwise freeze.
 	virtual void onMouseMoved() {}
 
-	// ── L2: pixel truth ─────────────────────────────────────────────────────
+	// ---- L2: pixel truth ---------------------------------------------------
 	// The completeness guarantee (verified over 92 copyRectToScreen callers,
-	// FORK_AUDIT §5, scoped to non-Mac SCI16): every visible pixel change
+	// FORK_AUDIT S5, scoped to non-Mac SCI16): every visible pixel change
 	// crosses onShow or is bracketed by beginSelfDraw/endSelfDraw; every
 	// visible LUT change crosses onPaletteChanged.
 
@@ -227,13 +227,13 @@ public:
 	// window token (gfxWindowToken) or 0: captures scoped to a window die with
 	// it at onWindowClose. Without owner scoping, a pixel stamp queued while a
 	// blocking window froze the cycle is processed only AFTER the window is
-	// disposed — it then stamps the restored background over the observer's
+	// disposed -- it then stamps the restored background over the observer's
 	// scene, permanently (the "un-enhanced band where the typed-command box
 	// was" bug). Suppressed while inside a self-draw bracket.
 	virtual void onShow(const Common::Rect &screenRect, uint32 owner) {}
 
 	// bitsSave: a save-under is a journal CHECKPOINT (token = gfxHandleToken
-	// of the hunk handle) — a later onRestore must be able to roll back
+	// of the hunk handle) -- a later onRestore must be able to roll back
 	// everything drawn over the saved region since this moment.
 	virtual void onSave(uint32 token, const Common::Rect &rect) {}
 
@@ -241,19 +241,19 @@ public:
 	// and invalidate the region (a rollback REVEALS saved pixels; they are
 	// never re-captured). token 0 = no checkpoint: used by the documented
 	// no-save-under window-disposal exception (transparent windows have no
-	// hunk to restore, so the dispose path plants the reveal explicitly —
+	// hunk to restore, so the dispose path plants the reveal explicitly --
 	// without it the subsequent show re-stamps the restored background).
 	// Rollback must spare persistent singletons (kGfxTokenStatus,
-	// kGfxTokenFrameBox) that repaint while a save-under is open — they
+	// kGfxTokenFrameBox) that repaint while a save-under is open -- they
 	// postdate the checkpoint but are NOT save-under content.
 	virtual void onRestore(uint32 token, const Common::Rect &rect) {}
 
-	// bitsFree: a save-under freed WITHOUT restore — drop the checkpoint.
+	// bitsFree: a save-under freed WITHOUT restore -- drop the checkpoint.
 	virtual void onFree(uint32 token) {}
 
 	// A native region was erased/redrawn in place (kGraphRedrawBox). rect is
 	// global. Geometric (containment) removal of persisted captures is the
-	// correct rule HERE — token-scoped removal is the rule at window dispose;
+	// correct rule HERE -- token-scoped removal is the rule at window dispose;
 	// the two are complementary, not interchangeable.
 	virtual void onErase(const Common::Rect &rect) {}
 
@@ -273,20 +273,20 @@ public:
 	// mirror the vary progress (0/0 = plain set).
 	virtual void onPaletteChanged(const Palette &palette, int16 step, int16 total) {}
 
-	// ── L3: semantic enrichment ─────────────────────────────────────────────
+	// ---- L3: semantic enrichment -------------------------------------------
 
-	// Text drawn at rect (global 320x200; the DRAWN extent, per line — never
+	// Text drawn at rect (global 320x200; the DRAWN extent, per line -- never
 	// the caller's requested box: requested-box rects re-wrapped at observer
 	// metrics drift off their native rows and escape save-under restore
 	// containment). On SCI0 EGA text is drawn with show == false and flushed
-	// later — there is deliberately NO "shown" gate on this event.
+	// later -- there is deliberately NO "shown" gate on this event.
 	// nativeFontH = SCI font cell height (px); nativeTextW = single-line
 	// string width (0 = unknown/multi-line); token = gfxTextPortToken /
 	// kGfxTokenStatus / kGfxTokenMenuDropdown per source. itemId = menu row
 	// item id when source == kTextSourceMenuRow; 0 otherwise (menu-row selection
-	// is keyed by the SCI item id — ordinals are unsafe, separator rows skip
+	// is keyed by the SCI item id -- ordinals are unsafe, separator rows skip
 	// ids). Rects arrive
-	// globalized (hook sites apply offsetRect before emitting — port-local
+	// globalized (hook sites apply offsetRect before emitting -- port-local
 	// rects never match global erase rects).
 	virtual void onText(const Common::Rect &rect, const char *text,
 	                    int fontId, int penColor, int backColor, int align,
@@ -300,7 +300,7 @@ public:
 	// owning-window token for source == kCelSourceIcon; 0 = none. For
 	// kCelSourceInitBake the owner is
 	// the promotion discriminator: an init-frame draw bakes into the
-	// picture only if its OWNER OBJECT leaves the animate list — no resource
+	// picture only if its OWNER OBJECT leaves the animate list -- no resource
 	// identity (view/loop/cel) can separate a baked prop from a live actor
 	// (SCI0 packs both into one per-room view; promoting by identity either
 	// froze a duplicate ego or wiped the room signs).
@@ -310,13 +310,13 @@ public:
 	// A window opened (GfxPorts::drawWindow). globalRect is the window's
 	// global dims; title is the caption text or "" (subsumes a separate
 	// title-text event); token = gfxWindowToken(id). Only windows with a
-	// frame style get a border — the status banner is frameless (SCI
+	// frame style get a border -- the status banner is frameless (SCI
 	// NOFRAME); framing every window drew a line under the bar.
 	virtual void onWindowOpen(const Common::Rect &globalRect, uint16 style,
 	                          int backColor, int penColor, const char *title,
 	                          uint32 token) {}
 
-	// The window died (GfxPorts::removeWindow) — THE dispose signal. Drop
+	// The window died (GfxPorts::removeWindow) -- THE dispose signal. Drop
 	// every element scoped to this token (controls AND generic text). Do not
 	// rely on save-under restores instead: transparent / no-save-under
 	// windows and reanimate==false disposals never fire one.
@@ -332,7 +332,7 @@ public:
 
 	// kGraphFrameBox / control-selection frame: frame-only (no fill),
 	// singleton token kGfxTokenFrameBox, replaced on re-push so the highlight
-	// tracks movement. Persistent until room change or explicit erase — no
+	// tracks movement. Persistent until room change or explicit erase -- no
 	// bitsRestore ever covers it (documented duty-3 exception).
 	virtual void onFrameBox(const Common::Rect &rect, int penColor) {}
 
@@ -346,7 +346,7 @@ public:
 	// A full-screen picture with NO observer replacement is being drawn: drop
 	// any stale observer scene from the previous room so it does not bleed
 	// through.
-	// Currently RESERVED: no SCI emitter fires this — the absent case routes
+	// Currently RESERVED: no SCI emitter fires this -- the absent case routes
 	// through onPicture (with the observer declining to replace). Kept for
 	// observer symmetry with onPicture.
 	virtual void onPictureAbsent() {}
@@ -356,7 +356,7 @@ public:
 	// dropdown's onWindowOpen/onWindowClose) and re-composites.
 	virtual void onMenuHighlight(uint16 itemId) {}
 
-	// ── L4: claims ──────────────────────────────────────────────────────────
+	// ---- L4: claims --------------------------------------------------------
 	// Documented overrides. Returning false means the native path runs
 	// unchanged. Each claim states what native behavior is skipped and what
 	// the observer must guarantee in exchange.
@@ -392,7 +392,7 @@ public:
 	// kernelTexteditChange: returning true relaxes the native "does the next
 	// glyph fit the nsRect pixel width?" early-return, letting typing continue
 	// past the native cap (an observer rendering the field wider needs the
-	// keystrokes). The script-side maxChars buffer bound still applies — the
+	// keystrokes). The script-side maxChars buffer bound still applies -- the
 	// observer guarantees nothing overflows; only the pixel-width cap lifts.
 	virtual bool wantsUnclampedTextEdit() const { return false; }
 };
