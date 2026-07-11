@@ -26,12 +26,30 @@ namespace Roger {
 
 SelfTestResult evaluateInvariants(const SelfTestInputs &in, const RogerCapabilities &caps) {
 	SelfTestResult r;
-	if (!caps.isEga)            { r.firstFailure = "not EGA SCI0"; return r; }
-	if (!in.overlayEnabled)     { r.firstFailure = "overlay disabled (native fallthrough)"; return r; }
-	if (!in.plateGenerated)     { r.firstFailure = "plate not generated"; return r; }
-	if (in.plateW <= 0 || in.plateH <= 0) { r.firstFailure = "plate has no dimensions"; return r; }
-	if (in.plateW != in.expectW || in.plateH != in.expectH) { r.firstFailure = "plate dimension mismatch"; return r; }
-	if (!in.priorityMapPresent) { r.firstFailure = "priority map missing"; return r; }
+	if (!caps.isEga) {
+		r.firstFailure = "not EGA SCI0";
+		return r;
+	}
+	if (!in.overlayEnabled) {
+		r.firstFailure = "overlay disabled (native fallthrough)";
+		return r;
+	}
+	if (!in.plateGenerated) {
+		r.firstFailure = "plate not generated";
+		return r;
+	}
+	if (in.plateW <= 0 || in.plateH <= 0) {
+		r.firstFailure = "plate has no dimensions";
+		return r;
+	}
+	if (in.plateW != in.expectW || in.plateH != in.expectH) {
+		r.firstFailure = "plate dimension mismatch";
+		return r;
+	}
+	if (!in.priorityMapPresent) {
+		r.firstFailure = "priority map missing";
+		return r;
+	}
 	r.pass = true;
 	return r;
 }

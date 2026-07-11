@@ -322,7 +322,10 @@ void FileRogerArtProvider::precacheAll() {
 
 			uint32 ms = 0;
 			Graphics::Surface *s = _assetGen->generatePlate(id, ms); // cache mode writes the PNG
-			if (s) { s->free(); delete s; }                          // we only wanted it on disk
+			if (s) {
+				s->free();
+				delete s;
+			} // we only wanted it on disk
 			// Warm the hires priority cache too (same content hash + passes).
 			Common::Array<byte> bands; int bw = 0, bh = 0; uint32 pms = 0;
 			_assetGen->generatePriorityMap(id, bands, bw, bh, pms);
@@ -361,7 +364,10 @@ void FileRogerArtProvider::precacheAll() {
 					}
 					uint32 ms = 0;
 					Graphics::Surface *s = _assetGen->generateViewCel(viewId, lp, cl, ms);
-					if (s) { s->free(); delete s; } // cache mode wrote it; discard the surface
+					if (s) {
+						s->free();
+						delete s;
+					} // cache mode wrote it; discard the surface
 					++warmed;
 				}
 			}
@@ -373,7 +379,8 @@ void FileRogerArtProvider::precacheAll() {
 }
 
 bool FileRogerArtProvider::precacheOnePic(GuiResourceId picId, uint32 &ms) {
-	if (!_assetGen || _assetGen->mode() == Roger::kGenPrebuilt) return false;
+	if (!_assetGen || _assetGen->mode() == Roger::kGenPrebuilt)
+		return false;
 	// Skip non-EGA pics  --  only EGA pics have the omyac path.
 	ResourceManager *resMan = g_sci ? g_sci->getResMan() : nullptr;
 	if (resMan) {
@@ -392,7 +399,10 @@ bool FileRogerArtProvider::precacheOnePic(GuiResourceId picId, uint32 &ms) {
 		return true; // both keyed files exist; skip the decode entirely
 	}
 	Graphics::Surface *s = _assetGen->generatePlate(picId, ms);
-	if (s) { s->free(); delete s; }
+	if (s) {
+		s->free();
+		delete s;
+	}
 	uint32 pms = 0;
 	Common::Array<byte> bands; int bw = 0, bh = 0;
 	_assetGen->generatePriorityMap(picId, bands, bw, bh, pms);
@@ -400,10 +410,13 @@ bool FileRogerArtProvider::precacheOnePic(GuiResourceId picId, uint32 &ms) {
 }
 
 bool FileRogerArtProvider::precacheOneView(int viewId) {
-	if (!_assetGen || _assetGen->mode() == Roger::kGenPrebuilt) return false;
-	if (!g_sci || !g_sci->_gfxCache) return false;
+	if (!_assetGen || _assetGen->mode() == Roger::kGenPrebuilt)
+		return false;
+	if (!g_sci || !g_sci->_gfxCache)
+		return false;
 	GfxView *view = g_sci->_gfxCache->getView((GuiResourceId)viewId);
-	if (!view) return false;
+	if (!view)
+		return false;
 	const int loopCount = (int)view->getLoopCount();
 	Common::Array<int> celCounts;
 	for (int lp = 0; lp < loopCount; ++lp)
@@ -415,7 +428,10 @@ bool FileRogerArtProvider::precacheOneView(int viewId) {
 				continue;
 			uint32 ms = 0;
 			Graphics::Surface *s = _assetGen->generateViewCel(viewId, lp, cl, ms);
-			if (s) { s->free(); delete s; }
+			if (s) {
+				s->free();
+				delete s;
+			}
 		}
 	}
 	return true;
@@ -520,7 +536,11 @@ void FileRogerArtProvider::pushHiresBackgroundInternal(GuiResourceId pictureId) 
 	uint32 tAcq0 = g_system->getMillis();
 	if (!samePlate) {
 		// Evict previous room.
-		if (_plate) { _plate->free(); delete _plate; _plate = nullptr; }
+		if (_plate) {
+			_plate->free();
+			delete _plate;
+			_plate = nullptr;
+		}
 		_plateStack.clear();
 		if (_assetGen && _assetGen->mode() != Roger::kGenPrebuilt) {
 			_plateIndex.clear();
@@ -992,7 +1012,8 @@ void FileRogerArtProvider::dumpCaptureDebug() {
 	// PNG per pixel-captured graphic sprite (reuses Roger::dumpSurfacePng from png_loader.h,
 	// the same helper used by the .rin capture path via dumpAutoshot).
 	for (uint i = 0; i < _textSprites.size(); i++) {
-		if (!_textSprites[i].celOverride) continue;
+		if (!_textSprites[i].celOverride)
+			continue;
 		const Common::Rect &r = _textSprites[i].celRect;
 		Common::String png = Common::String::format("%s%s.pic%d.gfx.%d_%d.png",
 			dir.c_str(), _gameId.c_str(), _loadedPicId, r.left, r.top);
@@ -1196,7 +1217,11 @@ void FileRogerArtProvider::applyNativeCursorVisibility() {
 }
 
 void FileRogerArtProvider::buildCursorForShape(int cursorId) {
-	if (_cursorSurf) { _cursorSurf->free(); delete _cursorSurf; _cursorSurf = nullptr; }
+	if (_cursorSurf) {
+		_cursorSurf->free();
+		delete _cursorSurf;
+		_cursorSurf = nullptr;
+	}
 	_cursorHotspot = Common::Point(2, 2); // fallback: arrow hotspot if resource missing
 	_cursorNativeSize = Common::Point(0, 0); // fallback arrow: legacy fixed-px blit
 
@@ -1222,16 +1247,23 @@ void FileRogerArtProvider::buildCursorForShape(int cursorId) {
 }
 
 void FileRogerArtProvider::buildCursorFromView(int viewId, int loopNo, int celNo) {
-	if (_cursorSurf) { _cursorSurf->free(); delete _cursorSurf; _cursorSurf = nullptr; }
+	if (_cursorSurf) {
+		_cursorSurf->free();
+		delete _cursorSurf;
+		_cursorSurf = nullptr;
+	}
 	_cursorHotspot = Common::Point(0, 0);
 	_cursorNativeSize = Common::Point(0, 0); // fallback arrow: legacy fixed-px blit
 
-	if (!g_sci || !g_sci->_gfxCache) return;
+	if (!g_sci || !g_sci->_gfxCache)
+		return;
 	GfxView *view = g_sci->_gfxCache->getView((GuiResourceId)viewId);
-	if (!view) return;
+	if (!view)
+		return;
 
 	const CelInfo *ci = view->getCelInfo((int16)loopNo, (int16)celNo);
-	if (!ci) return;
+	if (!ci)
+		return;
 	const int16 w = ci->width, h = ci->height;
 	const int16 dx = ci->displaceX, dy = ci->displaceY;
 
@@ -1248,7 +1280,8 @@ void FileRogerArtProvider::buildCursorFromView(int viewId, int loopNo, int celNo
 		// Fallback (prebuilt mode / generation failure): nearest replication of the
 		// native cel at the same 6x so the hotspot math below holds either way.
 		Graphics::Surface *native = renderNativeCel(viewId, loopNo, celNo);
-		if (!native) return;
+		if (!native)
+			return;
 		const int W = native->w * kScale, H = native->h * kScale;
 		_cursorSurf = new Graphics::Surface();
 		_cursorSurf->create(W, H, rgba);
@@ -1502,7 +1535,10 @@ void FileRogerArtProvider::markUiDirty(const Common::Rect &nativeRect) {
 	if (!overlayShown() || !_compositor)
 		return;
 	_barrierDirty = true;
-	if (_lastGameRect.isEmpty()) { _compositor->forceFullPresent(); return; }
+	if (_lastGameRect.isEmpty()) {
+		_compositor->forceFullPresent();
+		return;
+	}
 	_compositor->addDirtyRect(Roger::uiPaintExtent(nativeRect, _lastGameRect));
 	// No addSceneDirtyRect here (unlike markVacated/markNativeDirty): markUiDirty accompanies a
 	// UI element being pushed/repainted, and renderFrame's renderUiLayer draws that element into
@@ -1514,7 +1550,10 @@ void FileRogerArtProvider::markVacatedDirty(const Common::Rect &nativeRect) {
 	if (!overlayShown() || !_compositor)
 		return;
 	_barrierDirty = true;
-	if (_lastGameRect.isEmpty()) { _compositor->forceFullPresent(); return; }
+	if (_lastGameRect.isEmpty()) {
+		_compositor->forceFullPresent();
+		return;
+	}
 	// Exact rect + TTF pad. The compositor-overdraw ring beyond it is covered by
 	// bitsRestore's exact erase rect (markNativeDirty in onErase). Invalidation
 	// changes are soak-verified (layered redundancy: _dirtyPrev loop + scene seed union).
@@ -1546,7 +1585,10 @@ void FileRogerArtProvider::markNativeDirty(const Common::Rect &nativeRect) {
 	if (pic.isEmpty())
 		return;
 	_barrierDirty = true;
-	if (_lastGameRect.isEmpty()) { _compositor->forceFullPresent(); return; }
+	if (_lastGameRect.isEmpty()) {
+		_compositor->forceFullPresent();
+		return;
+	}
 	Common::Rect n = pic;
 	n.grow(1);
 	const Common::Rect dest = Roger::sciRectToDest(n, _lastGameRect);
@@ -1766,7 +1808,10 @@ void FileRogerArtProvider::buildGlyphs(const char *text, int fontId, int penColo
 			continue; // printable ASCII -> TTF handles it
 		bool seen = false;
 		for (uint i = 0; i < out.size(); i++)
-			if (out[i].ch == c) { seen = true; break; }
+			if (out[i].ch == c) {
+				seen = true;
+				break;
+			}
 		if (seen)
 			continue;
 		Graphics::Surface *g = _assetGen->generateTextSurface(Common::String(1, (char)c),
@@ -1814,7 +1859,8 @@ void FileRogerArtProvider::onWindowOpen(const Common::Rect &r, uint16 wndStyle,
 		_pendingShowRect.left &= 0xFFFE;              // round down (mirror bitsShow)
 		_pendingShowRect.right = (_pendingShowRect.right + 1) & 0xFFFE; // round up
 	}
-	if (!overlayShown() || !_plate) return; // no hires scene -> leave native UI visible
+	if (!overlayShown() || !_plate)
+		return; // no hires scene -> leave native UI visible
 	ensureUi();
 	Roger::UiElement e;
 	e.type = Roger::kUiWindow; e.nativeRect = r;
@@ -1869,7 +1915,8 @@ void FileRogerArtProvider::uiPushTextInternal(const Common::Rect &r, const char 
                                               int backColor, int fontId, int align, uint32 token,
                                               int textRole, bool useAltFont,
                                               int nativeFontH, int nativeTextW) {
-	if (!overlayShown() || !_plate) return;
+	if (!overlayShown() || !_plate)
+		return;
 	ensureUi();
 	Roger::UiElement e;
 	e.type = Roger::kUiText; e.nativeRect = r; e.text = text ? text : "";
@@ -1915,7 +1962,8 @@ bool FileRogerArtProvider::wantsUnclampedTextEdit() const {
 void FileRogerArtProvider::uiPushButtonInternal(const Common::Rect &r, const char *text, int fontId,
                                                 int style, uint32 token,
                                                 int nativeFontH, int nativeTextW) {
-	if (!overlayShown() || !_plate) return;
+	if (!overlayShown() || !_plate)
+		return;
 	ensureUi();
 	Roger::UiElement e;
 	e.type = Roger::kUiButton; e.nativeRect = r; e.text = text ? text : "";
@@ -1931,7 +1979,8 @@ void FileRogerArtProvider::uiPushButtonInternal(const Common::Rect &r, const cha
 void FileRogerArtProvider::uiPushTextEditInternal(const Common::Rect &r, const char *text, int fontId,
                                                   int style, int cursorPos, uint32 token,
                                                   int nativeFontH, int nativeTextW) {
-	if (!overlayShown() || !_plate) return;
+	if (!overlayShown() || !_plate)
+		return;
 	ensureUi();
 	Roger::UiElement e;
 	e.type = Roger::kUiTextEdit; e.nativeRect = r; e.text = text ? text : "";
@@ -1948,7 +1997,8 @@ void FileRogerArtProvider::uiPushTextEditInternal(const Common::Rect &r, const c
 
 void FileRogerArtProvider::uiPushIconInternal(const Common::Rect &r, int viewId, int loopNo, int celNo,
                                               uint32 token) {
-	if (!overlayShown() || !_plate) return;
+	if (!overlayShown() || !_plate)
+		return;
 	ensureUi();
 	Roger::UiElement e;
 	e.type = Roger::kUiIcon; e.nativeRect = r; e.token = token;
@@ -1960,7 +2010,10 @@ void FileRogerArtProvider::uiPushIconInternal(const Common::Rect &r, int viewId,
 		e.iconSurface = hi;
 	} else {
 		Graphics::Surface *cel = renderNativeCel(viewId, loopNo, celNo);
-		if (cel) { _uiIcons.push_back(cel); e.iconSurface = cel; }
+		if (cel) {
+			_uiIcons.push_back(cel);
+			e.iconSurface = cel;
+		}
 	}
 	journalAppend(e);
 	markUiDirty(r);
@@ -1968,7 +2021,8 @@ void FileRogerArtProvider::uiPushIconInternal(const Common::Rect &r, int viewId,
 }
 
 void FileRogerArtProvider::onDrawCelInternal(const Common::Rect &r, int viewId, int loopNo, int celNo) {
-	if (!overlayShown() || !_plate || !_viewCache) return;
+	if (!overlayShown() || !_plate || !_viewCache)
+		return;
 	const Graphics::Surface *hi = _viewCache->getCel(viewId, loopNo, celNo);
 	ensureUi();
 	// NOTE: do NOT clearToken here. push() replaces by (type,token,rect), so distinct-rect
@@ -1994,7 +2048,10 @@ void FileRogerArtProvider::onDrawCelInternal(const Common::Rect &r, int viewId, 
 				viewId, loopNo, celNo);
 			bool dumped = false;
 			for (uint i = 0; i < _diagDumpedCels.size(); i++)
-				if (_diagDumpedCels[i] == png) { dumped = true; break; }
+				if (_diagDumpedCels[i] == png) {
+					dumped = true;
+					break;
+				}
 			if (!dumped) {
 				_diagDumpedCels.push_back(png);
 				Roger::dumpSurfacePng(*hi, png);
@@ -2020,7 +2077,8 @@ void FileRogerArtProvider::onDrawCelInternal(const Common::Rect &r, int viewId, 
 		}
 		if (!surf) {
 			surf = renderNativeCel(viewId, loopNo, celNo);
-			if (!surf) return; // render failed; silently skip
+			if (!surf)
+				return; // render failed; silently skip
 			_uiIcons.push_back(surf); // owned; freed on room change
 			DrawCelNativeKey k;
 			k.viewId = viewId; k.loopNo = loopNo; k.celNo = celNo; k.surf = surf;
@@ -2042,7 +2100,8 @@ void FileRogerArtProvider::uiPushStatusInternal(const Common::Rect &r, const cha
 	_haveStatus = true; _statusRect = r; _statusText = text ? text : "";
 	_statusFont = fontId; _statusPen = penColor; _statusBack = backColor; _statusToken = token;
 	_statusNativeFontH = nativeFontH; _statusNativeTextW = nativeTextW;
-	if (!overlayShown() || !_plate) return;
+	if (!overlayShown() || !_plate)
+		return;
 	ensureUi();
 	// The score banner and the menu bar share this token (top strip); drop whatever
 	// is there (e.g. the menu bar's window + titles) before pushing the banner.
@@ -2421,7 +2480,10 @@ void FileRogerArtProvider::onRestore(uint32 handleToken, const Common::Rect &rec
 			}
 		}
 	}
-	if (!overlayShown() || !_plate || !_journal) { presentBarrier(); return; }
+	if (!overlayShown() || !_plate || !_journal) {
+		presentBarrier();
+		return;
+	}
 	Common::Array<Common::Rect> removed;
 	bool did = _journal->rollback(handleToken, rect, &removed);
 	if (!did)
@@ -2487,7 +2549,8 @@ void FileRogerArtProvider::onRestore(uint32 handleToken, const Common::Rect &rec
 // token means each new push calls clearToken() first, so the highlight tracks
 // movement without accumulating stale elements even when the rect changes.
 void FileRogerArtProvider::uiPushFrameBoxInternal(const Common::Rect &r, int penColor) {
-	if (!overlayShown() || !_plate) return; // no hires scene  --  leave native highlight visible
+	if (!overlayShown() || !_plate)
+		return; // no hires scene  --  leave native highlight visible
 	ensureUi();
 	// Gate: if the frame element under Roger::kFrameBoxToken is already identical (same rect
 	// + same color), skip the clear/push/invalidate/present cycle entirely. This prevents
@@ -2653,7 +2716,10 @@ void FileRogerArtProvider::processForegroundCaptures(const Common::Array<Common:
 		// frame (dropdown restore rect (7,9,141,27) vs its show (6,9,142,27), 98.5% inside).
 		bool revealed = false;
 		for (uint r = 0; r < _revealRects.size(); r++) {
-			if (Roger::rectCoverageFraction(nr, _revealRects[r]) >= Roger::kCoverageThresholdPct) { revealed = true; break; }
+			if (Roger::rectCoverageFraction(nr, _revealRects[r]) >= Roger::kCoverageThresholdPct) {
+				revealed = true;
+				break;
+			}
 		}
 		if (revealed)
 			continue;
@@ -2981,7 +3047,10 @@ void FileRogerArtProvider::flushGenericText() {
 				// First use of this glyph this room: generate it and cache it.
 				bool alreadyInOut = false;
 				for (uint k = 0; k < e.glyphs.size(); k++)
-					if (e.glyphs[k].ch == c) { alreadyInOut = true; break; }
+					if (e.glyphs[k].ch == c) {
+						alreadyInOut = true;
+						break;
+					}
 				if (!alreadyInOut) {
 					Graphics::Surface *g = _assetGen ? _assetGen->generateTextSurface(
 					    Common::String(1, (char)c), e.fontId,
@@ -3053,7 +3122,8 @@ void FileRogerArtProvider::onFrameEnd() {
 	// the native visual buffer holds the WHOLE frame (pic + addToPic + animate cast),
 	// just before restoreAndDelete() erases the animating cast (ego/moving views). The
 	// live buffer read later in presentComparison has that cast already erased.
-	if (_mode != Roger::kModeSideBySide) return; // else skip the costly per-frame snapshot (SBS panel only)
+	if (_mode != Roger::kModeSideBySide)
+		return; // else skip the costly per-frame snapshot (SBS panel only)
 	if (!overlayShown() || !g_sci || !g_sci->_gfxScreen)
 		return;
 	GfxScreen *screen = g_sci->_gfxScreen;
@@ -3226,14 +3296,20 @@ void FileRogerArtProvider::onAnimateFrame(const AnimateList &list) {
 		if (c.owner != 0) {
 			bool live = false;
 			for (uint j = 0; j < liveOwners.size(); j++)
-				if (liveOwners[j] == c.owner) { live = true; break; }
+				if (liveOwners[j] == c.owner) {
+					live = true;
+					break;
+				}
 			if (live)
 				continue;
 		}
 		bool dup = false;
 		for (uint j = 0; j < statics.size(); j++)
 			if (statics[j].viewId == c.viewId && statics[j].loopNo == c.loopNo &&
-			    statics[j].celNo == c.celNo && statics[j].celRect == c.celRect) { dup = true; break; }
+			    statics[j].celNo == c.celNo && statics[j].celRect == c.celRect) {
+				dup = true;
+				break;
+			}
 		if (!dup)
 			statics.push_back(c);
 	}
@@ -3435,11 +3511,17 @@ void FileRogerArtProvider::toggleOverlay() {
 		// the overlay was off (onFrameEnd early-returns when hidden); force a
 		// fresh snapshot on the next kernelAnimate before the SBS native panel reads it.
 		_haveBaseline = false;
-		if (_haveScene) { markFullDirty(); presentBarrier(); }
+		if (_haveScene) {
+			markFullDirty();
+			presentBarrier();
+		}
 		reapplyStatus();
 	} else {
 		// Enhanced <-> SideBySide: overlay already shown, but the layout changes wholesale.
-		if (_haveScene) { markFullDirty(); presentBarrier(); }
+		if (_haveScene) {
+			markFullDirty();
+			presentBarrier();
+		}
 	}
 
 	const char *name = _mode == Roger::kModeEnhanced ? "ENHANCED (upscaled)"
@@ -3647,7 +3729,11 @@ void FileRogerArtProvider::onNativePicture() {
 	diagDumpState("nativePic");
 	if (_compositor)
 		_compositor->setRoom(nullptr, nullptr);
-	if (_plate) { _plate->free(); delete _plate; _plate = nullptr; }
+	if (_plate) {
+		_plate->free();
+		delete _plate;
+		_plate = nullptr;
+	}
 	if (_journal)
 		_journal->clear();
 	for (uint i = 0; i < _uiIcons.size(); i++) { _uiIcons[i]->free(); delete _uiIcons[i]; }
@@ -3895,18 +3981,38 @@ CursorMan.showMouse((g_sci && g_sci->_gfxCursor) ? g_sci->_gfxCursor->isVisible(
 		delete _inputDriver;
 		_inputDriver = nullptr;
 	}
-	if (_plate) { _plate->free(); delete _plate; _plate = nullptr; }
+	if (_plate) {
+		_plate->free();
+		delete _plate;
+		_plate = nullptr;
+	}
 	delete _assetGen; _assetGen = nullptr;
 	delete _viewCache; _viewCache = nullptr;
 	delete _compositor; _compositor = nullptr;
 	delete _journal; _journal = nullptr;
 	delete _textRenderer; _textRenderer = nullptr;
 	delete _altTextRenderer; _altTextRenderer = nullptr;
-	if (_sceneCache) { delete _sceneCache; _sceneCache = nullptr; }
-	if (_scratchScene) { delete _scratchScene; _scratchScene = nullptr; }
-	if (_sbsScratch) { delete _sbsScratch; _sbsScratch = nullptr; }
-	if (_compositeCache) { delete _compositeCache; _compositeCache = nullptr; }
-	if (_cursorSurf) { _cursorSurf->free(); delete _cursorSurf; _cursorSurf = nullptr; }
+	if (_sceneCache) {
+		delete _sceneCache;
+		_sceneCache = nullptr;
+	}
+	if (_scratchScene) {
+		delete _scratchScene;
+		_scratchScene = nullptr;
+	}
+	if (_sbsScratch) {
+		delete _sbsScratch;
+		_sbsScratch = nullptr;
+	}
+	if (_compositeCache) {
+		delete _compositeCache;
+		_compositeCache = nullptr;
+	}
+	if (_cursorSurf) {
+		_cursorSurf->free();
+		delete _cursorSurf;
+		_cursorSurf = nullptr;
+	}
 	for (uint i = 0; i < _uiIcons.size(); i++) { _uiIcons[i]->free(); delete _uiIcons[i]; }
 	_uiIcons.clear();
 	_genericGlyphCache.clear(); // surfaces were owned by _uiIcons (freed above)

@@ -155,7 +155,10 @@ void RogerAssetGen::memPlatePut(const Common::String &key, const Graphics::Surfa
 	while ((int)_memPlateOrder.size() >= kMemCacheCap) {
 		MemPlateMap::iterator it = _memPlates.find(_memPlateOrder[0]);
 		if (it != _memPlates.end()) {
-			if (it->_value.plate) { it->_value.plate->free(); delete it->_value.plate; }
+			if (it->_value.plate) {
+				it->_value.plate->free();
+				delete it->_value.plate;
+			}
 			_memPlates.erase(it);
 		}
 		_memPlateOrder.remove_at(0);
@@ -515,14 +518,18 @@ Graphics::Surface *RogerAssetGen::generatePlateNearestStack(const Common::Array<
 bool RogerAssetGen::priorityBands(int picId, Common::Array<byte> &outBands, int &outW, int &outH) {
 	outBands.clear(); outW = 0; outH = 0;
 #ifdef ENABLE_SCI
-	if (!g_sci) return false;
+	if (!g_sci)
+		return false;
 	ResourceManager *resMan = g_sci->getResMan();
-	if (!resMan) return false;
+	if (!resMan)
+		return false;
 	Resource *res = resMan->findResource(ResourceId(kResourceTypePic, (uint16)picId), false);
-	if (!res || res->size() == 0) return false;
+	if (!res || res->size() == 0)
+		return false;
 	Common::Array<DrawCommand> cmds = parsePic(res->data(), (uint32)res->size());
 	NativeRef ref = nativePreRender(cmds);
-	if (ref.priority.empty()) return false;
+	if (ref.priority.empty())
+		return false;
 	outBands = ref.priority;
 	outW = OMYAC_NATIVE_W; outH = OMYAC_NATIVE_H;
 	return true;
@@ -735,7 +742,10 @@ static void deriveBandsFromSurface(const Graphics::Surface &surf, Common::Array<
 			for (int c = 0; c < 16; ++c) {
 				int dr = (int)r - egaR[c], dg = (int)g - egaG[c], db = (int)bb - egaB[c];
 				int d = dr * dr + dg * dg + db * db;
-				if (d < bestD) { bestD = d; best = c; }
+				if (d < bestD) {
+					bestD = d;
+					best = c;
+				}
 			}
 			outBands[(uint32)(y * w + x)] = (byte)best;
 		}
@@ -857,7 +867,10 @@ Graphics::Surface *RogerAssetGen::finishGlyphSurface(const IndexImage &idx, int 
 	const Graphics::PixelFormat fmt(4, 8, 8, 8, 8, 24, 16, 8, 0);
 	Graphics::Surface *surf = new Graphics::Surface();
 	surf->create((uint16)sw, (uint16)sh, fmt);
-	if (!surf->getPixels()) { delete surf; return nullptr; }
+	if (!surf->getPixels()) {
+		delete surf;
+		return nullptr;
+	}
 
 	const Palette &pal = g_sci->_gfxPalette16->_sysPalette;
 
