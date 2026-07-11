@@ -153,10 +153,10 @@ public:
 	virtual bool interceptEvent(Common::Event &ev) { return false; }
 
 	// Provenance of an onText emission. The observer derives PRESENTATION
-	// (heading vs body role, alternate font, bar styling) from this source —
-	// the old uiPushText textRole/useAltFont params are deliberately not
-	// carried. kTextSourceFill is a background-fill-only event (empty string):
-	// the kDisplay save-under box pushes its fill here while the text itself
+	// (heading vs body role, alternate font, bar styling) from this source
+	// alone, so no explicit text-role or alternate-font parameter is carried.
+	// kTextSourceFill is a background-fill-only event (empty string): the
+	// kDisplay save-under box pushes its fill here while the text itself
 	// arrives per line as kTextSourceBox.
 	enum TextSource {
 		kTextSourceBox,      // GfxText16::Box per-line capture (all narration/dialog text)

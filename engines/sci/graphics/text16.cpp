@@ -679,14 +679,13 @@ void GfxText16::Box(const char *text, uint16 languageSplitter, bool show, const 
 		}
 
 		// Observer: capture each drawn LINE with its exact placed rect (offset already
-		// encodes the alignment; textWidth/textHeight are the measured extent). A
-		// single whole-box capture (the old post-loop hook) carried the caller's
-		// REQUESTED rect — much wider/taller than the pixels actually drawn — which
-		// (a) re-wrapped multi-line text at TTF metrics, drifting every line from its
-		// native row (the SQ3 intro credits interleave two Display blocks by row, so
-		// drifted lines overlapped), and (b) never satisfied the save-under rollback's
-		// containment test (the restore rect covers only the DRAWN pixels), so
-		// dismissed text ghosted until room change.
+		// encodes the alignment; textWidth/textHeight are the measured extent). The
+		// capture must be per line at the drawn extent, not one whole-box capture at
+		// the caller's requested rect: the requested rect is wider/taller than the
+		// drawn pixels, so (a) an observer re-wrapping it at its own metrics drifts
+		// each line off its native row (overlapping the interleaved SQ3 intro credit
+		// blocks) and (b) it fails the save-under rollback's containment test (the
+		// restore rect covers only the drawn pixels), so dismissed text ghosts.
 		if (g_sciGfxObserver && textWidth > 0) {
 			Common::String lineText(curTextLine, (uint32)charCount);
 			while (lineText.size() &&
@@ -694,8 +693,8 @@ void GfxText16::Box(const char *text, uint16 languageSplitter, bool show, const 
 				lineText.deleteLastChar();
 			if (!lineText.empty()) {
 				// Port-local -> GLOBAL 320x200 screen space (matches every controls16
-				// hook and the global erase/restore rects; see the deleted post-loop
-				// hook's comment in git history for the ghosting this prevented).
+				// hook and the global erase/restore rects; a port-local rect never
+				// matches those and the text would ghost past its dismissal).
 				Common::Rect lineRect(rect.left + offset, rect.top + hline,
 				                      rect.left + offset + textWidth, rect.top + hline + textHeight);
 				_ports->offsetRect(lineRect);
@@ -720,10 +719,8 @@ void GfxText16::Box(const char *text, uint16 languageSplitter, bool show, const 
 	}
 	SetFont(previousFontId);
 	_ports->penColor(previousPenColor);
-
-	// Observer text capture happens PER LINE inside the draw loop above (exact placed
-	// rect per line); the old whole-box capture that lived here was deleted — see
-	// the in-loop comment for why (re-wrap drift + rollback containment misses).
+	// Observer text is captured per line inside the draw loop above, at each line's
+	// exact placed rect — deliberately not once here at the whole-box rect.
 }
 
 void GfxText16::DrawString(const Common::String &textOrig) {

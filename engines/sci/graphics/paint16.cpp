@@ -651,13 +651,9 @@ reg_t GfxPaint16::kernelDisplay(const char *text, uint16 languageSplitter, int a
 	if (doSaveUnder)
 		result = bitsSave(rect, GFX_SCREEN_MASK_VISUAL);
 
-	// Observer: the kDisplay TEXT itself is captured PER LINE inside GfxText16::Box
-	// (exact placed rects — the whole-string element this hook used to push
-	// re-wrapped multi-line text at TTF metrics, drifting/overlapping the SQ3
-	// intro credits, and its 70%-coverage dedupe then dropped the accurate
-	// per-line captures). Only the opaque background fill still needs a hires
-	// mirror; token = the save-under handle, so the box dies with the restore
-	// exactly like the old element did.
+	// Observer: the kDisplay TEXT itself is captured per line inside GfxText16::Box
+	// at its exact placed rect, so this hook mirrors only the opaque background
+	// fill. token = the save-under handle, so the fill dies with the restore.
 	if (doSaveUnder && g_sciGfxObserver && colorBack != -1) {
 		g_sciGfxObserver->onText(rect, "", -1 /*fontId n/a*/,
 		                         colorPen >= 0 ? colorPen : 0, colorBack, alignment,
