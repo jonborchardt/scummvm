@@ -110,7 +110,7 @@ relative to upstream and should merge clean.
 After any upstream merge, verify the build and run the three verification layers:
 
 1. **Unit tests:** `.\build_tests.ps1`
-2. **Smoke run:** `.\build_and_run.ps1 -Script test/sci/roger/scripts/qfg1-smoke.rin`
+2. **Smoke run:** `.\build_and_run.ps1 -Game qfg1 -SaveSlot 1 -Script test/sci/roger/scripts/qfg1-smoke.rin`
 3. **Regression suite:** `.\test\sci\roger\run-regression.ps1`
 
 Re-run the quarantine grep (above) to confirm no Roger references leaked into SCI

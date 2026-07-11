@@ -1240,7 +1240,7 @@ FORBIDDEN_SYMBOL_EXCEPTION_getenv, menu S-bucket state exile, A14 non-const stat
 
 ### 11.9 Build and test verification (2026-07-11)
 
-Branch head: `a78571c8dc6` (`jon-first-pass-prompt-1`, documentation-only pass 1–5).
+Branch head: `a78571c8dc6` (`jon-first-pass-prompt-1`, after the documentation updates of this pass).
 
 | Gate | Command / check | Result |
 |---|---|---|

@@ -53,7 +53,7 @@ Each PNG filename encodes a full cache key:
 | `<transform>` | Asset kind (see table below) |
 | `v<version>` | Pipeline version (`kTransformVersion`; see Versioning) |
 | `<hash>` | 8-hex-digit FNV-1a hash of the source resource bytes |
-| `<passes>` | Compact OMYAC pass string (e.g. `p0p5p5p5p5p5p1p0p0p0`) |
+| `<passes>` | Numeric per-pass encoding of the OMYAC pass list: one `p<n>` token per pass, where `n` is `2` (fill), `1` (line), or `0` (all). The default `affffflaaa` encodes as `p0p2p2p2p2p2p1p0p0p0`. Empty pass list encodes as `none`. (The precache marker file uses the compact character form — `f`/`l`/`a` — via `omyacPassStamp()`; the cache-key PNG filename uses this numeric form.) |
 
 The three transforms are:
 

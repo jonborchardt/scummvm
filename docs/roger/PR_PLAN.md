@@ -61,17 +61,24 @@ the FORK_AUDIT measurements.
 
 ### PR-A — Scripted-input driver (generic testing facility)
 
-- **What.** The `.rin` scripted-input driver: a registered backend
-  `EventSource` that injects events through the normal `pollEvent` path, plus
-  the small `event.cpp` and `gui/EventRecorder.h` seam that hosts it. Pitched
-  as a **generic headless scripted-input / testing facility** complementing
-  EventRecorder — deliberately engine-agnostic, with no SCI includes.
-- **Contents.** The engine-agnostic driver source (moved into a neutral
-  location for the PR, not `roger/`), the `event.cpp` `EventSource`
-  registration, and the `gui/EventRecorder.h` touch. Grounded in FORK_AUDIT's
-  E-bucket input rows and the W2 EventRecorder row (§3, §8). Excludes anything
-  Roger-specific.
-- **Size.** Small — the driver plus a few lines of seam.
+- **What.** The `.rin` scripted-input driver: a `Common::EventSource` that
+  injects events through the normal `pollEvent` path. Pitched as a **generic
+  headless scripted-input / testing facility** complementing EventRecorder —
+  deliberately engine-agnostic, with no SCI includes.
+- **Contents.** The engine-agnostic driver source (currently at
+  `engines/sci/roger/roger_input.{h,cpp}`; must be moved to a neutral location
+  for the PR). The driver's registration is currently provider-internal
+  (`FileRogerArtProvider` constructor,
+  `engines/sci/roger/file_roger_art_provider.cpp:150–159`); PR-A therefore
+  requires **authoring a neutral registration seam** as new work — there is no
+  existing extracted hook in `event.cpp` or elsewhere to carry over. The
+  FORK_AUDIT E-bucket rows (E1–E4, §3.10) are observer-seam material (include
+  leak, mouse-move notification, SBS remap, dev hotkeys) and do not describe
+  the input driver; `gui/EventRecorder.h` (FORK_AUDIT W2) carries only the
+  `USE_IMGUI` declaration un-gate, which is a PR-B item. Neither is part of
+  PR-A's scope. Excludes anything Roger-specific.
+- **Size.** Small to medium — the driver source plus new neutral registration
+  seam work.
 - **Commits (2).**
   1. `GUI: Add scripted headless input EventSource`
   2. `DOXYGEN: Document scripted input EventSource`
@@ -80,8 +87,10 @@ the FORK_AUDIT measurements.
 - **Dependencies / ordering.** None. Independent of the seam and of Roger; can
   go first as cheap goodwill.
 - **Open questions.** Where upstream wants a generic input driver to live
-  (`common/`, `gui/`, `backends/`); whether it should share code with
-  EventRecorder rather than sit beside it. Resolve in the talk-first phase.
+  (`common/`, `gui/`, `backends/`); what the neutral registration seam looks
+  like (whether a generic `EventSource` factory in `gui/` or a new backend
+  hook); whether the driver should share code with EventRecorder rather than
+  sit beside it. Resolve in the talk-first phase.
 
 ### PR-B — Standalone SCI/GUI fixes (G bucket)
 
@@ -94,9 +103,7 @@ prefers. All are from FORK_AUDIT §8.
   are one PR (both sides of un-gating the same method). Trivial, ~7 lines.
 - **B2 — EventRecorder.h decl fix** (FORK_AUDIT W2). Declare
   `isImGuiRecorderEnabled()` unconditionally to match its unconditional
-  definition and unguarded call sites. Trivial, ~6 lines. Note this file also
-  appears in PR-A; if both PRs are live at once, whichever lands first carries
-  the EventRecorder.h touch and the other rebases.
+  definition and unguarded call sites. Trivial, ~6 lines.
 - **B3 — window caption from detection** (FORK_AUDIT S3). `SciEngine::run` sets
   the OS window caption via `EngineMan.findTarget` (full canonical title, no
   hardcoded strings), carrying the `engines/metaengine.h` include. Small,
@@ -108,9 +115,8 @@ prefers. All are from FORK_AUDIT §8.
 - **Commits.** One commit per fix, each `SCI: <present-tense summary>`
   (e.g. `SCI: Un-gate GfxFontFromResource::drawToBuffer`). Four commits if
   submitted as one PR; equally valid as four tiny PRs.
-- **Dependencies / ordering.** None between them (except the B2/PR-A file
-  overlap noted above). Independent of the seam and of Roger; goes early with
-  PR-A as goodwill.
+- **Dependencies / ordering.** None between them. Independent of the seam and
+  of Roger; goes early with PR-A as goodwill.
 - **Open questions.** Whether upstream wants these as one grouped PR or four
   separate ones; the B3 justification wording (must stand without Roger).
 

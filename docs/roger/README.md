@@ -11,7 +11,7 @@ orientation is in [engines/sci/README.md](../../engines/sci/README.md) and
 
 | Document | Purpose |
 |----------|---------|
-| `FORK_AUDIT.md` | Inventory of the full diff vs upstream `origin/master` (re-measured 2026-07-10) |
+| `FORK_AUDIT.md` | Inventory of the full diff vs upstream `origin/master` (re-measured 2026-07-11) |
 | `UPSTREAMING_PLAN.md` | Strategy for reshaping the diff into upstreamable PRs |
 | `PR_PLAN.md` | Concrete PR slices and their ordering |
 | `FORK_MAINTENANCE.md` | How the fork tracks upstream long-term |

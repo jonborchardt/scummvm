@@ -411,7 +411,7 @@ build script picks up the new test header.
 Drives QFG1 EGA headlessly from save slot 1, writes overlay captures to
 `screenshotpath`, and exits. Exit codes: `0` = pass, `124` = watchdog timeout,
 `125` = `assert`/`fail` in the script. The `qfg1-smoke.rin` script exercises
-basic boot, walking, arrow casting, look dialog, and text-input.
+basic boot, click-to-walk, arrow-key walking, look dialog, and text-input.
 
 ### Regression gate
 
