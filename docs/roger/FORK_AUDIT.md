@@ -1209,6 +1209,19 @@ note. No hits in any `.cpp`/`.h` source file under `engines/sci/` or
 
 No obvious style drift observed during the grep-first scan.
 
+**Correction (2026-07-11, later the same pass):** the "FORK_AUDIT.md only" claim
+above was wrong — re-running the same grep also hits `CLAUDE.md` citations in
+four README (non-source) files that already existed at the time:
+`engines/sci/README.md:21,92`, `engines/sci/roger/README.md:91,122`,
+`engines/sci/roger/gen/README.md:30`, `engines/sci/roger/overlay/README.md:25`.
+Source files (`.cpp`/`.h`) and `docs/roger.md` remain clean, so the PASS verdict
+for code stands, but the README citations are **flagged drift**: they reference
+a downstream-only orientation file from documentation that would accompany an
+upstream submission, and must be stripped or replaced with neutral pointers
+(e.g. `docs/roger/` docs) during the manufactured-branch pass. Later hits in
+`docs/roger/PR_PLAN.md` / `UPSTREAMING_PLAN.md` are legitimate (they state the
+no-AI-references rule and the downstream-only exclusion list).
+
 ### 11.8 Summary
 
 | Sweep | Result |
