@@ -1043,6 +1043,50 @@ in the spec itself).
 All six PASS — no loop-back required. With §9 fully resolved, the audit + amended
 spec pair is the go signal for the future observer-reshaping work (Stage 3).
 
+Measurement note (2026-07-10, genericization follow-up): the `createSciGfxObserver()`
+factory + `onEngineStartup()`/`interceptEvent()` follow-up removed the last named-type
+references outside `engines/sci/roger/` (the R20 fork-only carve-out blocks in
+sci.cpp/event.cpp are gone — zero Roger references remain outside `roger/` except
+module.mk object paths and upstream game text); same-scope `git diff --stat` vs
+merge-base re-measured at 20 files, 1043(+)/15(−) = **1058 raw** (down from Task 14's
+1094; the ~90-line R20 exclusion no longer applies, so raw ≈ rule-adjusted − the R22
+standalone-PR rows: ≈1033).
+
+Measurement note (2026-07-11, jon-save-gui at 61a79ff5bc2): the §3.14 base/main.cpp
+picker hook landed after the note above, so the zero-reference statement carries one
+further documented exception — base/main.cpp's `PLUGIN_ENABLED_STATIC(SCI)`-guarded
+`sci/roger/` include + call (§3.14 B1/B2, fork-only; the CLAUDE.md grep gate is scoped
+to `engines/sci` and is unaffected — re-verified at this commit). Same-scope
+`git diff --stat` vs merge-base re-measured at 21 files, 1060(+)/15(−) = **1075 raw**:
+the delta over 1058 is base/main.cpp (+13, §3.14's own 13-line measurement still
+reproduces exactly), its module.mk object path (+1), and a doc-comment expansion on
+`interceptEvent` in sci_gfx_observer.h.
+
+Measurement note (2026-07-11, jon-first-pass-prompt0 at b69fffeb828): style-conformance
+pass (Prompt 0, plan `docs/future-prompts/0-conform-code-to-scummvm-guidelines.md`) ran
+on this branch — 10 pass commits, 00dc60541d9..b69fffeb828
+(`git log --oneline 00dc60541d9..b69fffeb828 | wc -l` = 10). Changes outside
+`engines/sci/roger/`: ASCII-ification of fork hunk comments (5 comment rewrites in the
+observer seam files); no code logic changed. Reproducible measurement command and output:
+
+    git diff --stat origin/master...b69fffeb828 -- engines/sci base gui \
+        ":(exclude)engines/sci/roger" ":(exclude)engines/sci/README.md"
+    # 20 files changed, 1047 insertions(+), 15 deletions(-)  → 1062 raw
+
+Same command at the pre-pass head (00dc60541d9):
+
+    git diff --stat origin/master...00dc60541d9 -- engines/sci base gui \
+        ":(exclude)engines/sci/roger" ":(exclude)engines/sci/README.md"
+    # 20 files changed, 1054 insertions(+), 15 deletions(-)  → 1069 raw
+
+The pass removed 7 net insertion lines (comment compression in the seam files).
+The previous note's figures (21 files / 1060(+) / 1075 raw) do not reproduce with
+this command (off by one file and ~6 lines — measurement-convention drift); future
+notes should cite this exact command.
+The pass continued past b69fffeb828 with three follow-up commits (docs corrections,
+test-comment refs, final style fixes — 00dc60541d9..HEAD on jon-first-pass-prompt0)
+that do not affect the out-of-roger measurement except this file.
+
 ## 11. Prompt 1 verification pass (2026-07-11)
 
 Run at HEAD `a425b352960` (branch `jon-first-pass-prompt-1`). This is a
@@ -1085,7 +1129,7 @@ Prompt 1 preamble. File groups are used where the per-file disposition is unifor
 | File / group | Lines (+/-) | Plan bucket | Disposition |
 |---|---|---|---|
 | `engines/sci/roger/**` (83 files) | +20788 | Roger provider code | Wholesale move to plugin when self-registration lands (Stage 3) |
-| `test/sci/roger/**` (67 files) | +7338 | Required SCI hook sites / provider registration (test) | Relink against roger static lib at Stage 3; downstream-only until then |
+| `test/sci/roger/**` (67 files) | +7338 | Documentation / downstream-only dev tooling | Test infrastructure for the Roger provider; relinks against roger static lib at Stage 3; never part of an upstream PR |
 | `engines/sci/sci_gfx_observer.h` | +419 | Required SCI hook sites / observer seam | Engine-owned neutral seam; upstreamable as the core of the observer PR |
 | `engines/sci/sci_gfx_observer.cpp` | +35 | Required SCI hook sites / observer seam | Companion impl; ships with sci_gfx_observer.h |
 | `engines/sci/graphics/paint16.{cpp,h}` | +107/−2 | Required SCI hook sites | Mechanical N-bucket hooks (P1–P20); reshape to §6 R1–R23 events before upstream PR |
@@ -1180,47 +1224,3 @@ No obvious style drift observed during the grep-first scan.
 No blockers. Known open flags carried forward from earlier passes (S1
 FORBIDDEN_SYMBOL_EXCEPTION_getenv, menu S-bucket state exile, A14 non-const static
 `s_prevCycleT0`) are documented in §3 and unchanged.
-
-Measurement note (2026-07-10, genericization follow-up): the `createSciGfxObserver()`
-factory + `onEngineStartup()`/`interceptEvent()` follow-up removed the last named-type
-references outside `engines/sci/roger/` (the R20 fork-only carve-out blocks in
-sci.cpp/event.cpp are gone — zero Roger references remain outside `roger/` except
-module.mk object paths and upstream game text); same-scope `git diff --stat` vs
-merge-base re-measured at 20 files, 1043(+)/15(−) = **1058 raw** (down from Task 14's
-1094; the ~90-line R20 exclusion no longer applies, so raw ≈ rule-adjusted − the R22
-standalone-PR rows: ≈1033).
-
-Measurement note (2026-07-11, jon-save-gui at 61a79ff5bc2): the §3.14 base/main.cpp
-picker hook landed after the note above, so the zero-reference statement carries one
-further documented exception — base/main.cpp's `PLUGIN_ENABLED_STATIC(SCI)`-guarded
-`sci/roger/` include + call (§3.14 B1/B2, fork-only; the CLAUDE.md grep gate is scoped
-to `engines/sci` and is unaffected — re-verified at this commit). Same-scope
-`git diff --stat` vs merge-base re-measured at 21 files, 1060(+)/15(−) = **1075 raw**:
-the delta over 1058 is base/main.cpp (+13, §3.14's own 13-line measurement still
-reproduces exactly), its module.mk object path (+1), and a doc-comment expansion on
-`interceptEvent` in sci_gfx_observer.h.
-
-Measurement note (2026-07-11, jon-first-pass-prompt0 at b69fffeb828): style-conformance
-pass (Prompt 0, plan `docs/future-prompts/0-conform-code-to-scummvm-guidelines.md`) ran
-on this branch — 10 pass commits, 00dc60541d9..b69fffeb828
-(`git log --oneline 00dc60541d9..b69fffeb828 | wc -l` = 10). Changes outside
-`engines/sci/roger/`: ASCII-ification of fork hunk comments (5 comment rewrites in the
-observer seam files); no code logic changed. Reproducible measurement command and output:
-
-    git diff --stat origin/master...b69fffeb828 -- engines/sci base gui \
-        ":(exclude)engines/sci/roger" ":(exclude)engines/sci/README.md"
-    # 20 files changed, 1047 insertions(+), 15 deletions(-)  → 1062 raw
-
-Same command at the pre-pass head (00dc60541d9):
-
-    git diff --stat origin/master...00dc60541d9 -- engines/sci base gui \
-        ":(exclude)engines/sci/roger" ":(exclude)engines/sci/README.md"
-    # 20 files changed, 1054 insertions(+), 15 deletions(-)  → 1069 raw
-
-The pass removed 7 net insertion lines (comment compression in the seam files).
-The previous note's figures (21 files / 1060(+) / 1075 raw) do not reproduce with
-this command (off by one file and ~6 lines — measurement-convention drift); future
-notes should cite this exact command.
-The pass continued past b69fffeb828 with three follow-up commits (docs corrections,
-test-comment refs, final style fixes — 00dc60541d9..HEAD on jon-first-pass-prompt0)
-that do not affect the out-of-roger measurement except this file.
