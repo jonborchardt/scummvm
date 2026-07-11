@@ -77,7 +77,12 @@ state | assert <key> <val> | restore <slot> | fail <msg> | log <text> | quit   #
 ```
 
 Coordinates are game space (320×200). Smoke script:
-`test/sci/roger/scripts/qfg1-smoke.rin`. The injection seam is a registered backend
+`test/sci/roger/scripts/qfg1-smoke.rin`. **Game walkthroughs for scripted play:**
+`docs/walkthroughs/` (qfg1, sq3, Betrayed Alliance) — flat `command # purpose`
+parser scripts, each opening with a claude-index section (phase table with unique
+grep anchors, launch targets, save points, arcade/deadly sequences a `.rin` driver
+must handle); grep the index to reach a location/item/scene instead of reading the
+whole file. The injection seam is a registered backend
 `EventSource` — keep `roger_input.{h,cpp}` free of SCI includes (engine-agnostic).
 The phase-gate regression suite for the present-barrier refactor lives at
 `test/sci/roger/run-regression.ps1` (manifest-driven; see the spec §8) — run it
