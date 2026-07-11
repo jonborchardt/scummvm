@@ -709,7 +709,11 @@ tools fail) but the rules below were verified against the wiki text on 2026-07-0
   it works around, with tracker refs where applicable).
 - Before the manufactured-branch pass: audit `engines/sci/roger/` for naming-convention
   drift, the static-local violations above, and stray TODO/debug leftovers — fixing them
-  in the fork beforehand is cheaper than during upstream review.
+  in the fork beforehand is cheaper than during upstream review. A first conformance
+  pass (Prompt 0, plan `docs/future-prompts/0-conform-code-to-scummvm-guidelines.md`)
+  ran 2026-07-11 on branch `jon-first-pass-prompt0` (e2f7e4500dd..b69fffeb828): ~110
+  composite one-liners expanded, mojibake eliminated, GPL headers added to two files,
+  history-narration comments stripped; no code logic changed.
 
 ## Code Style
 

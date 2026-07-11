@@ -1061,3 +1061,11 @@ to `engines/sci` and is unaffected — re-verified at this commit). Same-scope
 the delta over 1058 is base/main.cpp (+13, §3.14's own 13-line measurement still
 reproduces exactly), its module.mk object path (+1), and a doc-comment expansion on
 `interceptEvent` in sci_gfx_observer.h.
+
+Measurement note (2026-07-11, jon-first-pass-prompt0 at b69fffeb828): style-conformance
+pass (Prompt 0, plan `docs/future-prompts/0-conform-code-to-scummvm-guidelines.md`) ran
+on this branch — e2f7e4500dd..b69fffeb828 (10 commits). Changes outside `engines/sci/roger/`:
+ASCII-ification of fork hunk comments (5 comment rewrites in the observer seam files);
+no code logic changed. Same-scope `git diff --stat` vs `origin/master`:
+21 files, 1053(+)/15(−) = **1068 raw** (down 7 from the previous note's 1075 raw).
+The 7-line reduction is comment compression in the seam files from the ASCII sweep.
