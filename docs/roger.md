@@ -13,6 +13,11 @@ UI (dialogs, score/title banner, menus, inventory, text-input) into that overlay
 This targets the **native desktop build** (Windows/MSVC here). An earlier
 web/Emscripten/PixiJS prototype was abandoned and removed.
 
+**Further documentation:** [docs/roger/](roger/) contains fork-maintenance and
+upstreaming documents — [DATA_LAYOUT.md](roger/DATA_LAYOUT.md) covers the
+generation cache in detail, [LEGAL.md](roger/LEGAL.md) covers licensing, and
+[README.md](roger/README.md) is the index of that set.
+
 Roger plugs into the SCI engine through a neutral, engine-owned observer interface,
 `SciGfxObserver` (`engines/sci/sci_gfx_observer.h`): SCI's graphics chokepoints emit
 structured events to a single registered observer, and Roger's provider consumes them to
@@ -253,10 +258,29 @@ Cache keys embed `kTransformVersion`, so a pipeline change automatically invalid
 
 ## Known limitations
 
+- **EGA SCI0 only.** Roger supports SCI0 EGA titles — currently Space Quest III
+  and Quest for Glory I (EGA). VGA and SCI1+ games are detected and rejected at
+  startup. This is a permanent design decision.
+- **Windows (MSVC) is the primary developed and tested platform.** Other
+  platforms are not verified. The code targets the native desktop build; the
+  web/Emscripten prototype was abandoned.
+- **First visit to a room pays a generation cost** unless the art has been
+  precached. Subsequent visits load from the content cache and are fast. Use the
+  launcher's precache button (or `roger_precache=all` with `-SkipPicker`) to warm
+  the cache before a play session.
+- **Inter-room animated sequences** (ship flyovers, death sequences) render at
+  native resolution via the generic Feeder B path — intentionally blocky. They
+  are out of scope for semantic enhancement.
+- **ScummVM GUI dialogs** (save/load chooser) show the native-resolution game
+  frame behind the dialog rather than the enhanced frame. This is architectural:
+  the ScummVM GUI clears the overlay when it opens, and the OpenGL backend
+  composites `_gameScreen` behind the transparent overlay region.
+- **Other SCI0 EGA titles** beyond SQ3 and QFG1 EGA are untested. The engine
+  detection and generation pipeline should apply, but rendering correctness has
+  not been validated.
 - Better/higher-quality hires backgrounds and **new hires VIEW art** for room
   sprites are **art-side** (asset authoring), not engine work. Sprites without
   hires art are shown as upscaled native cels.
-- Overlay sprite occlusion samples a hires priority map generated through the same omyac geometry as the plate, so band edges align with the displayed background.
 - **Plugin migration** (Roger as its own SCI plugin) is future work; today it is
   wired into the SCI engine via the neutral `SciGfxObserver` seam (see above).
 
@@ -368,7 +392,63 @@ and stamped PNG export. Everything is button-driven; Esc quits and E exports
 
 ## Tests
 
-Unit tests for the SCI-type-free Roger units live in `test/sci/roger/` (CxxTest).
-On Windows: `.\build_tests.ps1` (reports `TESTS PASSED`). Headless visual capture:
-`.\build_and_run.ps1 -Script <file.rin>` drives the game and writes
-`roger-<pic>-<label>-{overlay,preview}.png` captures to `screenshotpath`.
+### Unit tests
+
+```powershell
+.\build_tests.ps1
+```
+
+Runs the CxxTest suite in `test/sci/roger/` and reports `TESTS PASSED` (or a
+failure count). Pass `-Regenerate` after adding or removing source files so the
+build script picks up the new test header.
+
+### Scripted smoke test
+
+```powershell
+.\build_and_run.ps1 -Game qfg1 -SaveSlot 1 -Script test\sci\roger\scripts\qfg1-smoke.rin -CycleLog
+```
+
+Drives QFG1 EGA headlessly from save slot 1, writes overlay captures to
+`screenshotpath`, and exits. Exit codes: `0` = pass, `124` = watchdog timeout,
+`125` = `assert`/`fail` in the script. The `qfg1-smoke.rin` script exercises
+basic boot, walking, arrow casting, look dialog, and text-input.
+
+### Regression gate
+
+```powershell
+test\sci\roger\run-regression.ps1
+```
+
+Manifest-driven phase-gate suite (`test/sci/roger/regression-manifest.json`).
+Runs all entries and reports `ALL PASS (N checks)` or a failure table.
+
+**Expected result: 41/42 checks pass.** The one known-stale failure is
+`qfg1-menu-cycle presence:m-after` — a manifest region issue, not a code
+regression: after the 2026-07-05 stretch-mode change the game rect moved, so the
+top-4.5% band in both captures is pure letterbox and the presence diff sees 0
+differing pixels even though the menu opens correctly. The fix is to re-derive the
+manifest region (or re-baseline); until then 41/42 is the expected green count.
+
+Performance entries (`qfg1-walk-perf`, `sq3-walk-perf`) require a recorded
+baseline; run `test\sci\roger\run-regression.ps1 -Record` first if no baseline
+exists yet.
+
+### Manual release checks
+
+Before shipping a build, verify the following interactively for each supported
+game (SQ3 and QFG1 EGA):
+
+1. **Launch** the game through the Roger picker; confirm the Cached/Not Cached
+   badge is accurate.
+2. **F10** — cycle all three display modes (Enhanced, Original, Side-by-Side);
+   confirm the scene renders correctly in each and no positional shift occurs
+   between Enhanced and Original.
+3. **Menu** — open the in-game menu bar; confirm titles render and the dropdown
+   closes cleanly with no stale overlay.
+4. **Dialog** — trigger a Print/Display dialog (e.g. look at an object); confirm
+   dialog text appears in hires and clears on dismiss.
+5. **Save and load** — open the save/load chooser and round-trip a save; confirm
+   the overlay recovers after the dialog closes.
+6. **Walk between rooms** — cross at least one room boundary; confirm the new
+   room plate loads, the ego renders at the correct priority, and walking speed
+   is normal (no slowdown).
