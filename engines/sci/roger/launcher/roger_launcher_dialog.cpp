@@ -419,7 +419,7 @@ void RogerLauncherDialog::pickerRemoveRow(int row) {
 }
 
 void RogerLauncherDialog::pickerAddGame() {
-	// ── the ENTIRE body of the old `case kAddGameCmd:` moves here VERBATIM ──
+	// ---- the ENTIRE body of the old `case kAddGameCmd:` moves here VERBATIM 
 	// (browser -> SCI detection -> VGA block -> resource.map fallback ->
 	//  create <gameid>-roger/ -> ConfMan.flushToDisk()), then:
 
@@ -498,7 +498,8 @@ void RogerLauncherDialog::pickerAddGame() {
 		// Use directory name as game ID (lowercased).
 		gameId = dir.getName();
 		gameId.toLowercase();
-		if (gameId.empty()) gameId = "sci_game";
+		if (gameId.empty())
+			gameId = "sci_game";
 		// Generate unique ConfMan domain.
 		Common::String baseDomain = gameId;
 		int suffix = 1;

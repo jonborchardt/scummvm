@@ -309,7 +309,7 @@ bool estimateOffsetSAD(const byte *a, const byte *b, int w, int h, int radius,
 	return true;
 }
 
-// â”€â”€ Grid mode + animation helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ---- Grid mode + animation helpers --------------------------------------
 
 int gridTileCount() {
 	return MIN(viewEnhanceModeCount(), 6); // registry scalers + trailing nearest

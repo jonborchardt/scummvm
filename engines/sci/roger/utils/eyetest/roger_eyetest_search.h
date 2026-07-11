@@ -26,12 +26,12 @@
 // so it unit-tests without an engine (same isolation as the Studio's pure
 // helpers in utils/studio/roger_studio_render.h).
 //
-// QUARANTINE CONTRACT — nothing in the engine may depend on utils/eyetest/.
+// QUARANTINE CONTRACT -- nothing in the engine may depend on utils/eyetest/.
 // The only permitted references are: the env-gated ROGER_EYETEST hook in
 // sci.cpp, engines/sci/module.mk, build_tests.ps1's test registration, and the
 // build_and_run.ps1 -EyeTest switch. Production code must never include these
 // headers; this module may only consume stable roger seams (RogerAssetGen,
-// png_loader, roger_passes) — never provider/compositor internals.
+// png_loader, roger_passes) -- never provider/compositor internals.
 
 #include "common/array.h"
 #include "common/str.h"
@@ -49,7 +49,7 @@ enum {
 };
 
 // Pass values are renderOmyac mode ints, the same mapping parsePassString
-// (roger_passes.h) uses: f(ill) = 2, l(ine) = 1, a(ll) = 0 — feed straight
+// (roger_passes.h) uses: f(ill) = 2, l(ine) = 1, a(ll) = 0 -- feed straight
 // into setEnhancePasses().
 typedef Common::Array<int> EyeSeq;
 
@@ -77,7 +77,7 @@ bool eyeParseCompact(const Common::String &line, EyeSeq &out);
 // changes to one of the OTHER two pass types. outDesc: "mut_pos04_f_to_a"
 // (one _posNN_x_to_y group per changed position, positions ascending).
 // posWeights (optional, length kEyeSeqLen, every entry >= 1) biases WHICH
-// positions get mutated — e.g. tail-heavy weights concentrate the search on
+// positions get mutated -- e.g. tail-heavy weights concentrate the search on
 // positions 7-9 while every position stays reachable. nullptr = uniform.
 EyeSeq eyeMutate(const EyeSeq &src, EyeRng &rng, Common::String &outDesc,
                  const int *posWeights = nullptr);

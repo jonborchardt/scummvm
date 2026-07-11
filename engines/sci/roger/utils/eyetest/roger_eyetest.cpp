@@ -40,7 +40,7 @@
 namespace Sci {
 namespace Roger {
 
-// Shared evaluation-cel anchor (native coords, bottom-centre — the studio's
+// Shared evaluation-cel anchor (native coords, bottom-centre -- the studio's
 // default placement): every candidate composites the SAME cel at the SAME
 // spot, so pairs differ only by their pass sequence.
 static const int kEyeCelX = 160;
@@ -104,7 +104,7 @@ RogerEyeTest::~RogerEyeTest() {
 // scanning filenames is a full import with zero JSON parsing: every
 // "eyetest-n<pic>*" directory under screenshotpath (manual backups like
 // eyetest-n002-run1 included, plus leftovers in the active dir) contributes.
-// Explicit seeds.txt entries are exempt — a listed sequence is always re-run.
+// Explicit seeds.txt entries are exempt -- a listed sequence is always re-run.
 void RogerEyeTest::importPriorSeen(const Common::String &shotsDir) {
 	Common::FSNode root((Common::Path(shotsDir)));
 	Common::FSList dirs;
@@ -178,7 +178,7 @@ static void readSeqList(const Common::String &path, uint maxN, Common::Array<Eye
 	delete in;
 }
 
-// gen 0: when _outDir/seeds.txt exists, its sequences ARE the generation — one
+// gen 0: when _outDir/seeds.txt exists, its sequences ARE the generation -- one
 // compact string per line ('#' comments, blank lines ok), first line becomes
 // the starting champion, and listed sequences are re-run even if a prior run
 // already judged them. Otherwise: the base sequence + (kEyePop - 1) mutations.
@@ -242,7 +242,7 @@ void RogerEyeTest::renderCandidate(uint i) {
 		        _picId, eyeSeqCompact(_all[i].seq).c_str());
 		return; // startCompareQueue skips surface-less candidates
 	}
-	// Composite the shared evaluation cel (view 0 / loop 0 / cel 0 — the ego)
+	// Composite the shared evaluation cel (view 0 / loop 0 / cel 0 -- the ego)
 	// game-style over the plate, so plate and sprite treatment are judged
 	// TOGETHER. The cel is pass-independent (scale6x, not omyac), so one
 	// generated surface serves every candidate; same compose pattern as
@@ -302,11 +302,11 @@ void RogerEyeTest::startCompareQueue(uint firstIdx) {
 	_dirty = true;
 	drainStaleInput();
 	if (_queue.empty())
-		endOfGeneration(); // every render failed — don't strand the UI
+		endOfGeneration(); // every render failed -- don't strand the UI
 }
 
 // showdown.txt (same format as seeds.txt, 2-8 entrants) arms showdown mode:
-// no breeding, no generations — round after round of full round-robins, each
+// no breeding, no generations -- round after round of full round-robins, each
 // on a fresh random scene, until Esc reports the final ranking.
 bool RogerEyeTest::loadShowdown() {
 	Common::Array<EyeSeq> entrants;
@@ -353,7 +353,7 @@ void RogerEyeTest::startShowdownRound() {
 	_dirty = true;
 	drainStaleInput();
 	if (_pairA.empty())
-		finish(); // nothing comparable this round — end with the ranking
+		finish(); // nothing comparable this round -- end with the ranking
 }
 
 // The pair at schedule position `pos`: GA mode pits the champion against the
@@ -371,7 +371,7 @@ void RogerEyeTest::pairAt(int pos, int &pa, int &pb) const {
 	}
 }
 
-// Revert one judged pair, exactly as scored — repeatable back to the start of
+// Revert one judged pair, exactly as scored -- repeatable back to the start of
 // the current generation/round (a bred generation is final: its choices
 // already shaped the offspring). The pair is re-shown for a fresh answer.
 void RogerEyeTest::undoLast() {
@@ -478,7 +478,7 @@ void RogerEyeTest::nextGeneration() {
 	// pool pic (re-rolled here), so comparisons stay apples-to-apples while
 	// the search samples many rooms across the run.
 	_picId = _picPool[_rng.below(_picPool.size())];
-	// A pic change stales EVERY cached render, the champion's included — free
+	// A pic change stales EVERY cached render, the champion's included -- free
 	// them all; the champion re-renders on the new pic below.
 	for (uint i = 0; i < _surf.size(); i++) {
 		if (_surf[i]) {
@@ -659,7 +659,7 @@ void RogerEyeTest::drawFrame() {
 		return;
 	}
 
-	// Compare / banner: the current pair, eye-exam style — ONE image at a time,
+	// Compare / banner: the current pair, eye-exam style -- ONE image at a time,
 	// flipped in place (Space / Tab / click on the image / Flip button) so both
 	// candidates occupy the exact same pixels and differences pop.
 	int pa, pb;
@@ -720,7 +720,7 @@ void RogerEyeTest::drawFrame() {
 				bx, barTop + 76, _display->w - bx - 20, grey);
 	}
 
-	// Crosshair (hardware cursor is invisible over the overlay — same as studio).
+	// Crosshair (hardware cursor is invisible over the overlay -- same as studio).
 	_display->hLine(MAX(0, _mouseX - 8), _mouseY, MIN((int)_display->w - 1, _mouseX + 8), white);
 	_display->vLine(_mouseX, MAX(0, _mouseY - 8), MIN((int)_display->h - 1, _mouseY + 8), white);
 
@@ -735,7 +735,7 @@ void RogerEyeTest::handleEvent(const Common::Event &ev) {
 		_quit = true;
 		return;
 	case Common::EVENT_MOUSEMOVE:
-		// Overlay coords (showOverlay(true) — same as RogerStudio::handleEvent).
+		// Overlay coords (showOverlay(true) -- same as RogerStudio::handleEvent).
 		_mouseX = ev.mouse.x;
 		_mouseY = ev.mouse.y;
 		_dirty = true;
@@ -748,7 +748,7 @@ void RogerEyeTest::handleEvent(const Common::Event &ev) {
 			if (_btnFlip.contains(mx, my)) { _showingB = !_showingB; _dirty = true; return; }
 			if (_btnUndo.contains(mx, my)) { undoLast(); return; }
 		}
-		// Clicking the image flips the lens (compare AND banner — the pair stays up).
+		// Clicking the image flips the lens (compare AND banner -- the pair stays up).
 		if (_phase != kPhaseDone && _imageArea.contains(mx, my)) {
 			_showingB = !_showingB;
 			_dirty = true;

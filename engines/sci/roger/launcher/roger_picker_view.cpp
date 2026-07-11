@@ -159,8 +159,10 @@ void PickerViewWidget::drawRow(PanelPainter &paint, int visIdx, int row) {
 		append(g.targetName);
 		append(g.subtitle);
 		// Skip gameId when it equals targetName to avoid "sq3 | sq3".
-		if (g.gameId != g.targetName) append(g.gameId);
-		if (g.ega) append("EGA");
+		if (g.gameId != g.targetName)
+				append(g.gameId);
+		if (g.ega)
+				append("EGA");
 		append(g.sciVersion);
 		append(g.gamePath.toString());
 		paint.drawTextIn(kFontSmall, info, subR, kTextDim, Graphics::kTextAlignLeft);

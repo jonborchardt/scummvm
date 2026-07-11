@@ -169,7 +169,7 @@ void RogerStudio::renderSlot(Slot &slot) {
 	Graphics::ManagedSurface composed(slot.plateCache->w, slot.plateCache->h, slot.plateCache->format);
 	composed.blitFrom(*slot.plateCache);
 
-	// Feature 1: recolour “unfilled” pixels -- those fillNullPixels backfilled
+	// Feature 1: recolour "unfilled" pixels -- those fillNullPixels backfilled
 	// (nothing official painted) -- hot pink, before the cel goes on. Toggling
 	// this is invalidateCelOnly()-tier (plate cache is reused). The mask matches
 	// the plate 1:1 (OMYAC_HYBRID_W*OMYAC_HYBRID_H); nearest-ref plates carry an
@@ -809,11 +809,13 @@ void RogerStudio::dispatchWidget(uint32 id) {
 	const int kind = widKind(id), idx = widIndex(id);
 	switch (kind) {
 	case kWidPicPrev: case kWidPicNext:
-		if (_picIds.empty()) break;
+		if (_picIds.empty())
+			break;
 		_picIdx = (_picIdx + (kind == kWidPicPrev ? (int)_picIds.size() - 1 : 1)) % (int)_picIds.size();
 		invalidateScene(); break;
 	case kWidViewPrev: case kWidViewNext:
-		if (_viewIds.empty()) break;
+		if (_viewIds.empty())
+			break;
 		_viewIdx = (_viewIdx + (kind == kWidViewPrev ? (int)_viewIds.size() - 1 : 1)) % (int)_viewIds.size();
 		_loopNo = _celNo = 0;
 		invalidateCelOnly(); break; // view swap changes only the cel, not the plate

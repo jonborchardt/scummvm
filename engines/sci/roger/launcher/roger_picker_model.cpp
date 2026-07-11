@@ -87,7 +87,7 @@ PickerLayout layoutPicker(int w, int h, int gameCount, int scrollOffset) {
 	                         w / 2 + w / 14, l.listPanel.bottom + 2 * pad + h / 24);
 
 	// 17% (not more): at h=1589 the panel bottom (~1418) must stay above the
-	// bottom-anchored launch button top (~1424) — asserted by the layout test.
+	// bottom-anchored launch button top (~1424) -- asserted by the layout test.
 	const int setTop = l.addGame.bottom + 2 * pad;
 	l.settingsPanel = Common::Rect(M, setTop, w - M, setTop + (h * 17) / 100);
 	l.settingsTitle = Common::Rect(M + 2 * pad, setTop + pad, w - M - 2 * pad,

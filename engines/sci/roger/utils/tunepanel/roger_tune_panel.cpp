@@ -193,7 +193,7 @@ void drawTunePanel(Graphics::ManagedSurface &scene, const Common::Rect &gameRect
 
 		// Translucent navy panel: baked WITH alpha so the game scene shows
 		// through when the bake is alpha-blended over it. Widgets drawn on top
-		// composite against the panel color and end up ~opaque — intended.
+		// composite against the panel color and end up ~opaque -- intended.
 		bake.surface.fillRect(Common::Rect(0, 0, bake.surface.w, bake.surface.h),
 			bake.surface.format.ARGBToColor(216, PanelStyle::kPanelFill.r,
 				PanelStyle::kPanelFill.g, PanelStyle::kPanelFill.b));

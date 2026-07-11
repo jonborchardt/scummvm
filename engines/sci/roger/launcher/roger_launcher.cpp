@@ -104,7 +104,8 @@ void RogerLauncher::discoverGames() {
 		if (!confDesc.empty())
 			return confDesc;
 		QualifiedGameList matches = EngineMan.findGamesMatching("sci", gameId);
-		if (!matches.empty()) return matches[0].description;
+		if (!matches.empty())
+				return matches[0].description;
 		return gameId;  // last resort: raw gameId
 	};
 

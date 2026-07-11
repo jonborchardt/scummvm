@@ -41,7 +41,7 @@
 namespace Sci {
 namespace Roger {
 
-// â”€â”€ OmyacParams registry: index-addressable fields for the studio HUD â”€â”€â”€â”€â”€â”€â”€â”€
+// ---- OmyacParams registry: index-addressable fields for the studio HUD --
 struct OmyacParamDesc {
 	const char *name;
 	int minV;
@@ -56,11 +56,11 @@ OmyacParamDesc omyacParamDesc(int i);
 int omyacParamGet(const OmyacParams &p, int i);
 void omyacParamSet(OmyacParams &p, int i, int value); // clamps to [minV, maxV]
 
-// â”€â”€ Export filename stamps â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ---- Export filename stamps ---------------------------------------------
 Common::String omyacParamStamp(const OmyacParams &p);            // "default" / "mvl3-iso0"
 Common::String studioExportName(const char *kind, int id, const Common::String &detail);
 
-// â”€â”€ Studio v2: per-game startup defaults â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ---- Studio v2: per-game startup defaults -------------------------------
 struct StudioDefaults {
 	int picId;   // -1 = first available
 	int viewId;  // -1 = first available
@@ -72,14 +72,14 @@ struct StudioDefaults {
 
 StudioDefaults studioDefaultsForGame(const Common::String &gameId);
 
-// â”€â”€ Studio v2: export names â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ---- Studio v2: export names --------------------------------------------
 Common::String studioSceneExportName(int picId, char slot, const Common::String &detail);
 Common::String studioCompareExportName(int picId, bool diff,
                                        const Common::String &stampA,
                                        const Common::String &stampB);
 
-// â”€â”€ Studio v2: widget kinds (the widget record, id encoding, and hit-test are
-//    the shared sci/roger/ui/roger_widgets.h; kind 0 = "none" by that contract) â”€â”€
+// ---- Studio v2: widget kinds (the widget record, id encoding, and hit-test are
+//    the shared sci/roger/ui/roger_widgets.h; kind 0 = "none" by that contract)
 enum WidKind {
 	kWidNone = 0,
 	kWidPicPrev, kWidPicNext, kWidViewPrev, kWidViewNext,
@@ -124,7 +124,7 @@ void buildStudioPanel(const Common::Rect &panel, const StudioPanelState &st,
 static const int kStudioCharW = 7;   // layout char width (small px)
 static const int kStudioRowH = 24;   // layout row height (small px)
 
-// â”€â”€ Studio v2: shift diagnosis (pure; unit-tested) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ---- Studio v2: shift diagnosis (pure; unit-tested) ---------------------
 // Per-pixel |a-b| map, white-on-black: out = (m,m,m,255) with m = max channel
 // delta of the first 3 bytes. All buffers w*h*4 bytes, same layout.
 void diffMapRGBA(const byte *a, const byte *b, int w, int h, byte *out);
@@ -138,7 +138,7 @@ void diffMapRGBA(const byte *a, const byte *b, int w, int h, byte *out);
 bool estimateOffsetSAD(const byte *a, const byte *b, int w, int h, int radius,
                        int &outDx, int &outDy);
 
-// â”€â”€ Grid mode + animation helpers (pure; unit-tested) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ---- Grid mode + animation helpers (pure; unit-tested) ------------------
 
 // One comparison tile per view-enhance MODE - every registered scaler module
 // plus the trailing "nearest" (row-major 2x3 grid, max 6 tiles). gridPresetSlot

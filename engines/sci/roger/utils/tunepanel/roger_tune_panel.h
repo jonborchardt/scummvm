@@ -21,7 +21,7 @@
 #ifndef SCI_ROGER_UTILS_TUNEPANEL_ROGER_TUNE_PANEL_H
 #define SCI_ROGER_UTILS_TUNEPANEL_ROGER_TUNE_PANEL_H
 
-// TUNE PANEL (kept dev utility, quarantined) — the in-game quick-tune debug
+// TUNE PANEL (kept dev utility, quarantined) -- the in-game quick-tune debug
 // dialog (F12). Session-only. Three toggle rows (log mirror, "view enhance:"
 // cycling the view-scaler modes + a synthetic nearest, "pic enhance:" cycling
 // the available OMYAC pass modes) plus a linear pass builder (+f/+l/+a/clear)
@@ -29,15 +29,15 @@
 // applies it. The view-scaler judging concluded (6x won); the panel stays as
 // the pass-tuning debug tool. Everything here is engine-free and unit-testable.
 //
-// QUARANTINE CONTRACT — see utils/tunepanel/README.md. The only permitted
+// QUARANTINE CONTRACT -- see utils/tunepanel/README.md. The only permitted
 // references to utils/tunepanel/ are: the F12 integration block in
 // file_roger_art_provider.{h,cpp} (state member + draw/toggle/mouse glue),
 // engines/sci/module.mk, and build_tests.ps1's test registration
-// (test/sci/roger/test_tune_panel.h). Everything else — including
-// event.cpp's key/mouse routing — must go through the plain virtuals on the
+// (test/sci/roger/test_tune_panel.h). Everything else -- including
+// event.cpp's key/mouse routing -- must go through the plain virtuals on the
 // concrete provider (file_roger_art_provider.h), which names no tunepanel types.
 // This module may only consume stable SCI-free roger seams
-// (ui/roger_widgets.h, ui/roger_panel_style.h, roger_passes.h, roger_view_scaler.h, roger_coords.h) —
+// (ui/roger_widgets.h, ui/roger_panel_style.h, roger_passes.h, roger_view_scaler.h, roger_coords.h) --
 // never provider/compositor internals, never SCI engine state, and never
 // anything under utils/studio/ (each utils/ tool is quarantined on its own).
 //
@@ -86,7 +86,7 @@ struct TunePanelState {
 	Common::Array<Common::Array<int> > picModes;
 	int picModeSel = 0;
 	Common::Array<int> stagedPasses;  // the sequence being built (chips); NOT applied until Add/cycle
-	Common::Array<int> appliedPasses; // currently rendered — pending marker compares
+	Common::Array<int> appliedPasses; // currently rendered -- pending marker compares
 	uint32 hoverId = 0;               // widId under the mouse (0 = none)
 	uint32 lastGenMs = 0;             // last apply's regen wall-clock (ms)
 };
@@ -125,7 +125,7 @@ inline Common::Rect tunePanelRect(bool leftSide = false) {
 // clear-reset-apply rows are BOTTOM-ANCHORED so their coordinates do not
 // move as chips are added (script stability). Chips render in rows of 7,
 // capped to the space between (extra staged passes still exist, just not
-// clickable — acceptable for a debug tool).
+// clickable -- acceptable for a debug tool).
 void buildTunePanel(const TunePanelState &st, Common::Array<PanelWidget> &out);
 
 // "fla * 812ms": pass stamp (omyacPassStamp), pending marker, last gen time.

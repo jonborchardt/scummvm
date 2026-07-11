@@ -22,8 +22,8 @@
 #define SCI_ROGER_UTILS_EYETEST_ROGER_EYETEST_H
 
 // EYE EXAM (kept dev utility, quarantined). Studio-style interactive tool:
-// renders small batches of OMYAC pass-sequence candidates (“Which looks
-// better?”); the choices drive a simple genetic search (roger_eyetest_search.h),
+// renders small batches of OMYAC pass-sequence candidates ("Which looks
+// better?"); the choices drive a simple genetic search (roger_eyetest_search.h),
 // or a round-robin showdown of listed finalists. Launched via ROGER_EYETEST=1
 // (build_and_run.ps1 -EyeTest) at the same sci.cpp seam as RogerStudio; owns the
 // overlay; never touches the generation disk cache (kGenMemory); zero effect on
@@ -53,7 +53,7 @@ public:
 private:
 	enum Phase { kPhaseCompare, kPhaseBanner, kPhaseGenDone, kPhaseDone };
 
-	// One judged pair, exactly as scored â€” so undo can revert it precisely.
+	// One judged pair, exactly as scored -- so undo can revert it precisely.
 	struct UndoRec {
 		int pa = -1, pb = -1;        // the pair's candidate indices
 		int champBefore = -1;        // _champion before the choice

@@ -22,7 +22,7 @@
 #define SCI_ROGER_LAUNCHER_ROGER_PICKER_MODEL_H
 
 // Pure model/layout helpers for the Roger game picker v2. SCI-free, GUI-free,
-// ConfMan-free — unit-tested in test/sci/roger/test_picker_model.h. The view
+// ConfMan-free -- unit-tested in test/sci/roger/test_picker_model.h. The view
 // (roger_picker_view) draws and hit-tests EXCLUSIVELY from PickerLayout, so
 // the geometry under every click is covered by tests.
 
@@ -47,10 +47,10 @@ enum PickerWidgetKind {
 	kPickLaunch
 };
 
-// ── Cache marker ─────────────────────────────────────────────────────────────
+// ---- Cache marker -------------------------------------------------------
 // "Ready for current passes" is tracked by an empty marker file in the game's
 // cache directory: <gameId>.done.v<version>.<passStamp>.marker
-// passStamp = omyacPassStamp(effectivePasses(...)) — same canonical form as
+// passStamp = omyacPassStamp(effectivePasses(...)) -- same canonical form as
 // the cache PNGs. Multiple markers accumulate so switching passes back finds
 // the old marker instantly. Markers live next to the files they describe, so
 // they survive transient ConfMan domains and ini edits.
@@ -62,7 +62,7 @@ Common::String cacheMarkerName(const Common::String &gameId, int version,
 void splitGameDescription(const Common::String &desc,
                           Common::String &outTitle, Common::String &outSubtitle);
 
-// ── Layout ──────────────────────────────────────────────────────────────────
+// ---- Layout -------------------------------------------------------------
 struct PickerRowLayout {
 	Common::Rect card;      // full row card
 	Common::Rect badge;     // cache-status badge area
@@ -91,7 +91,7 @@ Common::Rect passOptionRect(const PickerLayout &l, int index, int count, int can
 
 int clampScroll(int scroll, int gameCount, int rowsVisible);
 
-// ── Standalone-picker gate ───────────────────────────────────────────────────
+// ---- Standalone-picker gate ---------------------------------------------
 // Decides whether the pre-engine standalone picker replaces the stock ScummVM
 // launcher this round. Callers marshal the reads: hasNoLauncherKey/-Value from
 // ConfMan "roger_no_launcher" (no active domain -> the [scummvm] section),
