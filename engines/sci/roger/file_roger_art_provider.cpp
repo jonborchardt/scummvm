@@ -80,17 +80,6 @@ class GfxCompare;
 
 namespace Sci {
 
-// Roger-internal downcast slot (see file_roger_art_provider.h): set by
-// createSciGfxObserver() in roger_register.cpp, read back via rogerProvider().
-// No RTTI - the fork owns the only observer type. Cleared in
-// ~FileRogerArtProvider so it can never dangle past the provider.
-// FIXME: non-const global var - set at createSciGfxObserver, cleared in
-// ~FileRogerArtProvider.
-FileRogerArtProvider *g_rogerProvider = nullptr;
-
-FileRogerArtProvider *rogerProvider() {
-	return g_rogerProvider;
-}
 
 FileRogerArtProvider::FileRogerArtProvider(const Common::String &gameId,
                                             const Common::Path &gamePath) {
@@ -3824,12 +3813,7 @@ bool FileRogerArtProvider::claimShake(int shakeCount, int directions) {
 }
 
 FileRogerArtProvider::~FileRogerArtProvider() {
-	// Clear the roger-internal downcast slot exactly once (set in
-	// createSciGfxObserver); the neutral seam is cleared by the engine before
-	// it deletes the observer.
-	if (g_rogerProvider == this)
-		g_rogerProvider = nullptr;
-	CursorMan.showMouse((g_sci && g_sci->_gfxCursor) ? g_sci->_gfxCursor->isVisible() : true);
+CursorMan.showMouse((g_sci && g_sci->_gfxCursor) ? g_sci->_gfxCursor->isVisible() : true);
 	if (_inputDriver) {
 		g_system->getEventManager()->getEventDispatcher()->unregisterSource(_inputDriver);
 		delete _inputDriver;

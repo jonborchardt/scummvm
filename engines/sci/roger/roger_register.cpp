@@ -37,7 +37,6 @@ namespace Sci {
 // registers the result via setSciGfxObserver() without ever naming the type.
 SciGfxObserver *createSciGfxObserver(const Common::String &gameId, const Common::Path &gamePath) {
 	FileRogerArtProvider *provider = new FileRogerArtProvider(gameId, gamePath);
-	g_rogerProvider = provider; // roger-internal downcast slot (cleared in ~FileRogerArtProvider)
 	return provider;
 }
 

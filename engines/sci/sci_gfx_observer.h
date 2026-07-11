@@ -146,7 +146,10 @@ public:
 	// Called for each event before engine processing. The observer may MUTATE
 	// the event (e.g. remap mouse coordinates for a comparison view) and/or
 	// CONSUME it (return true = engine never sees it; used for the observer's
-	// own hotkeys and in-overlay UI).
+	// own hotkeys and in-overlay UI). Empty input polls deliver a
+	// default-constructed event (type EVENT_INVALID) whose ev.mouse carries
+	// the current mouse position — coordinate remapping therefore applies to
+	// every poll; implementations must switch on ev.type accordingly.
 	virtual bool interceptEvent(Common::Event &ev) { return false; }
 
 	// Provenance of an onText emission. The observer derives PRESENTATION

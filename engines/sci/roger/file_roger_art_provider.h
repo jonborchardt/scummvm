@@ -454,20 +454,6 @@ private:
 	void flushGenericText();                                                       // emit _genTextPending into _journal, deduped
 };
 
-// Roger-internal downcast slot: the registered observer as the concrete Roger
-// provider, or nullptr when none is registered. Set by createSciGfxObserver()
-// (roger_register.cpp), cleared in ~FileRogerArtProvider. No RTTI: the fork
-// owns the only observer type, so the pointer identity is known. Never read
-// from SCI engine code — everything outside roger/ goes through the neutral
-// SciGfxObserver interface.
-// FIXME: non-const global var — set at createSciGfxObserver, cleared in
-// ~FileRogerArtProvider.
-extern FileRogerArtProvider *g_rogerProvider;
-
-// Roger-internal accessor for the slot above (nullptr if no provider is
-// registered). No callers outside roger/ — SCI code never downcasts.
-FileRogerArtProvider *rogerProvider();
-
 } // namespace Sci
 
 #endif // SCI_ROGER_FILE_ROGER_ART_PROVIDER_H
