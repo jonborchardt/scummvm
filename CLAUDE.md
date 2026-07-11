@@ -572,7 +572,8 @@ wholesale). Keep this inventory current when adding hooks — it pre-answers the
   `DATA_LAYOUT.md`, `LEGAL.md` when the audit pass runs). Superpowers working specs/plans
   (`docs/superpowers/`) are downstream-only and never part of an upstream PR.
 
-**Branch & history policy:** upstream base is `origin/master`. The `jon-*` lineage
+**Branch & history policy:** upstream base is `upstream/master` (mirrored to local/
+`origin` `master` — see the Git workflow below). The `jon-*` lineage
 (currently `jon-refactor1`) is the **deploy line** — merge-maintained, never rebased, must
 always stay deployable. Its commit history is **raw material, not a reviewable record** —
 clean upstream branches will be *manufactured from the final diff* (not cherry-picked),
@@ -580,6 +581,71 @@ short-lived, rebase allowed there only. Any history surgery requires a backup br
 first and explicit user approval. Per-slice build verification on Windows uses
 `build_tests.ps1` (unit tests need the make-based path) and `build_and_run.ps1 -Script`
 smoke runs — the audit prompts' configure/make assumptions don't apply here.
+
+**Git workflow (remotes, `master` hygiene, upstream PR branches).** The user does most
+of the actual merging himself — Claude's job is to know this layout and never violate
+it. It is load-bearing for the manufactured-clean-branch pass
+(`docs/future-prompts/2-actual-fixing-of-commit-history.md`).
+
+- **Remotes:** `origin` = the fork (`jonborchardt/scummvm`, the push target);
+  `upstream` = `scummvm/scummvm` (fetch-only — its push URL is deliberately DISABLED).
+  Check branch tracking with `git branch -vv`; expected layout: `master` tracks
+  `upstream/master`, every working branch tracks `origin/<branch-name>`.
+- **`master` is a pristine mirror of `upstream/master`** and must always match it.
+  Refresh it with:
+
+  ```powershell
+  git checkout master
+  git fetch upstream
+  git reset --hard upstream/master
+  git push origin master
+  ```
+
+  (The `reset --hard` is safe *only because* `master` never carries local work — that
+  is the invariant being protected.) Never develop on `master`, never merge feature
+  branches into it, never open upstream PRs from it. Refresh it periodically, then
+  `git checkout my-working-branch` to return to work.
+- **Day-to-day work happens on development branches** (the `jon-*` lineage etc.);
+  commit and push normally (`git add -p`, `git commit`, `git push`). Dev branches may
+  be long-lived, experimental, or have messy history — they are raw material, not PR
+  candidates. Do not merge them into `master`, and avoid merging `master` into a dev
+  branch unless integration testing requires it — for upstream submission, always
+  create a fresh branch from the current upstream `master` instead.
+- **Upstream PR branches are manufactured fresh from `upstream/master`,** containing
+  only the changes for one reviewable PR:
+
+  ```powershell
+  git checkout master
+  git fetch upstream
+  git reset --hard upstream/master
+  git checkout -b sci-short-description
+  ```
+
+  Three ways to bring work over from a dev branch:
+  - a clean existing commit: `git cherry-pick <commit-hash>`
+  - a commit whose changes need reorganizing:
+    `git cherry-pick --no-commit <commit-hash>`, then `git reset`, `git add -p`,
+    `git commit`
+  - selected final files: `git checkout my-working-branch -- path\to\file.cpp
+    path\to\file.h`, then `git add -p`, `git commit`
+
+  Each commit must contain one logical change, compile on its own, avoid mixing
+  formatting with functional changes, use a ScummVM-style message (rules below), avoid
+  merge commits, and include documentation when required. Example message:
+
+  ```text
+  SCI: Add overlay display provider
+
+  Route SCI room rendering through a display provider so alternate
+  display implementations can be added without changing game logic.
+  ```
+
+  Review the branch before pushing — `git log --oneline upstream/master..HEAD` and
+  `git diff upstream/master...HEAD` — then `git push -u origin sci-short-description`
+  and open the PR from `jonborchardt:sci-short-description` into
+  `scummvm/scummvm:master`. Never open an upstream PR from a large development branch
+  unless its entire commit history already satisfies ScummVM's commit and review
+  requirements.
 
 **Upstream pitch (when the time comes):** discuss on scummvm-devel/Discord *before*
 writing PRs — ScummVM has a strong talk-first culture. The story to tell is the strong
