@@ -38,7 +38,7 @@ int fitFontIndex(const Common::Array<const Graphics::Font *> &fonts,
 
 // Index of the largest font (ascending by size) no taller than maxH. 0 if none
 // fit (smallest); -1 if fonts is empty. Pure: unit-testable. This drives Roger's
-// role-based type scale â€” text is sized by a target on-screen cell HEIGHT, not by
+// role-based type scale -- text is sized by a target on-screen cell HEIGHT, not by
 // the (wildly varying) width/height of each element's native rect, so a dialog
 // prompt and its input field render at one consistent size.
 int fitFontIndexByHeight(const Common::Array<const Graphics::Font *> &fonts, int maxH);
@@ -89,7 +89,7 @@ struct TextSizeFit {
 // Sizing-group key for one text element. Groups share a scale in applySharedGroupScale:
 // - multi-line (wrap-fit) elements are singletons keyed by element index: their squeeze
 //   is local (TTF wrap metrics) and must never drag sibling single-line text down;
-// - generic text (0x6 namespace) groups per SCREEN, ignoring the port id in the token â€”
+// - generic text (0x6 namespace) groups per SCREEN, ignoring the port id in the token --
 //   the same screen draws under different current ports (QFG1 char sheet: labels in the
 //   window port, stat redraws in the picture port) and must not change size across that;
 // - everything else (controls) groups per window id (token low bits);
@@ -107,14 +107,14 @@ class RogerTextRenderer {
 public:
 	// ttfName: a TTF inside ScummVM's fonts.dat (e.g. "GoMono-Regular.ttf"); empty or
 	// load failure => built-in FontMan bitmap fonts. TTF sizes are loaded on demand at
-	// the exact requested cell height and cached â€” there is no fixed size ladder.
+	// the exact requested cell height and cached -- there is no fixed size ladder.
 	explicit RogerTextRenderer(const Common::String &ttfName);
 	~RogerTextRenderer();
 
 	bool ok() const { return _ttfLoaded || !_fonts.empty(); }
 	// True only if the requested TTF actually loaded (false => bitmap fallback).
 	bool ttfLoaded() const { return _ttfLoaded; }
-	// Global size multiplier (percent) applied to every target height â€” the user's
+	// Global size multiplier (percent) applied to every target height -- the user's
 	// roger_ui_font_scale knob. 100 = use the role's target height as-is.
 	void setGlobalScale(int pct) { _globalScalePct = pct > 0 ? pct : 100; }
 	// The size an element WANTS: target cell height * the global multiplier.
@@ -124,7 +124,7 @@ public:
 	// Largest cell height <= idealPx that keeps `text` inside its caps. TWO constraints,
 	// both enforced (smaller wins): (1) when maxTextW > 0, the single-line rendered string
 	// width must not exceed maxTextW (the control-hook native footprint width); (2) ALWAYS,
-	// the word-wrapped block (wrapped to boxW) must fit boxH â€” a metric-carrying control copy
+	// the word-wrapped block (wrapped to boxW) must fit boxH -- a metric-carrying control copy
 	// whose huge width cap never binds still shrinks so its TTF re-wrap does not overflow the
 	// box (a single-line field wraps to one line, so (2) is a no-op for it). Re-measures at
 	// each candidate size (TTF metrics are not linear in size). Feed the result to
@@ -171,7 +171,7 @@ private:
 	mutable Common::Array<FitCacheEntry> _fitCache; // fitPx memo (lazy, bounded)
 	// Store a computed fit under its key and return it. Bounded: a room's worth of
 	// distinct UI strings is small, but a paranoia cap keeps a pathological string
-	// churn (many one-off dialogs) from growing the array without limit â€” oldest
+	// churn (many one-off dialogs) from growing the array without limit -- oldest
 	// entries are dropped wholesale, never a correctness issue (they just recompute).
 	int storeFit(uint64 key, int result) const {
 		if (_fitCache.size() >= 256)

@@ -244,8 +244,14 @@ static int mixedLineWidth(const Graphics::Font *f, const Common::String &line,
 		const byte c = (byte)line[i];
 		const Graphics::Surface *g = (c < 0x20 || c >= 0x7f) ? findGlyph(glyphs, c) : nullptr;
 		if (g) {
-			if (!run.empty()) { w += f->getStringWidth(run); run.clear(); }
-			if (g->h > 0) { const int gh = lineH * 3 / 4; w += g->w * gh / g->h; }
+			if (!run.empty()) {
+				w += f->getStringWidth(run);
+				run.clear();
+			}
+			if (g->h > 0) {
+				const int gh = lineH * 3 / 4;
+				w += g->w * gh / g->h;
+			}
 		} else {
 			run += (char)c;
 		}
@@ -256,7 +262,7 @@ static int mixedLineWidth(const Graphics::Font *f, const Common::String &line,
 
 // FNV-1a-ish hash of the fitPx inputs. Deterministic key: identical inputs => same
 // key => cached result served (fitPx is a pure function of these). The glyph set is
-// folded in by count + each (ch, surf-pointer) â€” the surfaces for one element are
+// folded in by count + each (ch, surf-pointer) -- the surfaces for one element are
 // stable for its lifetime, and a different element/glyph set yields a different key.
 static uint64 fitCacheKey(const Common::String &text, int boxW, int boxH, int idealPx,
                           int maxTextW, const Common::Array<UiGlyph> *glyphs) {
@@ -285,7 +291,7 @@ static uint64 fitCacheKey(const Common::String &text, int boxW, int boxH, int id
 int RogerTextRenderer::fitPx(const Common::String &text, int boxW, int boxH, int idealPx,
                              int maxTextW, const Common::Array<UiGlyph> *glyphs) const {
 	// Memoized: identical inputs return the previously computed fit (walking re-renders
-	// the UI every cycle with unchanged text/box/scale â€” the wrap+shrink loops below
+	// the UI every cycle with unchanged text/box/scale -- the wrap+shrink loops below
 	// are the hot cost). The cache is transparent; a differing input recomputes.
 	const uint64 ck = fitCacheKey(text, boxW, boxH, idealPx, maxTextW, glyphs);
 	for (uint i = 0; i < _fitCache.size(); i++) {
@@ -308,17 +314,17 @@ int RogerTextRenderer::fitPx(const Common::String &text, int boxW, int boxH, int
 	// so every path must terminate without convergence.
 	//
 	// TWO independent constraints, both enforced (smaller wins):
-	//  (1) width cap â€” only when maxTextW > 0: the single-line native footprint
+	//  (1) width cap -- only when maxTextW > 0: the single-line native footprint
 	//      width a control-hooked element carries (nTextW). Keeps the crisp text
 	//      inside the same on-screen width the original occupied.
-	//  (2) box height â€” ALWAYS: the word-wrapped block (at the box width) must fit
+	//  (2) box height -- ALWAYS: the word-wrapped block (at the box width) must fit
 	//      the rect height. The metric-carrying control copy sets a huge single-line
 	//      width cap that never binds, but Roger re-wraps at the TTF font, which
 	//      yields MORE lines than native SCI packed into the same box (the documented
 	//      multi-line re-wrap drift). Without this arm a long dialog renders at its
 	//      ideal size and overflows/clips the box bottom (QFG1 room 320 "look").
 	//      A genuine single-line field wraps to one line here, so this is a no-op for
-	//      it â€” it never over-shrinks the short dialogs that already fit at ideal.
+	//      it -- it never over-shrinks the short dialogs that already fit at ideal.
 	if (maxTextW > 0) {
 		// Constraint (1): the rendered string must fit the native footprint width.
 		for (int i = 0; i < 5; i++) {
@@ -335,7 +341,7 @@ int RogerTextRenderer::fitPx(const Common::String &text, int boxW, int boxH, int
 		}
 	}
 	// Constraint (2): the word-wrapped block must fit the box height. Comparing the
-	// FULL unwrapped string width against the box would reject every usable size â€”
+	// FULL unwrapped string width against the box would reject every usable size --
 	// wrap first, then compare heights.
 	Common::Array<Common::String> lines;
 	for (int i = 0; i < 5; i++) {
@@ -382,7 +388,7 @@ void RogerTextRenderer::drawAtPx(Graphics::ManagedSurface &dst, const Common::St
 	// Centred vertically by default; vAlignTop draws from the top of the box (SCI's
 	// native text-edit position). Centring uses the INK extent, not the font cell:
 	// TTF cells carry internal leading above the glyphs, so cell centring sat label
-	// text visibly low in buttons (QFG1 main menu vs the native mirror, 2026-07-04).
+	// text visibly low in buttons (QFG1 main menu vs the native mirror).
 	const int lh = f->getFontHeight();
 	Common::Rect inkFirst = f->getBoundingBox(lines[0]);
 	Common::Rect inkLast = lines.size() == 1 ? inkFirst
@@ -399,7 +405,7 @@ void RogerTextRenderer::drawAtPx(Graphics::ManagedSurface &dst, const Common::St
 	const int inkBot = inkLast.bottom > 0 ? inkLast.bottom : lh;
 	for (uint i = 0; i < lines.size(); i++) {
 		if (!lineDrawsWithinBox(i, y, inkBot, rect.bottom))
-			break; // later line's ink would pass the box bottom â€” clip silently
+			break; // later line's ink would pass the box bottom -- clip silently
 		if (lineHasGlyph(lines[i], glyphs)) {
 			// Mixed TTF + native-glyph layout: lay out left->right, drawing ASCII runs
 			// with the TTF font and blitting each non-ASCII glyph scaled to the line

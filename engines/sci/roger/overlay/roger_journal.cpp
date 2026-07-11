@@ -40,16 +40,16 @@ bool opSupersedes(const UiElement &newer, const UiElement &older) {
 	// Window-scoped: ops belonging to DIFFERENT windows never supersede each other.
 	// The covering window's pixels overprint, but the underlying window's content
 	// is restored by its save-under on close (checkpoint rollback), and its ops die
-	// with their own bracket â€” an in-place replace here would delete them forever
-	// (Phase 2 final review, Important #1). Same window â€” including both on the
-	// picture port, id 0 â€” keeps native redraw-in-place semantics.
+	// with their own bracket -- an in-place replace here would delete them forever.
+	// Same window -- including both on the picture port, id 0 -- keeps native
+	// redraw-in-place semantics.
 	if (newer.windowId != older.windowId)
 		return false;
 	// Cross-hook duplicate guard: the SAME native text draw is seen by BOTH the semantic
-	// control hook (uiPushText, 0x40000000 namespace: accurate native font height + a
-	// single-line width cap) and the generic GfxText16::Box hook (onNativeText, 0x60000000
+	// control hook (onControl, 0x40000000 namespace: accurate native font height + a
+	// single-line width cap) and the generic GfxText16::Box hook (onText, 0x60000000
 	// namespace: no width cap -> multi-line wrap-fit). They share the same rect, so a
-	// geometry-only supersede would let whichever arrived LAST silently replace the other â€”
+	// geometry-only supersede would let whichever arrived LAST silently replace the other --
 	// dropping the control copy and leaving the wrap-fit generic, which re-fits to a smaller
 	// size on a later present (the dialog-text-size-flip bug). These two are reconciled by
 	// dedupeGenericText (token-aware; keeps the control), NOT by append's supersede. Only
@@ -180,7 +180,10 @@ bool RogerJournal::rollback(uint32 handleToken, const Common::Rect &restoredRect
                             Common::Array<Common::Rect> *removedNativeRects) {
 	int found = -1;
 	for (uint i = 0; i < _checkpoints.size(); i++) {
-		if (_checkpoints[i].handle == handleToken) { found = (int)i; break; }
+		if (_checkpoints[i].handle == handleToken) {
+			found = (int)i;
+			break;
+		}
 	}
 	if (found < 0)
 		return false;

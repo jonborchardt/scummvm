@@ -31,7 +31,7 @@ namespace Roger {
 
 // Build a 256-entry gain-applied blend table from the room-load palette snapshot
 // (snapEga) to the live palette (liveEga), each 16 EGA colors as RGB triples (48 bytes).
-// Identity (== BLEND_TABLE) when snapEga == liveEga. See plan Task 7 for the gain rule.
+// Identity (== BLEND_TABLE) when snapEga == liveEga.
 void buildLivePaletteTable(const byte snapEga[48], const byte liveEga[48], uint32 outTable[256]);
 
 // Per-EGA-index change flags; returns the count of changed indices (0 == no change).

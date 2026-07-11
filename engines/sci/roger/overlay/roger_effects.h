@@ -34,7 +34,7 @@ enum TransitionFamily {
 	kFxScroll,
 	kFxSplitV,    // two vertical strips expand/contract from/to horizontal center
 	kFxSplitH,    // two horizontal bands expand/contract from/to vertical center
-	kFxDiagonal   // L∞ corner-curtain expands from / contracts to center
+	kFxDiagonal   // Linf corner-curtain expands from / contracts to center
 };
 
 // Map an SCI transition type (transitions.h enum values) to an overlay family.
@@ -70,7 +70,7 @@ int blockPxForSciType(int sciType);
 void blendFadeThroughBlack(const Graphics::Surface &from, const Graphics::Surface &to,
                            Graphics::Surface &out, float t);
 
-// Hash-ordered dissolve: each blockPx×blockPx cell reveals 'to' at a pseudo-random
+// Hash-ordered dissolve: each blockPxxblockPx cell reveals 'to' at a pseudo-random
 // threshold, giving an organic mosaic feel matching the original SCI LFSR ordering.
 // t=0->all from, t=1->all to.
 void blendDissolve(const Graphics::Surface &from, const Graphics::Surface &to,
@@ -99,8 +99,8 @@ void blendSplitVertical(const Graphics::Surface &from, const Graphics::Surface &
 void blendSplitHorizontal(const Graphics::Surface &from, const Graphics::Surface &to,
                           Graphics::Surface &out, float t, bool fromCenter);
 
-// Corner-curtain diagonal: L∞ norm from center as threshold.
-//   fromCenter=true:  center (L∞=0) reveals first, corners (L∞=1) reveal last.
+// Corner-curtain diagonal: Linf norm from center as threshold.
+//   fromCenter=true:  center (Linf=0) reveals first, corners (Linf=1) reveal last.
 //   fromCenter=false: corners reveal first, center reveals last.
 void blendDiagonal(const Graphics::Surface &from, const Graphics::Surface &to,
                    Graphics::Surface &out, float t, bool fromCenter);

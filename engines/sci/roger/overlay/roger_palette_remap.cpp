@@ -62,7 +62,8 @@ int paletteDiffMask(const byte snapEga[48], const byte liveEga[48], bool changed
 		                  snapEga[i * 3 + 1] != liveEga[i * 3 + 1] ||
 		                  snapEga[i * 3 + 2] != liveEga[i * 3 + 2];
 		changed[i] = diff;
-		if (diff) n++;
+		if (diff)
+			n++;
 	}
 	return n;
 }
@@ -79,8 +80,14 @@ void reblendChangedPixels(const byte *indexMap, int w, int h, const uint32 table
 				continue;
 			const uint32 v = table[b];
 			plate.setPixel(x, y, plate.format.ARGBToColor(255, v & 0xff, (v >> 8) & 0xff, (v >> 16) & 0xff));
-			if (x < minX) minX = x; if (x > maxX) maxX = x;
-			if (y < minY) minY = y; if (y > maxY) maxY = y;
+			if (x < minX)
+				minX = x;
+			if (x > maxX)
+				maxX = x;
+			if (y < minY)
+				minY = y;
+			if (y > maxY)
+				maxY = y;
 		}
 	}
 	if (maxX >= 0)

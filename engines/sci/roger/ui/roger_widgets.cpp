@@ -26,8 +26,12 @@ namespace Roger {
 uint32 widId(int kind, int index) {
 	return ((uint32)kind << 16) | ((uint32)index & 0xffff);
 }
-int widKind(uint32 id) { return (int)(id >> 16); }
-int widIndex(uint32 id) { return (int)(id & 0xffff); }
+int widKind(uint32 id) {
+	return (int)(id >> 16);
+}
+int widIndex(uint32 id) {
+	return (int)(id & 0xffff);
+}
 
 uint32 hitTestWidgets(const Common::Array<PanelWidget> &widgets, int x, int y) {
 	for (uint i = 0; i < widgets.size(); i++) {

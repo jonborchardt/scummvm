@@ -179,7 +179,8 @@ void blendDissolve(const Graphics::Surface &from, const Graphics::Surface &to,
                    Graphics::Surface &out, float t, int blockPx) {
 	if (!sameRGBA(from, to) || !sameRGBA(from, out))
 		return;
-	if (blockPx < 1) blockPx = 1;
+	if (blockPx < 1)
+		blockPx = 1;
 	t = CLIP(t, 0.0f, 1.0f);
 	const int bcx = (from.w + blockPx - 1) / blockPx;
 	const int bcy = (from.h + blockPx - 1) / blockPx;
@@ -318,7 +319,7 @@ void blendDiagonal(const Graphics::Surface &from, const Graphics::Surface &to,
 		const float dy = fabsf(2.0f * y / fH - 1.0f);
 		for (int x = 0; x < out.w; x++) {
 			const float dx = fabsf(2.0f * x / fW - 1.0f);
-			const float L = dx > dy ? dx : dy;  // Lâˆž norm from center
+			const float L = dx > dy ? dx : dy;  // L-inf norm from center
 			const float threshold = fromCenter ? L : 1.0f - L;
 			// t > 0: threshold is exactly 0 where the reveal starts; t=0 must stay 'from'.
 			out.setPixel(x, y, (t > 0.0f && t >= threshold) ? to.getPixel(x, y) : from.getPixel(x, y));

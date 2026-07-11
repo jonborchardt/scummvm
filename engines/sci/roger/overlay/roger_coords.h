@@ -65,7 +65,7 @@ inline Common::Rect fitCentered(int srcW, int srcH, int W, int H) {
 /**
  * The on-screen rect (in overlay pixels) where the native 320x200 SCI game is
  * displayed. This MUST match the backend's own game placement so the overlay
- * (drawn full-window, alpha-blended over the game) lines up 1:1 — toggling the
+ * (drawn full-window, alpha-blended over the game) lines up 1:1 -- toggling the
  * overlay then produces no positional shift, and the backend's game-space mouse
  * mapping (which follows its own draw rect) agrees with what Roger paints.
  *
@@ -148,8 +148,8 @@ inline Common::Rect computeGameRect(int overlayW, int overlayH, bool aspectCorre
  * pixels [0, mapNativeEdge(v)) sample exactly source [0, v), adjacent native
  * rects map to abutting dest rects, and a native rect's mapped rect contains
  * exactly the dest pixels that show it. Flooring instead drops the last dest
- * pixel of a source row out of its rect — sub-pixel seams at every boundary
- * between separately-mapped content (the 1px-short status bar, 2026-07-09).
+ * pixel of a source row out of its rect -- sub-pixel seams at every boundary
+ * between separately-mapped content (the 1px-short status bar).
  * All native->overlay rect conversions must go through this; do not open-code
  * `v * dst / src` for an edge.
  *
@@ -178,7 +178,7 @@ inline Common::Rect computePictureRect(const Common::Rect &gameRect, int statusB
 }
 
 /**
- * The part of the reserved status strip below the pushed bar rect — SCI0's
+ * The part of the reserved status strip below the pushed bar rect -- SCI0's
  * _menuLine (GfxPorts), the black underline row the native renderer always
  * fills under the bar. Roger draws it itself so the WHOLE strip
  * [0, statusBarRows) is overlay-owned: no visible seam is left to depend on
@@ -221,7 +221,7 @@ inline Common::Rect sciRectToDest(const Common::Rect &nr, const Common::Rect &ga
  * Full overlay paint extent of a UI element pushed at native rect `nr`: the
  * compositor paints kUiWindow fills at nr.grow(2) native px, and TTF glyphs can
  * overshoot the native box by ~2 overlay px. Marks made with this cover every
- * pixel the element's draw can touch (the 2026-07-02 shipped overdraw math).
+ * pixel the element's draw can touch.
  */
 inline Common::Rect uiPaintExtent(const Common::Rect &nr, const Common::Rect &gameRect) {
 	Common::Rect n = nr;
@@ -234,10 +234,9 @@ inline Common::Rect uiPaintExtent(const Common::Rect &nr, const Common::Rect &ga
 /**
  * Overlay extent a REMOVED element must invalidate: exact native rect + the TTF
  * overshoot pad only. The compositor-overdraw ring beyond it is covered by
- * bitsRestore's exact erase rect (§3.1). Live callers are the two documented
- * duty-3 exceptions (markVacatedDirty from clearWindowToken / uiPushFrameBoxInternal), where
- * no bitsRestore rect ever fires. Gate greens cannot verify this either way
- * (Phase 2: layered redundancy) — coverage is soak-verified.
+ * bitsRestore's erase rect. Live callers are the two documented duty-3 exceptions
+ * (markVacatedDirty from clearWindowToken / uiPushFrameBoxInternal), where no
+ * bitsRestore rect ever fires. Coverage is soak-verified.
  */
 inline Common::Rect uiVacatedExtent(const Common::Rect &nr, const Common::Rect &gameRect) {
 	Common::Rect d = sciRectToDest(nr, gameRect);
@@ -251,7 +250,7 @@ inline Common::Rect uiVacatedExtent(const Common::Rect &nr, const Common::Rect &
  * anchored at the game-space mouse position and mapped through the game rect.
  * The enhanced cursor surface (whatever its pixel size) is scale-blitted into
  * this rect, so the cursor occupies exactly the size the native cursor would
- * — never the surface's own pixel size.
+ * -- never the surface's own pixel size.
  */
 inline Common::Rect cursorOverlayRect(const Common::Point &mouse, const Common::Rect &gameRect,
                                       const Common::Point &nativeSize, const Common::Point &nativeHotspot) {
@@ -275,7 +274,8 @@ inline int sciPriorityBand(int y, int gameHeight = 190) {
 	if (range <= 0)
 		return 14;
 	int band = ((y - topBand) * 14) / range + 1;
-	if (band > 14) band = 14;
+	if (band > 14)
+		band = 14;
 	return band;
 }
 

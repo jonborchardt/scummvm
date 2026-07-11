@@ -21,13 +21,13 @@
 #ifndef SCI_ROGER_OVERLAY_ROGER_MENU_MODEL_H
 #define SCI_ROGER_OVERLAY_ROGER_MENU_MODEL_H
 
-// Observer-side retained menu state. SCI-free / GUI-free / ConfMan-free —
-// unit-tested in test/sci/roger/test_menu_model.h. This is the home of the four
-// state members exiled from GfxMenu (FORK_AUDIT M3): the bar titles, the dropdown
-// rows, the dropdown box, and the highlight. The provider feeds it the neutral L3
+// Observer-side retained menu state. SCI-free / GUI-free / ConfMan-free --
+// unit-tested in test/sci/roger/test_menu_model.h. The four state members
+// (bar titles, dropdown rows, dropdown box, highlight) were exiled from GfxMenu
+// so the provider can own them cleanly. The provider feeds it the neutral L3
 // menu event stream (onText(menuBar)/onWindowOpen(dropdown)/onText(menuRow)/
-// onMenuHighlight/onWindowClose) and re-emits the overlay from this state — exactly
-// reproducing the pre-exile GfxMenu bar/dropdown overlay-push behavior.
+// onMenuHighlight/onWindowClose) and re-emits the overlay from this state --
+// reproducing the GfxMenu bar/dropdown overlay-push behavior.
 
 #include "common/array.h"
 #include "common/rect.h"
@@ -66,7 +66,11 @@ public:
 	void endBar() {}   // bar is complete; the provider re-emits from _barTitles
 
 	// --- dropdown (token kGfxTokenMenuDropdown) ---
-	void openDropdown(const Common::Rect &box) { _box = box; _rows.clear(); _highlight = 0; }
+	void openDropdown(const Common::Rect &box) {
+		_box = box;
+		_rows.clear();
+		_highlight = 0;
+	}
 	void addRow(const Common::Rect &rect, const Common::String &text, uint16 id,
 	            int nativeFontH = 0, int nativeTextW = 0) {
 		MenuRow r; r.rect = rect; r.text = text; r.id = id;
@@ -76,7 +80,7 @@ public:
 	void closeDropdown() { _rows.clear(); }
 
 	// Returns true only when the highlight actually changed (the dedup exiled
-	// from GfxMenu::invertMenuSelection — the present-storm guard). itemId == 0
+	// from GfxMenu::invertMenuSelection -- the present-storm guard). itemId == 0
 	// is the old-row re-invert no-op.
 	bool setHighlight(uint16 itemId) {
 		if (itemId == 0 || itemId == _highlight)

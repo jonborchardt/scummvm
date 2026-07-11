@@ -46,10 +46,7 @@ public:
 	// cel on first use and caches it. This is the only cel source.
 	void setGenerator(RogerAssetGen *g) { _gen = g; }
 
-	// DEBUG TOOL (tune panel, spec 2026-07-05) — MMPX judging concluded
-	// 2026-07-06 and the panel is kept (no scheduled deletion); this method
-	// stays. Frees every cached cel (including cached-nullptr misses); next
-	// getCel regenerates.
+	// Frees every cached cel (including cached-nullptr misses); next getCel regenerates.
 	void clear();
 
 	// White-box test shims (test_view_cache.h only).

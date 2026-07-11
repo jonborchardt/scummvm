@@ -27,10 +27,10 @@
 namespace Sci {
 namespace Roger {
 
-// UI element token namespaces — now ALIASES of the neutral token scheme in
+// UI element token namespaces -- aliases of the neutral token scheme in
 // sci/sci_gfx_observer.h (single source of truth; values unchanged). Tests pin
-// the raw hex on purpose; everything else names them. Roger code migrates to
-// the Sci::kGfxToken* names opportunistically; new code uses those directly.
+// the raw hex on purpose; everything else names them. New code should use the
+// Sci::kGfxToken* names directly.
 static const uint32 kTokenNamespaceMask = kGfxTokenNamespaceMask;
 static const uint32 kStatusToken        = kGfxTokenStatus;        // status/menu-bar strip singleton
 static const uint32 kMenuDropdownToken  = kGfxTokenMenuDropdown;  // menu dropdown singleton
@@ -44,7 +44,7 @@ static const uint32 kFrameBoxToken      = kGfxTokenFrameBox;      // kGraphFrame
 // unknown-handle restore fallback must spare them: the status banner is redrawn
 // while a menu/dialog is open (postdates the checkpoint) and nothing repaints it
 // after a bare restore; the frame box is overlay-only. The menu dropdown is
-// deliberately NOT here — its own save-under restore is exactly what removes it.
+// deliberately NOT here -- its own save-under restore is exactly what removes it.
 inline bool isSaveUnderExemptSingleton(uint32 token) {
 	return token == kStatusToken || token == kFrameBoxToken;
 }

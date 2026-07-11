@@ -44,7 +44,7 @@ bool opSupersedes(const UiElement &newer, const UiElement &older);
 bool opIsOpaque(const UiElement &e);
 
 // Append-only draw journal: ops render in append order (native "last draw wins").
-// Lifetime is structural â€” erase-rect containment and window brackets (Tasks 2-3);
+// Lifetime is structural -- erase-rect containment and window brackets own it;
 // clearToken survives ONLY for the explicit singletons (status bar 0x10000000,
 // menu dropdown 0x20000000, frame box 0x70000000).
 class RogerJournal {
@@ -52,7 +52,12 @@ public:
 	void append(const UiElement &e);
 	const Common::Array<UiElement> &ops() const { return _ops; }
 	bool empty() const { return _ops.empty(); }
-	void clear() { _ops.clear(); _brackets.clear(); _checkpoints.clear(); _nextPruneAt = 0; }
+	void clear() {
+		_ops.clear();
+		_brackets.clear();
+		_checkpoints.clear();
+		_nextPruneAt = 0;
+	}
 	bool clearToken(uint32 token, Common::Array<Common::Rect> *removedNativeRects = nullptr);
 	bool eraseContained(const Common::Rect &r, Common::Array<Common::Rect> *removedNativeRects = nullptr,
 	                    bool spareSaveUnderExempt = false);
@@ -60,15 +65,15 @@ public:
 	// past kJournalPruneThreshold; safe to call any time (render output unchanged).
 	void prune();
 
-	// Window brackets: openWindow/removeWindow are THE UI lifetime model (CLAUDE.md).
+	// Window brackets: openWindow/removeWindow are THE UI lifetime model.
 	// append() tags each op with the innermost open bracket containing its rect;
 	// closeBracket drops the bracket and every op tagged with it.
 	void openBracket(uint32 windowId, const Common::Rect &winRect);
 	bool closeBracket(uint32 windowId, Common::Array<Common::Rect> *removedNativeRects = nullptr);
 
-	// The one non-structural pass that survives Phase 1: dropping the generic
-	// re-capture of a draw a control hook already captured (same ONE native draw
-	// seen by two hooks â€” not an ordering or lifetime concern).
+	// Cross-hook dedup: the same native text draw is seen by both the semantic control
+	// hook and the generic GfxText16::Box hook. Drop the generic re-capture when the
+	// control already claimed it -- not an ordering or lifetime concern.
 	void dedupeGenericText(uint32 genericNamespace) { dedupeGenericTextElements(_ops, genericNamespace); }
 
 	uint32 seqNow() const { return _seq; }

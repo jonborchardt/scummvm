@@ -28,7 +28,7 @@ namespace Sci {
 namespace Roger {
 
 // Decode a raw SCI0 cursor resource (exactly 68 bytes) into a new RGBA32 surface
-// scaled 6x edge-enhanced (EPX scale6x, 96x96 — the same enhanced scale as view
+// scaled 6x edge-enhanced (EPX scale6x, 96x96 -- the same enhanced scale as view
 // cels). Returns nullptr on size mismatch or null data.
 // `outHotspot` receives the overlay-space hotspot (the active point of the cursor surface).
 // Caller owns and must call free() + delete on the returned surface.

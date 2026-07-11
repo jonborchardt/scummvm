@@ -26,7 +26,7 @@ namespace Sci {
 namespace Roger {
 
 // viewsBasePath is retained in the constructor signature for API compatibility,
-// but cels now come solely from the generator Ã¢â‚¬â€ no on-disk spritesheet layout is read.
+// but cels now come solely from the generator -- no on-disk spritesheet layout is read.
 ViewCache::ViewCache(const Common::String &viewsBasePath) {
 	(void)viewsBasePath;
 }
