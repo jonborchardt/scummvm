@@ -36,8 +36,8 @@ generates the Visual Studio solution, builds, and launches:
 ```
 
 At startup the **Roger launcher** lists your configured SCI games with their
-cache status and per-game settings (pre-cache scope, enhancement passes,
-font, cursor). Select a game and click **Launch**. On first launch the art
+cache status, per-game settings (enhancement passes, debug logging), and
+precaching controls. Select a game and click **Launch**. On first launch the art
 cache is generated automatically; later launches load from the cache.
 
 In-game:
@@ -106,18 +106,19 @@ invalidated automatically when the generation pipeline changes.
 
 | Area | Files |
 |------|-------|
-| Provider wiring (observer impl) | `file_roger_art_provider.{h,cpp}` (implements `sci/sci_gfx_observer.h`) |
-| Art generation (omyac pipeline) | `roger_asset_gen.*`, `roger_pic_parser.*`, `roger_pic_native.*`, `roger_omyac.*`, `roger_scale.*`, `roger_ega_blend.*` |
-| Compositing & presentation | `roger_compositor.*`, `roger_ui_layer.*`, `roger_text.*`, `roger_cursor.*`, `roger_effects.*` |
-| Caching | `view_cache.*`, `png_loader.*` |
+| Provider wiring (observer impl) | `file_roger_art_provider.{h,cpp}` (implements `sci/sci_gfx_observer.h`), `roger_register.cpp` (the `createSciGfxObserver()` factory) |
+| Art generation (omyac pipeline) | `gen/` — `roger_asset_gen.*`, `roger_pic_parser.*`, `roger_pic_native.*`, `roger_omyac.*`, `roger_scale.*`, `roger_ega_blend.*`; see [gen/README.md](gen/README.md) |
+| Compositing & presentation | `overlay/` — `roger_compositor.*`, `roger_journal.*`, `roger_ui_layer.h`, `roger_text.*`, `roger_cursor.*`, `roger_effects.*`; see [overlay/README.md](overlay/README.md) |
+| Caching | `overlay/view_cache.*`, `png_loader.*` |
 | Game picker (launcher) | `launcher/` — startup game-picker dialog; see [launcher/README.md](launcher/README.md) |
 | Input automation | `roger_input.*` (engine-agnostic; no SCI includes) |
-| Shared panel UI kit | `ui/roger_widgets.*`, `ui/roger_panel_style.*`, `roger_passes.*` |
+| Shared panel UI kit | `ui/roger_widgets.*`, `ui/roger_panel_style.*`, `gen/roger_passes.*` |
 | Quarantined dev utilities | `utils/studio/` (Roger Studio), `utils/tunepanel/` (F12 tune panel), `utils/eyetest/` (eye exam) — each has its own README + quarantine contract |
 | Validation | `roger_selftest.*`, `roger_capabilities.*` |
 
 Hook sites in the SCI engine proper (`engines/sci/graphics/`) are mechanical,
-null-guarded calls through the abstract provider — see the hook table in
+null-guarded calls through the neutral `SciGfxObserver` seam
+(`engines/sci/sci_gfx_observer.h`) — see the hook table in
 [CLAUDE.md](../../../CLAUDE.md).
 
 Unit tests live in [test/sci/roger/](../../../test/sci/roger/) (CxxTest);

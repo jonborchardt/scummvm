@@ -7,7 +7,7 @@ function. Two modes: a **genetic search** (default) that evolves sequences from
 your verdicts, and a **showdown** that round-robins a fixed list of finalists.
 
 Everything is keyed to pass *sequences*: 10 positions, each `f` (fill), `l`
-(line) or `a` (all) — e.g. the engine default `ffflffaaaa`.
+(line) or `a` (all) — e.g. the engine default `affffflaaa`.
 
 ---
 
@@ -18,8 +18,9 @@ Everything is keyed to pass *sequences*: 10 positions, each `f` (fill), `l`
 .\build_and_run.ps1 -EyeTest -Game qfg1   # QFG1 scenes
 ```
 
-`-EyeTest` sets the `ROGER_EYETEST` env var for that launch only; the hook in
-`sci.cpp` starts the tool instead of the game (resources loaded, no game
+`-EyeTest` sets the `ROGER_EYETEST` env var for that launch only; the env-gated
+hook in `roger_register.cpp` (`FileRogerArtProvider::onEngineStartup()`)
+starts the tool instead of the game (resources loaded, no game
 scripts run). One game per run — the engine can only render the resources of
 the game it booted, so the launch picks which scene pool (below) applies.
 
@@ -51,7 +52,7 @@ Everything reads/writes under `<screenshotpath>/eyetest-<gameId>/`
 
 - **Generation 0**: the shipping default sequence (`kDefaultPassString` in
   `roger_passes.cpp` — the single swap point the game/picker also follow;
-  currently `ffflffaaaa`) + 5 mutations of it — or your explicit `seeds.txt`
+  currently `affffflaaa`) + 5 mutations of it — or your explicit `seeds.txt`
   list (below). The curated known-good winners live next to it as
   `goodPassPattern()` and appear as one-click picks in the game picker.
 - Each generation you judge every candidate against the current **champion**
@@ -129,7 +130,8 @@ control files inside backups are ignored.
 ## Quarantine contract
 
 Nothing in the engine may depend on `utils/eyetest/`. The only permitted
-references: the env-gated `ROGER_EYETEST` hook in `sci.cpp`, the
+references: the env-gated `ROGER_EYETEST` hook in `roger_register.cpp`
+(`onEngineStartup()`), the
 `engines/sci/module.mk` object list, `build_tests.ps1`'s test registration
 (`test/sci/roger/test_eyetest_search.h` covers the pure search module), and
 the `build_and_run.ps1 -EyeTest` switch. This module may only consume stable

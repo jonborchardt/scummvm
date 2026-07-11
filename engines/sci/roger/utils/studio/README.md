@@ -8,7 +8,8 @@ exactly what a parameter or pass change does. Everything is generated in RAM —
 the generation disk cache is never read or written.
 
 Specs: `docs/superpowers/specs/2026-07-02-roger-studio-design.md` (v1) and
-`2026-07-02-roger-studio-v2-ui-design.md` (the shipping v2 UI).
+`2026-07-02-roger-studio-v2-ui-design.md` (the shipping v2 UI) — both removed
+from the tree; see git history.
 
 ---
 
@@ -19,15 +20,17 @@ Specs: `docs/superpowers/specs/2026-07-02-roger-studio-design.md` (v1) and
 .\build_and_run.ps1 -Studio -Game qfg1   # QFG1 resources
 ```
 
-`-Studio` sets the `ROGER_STUDIO` env var for that launch only; the hook in
-`sci.cpp` starts the Studio instead of the game (resources and graphics are
+`-Studio` sets the `ROGER_STUDIO` env var for that launch only; the env-gated
+hook in `roger_register.cpp` (`FileRogerArtProvider::onEngineStartup()`)
+starts the Studio instead of the game (resources and graphics are
 alive, no game scripts run) and the process exits when you quit. One game per
 run — the Studio can only render the resources of the game it booted.
 
 Startup defaults: SQ3 opens pic 2 with view 12 loop 1 (the classic street +
 Roger); any other game opens its first pic/view. Both slots start from the
 **ini-effective pass list** (`roger_omyac_passes`, or the built-in default
-when unset) — "Reset" always returns to that.
+when unset) — it stays one of the `pic enhance:` cycle's modes, so you can
+always cycle back to it.
 
 ## The screen
 
@@ -131,14 +134,15 @@ already rendered for this pic+params is a surface copy, not a regen.
 ## Quarantine contract
 
 Nothing in the engine may depend on `utils/studio/`. The only permitted
-references: the env-gated `ROGER_STUDIO` hook in `sci.cpp`, the
+references: the env-gated `ROGER_STUDIO` hook in `roger_register.cpp`
+(`onEngineStartup()`), the
 `engines/sci/module.mk` object list, `build_tests.ps1`'s source + test
 registration, and the unit tests (`test/sci/roger/test_studio_render.h`,
 `test_shift_lock.h` — they cover the pure helpers in
 `roger_studio_render.{h,cpp}`). Production code must never include anything
 from this folder — the generic widget primitives it shares with the F12 tune
-panel live in the neutral `sci/roger/ui/roger_widgets.h`, and the pass-list edit
-ops/stamps in `sci/roger/gen/roger_passes.h`, precisely so nothing outside
+panel live in the neutral `sci/roger/ui/roger_widgets.h`, and the pass-list
+stamps/equality in `sci/roger/gen/roger_passes.h`, precisely so nothing outside
 `utils/` ever needs a studio header.
 
 This module may only consume stable roger seams (`roger_asset_gen.h`,

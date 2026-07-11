@@ -15,7 +15,7 @@ in the normal game path and writes real, persistent settings to `scummvm.ini`.
 |------|------|
 | `roger_launcher.{h,cpp}` | `RogerLauncher` — domain discovery, settings model (`GameEntry`), write-through setters (`setPassesForSelected`, `setDebugLogForSelected`), precache coordination, one-shot cross-game launch keys |
 | `roger_picker_model.{h,cpp}` | SCI-free layout geometry (`PickerLayout`) and stamp helpers (`parseStamp`, `formatStamp`) — unit-tested, no SCI dependencies |
-| `roger_picker_view.{h,cpp}` | `PickerViewWidget` — fully custom-drawn view: background PNG, card rows, Cached/Not-Cached badges, per-row Precache/Remove buttons, pass dropdown, debug toggle, Launch button |
+| `roger_picker_view.{h,cpp}` | `PickerViewWidget` — fully custom-drawn view: background gradient, card rows, Cached/Not-Cached badges, per-row Precache/Remove buttons, pass dropdown, debug toggle, Launch button |
 | `roger_launcher_dialog.{h,cpp}` | `RogerLauncherDialog` — thin `GUI::Dialog` modal shell + `PickerActionListener`; pass dropdown sub-dialog (Custom…); Remove confirm dialog |
 
 ## What it can do
@@ -124,9 +124,11 @@ The picker background is a procedural dark-navy vertical gradient (no image supp
 
 ## Wiring
 
-The picker has two entry points. **In-engine:** `SciEngine::run()`
-(`engines/sci/sci.cpp`) constructs `Roger::RogerLauncher` with the global art
-provider and calls `run()` before the game proper starts; a `false` return means
+The picker has two entry points. **In-engine:**
+`FileRogerArtProvider::onEngineStartup()` (`engines/sci/roger/roger_register.cpp`,
+reached from `SciEngine::run()` through the neutral observer seam) constructs
+`Roger::RogerLauncher` with the provider and calls `run()` before the game
+proper starts; a `false` return means
 a game-switch was pushed and the engine returns immediately. **Pre-engine
 (standalone):** `base/main.cpp`'s `launcherDialog()` calls
 `Sci::Roger::rogerStandaloneLauncher()` (`roger_standalone.{h,cpp}`) as the

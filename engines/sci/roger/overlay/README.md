@@ -11,7 +11,8 @@ the retained draw-journal — it does not itself generate art.
 | `roger_journal.{h,cpp}` | Append-only `RogerJournal` — owns UI draw ordering + lifetime (supersede/prune/rollback) |
 | `roger_ui_layer.h` | Resolution-independent `UiElement` struct |
 | `roger_text.{h,cpp}` | TTF text fit/draw; hybrid ASCII-TTF + game-font-glyph `drawPx` layout |
-| `roger_effects.{h,cpp}` | Transition families (fade/dissolve/wipe/scroll/roll, shake, flash) |
+| `roger_menu_model.{h,cpp}` | SCI-free menu-bar/dropdown state model (bar titles, dropdown rows, highlight), fed by the observer's menu events |
+| `roger_effects.{h,cpp}` | Transition family mapping + blend functions (fade/dissolve/wipe/scroll, rolls → split/diagonal curtains); shake is composited in `roger_compositor` |
 | `roger_cursor.{h,cpp}` | Composited overlay cursor |
 | `roger_palette_remap.{h,cpp}` | Live-palette blend table (snapEga → liveEga) applied at composite time |
 | `view_cache.{h,cpp}` | Serves upscaled hires VIEW cels (generates via `RogerAssetGen::generateViewCel`, caches owned) |

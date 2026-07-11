@@ -88,10 +88,10 @@ Roger now captures native draws that were not previously hooked into the hires o
 
 **Feeder A — addToPic props (semantic, not blocky).** `kAddToPic` cels are static views baked into a room's picture data, outside the animate list. Roger captures these via a hook in `GfxAnimate` and stores them in a per-room list (cleared on room change). Each frame they are merged with the regular animate cast by priority (static cels draw before animate cels at equal priority, matching native draw order) and rendered through the same hires Sprite path as ego and props — ViewCache upscaling + priority-map occlusion. Static cels without hires art fall back to the rendered native cel.
 
-**Feeder B — generic native regions (blocky, intentional).** The remaining unhooked native draws (kGraph primitives, etc.) are captured two ways:
+**Feeder B — generic native regions (blocky, intentional).** The remaining unhooked native draws (kGraph primitives, etc.) are handled two ways:
 
 1. A `bitsShow` rect hook records which screen regions were shown, gated by re-entrancy guards so draws Roger already composites semantically (the picture render, standalone cels, animate-list shows) are not double-captured.
-2. A pixel-diff backstop snapshots the native visual buffer after the animate update and at composite time diffs the current buffer against that snapshot. Any changed rectangle not already recorded by the hook is upscaled nearest-neighbour and composited onto the overlay.
+2. A cycle-diff net (`roger_diff_net`, default on) diffs the native visual buffer against the previous cycle's copy and marks any changed region dirty, healing missed invalidation within one cycle. It only *invalidates* — it never stamps pixels; compositing of unhooked draws is the `bitsShow` hook's job.
 
 Captured generic regions are intentionally blocky (nearest-neighbour upscale) because their content is arbitrary native pixels. Inter-room animated sequences (ship flyovers, death sequences) are out of scope.
 
@@ -258,7 +258,7 @@ Cache keys embed `kTransformVersion`, so a pipeline change automatically invalid
   hires art are shown as upscaled native cels.
 - Overlay sprite occlusion samples a hires priority map generated through the same omyac geometry as the plate, so band edges align with the displayed background.
 - **Plugin migration** (Roger as its own SCI plugin) is future work; today it is
-  wired into the SCI engine via the neutral `SciGfxObserver` seam (see below).
+  wired into the SCI engine via the neutral `SciGfxObserver` seam (see above).
 
 ## Cross-game validation
 

@@ -509,7 +509,10 @@ Class `GfxPalette` in `engines/sci/graphics/palette16.h` — the SCI16 (SCI0-SCI
 palette (the SCI32 variant `GfxPalette32` in `palette32.h` is out of scope,
 SCI32-only). No hook exists in `palette16.cpp` (grep for `g_sciRogerProvider`
 returns nothing) — the fork's `roger_palette_live` behavior is compositor-side
-(re-applies the live `_sysPalette` to the RGBA plate each frame). Public member
+(re-applies the live `_sysPalette` to the RGBA plate each frame). *(Shipped
+2026-07-10, commit 2f14bb179c5: the §7 kept gap has since landed —
+`onPaletteChanged` now hooks the `copySysPaletteToScreen` funnel; this
+subsection's no-hook statement describes the audited baseline.)* Public member
 `_sysPalette` is data, ignored per convention. The palette methods change the
 color LUT, not the framebuffer bytes; on the EGA path `setOnScreen` →
 `copySysPaletteToScreen` → `_screen->setPalette` (an OSystem *palette* upload,
@@ -978,6 +981,11 @@ gap fits with no shrink-list consequences. No other gap entries: the list is com
 with one kept entry (an empty/all-deferred list was a valid outcome; the analysis
 supports keeping this one).
 
+**Shipped (2026-07-10, commit 2f14bb179c5):** the kept entry landed exactly as
+proposed — one null-guarded `onPaletteChanged(_sysPalette, _palVaryStep,
+_palVaryStepStop)` hook at the `GfxPalette::copySysPaletteToScreen` funnel
+(+12 lines in palette16.cpp, included in the post-reshape re-measures below).
+
 ## 8. Standalone upstream PR candidates (G bucket)
 
 These are the standalone, immediately-submittable upstream fixes (bucket **G**) —
@@ -1043,3 +1051,13 @@ module.mk object paths and upstream game text); same-scope `git diff --stat` vs
 merge-base re-measured at 20 files, 1043(+)/15(−) = **1058 raw** (down from Task 14's
 1094; the ~90-line R20 exclusion no longer applies, so raw ≈ rule-adjusted − the R22
 standalone-PR rows: ≈1033).
+
+Measurement note (2026-07-11, jon-save-gui at 61a79ff5bc2): the §3.14 base/main.cpp
+picker hook landed after the note above, so the zero-reference statement carries one
+further documented exception — base/main.cpp's `PLUGIN_ENABLED_STATIC(SCI)`-guarded
+`sci/roger/` include + call (§3.14 B1/B2, fork-only; the CLAUDE.md grep gate is scoped
+to `engines/sci` and is unaffected — re-verified at this commit). Same-scope
+`git diff --stat` vs merge-base re-measured at 21 files, 1060(+)/15(−) = **1075 raw**:
+the delta over 1058 is base/main.cpp (+13, §3.14's own 13-line measurement still
+reproduces exactly), its module.mk object path (+1), and a doc-comment expansion on
+`interceptEvent` in sci_gfx_observer.h.

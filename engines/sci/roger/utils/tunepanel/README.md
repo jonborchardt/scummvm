@@ -13,7 +13,8 @@ the prior gen mode. Closing the panel does NOT revert — applied settings stay
 live for the session; restart (or cycle back to the config passes) to get the
 config again.
 
-Spec: `docs/superpowers/specs/2026-07-05-roger-tune-panel-design.md`. Built for
+Spec: `docs/superpowers/specs/2026-07-05-roger-tune-panel-design.md` (removed
+from the tree; see git history). Built for
 the 2026 MMPX view-scaler judging (concluded 2026-07-06 — the shipping 6x won);
 kept afterwards as the standing pass-tuning tool.
 
@@ -86,7 +87,7 @@ glue. The only permitted references:
   (`test/sci/roger/test_tune_panel.h` covers this pure module).
 
 Everything else — including `event.cpp`'s key/mouse routing — must go through
-the plain virtuals on the abstract provider, which name no tunepanel types.
+the plain virtuals on the neutral `SciGfxObserver` seam, which name no tunepanel types.
 Panel visuals (colors, fonts, layout painting) use the shared
 `ui/roger_panel_style.h` kit (PanelStyle + PanelFonts + PanelPainter);
 the provider bakes the rendered surface into `_tuneBake` and re-renders it

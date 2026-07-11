@@ -14,7 +14,7 @@ CLAUDE.md) and will land here as they are written:
 
 | Document | Purpose | Status |
 |----------|---------|--------|
-| `FORK_AUDIT.md` | inventory of the full diff vs upstream `origin/master` | placeholder |
+| `FORK_AUDIT.md` | inventory of the full diff vs upstream `origin/master` | written (2026-07-10; carries its own re-measure notes) |
 | `UPSTREAMING_PLAN.md` | how the diff is reshaped into upstreamable PRs | placeholder |
 | `PR_PLAN.md` | the concrete PR slices and their ordering | placeholder |
 | `FORK_MAINTENANCE.md` | how the fork tracks upstream long-term | placeholder |

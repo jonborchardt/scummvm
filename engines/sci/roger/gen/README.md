@@ -8,11 +8,11 @@ surfaces; `roger_compositor` and `file_roger_art_provider` consume them.
 | File | Role |
 |------|------|
 | `roger_asset_gen.{h,cpp}` | Generation orchestrator: `generatePlate()`, `generateViewCel()`, `generatePriorityMap()`, `generateTextSurface()`; content-hash disk cache (`kTransformVersion`-keyed) |
-| `roger_omyac.{h,cpp}` | Enhance passes (fill / line / all) → RGBA plate |
+| `roger_omyac.{h,cpp}` | Enhance passes (fill / line / all) → hires index buffer (`OmyacResult`; `roger_asset_gen` maps it to the RGBA plate) |
 | `roger_pic_parser.{h,cpp}` | Parse an SCI pic resource into draw commands |
 | `roger_pic_native.{h,cpp}` | Native pre-render (exposes `NativeRef::priority`) |
-| `roger_scale.{h,cpp}` | scale2x/3x/6x nearest scalers |
-| `roger_view_scaler.{h,cpp}` | Registry of VIEW-cel upscaler modules (entry 0 = shipping 6x) |
+| `roger_scale.{h,cpp}` | EPX scale2x/3x/6x + `scaleNearest` integer nearest scaler |
+| `roger_view_scaler.{h,cpp}` | Registry of VIEW-cel upscaler modules (entry 0 = shipping 6x) + the synthetic `kViewScalerNearest` sentinel |
 | `roger_ega_blend.{h,cpp}` | Precomputed okLab-mixed EGA color table |
 | `roger_passes.{h,cpp}` | Pass-string parse/stamp + passesEqual; `kDefaultPassString` |
 | `slice_set.{h,cpp}` | SCI0 EGA priority-band helpers |
