@@ -41,7 +41,7 @@ public:
 	void test_containing_same_type_redraw_supersedes_and_moves_to_end() {
 		// Native is immediate-mode: a redraw at (or over) the same box replaces what
 		// was there AND is now on top of any overlapping neighbor. Both properties
-		// were point-fixed in d8be4749b4e; the journal owns them structurally.
+		// are owned structurally by the journal (append-only, opSupersedes retires in place).
 		RogerJournal j;
 		j.append(op(kUiText, 0, 0, 10, 10, "25"));
 		j.append(op(kUiIcon, 0, 9, 10, 19));           // overlapping neighbor
@@ -121,8 +121,8 @@ public:
 	void test_bracket_assignment_ignores_draw_time_identity() {
 		// The QFG1 char sheet draws under port 3 AND port 2 while window 3 is the
 		// only open bracket over the rect: both draws must belong to window 3.
-		// (Geometry + bracket stack, never the current-port id -- the 0x60000002
-		// vs 0x60000003 doubling class from d8be4749b4e.)
+		// (Geometry + bracket stack, never the current-port id -- prevents the
+		// 0x60000002 vs 0x60000003 token-doubling class.)
 		RogerJournal j;
 		j.openBracket(3, Common::Rect(0, 9, 321, 200));
 		UiElement a = op(kUiText, 170, 45, 192, 57, "25"); a.token = 0x60000003u;
