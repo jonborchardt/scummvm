@@ -1043,6 +1043,144 @@ in the spec itself).
 All six PASS — no loop-back required. With §9 fully resolved, the audit + amended
 spec pair is the go signal for the future observer-reshaping work (Stage 3).
 
+## 11. Prompt 1 verification pass (2026-07-11)
+
+Run at HEAD `a425b352960` (branch `jon-first-pass-prompt-1`). This is a
+documentation-only verification pass — no code was changed. All findings below
+are flags for future work; nothing was fixed inline.
+
+### 11.1 Re-measurement
+
+Re-run at `a425b352960` using the established audit command:
+
+    git diff --stat origin/master...HEAD -- engines/sci base gui \
+        ":(exclude)engines/sci/roger" ":(exclude)engines/sci/README.md"
+    # 20 files changed, 1047 insertions(+), 15 deletions(-)  → 1062 raw
+
+**Result: exact match.** The last recorded note (2026-07-11, `b69fffeb828`) predicted
+the three follow-up commits (`c5488b32885`, `bd6d1dd44ca`, `a425b352960` — docs and
+test-only) would not affect the out-of-roger measurement. Confirmed: figures
+are unchanged at 1062 raw. No stale figures in §2 or the trailing notes.
+
+### 11.2 §3 classification coverage at the current head
+
+The §2 baseline enumerates 18 files (measured 2026-07-10 at `14509d438c3`). The
+current 20-file diff adds three post-baseline files that lack §3 subsections. They
+are correctly documented in later sections but are catalogued here for the
+manufactured-branch pass:
+
+| File | Lines | Where classified | §3 subsection needed? |
+|---|---|---|---|
+| `engines/sci/sci_gfx_observer.h` | +419 | §6 R23 (new observer header); §10 post-impl note | No — postdates §3; §6/§7/§10 cover it |
+| `engines/sci/sci_gfx_observer.cpp` | +35 | §6 R23 (companion impl); §10 post-impl note | No — same class as above |
+| `engines/sci/graphics/palette16.cpp` | +12 | §4.8 real-gap; §7 "Shipped" note | No — §4.8/§7 fully document the one hook |
+
+All three are properly covered; no §3 subsection gap is a finding.
+
+### 11.3 Bucket table (full diff)
+
+Every file in the diff mapped to the seven plan buckets from the
+Prompt 1 preamble. File groups are used where the per-file disposition is uniform.
+
+| File / group | Lines (+/-) | Plan bucket | Disposition |
+|---|---|---|---|
+| `engines/sci/roger/**` (83 files) | +20788 | Roger provider code | Wholesale move to plugin when self-registration lands (Stage 3) |
+| `test/sci/roger/**` (67 files) | +7338 | Required SCI hook sites / provider registration (test) | Relink against roger static lib at Stage 3; downstream-only until then |
+| `engines/sci/sci_gfx_observer.h` | +419 | Required SCI hook sites / observer seam | Engine-owned neutral seam; upstreamable as the core of the observer PR |
+| `engines/sci/sci_gfx_observer.cpp` | +35 | Required SCI hook sites / observer seam | Companion impl; ships with sci_gfx_observer.h |
+| `engines/sci/graphics/paint16.{cpp,h}` | +107/−2 | Required SCI hook sites | Mechanical N-bucket hooks (P1–P20); reshape to §6 R1–R23 events before upstream PR |
+| `engines/sci/graphics/animate.cpp` | +62 | Required SCI hook sites | Mechanical N-bucket hooks (A1–A14); A1/A12/A14 fork-only telemetry to delete |
+| `engines/sci/graphics/controls16.cpp` | +101/−2 | Required SCI hook sites | Mechanical hooks (C1–C9); C3 claim → R17; offsetRect/token helpers → observer-side |
+| `engines/sci/graphics/menu.{cpp,h}` | +68/+2 | Roger-specific leak outside roger/ (S bucket) | Menu state exile (§3.8, R5) still needed before upstream; the largest S-bucket item |
+| `engines/sci/graphics/text16.cpp` | +41/−1 | Required SCI hook sites | T1–T4; T2 is G-bucket standalone PR (§8) |
+| `engines/sci/graphics/ports.cpp` | +30/−2 | Required SCI hook sites | PO1–PO3; duty-3 reveal plant retained (documented exception) |
+| `engines/sci/graphics/transitions.cpp` | +23 | Required SCI hook sites | TR1–TR2; TR2 is a documented L4 claim |
+| `engines/sci/engine/kgraphics.cpp` | +19 | Required SCI hook sites | K1–K7; K7 diag comment to delete (D); K6 claim → R15 |
+| `engines/sci/graphics/cursor.cpp` | +5/−1 | Required SCI hook sites | CU1–CU2; CU2 is a documented L4 claim |
+| `engines/sci/graphics/palette16.cpp` | +12 | Required SCI hook sites | One-hook gap fill (§7, shipped); palVaryUpdate/etc. real-gap |
+| `engines/sci/graphics/scifont.{cpp,h}` | +2/−5 | Generic reusable ScummVM change (G bucket) | G-bucket standalone PR — un-gate drawToBuffer; no Roger dependency (§8 F1+F2) |
+| `engines/sci/module.mk` | +45 | Required SCI hook sites / build wiring | W1 object list; moves to plugin module.mk at Stage 3 |
+| `engines/sci/sci.cpp` | +32 | Roger-specific leak outside roger/ + build wiring | S1 FORBIDDEN_SYMBOL_EXCEPTION_getenv must go before any upstream slice; S3 G-bucket |
+| `engines/sci/event.cpp` | +29 | Roger-specific leak outside roger/ (D/W) | E3/E4 fork-only; E2 N-bucket onMouseMoved |
+| `base/main.cpp` | +13 | Temporary hacks / downstream-only dev tooling | B1/B2 fork-only launcher seam; never upstreamable (§3.14) |
+| `gui/EventRecorder.h` | +4/−2 | Generic reusable ScummVM change (G bucket) | W2 G-bucket standalone PR; no Roger dependency (§8) |
+| `test/module.mk` | +6 | Required SCI hook sites / build wiring | W3 test wiring; relinks at Stage 3 |
+| `engines/sci/README.md` | +94 | Documentation / downstream-only tooling | Fork orientation doc; excluded from measurement; never upstream as-is |
+| `docs/roger/**`, `docs/roger.md` | +1484 | Documentation / downstream-only tooling | User-facing docs and audit; never part of upstream PR |
+| `CLAUDE.md`, `.claude/**`, `build_and_run.ps1`, `build_tests.ps1`, `.gitignore` | various | Documentation / downstream-only dev tooling | Dev harness; excluded from all measurements; never upstream |
+
+### 11.4 Quarantine sweep (Step 2 verification)
+
+**Sweep A — `engines/sci` outside `roger/`:**
+
+    git grep -in "roger" -- engines/sci ':(exclude)engines/sci/roger'
+
+Hits: upstream game text only (Roger Wilco strings in `script_patches.cpp`,
+`workarounds.cpp`, `celobj32.cpp`, `picture.cpp`; detection-table strings in SQ/AGI)
+plus `module.mk` object PATHS and `engines/sci/README.md` (docs file, excluded from
+measurement). Zero unexpected code references. **PASS.**
+
+**Sweep B — outside `engines/sci` entirely:**
+
+    git grep -il "roger" -- . ':(exclude)engines/sci' ':(exclude)docs' \
+        ':(exclude)CLAUDE.md' ':(exclude)test/sci/roger'
+
+Hits: `base/main.cpp` (§3.14 B1/B2 — documented fork-only launcher seam),
+`.gitignore`, `build_and_run.ps1`, `build_tests.ps1` (downstream-only dev tooling),
+`.claude/skills/roger-loop/SKILL.md` (skill, never committed upstream), plus
+`devtools/`, `dists/`, `engines/supernova/` and other upstream files matching
+"Roger Wilco" or character names — all false-positive name matches. No unexpected
+code leaks outside the two documented fork-only sites. **PASS.**
+
+### 11.5 Asset and binary check (Step 4 verification)
+
+    git diff --numstat origin/master...HEAD | grep "^-"
+
+Four binary files listed (all under `test/sci/roger/fixtures/`):
+`4x4_gradient.png` (86 bytes), `4x4_p5.png` (73 bytes),
+`plate_8x8.png` (75 bytes), `rgba_2x2.png` (76 bytes).
+All are tiny synthetic PNG fixtures (< 100 bytes each), consistent with the
+known adjudicated state ("current PNG fixtures are ~75 bytes each" — CLAUDE.md).
+No game assets, no generated cache files, no large binaries in the diff.
+**PASS.**
+
+### 11.6 GPL header check (Step 6 verification)
+
+    git grep -rL "GNU General Public License" -- engines/sci/roger/ | grep -E "\.(h|cpp)$"
+
+No output — all 76 tracked `.h`/`.cpp` files under `engines/sci/roger/` have GPL
+headers. Production set is 100%. Test headers under `test/sci/roger/` remain at
+17/40 deliberately (upstream `test/` has none; adjudicated at Prompt 0 and not
+re-examined here). **PASS.**
+
+### 11.7 Conformance drift spot-check (Step 6 preamble)
+
+    git grep -inE "claude|anthropic|ai agent|copilot" -- \
+        engines/sci docs/roger docs/roger.md engines/sci/roger
+
+Hits: `docs/roger/FORK_AUDIT.md` only — plain-text references to "CLAUDE.md"
+(a filename) and one occurrence of "Claude-attribution footer" in the §8 PR-prep
+note. No hits in any `.cpp`/`.h` source file under `engines/sci/` or
+`engines/sci/roger/`. Zero hits in `docs/roger.md` (user-facing doc). **PASS.**
+
+No obvious style drift observed during the grep-first scan.
+
+### 11.8 Summary
+
+| Sweep | Result |
+|---|---|
+| Re-measurement at `a425b352960` | PASS — 1062 raw, exact match to last note |
+| §3 coverage of new files | PASS — 3 post-baseline files all documented in §6/§7/§10 |
+| Bucket table | COMPLETE — 24 rows covering every file group |
+| Quarantine grep (SCI + external) | PASS — no unexpected Roger references in code |
+| Asset/binary check | PASS — 4 tiny fixtures (<100 bytes each), no game data |
+| GPL header check | PASS — 76/76 production sources have headers |
+| AI-ref drift | PASS — zero hits in source files or user-facing docs |
+
+No blockers. Known open flags carried forward from earlier passes (S1
+FORBIDDEN_SYMBOL_EXCEPTION_getenv, menu S-bucket state exile, A14 non-const static
+`s_prevCycleT0`) are documented in §3 and unchanged.
+
 Measurement note (2026-07-10, genericization follow-up): the `createSciGfxObserver()`
 factory + `onEngineStartup()`/`interceptEvent()` follow-up removed the last named-type
 references outside `engines/sci/roger/` (the R20 fork-only carve-out blocks in
