@@ -1083,3 +1083,6 @@ The pass removed 7 net insertion lines (comment compression in the seam files).
 The previous note's figures (21 files / 1060(+) / 1075 raw) do not reproduce with
 this command (off by one file and ~6 lines — measurement-convention drift); future
 notes should cite this exact command.
+The pass continued past b69fffeb828 with three follow-up commits (docs corrections,
+test-comment refs, final style fixes — 00dc60541d9..HEAD on jon-first-pass-prompt0)
+that do not affect the out-of-roger measurement except this file.

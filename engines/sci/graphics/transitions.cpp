@@ -183,7 +183,7 @@ void GfxTransitions::doit(Common::Rect picRect) {
 
 	// Room transition claim (L4): an observer that renders its own transition claims
 	// this to skip SCI's animated one (pure invisible dead time under an opaque
-	// overlay — double-blocking). _number is the normalized SCI_TRANSITIONS_* value;
+	// overlay -- double-blocking). _number is the normalized SCI_TRANSITIONS_* value;
 	// blackoutNumber mirrors the two-phase old->black->new form (-1 = plain). The
 	// claim returns false while the observer's overlay is hidden, so the native
 	// transition still runs for the A/B (F10) original view.

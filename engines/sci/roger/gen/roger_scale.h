@@ -38,26 +38,26 @@ struct IndexImage {
 };
 
 /**
- * EPX/Scale2x  --  doubles each dimension.
+ * EPX/Scale2x -- doubles each dimension.
  * Ported verbatim from scale2x.ts (lines 18-43) in sci.js.
  */
 IndexImage scale2x(const IndexImage &in);
 
 /**
- * Scale3x  --  triples each dimension using the EPX-9 rule.
+ * Scale3x -- triples each dimension using the EPX-9 rule.
  * Ported verbatim from scale3x.ts + epx.ts (epx9) + s9.ts (s9).
  */
 IndexImage scale3x(const IndexImage &in);
 
 /**
- * Scale6x  --  scale3x(scale2x(in)).
+ * Scale6x -- scale3x(scale2x(in)).
  * Matches create-pic-pipeline.ts lines 60-63.
  */
 IndexImage scale6x(const IndexImage &in);
 
 /**
  * Integer nearest-neighbour upscale (pixel replication) by `factor` in each axis.
- * Crisp/blocky  --  preserves the source pixels exactly (no edge smoothing). For text
+ * Crisp/blocky -- preserves the source pixels exactly (no edge smoothing). For text
  * this avoids the EPX corner-rounding that makes glyphs look "bubbly".
  */
 IndexImage scaleNearest(const IndexImage &in, int factor);

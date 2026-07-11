@@ -234,7 +234,7 @@ IndexImage scale6x(const IndexImage &in) {
 }
 
 // ---
-// scaleNearest  --  integer nearest-neighbour (pixel replication) by `factor`.
+// scaleNearest -- integer nearest-neighbour (pixel replication) by `factor`.
 // ---
 IndexImage scaleNearest(const IndexImage &in, int factor) {
 	IndexImage out;

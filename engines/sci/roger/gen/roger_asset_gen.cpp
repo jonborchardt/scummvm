@@ -78,10 +78,10 @@ static uint32 fnv1a32u(uint32 v) {
 // dumpSurfacePng's DumpFile::open fails silently and kGenCache never persists
 // (every load is a miss -> regenerate). FSNode::createDirectory only creates a
 // SINGLE level, so we create the parent (<gameid>-roger/) first when it is
-// missing  --  under in-engine generation there is no prebuilt art, so that parent
+// missing -- under in-engine generation there is no prebuilt art, so that parent
 // dir may not exist at all (creating only the "cache" leaf would then fail and
 // nothing would ever persist). Best-effort: if it cannot be created the write
-// simply fails and we fall back to regeneration (Hard Constraint 6  --  never
+// simply fails and we fall back to regeneration (Hard Constraint 6 -- never
 // crash). Only used by the generation paths below.
 static void ensureCacheDir(const Common::String &dir) {
 	if (dir.empty())
@@ -98,7 +98,7 @@ static void ensureCacheDir(const Common::String &dir) {
 #endif
 
 // ---
-// RogerAssetGen  --  always-compiled methods
+// RogerAssetGen -- always-compiled methods
 // ---
 
 RogerAssetGen::RogerAssetGen(const Common::String &gameId,
@@ -179,7 +179,7 @@ void RogerAssetGen::setEnhancePasses(const Common::Array<int> &passes) {
 // Canonical asset identity. The cache key is the COMPLETE set of inputs that
 // affect a generated asset's output bytes. Auditing all inputs:
 //   - gameId        : prevents cross-game collision (same pic/view id, different game).
-//   - transform     : asset kind  --  "omyac" (visual plate), "omyacprio" (priority view),
+//   - transform     : asset kind -- "omyac" (visual plate), "omyacprio" (priority view),
 //                     "scale6x" (VIEW cel). Distinct kinds never share a file.
 //   - kTransformVersion : pipeline version; a bump invalidates every stale file.
 //   - resourceHash  : FNV-1a of the source. For pics: the raw pic resource bytes
@@ -198,7 +198,7 @@ Common::String RogerAssetGen::cacheKey(const char *transform, uint32 resourceHas
 	// The provider always sets a concrete pass list before calling generatePlate:
 	//   unset config => defaultPasses() (non-empty)
 	//   empty config => empty array (wireframe)
-	// So "none" is the correct semantic label  --  it will never collide with a default run.
+	// So "none" is the correct semantic label -- it will never collide with a default run.
 	Common::String passesStr;
 	if (_passes.empty()) {
 		passesStr = "none";
@@ -218,7 +218,7 @@ Common::String RogerAssetGen::cacheKey(const char *transform, uint32 resourceHas
 }
 
 // ---
-// viewCelHash  --  stable identity key for (viewId, loopNo, celNo).
+// viewCelHash -- stable identity key for (viewId, loopNo, celNo).
 // Engine-free: view resources are immutable at runtime; the gameId prefix
 // in the cache key prevents cross-game collision on equal triples.
 // ---
@@ -231,7 +231,7 @@ uint32 RogerAssetGen::viewCelHash(int viewId, int loopNo, int celNo) {
 }
 
 // ---
-// isViewCelCached  --  kGenCache only; checks the scale6x PNG without decoding.
+// isViewCelCached -- kGenCache only; checks the scale6x PNG without decoding.
 // ---
 
 bool RogerAssetGen::isViewCelCached(int viewId, int loopNo, int celNo) const {
@@ -241,7 +241,7 @@ bool RogerAssetGen::isViewCelCached(int viewId, int loopNo, int celNo) const {
 }
 
 // ---
-// isPicCached  --  kGenCache only; checks both omyac and omyacprio PNGs.
+// isPicCached -- kGenCache only; checks both omyac and omyacprio PNGs.
 // ---
 
 bool RogerAssetGen::isPicCached(int picId) const {
@@ -268,7 +268,7 @@ bool RogerAssetGen::isPicCached(int picId) const {
 }
 
 // ---
-// Pic-stack helpers  --  a "stack" is ids[0] drawn full plus each subsequent id
+// Pic-stack helpers -- a "stack" is ids[0] drawn full plus each subsequent id
 // drawn addTo (kDrawPic without screen clear) on top. hashPicStack chains the
 // per-pic byte hashes into one cache hash (a one-element stack yields exactly
 // the single-pic hash, so existing cache files stay valid); parsePicStack
@@ -314,7 +314,7 @@ static bool parsePicStack(const Common::Array<int> &ids, Common::Array<DrawComma
 #endif // ENABLE_SCI
 
 // ---
-// generatePlate  --  thin wrapper; delegates to generatePlateWithIndex
+// generatePlate -- thin wrapper; delegates to generatePlateWithIndex
 // ---
 
 Graphics::Surface *RogerAssetGen::generatePlate(int id, uint32 &outMs) {
@@ -322,7 +322,7 @@ Graphics::Surface *RogerAssetGen::generatePlate(int id, uint32 &outMs) {
 	return generatePlateWithIndex(id, throwaway, outMs);
 }
 
-// generatePlateWithBackfill  --  delegates to the shared core, discarding the
+// generatePlateWithBackfill -- delegates to the shared core, discarding the
 // index buffer and keeping the backfill mask. The core clears the mask on any
 // failure / cache-only path (studio checks !outBackfill.empty() before use).
 Graphics::Surface *RogerAssetGen::generatePlateWithBackfill(int id, Common::Array<byte> &outBackfill, uint32 &outMs) {
@@ -333,7 +333,7 @@ Graphics::Surface *RogerAssetGen::generatePlateWithBackfill(int id, Common::Arra
 }
 
 // ---
-// generatePlateWithIndex  --  full implementation; also returns the pre-blend
+// generatePlateWithIndex -- full implementation; also returns the pre-blend
 // doubled-nibble index buffer (OMYAC_HYBRID_W*OMYAC_HYBRID_H) in outIndex.
 // outIndex is cleared on any failure or cache-only path where the index is
 // unavailable; caller must check !outIndex.empty() before using it.
@@ -352,7 +352,7 @@ Graphics::Surface *RogerAssetGen::generatePlateStackWithIndex(const Common::Arra
 	return generatePlateCore(ids, outIndex, throwaway, outMs);
 }
 
-// generatePlateCore  --  shared implementation for generatePlateWithIndex /
+// generatePlateCore -- shared implementation for generatePlateWithIndex /
 // generatePlateWithBackfill. outIndex = pre-blend doubled-nibble index buffer
 // (live-palette source); outBackfill = per-pixel fillNullPixels mask (studio
 // diagnostic). Both are cleared on any failure or cache-only path where the
@@ -452,7 +452,7 @@ Graphics::Surface *RogerAssetGen::generatePlateCore(const Common::Array<int> &id
 }
 
 // ---
-// generatePlateNearest(Stack)  --  zero-shift reference plate ("pic enhance:
+// generatePlateNearest(Stack) -- zero-shift reference plate ("pic enhance:
 // nearest"). The native pre-render (NativeRef.refPixel) replicated x6 via
 // nearest-neighbour: every native pixel maps to exactly one 6x6 block.
 // Shared by the Studio's nearest slots and the in-game tune panel (via the
@@ -512,7 +512,7 @@ Graphics::Surface *RogerAssetGen::generatePlateNearestStack(const Common::Array<
 }
 
 // ---
-// priorityBands  --  native priority bands for overlay occlusion
+// priorityBands -- native priority bands for overlay occlusion
 // ---
 
 bool RogerAssetGen::priorityBands(int picId, Common::Array<byte> &outBands, int &outW, int &outH) {
@@ -539,7 +539,7 @@ bool RogerAssetGen::priorityBands(int picId, Common::Array<byte> &outBands, int 
 }
 
 // ---
-// nativeCelIndexImage  --  de-undithered native cel as IndexImage (pre-upscale).
+// nativeCelIndexImage -- de-undithered native cel as IndexImage (pre-upscale).
 // No cache logic; pure extraction. Returns false on any failure.
 // ---
 
@@ -581,7 +581,7 @@ bool RogerAssetGen::nativeCelIndexImage(int viewId, int loopNo, int celNo,
 }
 
 // ---
-// surfaceFromIndex  --  palette-map an IndexImage to a new RGBA32 surface.
+// surfaceFromIndex -- palette-map an IndexImage to a new RGBA32 surface.
 // clearKey pixels get alpha 0. Caller owns (->free() then delete).
 // ---
 
@@ -598,7 +598,7 @@ Graphics::Surface *RogerAssetGen::surfaceFromIndex(const IndexImage &img, byte c
 	// (bpp, Rbits,Gbits,Bbits,Abits, Rshift,Gshift,Bshift,Ashift), so this is
 	// rShift=24,gShift=16,bShift=8,aShift=0 (in-memory 0xRRGGBBAA, alpha in the LOW
 	// byte). Pack via ARGBToColor so the channels land correctly regardless of layout
-	//  --  a hand-rolled (0xff<<24|r<<16|g<<8|b) pack put alpha in the wrong byte, which
+	// -- a hand-rolled (0xff<<24|r<<16|g<<8|b) pack put alpha in the wrong byte, which
 	// made every generated cel semi-transparent (washed-out pink/orange).
 	const Graphics::PixelFormat fmt(4, 8, 8, 8, 8, 24, 16, 8, 0);
 	Graphics::Surface *surf = new Graphics::Surface();
@@ -631,7 +631,7 @@ Graphics::Surface *RogerAssetGen::surfaceFromIndex(const IndexImage &img, byte c
 }
 
 // ---
-// generateViewCel  --  delegates to nativeCelIndexImage + scale6x + surfaceFromIndex
+// generateViewCel -- delegates to nativeCelIndexImage + scale6x + surfaceFromIndex
 // ---
 
 Graphics::Surface *RogerAssetGen::generateViewCel(int viewId, int loopNo, int celNo, uint32 &outMs) {
@@ -666,7 +666,7 @@ Graphics::Surface *RogerAssetGen::generateViewCel(int viewId, int loopNo, int ce
 	if (w <= 0 || h <= 0)
 		return nullptr;
 
-	// Hash the view identity for the cache key (not the raw bytes  --  we use
+	// Hash the view identity for the cache key (not the raw bytes -- we use
 	// the stable (viewId, loopNo, celNo) triple).
 	uint32 hash = viewCelHash(viewId, loopNo, celNo);
 	Common::String key = cacheKey("scale6x", hash);
@@ -713,7 +713,7 @@ Graphics::Surface *RogerAssetGen::generateViewCel(int viewId, int loopNo, int ce
 }
 
 // ---
-// generatePriorityMap  --  hires omyac-aligned priority bands (cached)
+// generatePriorityMap -- hires omyac-aligned priority bands (cached)
 // ---
 
 #ifdef ENABLE_SCI
@@ -852,7 +852,7 @@ bool RogerAssetGen::generatePriorityMapStack(const Common::Array<int> &ids, Comm
 }
 
 // ---
-// finishGlyphSurface  --  nearest-upscale 6x + palette->RGBA.
+// finishGlyphSurface -- nearest-upscale 6x + palette->RGBA.
 // ---
 Graphics::Surface *RogerAssetGen::finishGlyphSurface(const IndexImage &idx, int penColor, byte ck) {
 #ifdef ENABLE_SCI

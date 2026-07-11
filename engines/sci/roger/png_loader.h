@@ -48,7 +48,7 @@ Graphics::Surface *loadSurfaceRGBA(const Common::String &path);
 bool dumpSurfacePng(const Graphics::Surface &surf, const Common::String &path);
 
 // True when a file exists and is readable at `path` (absolute or relative,
-// same path handling as loadSurfaceRGBA). Existence check only  --  no decode.
+// same path handling as loadSurfaceRGBA). Existence check only -- no decode.
 bool fileExists(const Common::String &path);
 
 } // namespace Roger

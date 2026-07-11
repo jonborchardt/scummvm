@@ -31,7 +31,7 @@ namespace Roger {
 // in-process restart and cannot be reset from outside the function).
 //
 // period = kernelAnimate entry-to-entry, measured between EMITTED cycles (an
-// early-return cycle folds into the next period)  --  the walking-speed number.
+// early-return cycle folds into the next period) -- the walking-speed number.
 // busy   = this cycle's entry to end-of-composite span.
 // Arm/consume: frameStart arms; the first frameRendered consumes. A
 // reAnimate-driven composite outside a cycle therefore never emits.

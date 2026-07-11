@@ -48,7 +48,8 @@ public:
 	void test_uniform_half_intensity_halves_rgb() {
 		byte snap[48]; canonicalEga(snap);
 		byte live[48]; canonicalEga(live);
-		for (int i = 0; i < 48; i++) live[i] = snap[i] / 2; // uniform 50% fade
+		for (int i = 0; i < 48; i++)
+			live[i] = snap[i] / 2; // uniform 50% fade
 		uint32 table[256];
 		buildLivePaletteTable(snap, live, table);
 		// White solid (0xff) baked is 0xffffffff -> ~0x808080 after half scale.
@@ -73,7 +74,8 @@ public:
 		Graphics::Surface *plate = blendToSurface(idx, 2, 1);
 		byte snap[48]; canonicalEga(snap);
 		byte live[48]; canonicalEga(live);
-		for (int i = 0; i < 3; i++) live[2 * 3 + i] = snap[2 * 3 + i] / 2; // halve EGA color 2 only
+		for (int i = 0; i < 3; i++)
+			live[2 * 3 + i] = snap[2 * 3 + i] / 2; // halve EGA color 2 only
 		uint32 table[256]; buildLivePaletteTable(snap, live, table);
 		bool changed[16]; paletteDiffMask(snap, live, changed);
 		Common::Rect dirty;

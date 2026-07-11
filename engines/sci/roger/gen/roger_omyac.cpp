@@ -662,7 +662,7 @@ static void fillNullPixels(const NativeRef &ref, Common::Array<byte> &buf,
 		// Bounded, direction-neutral backfill (shipping default). Phase 1: up to
 		// backfillFloodRounds breadth-first majority rounds. Each round votes on a
 		// FROZEN copy of the buffers, so claimed colours advance exactly 1 px per
-		// round and opposing fronts meet symmetrically  --  unlike the legacy path
+		// round and opposing fronts meet symmetrically -- unlike the legacy path
 		// below, whose in-place scan-order vote let a foreign colour cascade
 		// arbitrarily far down-right (the pod-door "cyan through the transparent
 		// corner" artifact). Interior gaps between hybrid strokes are <= ~3 px, so

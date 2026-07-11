@@ -147,7 +147,8 @@ struct PanelCursor {
 	// Emits one widget; returns its rect. Non-clickable text -> id kWidNone.
 	Common::Rect emit(const Common::String &label, uint32 id, bool on, bool enabled) {
 		const int wpx = (int)label.size() * kStudioCharW + 10;
-		if (x + wpx > right) newRow();          // wrap long rows defensively
+		if (x + wpx > right)
+			newRow();          // wrap long rows defensively
 		PanelWidget wgt;
 		wgt.rect = Common::Rect((int16)x, (int16)(y + 2), (int16)(x + wpx), (int16)(y + rowH - 2));
 		wgt.id = id; wgt.label = label; wgt.on = on; wgt.enabled = enabled;

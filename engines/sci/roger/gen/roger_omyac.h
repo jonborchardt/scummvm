@@ -36,7 +36,7 @@ struct OmyacResult {
 	Common::Array<byte> pixels;  // OMYAC_HYBRID_W * OMYAC_HYBRID_H
 	Common::Array<byte> cmdType; // OMYAC_HYBRID_W * OMYAC_HYBRID_H
 	// Backfill mask (OMYAC_HYBRID_W * OMYAC_HYBRID_H): 1 where fillNullPixels
-	// painted the pixel (nothing else  --  no draw command, no enhance pass  -- 
+	// painted the pixel (nothing else -- no draw command, no enhance pass  -- 
 	// touched it), else 0. Diagnostic only; does NOT affect pixels/cmdType, so
 	// the golden checksum is unchanged. Studio recolours these hot pink.
 	Common::Array<byte> backfilled;
@@ -62,13 +62,13 @@ struct OmyacParams {
 	bool tieBreakBlend = true;          // tie-break by BLEND_TABLE-nearest (false = first tied)
 	bool diagFlankSuppress = true;      // fill-anchor diagonal-flanking suppression rule
 	// fillNullPixels mode. true (shipping default since kTransformVersion 6):
-	// bounded, direction-neutral backfill  --  backfillFloodRounds breadth-first
+	// bounded, direction-neutral backfill -- backfillFloodRounds breadth-first
 	// majority rounds (each round votes on a FROZEN copy, so claimed colours
 	// spread exactly 1 px per round and opposing fronts meet symmetrically),
 	// then any pixel still unclaimed takes its OWN native cell's colour.
 	// Interior lattice gaps between strokes are <= ~3 px, so the smooth
 	// flood-rasterized look is preserved; what dies is the legacy cascade.
-	// false: the original TS-port behaviour  --  an 8-neighbour majority vote
+	// false: the original TS-port behaviour -- an 8-neighbour majority vote
 	// computed IN SCAN ORDER on the buffer being mutated, which lets a foreign
 	// colour at a null region's top-left frontier cascade arbitrarily far
 	// down-right (the SQ3 pic-2 "cyan through the pod door's transparent
@@ -78,7 +78,7 @@ struct OmyacParams {
 	// the flood is what rasterizes between the hybrid strokes.
 	bool backfillOwnCell = true;
 	int backfillFloodRounds = 3; // bounded-flood rounds before the own-cell fill
-	// NOTE: do NOT add a "foreign fill fringe erosion" step here  --  bounding
+	// NOTE: do NOT add a "foreign fill fringe erosion" step here -- bounding
 	// fringes visibly blockifies scenes; the fringes ARE the boundary smoothing.
 	// The baked-view seam (SQ3 pod door) is fixed in the compositor instead via
 	// Sprite::coverGrow.

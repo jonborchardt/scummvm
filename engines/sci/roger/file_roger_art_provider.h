@@ -45,13 +45,13 @@ public:
 	// gameId: ScummVM game ID string (e.g. "sq3", "qfg1")
 	// gamePath: path to the game directory, as a Common::Path so native
 	//   separators are parsed correctly (use ConfMan.getPath("path"), NOT
-	//   ConfMan.get("path")  --  the latter is a raw string with backslashes on
+	//   ConfMan.get("path") -- the latter is a raw string with backslashes on
 	//   Windows that Common::Path's '/' separator cannot split).
 	FileRogerArtProvider(const Common::String &gameId, const Common::Path &gamePath);
 	~FileRogerArtProvider();
 
 	// Fork-only enable flag. Public: the test and the fork-only blocks read it.
-	// Set false to disable Roger without destroying the provider  --  ScummVM
+	// Set false to disable Roger without destroying the provider -- ScummVM
 	// native rendering is used when false.
 	bool enabled = true;
 
@@ -133,18 +133,18 @@ public:
 	void onCursorView(int viewId, int loopNo, int celNo) override;
 	bool claimCursor() const override;
 	// Fork-only methods (NOT on SciGfxObserver; routed through interceptEvent
-	// above  --  SCI code never calls these directly):
+	// above -- SCI code never calls these directly):
 	// Side-by-side compare mode: remap the game-space mouse coordinate so the LEFT
 	// panel (the enhanced view) acts as the whole 320x200 game. No-op otherwise.
 	void remapComparisonMouse(Common::Point &mousePos);
 	void toggleOverlay();   // F10: upscaled overlay <-> original native (display mode)
 	void toggleDebugLog();  // F11: per-frame Roger diagnostic logging
-	void toggleTunePanel();  // F12 (debug tool  --  kept)
+	void toggleTunePanel();  // F12 (debug tool -- kept)
 	bool tunePanelMouse(bool buttonDown, const Common::Point &gamePos);
 	// tunePanelMouse returns true when the panel consumed the button event
 	// (interceptEvent then swallows it so the game never sees clicks on the panel).
 
-	// UI display-list capture (Roger hires dialogs)  --  see the decls above.
+	// UI display-list capture (Roger hires dialogs) -- see the decls above.
 	void onControl(ControlKind kind, const Common::Rect &rect, const char *text,
 	               int fontId, int style, int cursorPos, uint32 token,
 	               int nativeFontH, int nativeTextW) override;
@@ -199,8 +199,8 @@ private:
 	void diagDumpState(const char *where);
 	bool _selfTest = false;      // roger_selftest: log structural invariant PASS/FAIL per room (off by default)
 	bool _diffCheck = false;     // roger_diff_check: gated in-engine native-vs-overlay diff (off by default; once per pic; never on steady-state path)
-	bool _truthCapture = false; // .rin captures grab the REAL overlay pixels (grabOverlay) instead of forcing a full recompose  --  evidence mode, default off; stale never-pushed regions are visible
-	// Roger::ScriptHost  --  game-side services for the .rin loop commands
+	bool _truthCapture = false; // .rin captures grab the REAL overlay pixels (grabOverlay) instead of forcing a full recompose -- evidence mode, default off; stale never-pushed regions are visible
+	// Roger::ScriptHost -- game-side services for the .rin loop commands
 	Common::String describeState() override;
 	int stateValue(const Common::String &key) override;
 	void onSnap(const Common::String &label) override;
@@ -209,7 +209,7 @@ private:
 	int uiWindowCount() const;                              // kUiWindow elements in _journal
 	void dumpOverlaySnap(const Common::String &label, const Common::Rect &gameRect); // grabOverlay -> dumpAutoshot
 
-	// Input automation (scripted verification loop / live control)  --  roger_input.h.
+	// Input automation (scripted verification loop / live control) -- roger_input.h.
 	Roger::InputScriptDriver *_inputDriver = nullptr;
 	bool _cycleLog = false;
 	Roger::CycleTelemetry _cycleTelemetry;   // ROGER-CYCLE telemetry state
@@ -229,11 +229,11 @@ private:
 	Graphics::ManagedSurface *_scratchScene = nullptr; // reused per-frame compose buffer (realloc only on size change)
 	// Side-by-side present buffer. MUST be separate from _scratchScene: renderScene
 	// redraws only its seed union into the scratch and relies on the remaining
-	// pixels persisting across frames  --  composing the split layout there corrupted
+	// pixels persisting across frames -- composing the split layout there corrupted
 	// the next bounded frame (recursive nested split in the left panel).
 	Graphics::ManagedSurface *_sbsScratch = nullptr;
 	// Return a persistent scratch surface of (w,h) in RGBA32, reallocated only when
-	// the overlay size changes  --  avoids a fresh ManagedSurface alloc/free every frame.
+	// the overlay size changes -- avoids a fresh ManagedSurface alloc/free every frame.
 	Graphics::ManagedSurface *scratchScene(int w, int h);
 	// Compose the current room scene (plate, plus the given sprites for the two-arg form;
 	// the no-arg form composes the plate only) into `out` at full overlay size.
@@ -254,7 +254,7 @@ private:
 	// turned into persistent sprites so they survive past one frame (Feeder-A style). Each
 	// carries its owning window token (0x40000000 | id, 0 = none): pending regions AND stamped
 	// sprites owned by a window are dropped when that window is disposed (onWindowClose from
-	// GfxPorts::removeWindow)  --  without this, a region queued while a blocking window froze
+	// GfxPorts::removeWindow) -- without this, a region queued while a blocking window froze
 	// the game cycle is processed only after dispose and stamps the restored native
 	// background over the plate for the rest of the room. Owner-less captures stay
 	// room-scoped (cleared by clearTextSprites on room change).
@@ -275,7 +275,7 @@ private:
 	struct DrawCelNativeKey { int viewId; int loopNo; int celNo; Graphics::Surface *surf; };
 	Common::Array<DrawCelNativeKey> _drawCelNativeCache;
 	// Rects rolled back this cycle: a bitsShow inside one is SCI revealing restored
-	// background, not drawing content  --  Feeder B must not stamp it. Cleared at the
+	// background, not drawing content -- Feeder B must not stamp it. Cleared at the
 	// end of each animate cycle and whenever new content is drawn over the rect.
 	Common::Array<Common::Rect> _revealRects;
 	uint32 _stampSeqCounter = 0; // seq tags for Feeder B stamps (rollback scope)
@@ -342,7 +342,7 @@ private:
 	// -- Present barrier ---
 	// The ONLY entry point that pushes to the overlay outside transitions. O(1)
 	// when nothing changed. Defers while the animate cycle is mid-draw
-	// (_inAnimateCycle)  --  the end-of-onAnimateFrame call flushes.
+	// (_inAnimateCycle) -- the end-of-onAnimateFrame call flushes.
 	void presentBarrier();
 	void markUiDirty(const Common::Rect &nativeRect);      // element pushed/redrawn at nr
 	void markVacatedDirty(const Common::Rect &nativeRect); // element removed at nr

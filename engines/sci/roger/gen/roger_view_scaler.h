@@ -27,7 +27,7 @@ namespace Sci {
 namespace Roger {
 
 // Registry of view-cel upscaler modules. Entry 0 is the shipping scaler  -- 
-// scale6x() == scale3x(scale2x(in))  --  locked byte-identical by unit test
+// scale6x() == scale3x(scale2x(in)) -- locked byte-identical by unit test
 // (test_view_scaler.h). It is the only registered module today, so every
 // selection UI (tune panel variant rows, Studio variant button / grid)
 // shows exactly one option: 6x.
@@ -83,7 +83,7 @@ IndexImage applyViewEnhanceMode6x(int m, const IndexImage &in, byte clearKey);
 // Exact-rational nearest resample: out(x,y) = in(x*in.w/outW, y*in.h/outH).
 // Brings a non-6x module result onto the 6x plate grid without the
 // truncated 8.8 fixed-point drift of ManagedSurface's blit scaler (the
-// resolved occlusion-misalignment bug class  --  never scale plate-aligned
+// resolved occlusion-misalignment bug class -- never scale plate-aligned
 // content through blitFrom/blendBlitFrom).
 IndexImage resampleNearestExact(const IndexImage &in, int outW, int outH);
 

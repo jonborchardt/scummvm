@@ -60,13 +60,13 @@ Common::Array<byte> loadGrayscale8(const Common::String &path) {
 		const byte *row = (const byte *)surf->getBasePtr(0, y);
 		for (int x = 0; x < w; x++) {
 			if (bpp == 1) {
-				// Grayscale or palette index  --  use directly
+				// Grayscale or palette index -- use directly
 				result[y * w + x] = row[x];
 			} else if (bpp >= 3) {
-				// RGB or RGBA  --  take red channel (R == G == B for grayscale source)
+				// RGB or RGBA -- take red channel (R == G == B for grayscale source)
 				result[y * w + x] = row[x * bpp];
 			} else {
-				// Unexpected format  --  fill with zero
+				// Unexpected format -- fill with zero
 				result[y * w + x] = 0;
 			}
 		}
