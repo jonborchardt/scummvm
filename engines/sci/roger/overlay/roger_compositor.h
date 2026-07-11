@@ -276,7 +276,7 @@ public:
 	void setDiag(bool on) { _diag = on; }
 
 	// -CycleLog: one ROGER-PRESENT line per present (full flag, region count, pushed
-	// area in overlay px). Off by default; the Phase 1 dirty-area gate reads it.
+	// area in overlay px). Off by default; the dirty-area gate reads it.
 	void setPresentLog(bool on) { _presentLog = on; }
 
 	// True when any dirty accumulator is non-empty -- i.e. the next present would

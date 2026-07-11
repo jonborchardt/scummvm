@@ -178,8 +178,10 @@ RogerTextRenderer::RogerTextRenderer(const Common::String &ttfName) : _ttfName(t
 		// Fallback: built-in bitmap fonts (always present, no files/FreeType).
 		const Graphics::Font *g = FontMan.getFontByUsage(Graphics::FontManager::kGUIFont);
 		const Graphics::Font *b = FontMan.getFontByUsage(Graphics::FontManager::kBigGUIFont);
-		if (g) _fonts.push_back(g);
-		if (b) _fonts.push_back(b);
+		if (g)
+			_fonts.push_back(g);
+		if (b)
+			_fonts.push_back(b);
 	}
 }
 
@@ -189,8 +191,10 @@ RogerTextRenderer::~RogerTextRenderer() {
 }
 
 const Graphics::Font *RogerTextRenderer::fontForPx(int px) const {
-	if (px < kMinFontPx) px = kMinFontPx;
-	if (px > kMaxFontPx) px = kMaxFontPx;
+	if (px < kMinFontPx)
+		px = kMinFontPx;
+	if (px > kMaxFontPx)
+		px = kMaxFontPx;
 #ifdef USE_FREETYPE2
 	if (_ttfLoaded) {
 		for (uint i = 0; i < _sizeCache.size(); i++)
@@ -256,7 +260,8 @@ static int mixedLineWidth(const Graphics::Font *f, const Common::String &line,
 			run += (char)c;
 		}
 	}
-	if (!run.empty()) w += f->getStringWidth(run);
+	if (!run.empty())
+		w += f->getStringWidth(run);
 	return w;
 }
 
@@ -378,8 +383,10 @@ void RogerTextRenderer::drawAtPx(Graphics::ManagedSurface &dst, const Common::St
 		return;
 
 	Graphics::TextAlign ta = Graphics::kTextAlignLeft;
-	if (align == 1) ta = Graphics::kTextAlignCenter;
-	else if (align == -1) ta = Graphics::kTextAlignRight;
+	if (align == 1)
+		ta = Graphics::kTextAlignCenter;
+	else if (align == -1)
+		ta = Graphics::kTextAlignRight;
 
 	Common::Array<Common::String> lines;
 	f->wordWrapText(text, rect.width(), lines);
@@ -412,9 +419,12 @@ void RogerTextRenderer::drawAtPx(Graphics::ManagedSurface &dst, const Common::St
 			// height, inline. Honours the element alignment via a measured start x.
 			const int lineW = mixedLineWidth(f, lines[i], glyphs, lh);
 			int x = rect.left;
-			if (align == 1)       x = rect.left + (rect.width() - lineW) / 2; // center
-			else if (align == -1) x = rect.right - lineW;                     // right
-			if (x < rect.left) x = rect.left;
+			if (align == 1)       // center
+				x = rect.left + (rect.width() - lineW) / 2;
+			else if (align == -1) // right
+				x = rect.right - lineW;
+			if (x < rect.left)
+				x = rect.left;
 			Common::String run;
 			for (uint c = 0; c < lines[i].size(); c++) {
 				const byte ch = (byte)lines[i][c];
@@ -451,8 +461,10 @@ int RogerTextRenderer::caretAtPx(const Common::String &text, int cursorPos, int 
 	if (!f)
 		return 0;
 	int n = cursorPos;
-	if (n > (int)text.size()) n = (int)text.size();
-	if (n < 0) n = 0;
+	if (n > (int)text.size())
+		n = (int)text.size();
+	if (n < 0)
+		n = 0;
 	return f->getStringWidth(Common::String(text.c_str(), n));
 }
 

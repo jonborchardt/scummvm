@@ -574,14 +574,18 @@ void RogerCompositor::renderScene(Graphics::ManagedSurface &dest, const Common::
 	_lastSeedUnion.clear();
 	{
 		Common::Array<Common::Rect> raw;
-		for (uint i = 0; i < _sceneDirtyCur.size(); i++) raw.push_back(_sceneDirtyCur[i]);
-		for (uint i = 0; i < _sceneDirtyPrev.size(); i++) raw.push_back(_sceneDirtyPrev[i]);
-		for (uint i = 0; i < _dirtyPrev.size(); i++) raw.push_back(_dirtyPrev[i]);
+		for (uint i = 0; i < _sceneDirtyCur.size(); i++)
+			raw.push_back(_sceneDirtyCur[i]);
+		for (uint i = 0; i < _sceneDirtyPrev.size(); i++)
+			raw.push_back(_sceneDirtyPrev[i]);
+		for (uint i = 0; i < _dirtyPrev.size(); i++)
+			raw.push_back(_dirtyPrev[i]);
 		// Deferred mid-cycle content-removal rects (present-barrier ghost fix): the fresh-frame
 		// present that consumes this frame's scratch would otherwise push these from stale last-
 		// frame pixels, since _dirtyCur is excluded from the seed. Re-seed clean background over
 		// them here. Empty in the common no-deferred-marks case (no added cost on the walking path).
-		for (uint i = 0; i < _sceneDeferredDirty.size(); i++) raw.push_back(_sceneDeferredDirty[i]);
+		for (uint i = 0; i < _sceneDeferredDirty.size(); i++)
+			raw.push_back(_sceneDeferredDirty[i]);
 		_sceneDeferredDirty.clear();
 		Common::Rect bounds = _bgGameRect;
 		bounds.clip(Common::Rect(0, 0, (int16)W, (int16)H));
@@ -622,10 +626,14 @@ void RogerCompositor::renderScene(Graphics::ManagedSurface &dest, const Common::
 			const int16 gb = (int16)MIN<int>(H, gameRect.bottom);
 			const int16 gl = (int16)MAX<int>(0, gameRect.left);
 			const int16 gr = (int16)MIN<int>(W, gameRect.right);
-			if (gt > 0) dest.fillRect(Common::Rect(0, 0, (int16)W, gt), black);
-			if (gb < H) dest.fillRect(Common::Rect(0, gb, (int16)W, (int16)H), black);
-			if (gl > 0) dest.fillRect(Common::Rect(0, gt, gl, gb), black);
-			if (gr < W) dest.fillRect(Common::Rect(gr, gt, (int16)W, gb), black);
+			if (gt > 0)
+				dest.fillRect(Common::Rect(0, 0, (int16)W, gt), black);
+			if (gb < H)
+				dest.fillRect(Common::Rect(0, gb, (int16)W, (int16)H), black);
+			if (gl > 0)
+				dest.fillRect(Common::Rect(0, gt, gl, gb), black);
+			if (gr < W)
+				dest.fillRect(Common::Rect(gr, gt, (int16)W, gb), black);
 		}
 		// Clean plate, scaled into the game rect (aspect preserved). EXACT nearest
 		// scale -- NOT ManagedSurface::blitFrom, whose truncated 8.8 fixed-point step
@@ -640,9 +648,9 @@ void RogerCompositor::renderScene(Graphics::ManagedSurface &dest, const Common::
 		if (_plate) {
 			if (!_bgCache || _bgCache->w != W || _bgCache->h != H || _bgCache->format != fmt) {
 				if (_bgCache) {
-				_bgCache->free();
-				delete _bgCache;
-			}
+					_bgCache->free();
+					delete _bgCache;
+				}
 				_bgCache = new Graphics::ManagedSurface(W, H, fmt);
 			}
 			_bgCache->copyFrom(dest);
@@ -751,10 +759,14 @@ void RogerCompositor::renderScene(Graphics::ManagedSurface &dest, const Common::
 
 void RogerCompositor::dirtyUnion(const Common::Rect &bounds, Common::Array<Common::Rect> &out) const {
 	Common::Array<Common::Rect> raw;
-	for (uint i = 0; i < _dirtyCur.size(); i++) raw.push_back(_dirtyCur[i]);
-	for (uint i = 0; i < _dirtyPrev.size(); i++) raw.push_back(_dirtyPrev[i]);
-	for (uint i = 0; i < _sceneDirtyCur.size(); i++) raw.push_back(_sceneDirtyCur[i]);
-	for (uint i = 0; i < _sceneDirtyPrev.size(); i++) raw.push_back(_sceneDirtyPrev[i]);
+	for (uint i = 0; i < _dirtyCur.size(); i++)
+		raw.push_back(_dirtyCur[i]);
+	for (uint i = 0; i < _dirtyPrev.size(); i++)
+		raw.push_back(_dirtyPrev[i]);
+	for (uint i = 0; i < _sceneDirtyCur.size(); i++)
+		raw.push_back(_sceneDirtyCur[i]);
+	for (uint i = 0; i < _sceneDirtyPrev.size(); i++)
+		raw.push_back(_sceneDirtyPrev[i]);
 	coalesceDirtyRects(raw, bounds, out);
 }
 
@@ -825,9 +837,9 @@ void RogerCompositor::presentToOverlay(Graphics::ManagedSurface &scene) {
 			if (!_overlayConv || _overlayConv->w != s->w || _overlayConv->h != s->h ||
 			    _overlayConv->format != overlayFmt) {
 				if (_overlayConv) {
-				_overlayConv->free();
-				delete _overlayConv;
-			}
+					_overlayConv->free();
+					delete _overlayConv;
+				}
 				_overlayConv = new Graphics::Surface();
 				_overlayConv->create((uint16)s->w, (uint16)s->h, overlayFmt);
 			}
@@ -939,10 +951,11 @@ void RogerCompositor::renderUiLayer(Graphics::ManagedSurface &dest,
 			for (uint j = 0; j < elems.size(); j++) {
 				if (j != i && elems[j].token == e.token) {
 					if (!haveContent) {
-					content = elems[j].nativeRect;
-					haveContent = true;
-				}
-					else content.extend(elems[j].nativeRect);
+						content = elems[j].nativeRect;
+						haveContent = true;
+					} else {
+						content.extend(elems[j].nativeRect);
+					}
 				}
 			}
 			// SCI dialog/message windows (GfxPorts windows, token bit 0x40000000) reserve
@@ -1001,10 +1014,13 @@ void RogerCompositor::renderUiLayer(Graphics::ManagedSurface &dest,
 			}
 			// 1 native px scaled to the overlay (min 1) so the border is visible at hires.
 			int thick = isWindow ? nativeRowsToOverlay(1, gameRect.height()) : 1;
-			if (thick < 1) thick = 1;
+			if (thick < 1)
+				thick = 1;
 			for (int t = 0; t < thick; t++) {
-				Common::Rect fr = d; fr.grow(-t);
-				if (fr.isEmpty()) break;
+				Common::Rect fr = d;
+				fr.grow(-t);
+				if (fr.isEmpty())
+					break;
 				dest.frameRect(fr, col);
 			}
 		}
@@ -1074,7 +1090,8 @@ void RogerCompositor::runTransition(Graphics::ManagedSurface &from, Graphics::Ma
 		_bgRebuilt = true;          // force full present for this effect frame
 		presentToOverlay(scratch);
 		g_system->updateScreen();
-		if (last) break;
+		if (last)
+			break;
 		g_system->delayMillis(2);
 	}
 }
