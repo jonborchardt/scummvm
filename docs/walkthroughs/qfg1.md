@@ -1,3 +1,55 @@
+<!-- claude-index -->
+# Claude Index — how to navigate this walkthrough
+
+**Game:** Quest for Glory I (EGA), ScummVM target `qfg1` — launch with `.\build_and_run.ps1 -Game qfg1` (add `-SaveSlot 1` to skip the early game; the user keeps save 001 for validation).
+**File format:** one parser command per line as `command # purpose`; blank lines separate rooms/scenes. Commands are strictly sequential — items and story flags gained earlier are required later, so start from a phase boundary only if a save already covers its prerequisites.
+**Driving the game:** feed each command from a `.rin` script as `type "<command>"` then `key ENTER`, with a `wait` between commands; see CLAUDE.md "Autonomous verification loop" for the harness and capture grammar.
+**Finding a phase:** grep this file for the Anchor string — each anchor matches exactly one line.
+
+| # | Phase | Where / what happens | Key items & outcomes | Anchor |
+|---|---|---|---|---|
+| 1 | Town entrance — sheriff Q&A | First screen inside Spielburg; dialog-only intro | Town/brigand/curse lore; first dialog-heavy scene | `ask sheriff about brigands # get town context` |
+| 2 | Hero's Tale Inn — Shameen | Inn interior; sit/order/eat/stand sequence | Meal eaten (hunger reset); Abdulla foreshadowed | `enter inn # meet Shameen` |
+| 3 | Magic shop — Zara | Shop interior on magic shop street | Erasmus/Erana/Baba Yaga/curse lore | `ask zara about erasmus # learn wizard` |
+| 4 | Guild hall — logbook & quests | Adventurer's Guild; read/sign logbook, quest board, Wolfgang | Hero registered; main quest goals learned | `sign logbook # register hero` |
+| 5 | Shops, alley, tavern — town sweep | Dry goods (Kaspar), alley (beggar Sam), tavern, market (Hilde) | Secret note from under tavern stool; brigand clues | `get note # under stool` |
+| 6 | Sunset — Abdulla at the inn | Wait for sunset, dinner with Abdulla, pay for room, sleep | Fortress/minotaur/Elsa clues; first night-time + sleep | `wait until sunset # Abdulla arrives` |
+| 7 | Road east — the trapped fox | First trip outside town, three road screens east | Fox freed → Baba Yaga counter-curse clue | `free fox # Baba Yaga curse clue` |
+| 8 | Healer's hut — ring quest | Hut north of town; knock, ask, rock-throwing at nest | Golden ring returned → 6 gold + 2 healing potions | `throw rocks at nest # knock down ring` |
+| 9 | Farm — Heinrich | One screen west of healer | Brigand-leader clue (required flag) | `ask heinrich about leader # brigand leader clue` |
+| 10 | Castle — gate, courtyard, stables | Karl at the gate, weapon master training, stable work | Castle lore; optional combat training; 5 silver per stable job | `open gate # enter castle` |
+| 11 | Stat-grind loop — goblins & money | Repeat block: fight goblins, loot, rest, potions, sleep at Erana's Peace | Combat stats + cash; buy armor when affordable; combat test scenario | `fight goblins # build combat and money` |
+| 12 | Erana's Peace — flowers | Safe meadow NE; safe sleep spot | Flowers (dispel ingredient #1) | `pick flowers # dispel ingredient` |
+| 13 | Dryad tree & mushroom ring | SW forest; accept Dryad quest, pick mushrooms | Dryad quest active; magic mushrooms (healer component) | `say yes # accept Dryad quest` |
+| 14 | Spore Spitting Spirea — seed → acorn | North forest trek; rock-throw at seed, return to Dryad | Spirea seed delivered → magic acorn (dispel ingredient #2) | `throw rock at seed # knock seed loose` |
+| 15 | Meep's Peep — green fur | NW meeps; short dialog | Green fur (dispel ingredient #3) | `get green fur # dispel ingredient` |
+| 16 | Flying Falls — water & hermit | Waterfall; fill flask, rock-throws at door, ladder, hermit cave | Flying water (dispel ingredient #4); hermit lore | `get water # flying water in flask` |
+| 17 | Healer — deliver ingredients | Hand over acorn, fur, flowers, water, mushrooms | Dispel potion brewing starts | `give acorn # ingredient` |
+| 18 | Night fairies — fairy dust & dispel potion | Mushroom ring at night; dance for fairies, then back to healer | Fairy dust (final ingredient) → Dispel Potion in inventory; night-time scene | `dance # please fairies` |
+| 19 | Provisioning — unguent & apples | Healer + market shopping run | Undead unguent (graveyard survival) + 50 apples (Brauggi); apples overload/slow ego | `buy undead unguent # needed for graveyard` |
+| 20 | Snowy pass — Brauggi the giant | East road → north pass | 50 apples traded → Glowing Gem | `say bargain # negotiate` |
+| 21 | Baba Yaga's gate & hut — mandrake task | NW hut; Bonehead skull bargaining, rhyme, first hut entry | Gem given, gate opens; mandrake fetch-quest accepted | `give glowing gem # open gate` |
+| 22 | Midnight graveyard — mandrake | Wait until midnight, unguent on, graveyard west of town | Mandrake root pulled and delivered; deadly without unguent | `use undead unguent # survive graveyard` |
+| 23 | Ogre cave — bear, kobold, Barnard | NE cave: ogre fight, feed bear, kobold fight, key, chests | Barnard freed (bear dispelled); loot; two boss fights | `fight ogre # clear entrance` |
+| 24 | Castle — Baron audience | Report Barnard's rescue in the great hall | Plot exposition; 50 gold reward | `ask baron about prophecy # plot` |
+| 25 | Archery range — password & Brutus | Wait until noon, spy on Bruno/Brutus, ambush Brutus | Password "hiden goseke" + brass key (fortress access) | `remember hiden goseke # fortress password` |
+| 26 | Secret door — Antwerp & troll | Dodge Antwerp, unlock tunnel door, fool troll with password | Secret passage to fortress open | `say hiden goseke # fool troll` |
+| 27 | Fortress approach — Fred & Toro | Troll treasure detour, minotaur fight, force gate | Toro defeated; inside the brigand fortress | `fight toro # defeat minotaur` |
+| 28 | Fortress courtyard & mess hall | Trap-laden courtyard, then the timed chair/candelabra/table puzzle | SAVE POINT in script; mistakes here are fatal | `save game # timing puzzle` |
+| 29 | Warlock maze room | Talk to warlock (Yorick), trapdoor maze, chain, painted door | Warlock pacified; route to leader's room open | `ask warlock about yorick # continue` |
+| 30 | Elsa reveal & Baba Yaga finale | Dispel potion on the leader; grab mirror; hut showdown; ending | Elsa revealed; MIRROR REQUIRED; frog reversal → castle ending | `throw dispel potion # reveal Elsa` |
+
+**Testing notes:**
+- The driveable script is ONLY the top block (down to `go to castle # ending`). Everything after the two gamefaqs.gamespot.com URLs is pasted reference material (an EGA FAQ, per-class prose walkthroughs, point tables) — background reading, not commands to feed the parser.
+- One `save game` line exists (`save game # timing puzzle`, phase 28): everything after it through the Elsa reveal is a timed, instantly-fatal sequence (close door → move chair → move candelabra → climb table must be beat-matched to brigand movement; the maze room has trapdoors and a falling door).
+- Combat is arcade, not parser: fights (goblins, ogre, kobold, Brutus, Fred, Toro) run on arrow keys in a separate combat view — `type`/ENTER alone cannot win them. For automated runs, prefer a save that postdates the fight, or use phases 1–10/12–22 which are dialog/fetch driven.
+- Meta-lines a driver must expand: `repeat until ring falls`, the indented `repeat until strong enough:` block (phase 11), and all `wait until <sunset|night|noon|midnight>` lines — game time only advances by playing/waiting, there is no literal "wait until" parser command.
+- Death/loss hazards: graveyard at night without undead unguent (death), tavern drinks (3 ales or Troll's Sweat = pass out, wallet emptied), sleeping anywhere unsafe (death), touching the Antwerp, stepping on the fortress rug/triplines, missing the mirror before leaving the leader's room (game unwinnable).
+- Day/night scenes for render testing: night town + fairies (phases 6, 18), midnight graveyard ghosts (phase 22), snow field (phase 20), waterfall (phase 16), castle interiors (phases 10, 24), fortress interiors (phases 27–30).
+- Inventory gotcha: 50 apples overload the hero and visibly slow walking until traded to Brauggi (phases 19–20) — do not mistake it for the walking-speed perf regression.
+
+---
+
 QFG1
 Basic 
 

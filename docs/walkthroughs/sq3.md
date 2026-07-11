@@ -1,3 +1,46 @@
+<!-- claude-index -->
+# Claude Index — how to navigate this walkthrough
+
+**Game:** Space Quest III, the default game of `.\build_and_run.ps1` (no `-Game` needed; scripted `.rin` runs target `sq3-1`, not `sq3`).
+**File format:** one parser command per line as `command # purpose`; blank lines separate rooms/scenes. Commands are strictly sequential — items and story flags gained earlier are required later, so start from a phase boundary only if a save already covers its prerequisites.
+**Driving the game:** feed each command from a `.rin` script as `type "<command>"` then `key ENTER`, with a `wait` between commands; see CLAUDE.md "Autonomous verification loop" for the harness and capture grammar.
+**Finding a phase:** grep this file for the Anchor string — each anchor matches exactly one line.
+
+| # | Phase | Where / what happens | Key items & outcomes | Anchor |
+|---|---|---|---|---|
+| 1 | Freighter: get wire | Garbage freighter start; walk east to wire corridor | wire (ship repair) | `take wire # ship repair item` |
+| 2 | Conveyor & shredder jump | Ride trash lift up, STAND + JUMP before the shredder (timed, deadly) | reach the overhead rail | `stand on conveyor lift # ride up` |
+| 3 | Grabber crane run | Drive grabber cart along rail; positioning puzzle to grab warp motivator and drop it into the shuttle | warp motivator installed | `press button # pick up warp motivator` |
+| 4 | Reactor pit & the rat | Chute down for reactor; rat steals inventory (scripted loss), ladder back down to recover items | reactor, wire (recovered), ladder | `go east # rat steals inventory` |
+| 5 | Robot head: board & repair shuttle | Climb into robot head's eye, ladder onto shuttle, install reactor + wire, search chair | working shuttle, buckazoids | `climb into eye # enter ship area` |
+| 6 | Blast out of freighter | Ship-computer menu sequence (1/7/8/f/fire) — space flight UI | escape the freighter | `fire # blast out of freighter` |
+| 7 | Fly to Phleebhut | Nav menus: 2/1 scan loop, 2 set course, 5 light speed, 3 land | arrive Phleebhut | `repeat scan until phleebhut appears # find destination` |
+| 8 | World O' Wonders shop | Dialog-heavy scene: sell gem (haggle no/no/yes), buy orat + hat + underwear; leaving triggers Arnoid | ~425 buckazoids, orat, hat, ThermoWeave underwear | `sell gem # sell orium` |
+| 9 | Arnoid the Annihilator | Mog's head elevator + pulley trap; timed lure of the terminator robot | invisibility belt | `push pulley # destroy Arnoid` |
+| 10 | Fly to Monolith Burger | Takeoff + nav menu sequence | arrive Monolith Burger | `repeat scan until monolith burger appears # find restaurant` |
+| 11 | Monolith Burger meal | Counter + food-menu UI (order 7, q, pay), eat at table | Monolith decoder ring | `7 # Monolith Fun Meal` |
+| 12 | Astro Chicken arcade | Arcade minigame (land the chicken ~10 times) → encoded message, decode it | Pestulon revealed (Two Guys message) | `go to arcade machine # Astro Chicken` |
+| 13 | Fly to Ortega | Nav menu sequence; wear underwear BEFORE exiting (heat kills) | arrive Ortega | `repeat scan until ortega appears # find Ortega` |
+| 14 | Ortega scout camp | Cross shaky bridge, hide until men leave (wait, deadly), telescope + loot | metal pole, thermal detonator | `use telescope # learn Pestulon` |
+| 15 | Generator bombing | Enter generator dome, climb ladder, drop detonator — starts a hidden escape TIMER | force field down; timed escape begins | `drop detonator # destroy generator` |
+| 16 | Escape Ortega, fly to Pestulon | Pole-vault the lava gap, board ship, nav menus | arrive Pestulon | `repeat scan until pestulon appears # find moon` |
+| 17 | ScumSoft infiltration | Invisibility belt entry, circular hallway, janitor closet | coveralls + vaporizer (rest of inventory dumped) | `take coveralls # disguise` |
+| 18 | Office maze | Cubicle maze: MUST vaporize every full trashcan (missed can = caught); picture copy trick; boss desk | copy of Elmo's picture, keycard | `take card # keycard from desk` |
+| 19 | Free the Two Guys | Keycard + picture fools face scanner; bridge to jello prison | Two Guys freed; capture cutscene follows | `use vaporizer # free Two Guys` |
+| 20 | Robot duel vs Elmo | Nukem Dukem Robots arcade fight (punch/block) | escape with the Two Guys | `fight elmo # robot duel` |
+| 21 | Final space battle & ending | Ship combat UI: attack speed, weapons, front/rear shields, destroy fighters; then credits | game complete | `6 # attack speed` |
+
+**Testing notes:**
+- The command script (everything above the reference-source URLs) has NO `save game` lines — an automated driver should `save` before each deadly/timed sequence itself: the shredder jump (phase 2), Arnoid encounter (9), the detonator timer (15), and the office maze (18).
+- Three sequences are arcade/reflex minigames a `.rin` script cannot reliably win: Astro Chicken (phase 12), the Elmo robot duel (20), and the skull-fighter space battle (21). They are good capture targets but need save/restore or a human to progress past.
+- Ship-computer flights (phases 6/7/10/13/16/21) are menu-number keystrokes (`1`,`2`,`3`,`5`,`7`,`8`,`f`,`b`,`o`,`fire`) — compact space-flight UI test scenarios.
+- Some lines are meta-instructions, not literal parser commands: `repeat scan until ... appears`, `wait for arnoid`, `repeat until secret message appears`, and the indented shield-management block in phase 21. The driver must expand them (e.g. loop `1` on the scan menu).
+- Inventory is lost twice by design: the rat steals it in phase 4 (recovered), and taking the coveralls in phase 17 dumps everything except the vaporizer.
+- Deadly waits: the shredder (act fast), the Ortega scout camp and generator timer, Phleebhut's map edges (snake south, lightning north), and unvaporized trashcans in the maze.
+- Everything after the flat command script is three appended reference prose walkthroughs (fuller context per phase, points lists, item list); the first starts at the `adventuredoor.net` URL line.
+
+---
+
 SQ3
 Basic 
 go east # toward wire

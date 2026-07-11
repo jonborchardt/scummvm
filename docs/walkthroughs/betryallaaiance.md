@@ -1,3 +1,43 @@
+<!-- claude-index -->
+# Claude Index — how to navigate this walkthrough
+
+**Game:** Betrayed Alliance Book 1 (fan-made SCI0 parser game). Not a default `build_and_run.ps1` target — it needs its own ScummVM target configured (`-Game <target>`); SQ3 and QFG1 remain the primary Roger test games. Official hint book link is just below this index.
+**File format:** one parser command per line as `command # purpose`; blank lines separate rooms/scenes. Commands are strictly sequential — items and story flags gained earlier are required later, so start from a phase boundary only if a save already covers its prerequisites.
+**Driving the game:** feed each command from a `.rin` script as `type "<command>"` then `key ENTER`, with a `wait` between commands; see CLAUDE.md "Autonomous verification loop" for the harness and capture grammar.
+**Finding a phase:** grep this file for the Anchor string — each anchor matches exactly one line.
+
+| # | Phase | Where / what happens | Key items & outcomes | Anchor |
+|---|---|---|---|---|
+| 1 | Wizard room start | Opening room; mirror exposition | map (required to leave), marbles | `look room # wizard room` |
+| 2 | Pond & Leah | Meet Bobby and Leah; Julyn rumor | eastern-cave clue | `talk to bobby` |
+| 3 | Graveyard | Empty grave, marked grave dig | shovel; teleport spot revealed | `go to graveyard # find shovel` |
+| 4 | Waterfall & boulder | Vine path; marble dislodges boulder | crossing opened; marbles recovered | `go southwest # waterfall area` |
+| 5 | Tavern ground floor | Rose, Sammy, Deborah Q&A (dialog-heavy) | Jasper/Gallagos letter clues, cave route | `go to tavern # Deborah, Sammy, Rose` |
+| 6 | Tavern upstairs | Carpet key, chest, picture clue | key, book clue, spare marble | `go upstairs # tavern upstairs room` |
+| 7 | Library | IQ test rewards | ruler (troll riddle) | `go to library` |
+| 8 | Skull well descent | Flower, enter Whispering Caverns | Heliopsis Splendor flower | `go north # skull well area` |
+| 9 | Caverns puzzles | Body search; floodgate + spirit-room dart-gun switch puzzles | block, dart gun | `search body # find block and dart gun` |
+| 10 | Mausoleum sliding puzzle | Pry slab, sliding-block image puzzle (skippable) | crypt access | `go to graveyard # return to mausoleum` |
+| 11 | Catacombs & color dial | Dark rooms, torn pages, 9-input color dial | candle, metal bar, secret-passage letter | `take candle` |
+| 12 | Hang glider & lasers | Kite + bar = glider; laser circuit puzzle; Colin | acorn, goggles | `go to eastern bridge area` |
+| 13 | Dock house mail search | Goggles word-search for letters | Jasper + Gallagos letters | `go to dock house` |
+| 14 | Tavern letter payoff | Deliver letters; buy chicken | chicken (troll), breastplate | `give jasper letter to deborah` |
+| 15 | Squirrel ruin & Sarah | Mirror-movement tile puzzle; meet Sarah | Sarah's ring, Gyre backstory | `go to ruin with squirrel` |
+| 16 | Troll riddle cave | Chicken repels troll; explosives, shadow measuring, answer 51 | maze access | `go to castle cave entrance` |
+| 17 | Maze & trap room | Map-guided maze; arrow traps, furnace, rope swing (lethal; script saves first) | golden bow, torch | `use map # consult Carmyle map` |
+| 18 | Word puzzle & storage | "You may pass" word puzzle; storage shelves | darts (for soldiers) | `climb ladder # enter castle storage room` |
+| 19 | Soldiers & finale | Dart three soldiers (lethal; script saves first); rescue Julyn; Gyre ending | blindfold rope, ending | `go toward prison` |
+
+**Testing notes:**
+- The script has exactly two `save game` lines, each right before a lethal sequence: the trap room (phase 17: arrow plates, furnace, rope swing) and the soldier fight (phase 19: dart timing, including leading a fast runner). A driver should restore-and-retry from those slots.
+- The sliding puzzle (phase 10) has a built-in skip: `press immovable block 13 times` enables a skip button — the script includes this as the "if stuck" branch; prefer it for automation.
+- The color dial (phase 11) takes 9 single-word inputs in order: yellow, yellow, blue, yellow, yellow, red, red, red, red — each is its own parser line.
+- `move table over pressure plate` after the dial matters on veteran difficulty (avoids retriggering the trap); harmless otherwise.
+- Phase 19's five identical `take blindfold` lines plus `take blindfold from ground` are intentional repeats (six blindfolds make the rope).
+- The soldier and rope-swing sequences are position/timing-sensitive; expect retries and use generous `wait`s.
+
+---
+
 Betrayal Alliance
 Basic 
 https://github.com/Slattstudio/BetrayedAllianceBook1/blob/f8892e0f2508c11699c8b6a42cadea4572a5135c/Docs/Betrayed_Alliance_Hint_Book.pdf
