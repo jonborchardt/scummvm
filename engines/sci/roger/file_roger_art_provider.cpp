@@ -731,7 +731,6 @@ void FileRogerArtProvider::renderFrame(const Common::Array<Roger::Sprite> &sprit
 	// Composite in RGBA32 so the alpha-aware blendBlitFrom (used for view cels) works
 	// - it requires an RGBA32 destination. presentToOverlay converts the finished
 	// scene to the actual overlay format before pushing it.
-	const Graphics::PixelFormat rgba(4, 8, 8, 8, 8, 24, 16, 8, 0);
 	const int OW = g_system->getOverlayWidth();
 	const int OH = g_system->getOverlayHeight();
 
