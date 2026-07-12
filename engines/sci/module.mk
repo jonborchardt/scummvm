@@ -140,6 +140,7 @@ MODULE_OBJS += \
 	roger/ui/roger_panel_style.o \
 	roger/ui/roger_widgets.o \
 	roger/utils/tunepanel/roger_tune_panel.o \
+	roger/utils/studio/roger_sweep_svg.o \
 	roger/utils/studio/roger_studio_render.o \
 	roger/utils/studio/roger_studio.o \
 	roger/utils/eyetest/roger_eyetest_search.o \

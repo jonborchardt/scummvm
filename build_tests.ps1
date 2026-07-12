@@ -76,7 +76,8 @@ $RogerSources = @(
     "..\..\engines\sci\roger\utils\tunepanel\roger_tune_panel.cpp",
     "..\..\engines\sci\roger\utils\eyetest\roger_eyetest_search.cpp",
     "..\..\engines\sci\roger\gen\roger_passes.cpp",
-    "..\..\engines\sci\roger\launcher\roger_picker_model.cpp"
+    "..\..\engines\sci\roger\launcher\roger_picker_model.cpp",
+    "..\..\engines\sci\roger\utils\studio\roger_sweep_svg.cpp"
 )
 
 # The Roger test-suite headers to feed cxxtestgen, listed explicitly rather than via
@@ -123,7 +124,8 @@ $RogerTestHeaders = @(
     "test_picker_model.h",
     "test_gfx_observer_tokens.h",
     "test_roger_telemetry.h",
-    "test_menu_model.h"
+    "test_menu_model.h",
+    "test_sweep_svg.h"
 )
 
 # ── Locate MSBuild via vswhere ────────────────────────────────────────────────
