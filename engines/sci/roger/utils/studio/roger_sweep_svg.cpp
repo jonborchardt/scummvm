@@ -21,6 +21,7 @@
 #include "sci/roger/utils/studio/roger_sweep_svg.h"
 #include "common/base64.h"
 #include "common/memstream.h"
+#include "common/util.h"
 #include "sci/roger/png_loader.h"
 
 namespace Sci {
@@ -105,6 +106,46 @@ int scaleDim(int v1920, int w) {
 const char *kSweepTiming =
 	"dur=\"6s\" repeatCount=\"indefinite\" calcMode=\"spline\" "
 	"keyTimes=\"0;0.5;1\" keySplines=\"0.42 0 0.58 1;0.42 0 0.58 1\"";
+
+// sRGB <-> linear helpers for areaResample. The byte->linear table is built
+// per call on the stack (256 powf calls, negligible next to the resample;
+// a function-local static would violate the no-non-const-statics rule).
+struct SrgbLut {
+	float toLinear[256];
+	SrgbLut() {
+		for (int i = 0; i < 256; i++) {
+			const float c = i / 255.0f;
+			if (c <= 0.04045f) {
+				toLinear[i] = c / 12.92f;
+			} else {
+				toLinear[i] = powf((c + 0.055f) / 1.055f, 2.4f);
+			}
+		}
+	}
+};
+
+byte linearToSrgbByte(float v) {
+	if (v <= 0.0f) {
+		return 0;
+	}
+	if (v >= 1.0f) {
+		return 255;
+	}
+	float c;
+	if (v <= 0.0031308f) {
+		c = v * 12.92f;
+	} else {
+		c = 1.055f * powf(v, 1.0f / 2.4f) - 0.055f;
+	}
+	int b = (int)(c * 255.0f + 0.5f);
+	if (b < 0) {
+		b = 0;
+	}
+	if (b > 255) {
+		b = 255;
+	}
+	return (byte)b;
+}
 
 } // namespace
 
@@ -228,6 +269,67 @@ Common::String buildSweepSvgFromPngData(const byte *pngLeft, uint32 lenLeft,
 	s += kStandaloneSweepScript;
 	s += "</script>\n</svg>\n";
 	return s;
+}
+
+Graphics::Surface *areaResample(const Graphics::Surface &src, int dstW, int dstH) {
+	if (dstW < 1 || dstH < 1 || dstW > src.w || dstH > src.h) {
+		return nullptr;
+	}
+	if (src.format.bytesPerPixel != 4) {
+		return nullptr;
+	}
+	Graphics::Surface *out = new Graphics::Surface();
+	out->create(dstW, dstH, src.format);
+	const SrgbLut lut;
+	const double xRatio = (double)src.w / dstW;
+	const double yRatio = (double)src.h / dstH;
+	for (int dy = 0; dy < dstH; dy++) {
+		const double sy0 = dy * yRatio;
+		const double sy1 = (dy + 1) * yRatio;
+		const int iy0 = (int)sy0;
+		int iy1 = (int)ceil(sy1);
+		if (iy1 > src.h) {
+			iy1 = src.h;
+		}
+		for (int dx = 0; dx < dstW; dx++) {
+			const double sx0 = dx * xRatio;
+			const double sx1 = (dx + 1) * xRatio;
+			const int ix0 = (int)sx0;
+			int ix1 = (int)ceil(sx1);
+			if (ix1 > src.w) {
+				ix1 = src.w;
+			}
+			// Accumulate premultiplied linear RGB and alpha, weighted by the
+			// fractional overlap of each source pixel with the dst footprint.
+			double accR = 0.0, accG = 0.0, accB = 0.0, accA = 0.0, accW = 0.0;
+			for (int sy = iy0; sy < iy1; sy++) {
+				const double hy = MIN(sy1, (double)(sy + 1)) - MAX(sy0, (double)sy);
+				for (int sx = ix0; sx < ix1; sx++) {
+					const double wx = MIN(sx1, (double)(sx + 1)) - MAX(sx0, (double)sx);
+					const double w = hy * wx;
+					uint8 a, r, g, b;
+					src.format.colorToARGB(*(const uint32 *)src.getBasePtr(sx, sy), a, r, g, b);
+					const double af = a / 255.0;
+					accR += lut.toLinear[r] * af * w;
+					accG += lut.toLinear[g] * af * w;
+					accB += lut.toLinear[b] * af * w;
+					accA += af * w;
+					accW += w;
+				}
+			}
+			const double aOut = accA / accW;
+			byte rOut = 0, gOut = 0, bOut = 0;
+			if (accA > 0.0) {
+				// Unpremultiply: mean premultiplied RGB over mean alpha.
+				rOut = linearToSrgbByte((float)(accR / accA));
+				gOut = linearToSrgbByte((float)(accG / accA));
+				bOut = linearToSrgbByte((float)(accB / accA));
+			}
+			const byte aByte = (byte)(aOut * 255.0 + 0.5);
+			*(uint32 *)out->getBasePtr(dx, dy) = out->format.ARGBToColor(aByte, rOut, gOut, bOut);
+		}
+	}
+	return out;
 }
 
 Graphics::Surface *downscaleNearest(const Graphics::Surface &src, int divisor) {

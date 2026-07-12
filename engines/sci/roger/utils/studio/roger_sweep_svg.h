@@ -56,6 +56,15 @@ Common::String buildSweepSvg(const Graphics::Surface &left,
 // Exposed for unit tests. Returns nullptr on invalid divisor/size.
 Graphics::Surface *downscaleNearest(const Graphics::Surface &src, int divisor);
 
+// General area resampler: each destination pixel is the overlap-area-weighted
+// average of the source pixels it covers, computed in linear light with
+// premultiplied alpha (sRGB -> linear -> premultiply -> average -> divide by
+// alpha -> back to sRGB). Exact-replication inputs (pixel art upscales) come
+// out as exact replications when the ratio divides the replication factor.
+// Caller owns the result (free() then delete). Returns nullptr on invalid
+// sizes (dstW/dstH < 1 or an upscale request) or a non-32bpp source.
+Graphics::Surface *areaResample(const Graphics::Surface &src, int dstW, int dstH);
+
 } // namespace Roger
 } // namespace Sci
 

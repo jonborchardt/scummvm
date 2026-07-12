@@ -167,4 +167,137 @@ public:
 		a->free(); delete a;
 		b->free(); delete b;
 	}
+
+	static Graphics::Surface *makeBlank(int w, int h) {
+		const Graphics::PixelFormat rgba(4, 8, 8, 8, 8, 24, 16, 8, 0);
+		Graphics::Surface *s = new Graphics::Surface();
+		s->create(w, h, rgba);
+		return s;
+	}
+
+	static void putPx(Graphics::Surface *s, int x, int y, int a, int r, int g, int b) {
+		*(uint32 *)s->getBasePtr(x, y) = s->format.ARGBToColor(a, r, g, b);
+	}
+
+	static void getPx(const Graphics::Surface *s, int x, int y,
+	                  uint8 &a, uint8 &r, uint8 &g, uint8 &b) {
+		s->format.colorToARGB(*(const uint32 *)s->getBasePtr(x, y), a, r, g, b);
+	}
+
+	void test_area_resample_preserves_replicated_pixels() {
+		// A 2x2 base pattern replicated 6x (12x12), resampled to 4x4 (/3),
+		// must come out as the base pattern replicated 2x: every 3x3 sample
+		// block is uniform, so area averaging cannot blur pixel art.
+		const int base[2][2][3] = {
+			{ { 255, 0, 0 }, { 0, 200, 34 } },
+			{ { 12, 34, 56 }, { 240, 240, 240 } },
+		};
+		Graphics::Surface *src = makeBlank(12, 12);
+		for (int y = 0; y < 12; y++) {
+			for (int x = 0; x < 12; x++) {
+				const int *c = base[y / 6][x / 6];
+				putPx(src, x, y, 255, c[0], c[1], c[2]);
+			}
+		}
+		Graphics::Surface *out = areaResample(*src, 4, 4);
+		TS_ASSERT(out != nullptr);
+		TS_ASSERT_EQUALS(out->w, 4);
+		TS_ASSERT_EQUALS(out->h, 4);
+		for (int y = 0; y < 4; y++) {
+			for (int x = 0; x < 4; x++) {
+				const int *c = base[y / 2][x / 2];
+				uint8 a, r, g, b;
+				getPx(out, x, y, a, r, g, b);
+				TS_ASSERT_EQUALS((int)a, 255);
+				TS_ASSERT((int)r >= c[0] - 1 && (int)r <= c[0] + 1);
+				TS_ASSERT((int)g >= c[1] - 1 && (int)g <= c[1] + 1);
+				TS_ASSERT((int)b >= c[2] - 1 && (int)b <= c[2] + 1);
+			}
+		}
+		out->free(); delete out;
+		src->free(); delete src;
+	}
+
+	void test_area_resample_averages_in_linear_light() {
+		// black + white averaged in linear light is 0.5 linear = ~188 sRGB,
+		// NOT the naive byte midpoint 128.
+		Graphics::Surface *src = makeBlank(2, 1);
+		putPx(src, 0, 0, 255, 0, 0, 0);
+		putPx(src, 1, 0, 255, 255, 255, 255);
+		Graphics::Surface *out = areaResample(*src, 1, 1);
+		TS_ASSERT(out != nullptr);
+		uint8 a, r, g, b;
+		getPx(out, 0, 0, a, r, g, b);
+		TS_ASSERT((int)r >= 186 && (int)r <= 190);
+		TS_ASSERT_EQUALS((int)r, (int)g);
+		TS_ASSERT_EQUALS((int)g, (int)b);
+		TS_ASSERT_EQUALS((int)a, 255);
+		out->free(); delete out;
+		src->free(); delete src;
+	}
+
+	void test_area_resample_premultiplies_alpha() {
+		// Fully transparent red + opaque green: the red must not bleed into
+		// the average (premultiplied), and alpha averages to ~half.
+		Graphics::Surface *src = makeBlank(2, 1);
+		putPx(src, 0, 0, 0, 255, 0, 0);
+		putPx(src, 1, 0, 255, 0, 255, 0);
+		Graphics::Surface *out = areaResample(*src, 1, 1);
+		TS_ASSERT(out != nullptr);
+		uint8 a, r, g, b;
+		getPx(out, 0, 0, a, r, g, b);
+		TS_ASSERT_EQUALS((int)r, 0);
+		TS_ASSERT_EQUALS((int)g, 255);
+		TS_ASSERT((int)a >= 127 && (int)a <= 128);
+		out->free(); delete out;
+		src->free(); delete src;
+	}
+
+	void test_area_resample_fractional_overlap() {
+		// 3 -> 2: dst0 covers src [0,1.5) = white + half white -> white;
+		// dst1 covers [1.5,3) = half white + black -> linear 1/3 -> sRGB ~156.
+		Graphics::Surface *src = makeBlank(3, 1);
+		putPx(src, 0, 0, 255, 255, 255, 255);
+		putPx(src, 1, 0, 255, 255, 255, 255);
+		putPx(src, 2, 0, 255, 0, 0, 0);
+		Graphics::Surface *out = areaResample(*src, 2, 1);
+		TS_ASSERT(out != nullptr);
+		uint8 a, r, g, b;
+		getPx(out, 0, 0, a, r, g, b);
+		TS_ASSERT_EQUALS((int)r, 255);
+		getPx(out, 1, 0, a, r, g, b);
+		TS_ASSERT((int)r >= 154 && (int)r <= 158);
+		out->free(); delete out;
+		src->free(); delete src;
+	}
+
+	void test_area_resample_identity_roundtrip() {
+		// Same-size resample = per-pixel sRGB->linear->sRGB round trip;
+		// each channel must survive within 1.
+		Graphics::Surface *src = makePattern(4, 4);
+		Graphics::Surface *out = areaResample(*src, 4, 4);
+		TS_ASSERT(out != nullptr);
+		for (int y = 0; y < 4; y++) {
+			for (int x = 0; x < 4; x++) {
+				uint8 sa, sr, sg, sb, oa, orr, og, ob;
+				getPx(src, x, y, sa, sr, sg, sb);
+				getPx(out, x, y, oa, orr, og, ob);
+				TS_ASSERT_EQUALS((int)oa, (int)sa);
+				TS_ASSERT((int)orr >= (int)sr - 1 && (int)orr <= (int)sr + 1);
+				TS_ASSERT((int)og >= (int)sg - 1 && (int)og <= (int)sg + 1);
+				TS_ASSERT((int)ob >= (int)sb - 1 && (int)ob <= (int)sb + 1);
+			}
+		}
+		out->free(); delete out;
+		src->free(); delete src;
+	}
+
+	void test_area_resample_rejects_invalid_sizes() {
+		Graphics::Surface *src = makePattern(4, 4);
+		TS_ASSERT(areaResample(*src, 8, 4) == nullptr);   // upscale refused
+		TS_ASSERT(areaResample(*src, 4, 8) == nullptr);
+		TS_ASSERT(areaResample(*src, 0, 4) == nullptr);
+		TS_ASSERT(areaResample(*src, 4, 0) == nullptr);
+		src->free(); delete src;
+	}
 };
