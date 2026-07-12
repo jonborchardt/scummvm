@@ -461,14 +461,15 @@ entirely on load/scene-change events rather than steady-state play.
   `repeat=1` keydown events at an identical timestamp for every real
   keypress. Fix: Roger's hotkey dispatch now ignores key-repeat events
   (commit "SCI: ROGER: Ignore key repeats on debug hotkeys").
-- **Open, deferred by decision:** the same repeat burst also reaches SCI's
-  own event manager, causing arrow-key walking start/stop jitter and
-  garbled characters when typing a save name. An emscripten-backend-level
-  fix (coalescing repeats before they reach the event manager) was
-  proposed but deferred rather than fixed alongside the hotkey issue.
-- **Reclassified, not a keyboard bug:** Escape failing to dismiss the SCI
-  menu looked like a keyboard-handling gap but is not one — it is a stale
-  dropdown-overlay ghost specific to Enhanced mode (a Roger
-  overlay-invalidation issue, tracked as a separate follow-up). Original
-  mode dismisses the menu correctly, which is what isolated the cause to
-  the overlay rather than input handling.
+- **Fixed (2026-07-12, follow-up):** the same repeat burst also reached
+  SCI's own event manager, causing arrow-key walking to start then stop
+  after one press, typed letters to arrive in sextuplicate, and parser
+  response dialogs to dismiss themselves before they could be read. The
+  emscripten event source now drops same-timestamp duplicate keydown and
+  text-input events before dispatch (commit "EMSCRIPTEN: Filter phantom
+  key repeat bursts"); genuine held-key auto-repeat has advancing
+  timestamps and is preserved. Escape now opens and closes the SCI menu
+  correctly via keyboard in both display modes.
+- **Still open (separate follow-up):** the Enhanced-mode stale
+  dropdown-overlay ghost seen when dismissing the menu with the mouse (a
+  Roger overlay-invalidation issue, unrelated to input handling).
