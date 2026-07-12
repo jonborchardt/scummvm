@@ -22,6 +22,11 @@ checkout and its build state are never touched. The flow has four stages:
 3. An emscripten build of the same source.
 4. A `dist` bundle: engine + game data + a warmed Roger generation cache,
    served locally over plain HTTP for browser verification.
+5. A **packaged game-data** preload step (Phase 2.5) that ships the game
+   directory and cache as a single Emscripten preload package instead of
+   many per-file HTTP fetches — see "Packaged game data" below. This is
+   now the primary path; the plain-HTTP layout from stage 4 remains as the
+   fallback when no package is present.
 
 ## WSL clone and push-back flow
 
@@ -133,6 +138,12 @@ Note that running the emscripten `configure` overwrites the native build's
 
 ## Bundle assembly
 
+**This is the fallback layout** — the plain-HTTP, one-fetch-per-file path the
+shell degrades to when no packaged game-data blob is present (see "Packaged
+game data" below for the primary path). It is still required as the base
+`dist` step either way: the packaged flow layers on top of it, it does not
+replace it.
+
 ```sh
 ./dists/emscripten/build.sh dist --disable-all-engines --enable-engine=sci \
     --enable-png --enable-freetype2 --enable-zlib
@@ -181,6 +192,69 @@ drvfs→ext4 (file *count* is the check that matters; the byte-size delta from
 the source tree's reported 31.2 MB is a filesystem block-size artifact of
 the copy, not a content discrepancy).
 
+## Packaged game data (Phase 2.5)
+
+The plain-HTTP layout above serves every game and cache file as its own
+synchronous XHR. At SQ3's cache size that meant thousands of individual
+fetches, each one blocking the SCI game cycle for the duration — the root
+cause of the multi-second scene-change freezes in the original perf
+snapshot (see "Performance: packaged vs HTTP-FS" below). The fix packages
+the game directory and current-key cache into a single Emscripten preload
+blob with `file_packager.py`, mounted into MEMFS instead of the lazy HTTP
+filesystem, so reads become in-memory instead of one round-trip each.
+
+`dists/emscripten/build-package_game.sh <game-dir> <cache-dir> <gameid>
+<cache-ver> <passes-token>` builds the package. Exact working example:
+
+```sh
+dists/emscripten/build-package_game.sh \
+  "/mnt/j/SteamLibrary/steamapps/common/Space Quest Collection/sq3" \
+  "/mnt/j/SteamLibrary/steamapps/common/Space Quest Collection/sq3-roger/cache" \
+  sq3 v6 p0p2p2p2p2p2p1p0p0p0
+```
+
+`<cache-ver>` and `<passes-token>` are an **orphan-selection filter, not
+free-form labels**: the script only stages cache files matching
+`<gameid>.*.<cache-ver>.*.<passes-token>.png`, so stale versions or old
+pass-sets sitting alongside the current ones in the master cache directory
+are excluded by construction — no separate cleanup step is needed. Run
+`dists/emscripten/build.sh dist` first; the script requires
+`build-emscripten/` to already exist. For the SQ3 example above this staged
+4,001 cache files (116 omyac + 116 omyacprio + 3,769 scale6x) plus 28 game
+files, producing `build-emscripten/scummvm-game.{data,js}` at 18.3 MB total.
+
+**Never pass `--use-preload-cache`** to `file_packager.py` — that copies the
+package into IndexedDB, and browser storage here must hold saves/config
+only, not game data.
+
+**Mount point is `/gamedata`, not `/data` — this is required, not a style
+choice.** ScummVM's Emscripten filesystem factory
+(`backends/fs/emscripten/emscripten-fs-factory.cpp`) routes *all* paths
+under `/data/*` to its per-file synchronous-XHR HTTP filesystem
+unconditionally, with no opt-out. A preload package staged under `/data`
+would therefore be invisible to the engine even though the browser has it
+in memory — the FS factory would still issue one HTTP fetch per file. Only
+`/gamedata` falls through to the real Emscripten POSIX filesystem (MEMFS),
+so the shipped ini must point at `path=/gamedata/games/<gameid>` (see
+"Shipped `scummvm.ini`" below), and `data/games/` in the plain-HTTP layout
+is no longer used at all in the packaged flow — the HTTP index only needs
+to cover engine data (`fonts.dat`, `translations.dat`, theme zips, etc.),
+not game or cache files.
+
+The shell loads the package via `custom_shell.html`:
+
+```html
+<script src="scummvm-game.js" onerror="console.warn('scummvm-game.js not present; using HTTP filesystem only')"></script>
+```
+
+This `<script>` tag sits between the `var Module = {...}` definition and the
+async engine script, so the packaged data mounts into MEMFS before `main()`
+runs. It is deliberately **parser-blocking** (no `async`/`defer`) for that
+ordering guarantee. If `scummvm-game.js` is absent (no package was built
+for this bundle), `onerror` logs a warning and the engine falls straight
+back to the plain-HTTP `data/games/` layout above — the degrade path is
+automatic, no ini change required.
+
 ## Shipped `scummvm.ini`
 
 Two variants, differing only in `roger_gen_mode`. Both boot straight into the
@@ -200,13 +274,19 @@ gui_return_to_launcher_at_exit=false
 description=Space Quest III (dev bundle - never deployed)
 gameid=sq3
 engineid=sci
-path=/data/games/sq3
+path=/gamedata/games/sq3
 ```
 
 **Enhanced mode (Phase 2, cache shipped in the bundle):**
 
 Identical except `roger_gen_mode=cache`. This is the only line that
 changes between the two variants.
+
+**`path=/gamedata/games/<gameid>` is the packaged-flow contract** (Phase
+2.5, above) — it must match whatever gameid the package was built with.
+When falling back to the plain-HTTP layout with no package present, use
+`path=/data/games/<gameid>` instead; nothing else in the ini changes
+between the two.
 
 `roger_no_launcher=true` is required — the picker cannot be driven
 headlessly and there is no keyboard/mouse operator at first boot in an
@@ -220,16 +300,20 @@ confirm modal, and return-to-launcher means the process/tab never settles.
 The emscripten runtime's virtual filesystem consults a per-directory
 `index.json` manifest to know what exists (and its byte size) before issuing
 any fetch — a file absent from the index is never requested at all, even as
-a 404. Regenerate it after **any** change to bundle contents (adding game
-data, ini edits, or cache files):
+a 404. Regenerate it after **any** change to bundle contents (ini edits or
+data changes under `data/`):
 
 ```sh
 python3 dists/emscripten/build-make_http_index.py build-emscripten/data
 ```
 
-This writes/updates `index.json` at every directory level that needs one,
-including `data/games/<gameid>-roger/cache/index.json` (the file the Roger
-provider actually reads to know what's cached).
+**With the packaged flow (above), this only needs to cover engine data**
+(`fonts.dat`, `translations.dat`, `gui-icons.dat`, theme zips) — game and
+cache files live in `scummvm-game.data`/MEMFS, not under `data/games/`, so
+there is nothing game-related left for the index to describe. The
+`data/games/<gameid>-roger/cache/index.json` manifest below only applies to
+the plain-HTTP fallback layout, where it is still the file the Roger
+provider reads to know what's cached.
 
 ## Local serve and launch
 
@@ -340,3 +424,49 @@ could not be made to single-step reliably in headless browser automation
 and require a real keypress to confirm; plus general extended play in
 Chrome and Firefox) was still pending. Treat the figures above as build/perf
 evidence, not a substitute for that soak.
+
+## Performance: packaged vs HTTP-FS — 2026-07-12
+
+The numbers above were measured against the plain-HTTP layout, before
+packaging existed. Re-measured the same day against the packaged bundle
+(Chrome, 2560x1340) to quantify the fix from "Packaged game data" above.
+Columns: **before** = plain-HTTP fallback layout (one XHR per file);
+**after** = packaged bundle (`scummvm-game.data` mounted at `/gamedata`).
+
+| Metric | HTTP-FS (before) | Packaged (after) |
+|---|---|---|
+| First playable room, cold | 20.4 s | ~2.0 s |
+| Scene change (Enhanced) | 3.4-4.5 s | <=0.9 s (max 875 ms) |
+| Scene change (Original) | 1.5-1.9 s | <=0.8 s (max 770 ms) |
+| Intro freezes | 2.0-3.5 s + 871-1118 ms spikes | none >250 ms load-attributable |
+| Post-click walk burst | 6-7 cycles @ 240-330 ms | max 19 ms busy |
+| Steady walking | 83 ms / 2-5 ms busy | unchanged (healthy) |
+
+The steady-walking row is unchanged by design: packaging only removes
+per-file HTTP round-trips from room/scene loads, it does not touch the
+per-cycle animate path, so the existing healthy 83 ms baseline (see the
+Performance discipline notes in `CLAUDE.md`) was never expected to move.
+Every other row was directly caused by synchronous per-file XHRs blocking
+the SCI game cycle during loads — packaging collapses those into a single
+in-memory-backed preload, which is why the improvement lands almost
+entirely on load/scene-change events rather than steady-state play.
+
+## Keyboard input — 2026-07-12
+
+- **Fixed:** F10/F11/F12 (display-mode cycle, diagnostic-log toggle,
+  quick-tune panel) were double- or multi-stepping per press. Root cause
+  was the Emscripten SDL3 port delivering a burst of five spurious
+  `repeat=1` keydown events at an identical timestamp for every real
+  keypress. Fix: Roger's hotkey dispatch now ignores key-repeat events
+  (commit "SCI: ROGER: Ignore key repeats on debug hotkeys").
+- **Open, deferred by decision:** the same repeat burst also reaches SCI's
+  own event manager, causing arrow-key walking start/stop jitter and
+  garbled characters when typing a save name. An emscripten-backend-level
+  fix (coalescing repeats before they reach the event manager) was
+  proposed but deferred rather than fixed alongside the hotkey issue.
+- **Reclassified, not a keyboard bug:** Escape failing to dismiss the SCI
+  menu looked like a keyboard-handling gap but is not one — it is a stale
+  dropdown-overlay ghost specific to Enhanced mode (a Roger
+  overlay-invalidation issue, tracked as a separate follow-up). Original
+  mode dismisses the menu correctly, which is what isolated the cause to
+  the overlay rather than input handling.
