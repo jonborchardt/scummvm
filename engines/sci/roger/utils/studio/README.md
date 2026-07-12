@@ -112,6 +112,18 @@ evidence:
 | Split | `studio-scene<pic>-AB-<stampA>-vs-<stampB>.png` |
 | Diff | `studio-scene<pic>-diff-<stampA>-vs-<stampB>.png` |
 | Grid | `studio-grid<view>-l<loop>-c<cel>.png` (fixed 8 px per native px, window-independent) |
+| SVG sweep (animated) | `studio-scene<pic>-sweep-<stampA>-vs-<stampB>-<n>x-animated.svg` |
+| SVG sweep (interactive) | `studio-scene<pic>-sweep-<stampA>-vs-<stampB>-<n>x-interactive.svg` |
+
+The **SVG** button (next to Export PNG) always writes BOTH sweep variants:
+a self-contained A-vs-B comparison with a draggable divider. The animated
+file auto-sweeps (SMIL ping-pong) until the viewer grabs the handle; the
+interactive file starts at centre. `svg: 6x/3x/2x/1x` picks the embedded
+PNG scale (integer nearest downscales of the 6x render; 1x = native
+320x190). Corner labels ship as placeholders `A`/`B` — open the file and
+edit them at the `EDIT LABELS HERE` comment near the end (after the
+base64 image blobs). Works in any display mode; it always compares the
+two slots. The E key still exports PNG only.
 
 Note for automation: the Studio never enters the game loop, so `.rin` input
 scripts and their `snap`/`capture` do **not** drive it — use the E export (or
