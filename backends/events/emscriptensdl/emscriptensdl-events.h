@@ -31,6 +31,8 @@
  */
 class EmscriptenSdlEventSource : public SdlEventSource {
 public:
+	EmscriptenSdlEventSource() : _lastKeyDownScancode(SDL_SCANCODE_UNKNOWN), _lastKeyDownTimestamp(0), _lastTextInputTimestamp(0) {}
+
 	/**
 	 * Gets and processes SDL events.
 	 */
@@ -44,6 +46,39 @@ public:
 		}
 		return ret_value;
 	};
+
+protected:
+	/**
+	 * Emscripten's SDL3 port manufactures a burst of spurious repeat
+	 * SDL_EVENT_KEY_DOWN / SDL_EVENT_TEXT_INPUT events for every real key
+	 * press: several events sharing one identical (corrupted) timestamp
+	 * arrive within a few milliseconds of the real press. Drop only those
+	 * same-timestamp duplicates here, before they reach dispatchSDLEvent;
+	 * genuine held-key auto-repeat (whose timestamps keep advancing) is
+	 * left untouched.
+	 */
+	void preprocessEvents(SDL_Event *event) override {
+		if (event->type == SDL_EVENT_KEY_DOWN) {
+			if (event->key.repeat && event->key.scancode == _lastKeyDownScancode &&
+					event->key.timestamp == _lastKeyDownTimestamp) {
+				event->type = SDL_EVENT_FIRST;
+			} else {
+				_lastKeyDownScancode = event->key.scancode;
+				_lastKeyDownTimestamp = event->key.timestamp;
+			}
+		} else if (event->type == SDL_EVENT_TEXT_INPUT) {
+			if (event->text.timestamp == _lastTextInputTimestamp) {
+				event->type = SDL_EVENT_FIRST;
+			} else {
+				_lastTextInputTimestamp = event->text.timestamp;
+			}
+		}
+	}
+
+private:
+	SDL_Scancode _lastKeyDownScancode;
+	Uint64 _lastKeyDownTimestamp;
+	Uint64 _lastTextInputTimestamp;
 };
 
 #endif /* BACKEND_EVENTS_EMSCRIPTEN_H */
