@@ -468,4 +468,13 @@ public:
 		TS_ASSERT(haveSlower);
 		TS_ASSERT(haveFaster);
 	}
+
+	void test_sweep_export_name() {
+		TS_ASSERT_EQUALS(
+			studioSweepExportName(2, "default-ffla", "default-nearest", 6, true),
+			Common::String("studio-scene002-sweep-default-ffla-vs-default-nearest-6x-animated.svg"));
+		TS_ASSERT_EQUALS(
+			studioSweepExportName(2, "a", "b", 1, false),
+			Common::String("studio-scene002-sweep-a-vs-b-1x-interactive.svg"));
+	}
 };

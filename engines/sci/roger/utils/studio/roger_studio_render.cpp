@@ -133,6 +133,14 @@ Common::String studioCompareExportName(int picId, bool diff,
 		picId, diff ? "diff" : "AB", stampA.c_str(), stampB.c_str());
 }
 
+Common::String studioSweepExportName(int picId, const Common::String &stampA,
+                                     const Common::String &stampB,
+                                     int scaleX, bool animated) {
+	return Common::String::format("studio-scene%03d-sweep-%s-vs-%s-%dx-%s.svg",
+	                              picId, stampA.c_str(), stampB.c_str(), scaleX,
+	                              animated ? "animated" : "interactive");
+}
+
 namespace {
 
 struct PanelCursor {

@@ -78,6 +78,12 @@ Common::String studioCompareExportName(int picId, bool diff,
                                        const Common::String &stampA,
                                        const Common::String &stampB);
 
+// Sweep-SVG export: studio-scene<pic>-sweep-<A>-vs-<B>-<n>x-<variant>.svg.
+// scaleX is the UI size number (6/3/2/1 = the render divisor's inverse).
+Common::String studioSweepExportName(int picId, const Common::String &stampA,
+                                     const Common::String &stampB,
+                                     int scaleX, bool animated);
+
 // ---- Studio v2: widget kinds (the widget record, id encoding, and hit-test are
 //    the shared sci/roger/ui/roger_widgets.h; kind 0 = "none" by that contract)
 enum WidKind {
