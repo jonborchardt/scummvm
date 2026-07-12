@@ -66,6 +66,11 @@ RogerStudio::RogerStudio(const Common::String &gameId)
 	_slots[0].passes = _iniPasses;
 	_slots[1].passes = _iniPasses;
 	_buildPasses = _iniPasses;
+	// Slot B opens as the un-enhanced reference (nearest plate + nearest
+	// view), so the default A/B comparison is enhanced-vs-native.
+	_slots[1].picSel = (int)_picModes.size();
+	applyPicSel(_slots[1]);
+	_slots[1].viewMode = viewEnhanceModeCount() - 1;
 #ifdef ENABLE_SCI
 	if (g_sci && g_sci->getResMan()) {
 		ResourceManager *resMan = g_sci->getResMan();
