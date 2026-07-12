@@ -258,8 +258,8 @@ Common::String buildSweepSvg(const Graphics::Surface &left,
 		Common::MemoryWriteStreamDynamic pl(DisposeAfterUse::YES);
 		Common::MemoryWriteStreamDynamic pr(DisposeAfterUse::YES);
 		if (encodeSurfacePng(*ls, pl) && encodeSurfacePng(*rs, pr)) {
-			out = buildSweepSvgFromPngData(pl.getData(), pl.size(),
-			                               pr.getData(), pr.size(),
+			out = buildSweepSvgFromPngData(pl.getData(), static_cast<uint32>(pl.size()),
+			                               pr.getData(), static_cast<uint32>(pr.size()),
 			                               ls->w, ls->h, animated);
 		}
 	}

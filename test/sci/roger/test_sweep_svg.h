@@ -107,7 +107,7 @@ public:
 		TS_ASSERT(buildSweepSvgFromPngData(kPngA, 4, kPngB, 4, 0, 10, false).empty());
 	}
 
-	// 4x4 RGBA surface with pixel (x,y) = (x, y, 0, 255) for sampling checks.
+	// w x h RGBA surface with pixel (x,y) = (x, y, 0, 255) for sampling checks.
 	static Graphics::Surface *makePattern(int w, int h) {
 		const Graphics::PixelFormat rgba(4, 8, 8, 8, 8, 24, 16, 8, 0);
 		Graphics::Surface *s = new Graphics::Surface();
