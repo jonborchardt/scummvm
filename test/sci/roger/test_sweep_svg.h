@@ -12,7 +12,8 @@ static const byte kPngB[] = { 'P', 'N', 'G', 'B' };
 
 class RogerSweepSvgTestSuite : public CxxTest::TestSuite {
 	Common::String buildIt(bool animated, int w = 1920, int h = 1140) {
-		return buildSweepSvgFromPngData(kPngA, 4, kPngB, 4, w, h, animated);
+		return buildSweepSvgFromPngData(kPngA, 4, kPngB, 4, w, h, animated,
+		                                /*pixelatedLeft=*/true, /*pixelatedRight=*/false);
 	}
 
 public:
@@ -102,9 +103,9 @@ public:
 	}
 
 	void test_failure_paths_return_empty() {
-		TS_ASSERT(buildSweepSvgFromPngData(nullptr, 0, kPngB, 4, 10, 10, false).empty());
-		TS_ASSERT(buildSweepSvgFromPngData(kPngA, 4, kPngB, 0, 10, 10, false).empty());
-		TS_ASSERT(buildSweepSvgFromPngData(kPngA, 4, kPngB, 4, 0, 10, false).empty());
+		TS_ASSERT(buildSweepSvgFromPngData(nullptr, 0, kPngB, 4, 10, 10, false, false, false).empty());
+		TS_ASSERT(buildSweepSvgFromPngData(kPngA, 4, kPngB, 0, 10, 10, false, false, false).empty());
+		TS_ASSERT(buildSweepSvgFromPngData(kPngA, 4, kPngB, 4, 0, 10, false, false, false).empty());
 	}
 
 	// w x h RGBA surface with pixel (x,y) = (x, y, 0, 255) for sampling checks.
@@ -120,50 +121,56 @@ public:
 		return s;
 	}
 
-	void test_downscale_nearest_samples_top_left() {
-		Graphics::Surface *src = makePattern(6, 6);
-		Graphics::Surface *out = downscaleNearest(*src, 3);
-		TS_ASSERT(out != nullptr);
-		TS_ASSERT_EQUALS(out->w, 2);
-		TS_ASSERT_EQUALS(out->h, 2);
-		// Block top-left samples: (0,0), (3,0), (0,3), (3,3).
-		uint8 a, r, g, b;
-		out->format.colorToARGB(*(const uint32 *)out->getBasePtr(1, 1), a, r, g, b);
-		TS_ASSERT_EQUALS((int)r, 3);
-		TS_ASSERT_EQUALS((int)g, 3);
-		out->free(); delete out;
-		src->free(); delete src;
-	}
-
-	void test_downscale_divisor_one_is_identity_copy() {
-		Graphics::Surface *src = makePattern(4, 4);
-		Graphics::Surface *out = downscaleNearest(*src, 1);
-		TS_ASSERT(out != nullptr);
-		TS_ASSERT_EQUALS(out->w, 4);
-		TS_ASSERT_EQUALS(out->h, 4);
-		TS_ASSERT_EQUALS(*(const uint32 *)out->getBasePtr(2, 3),
-		                 *(const uint32 *)src->getBasePtr(2, 3));
-		out->free(); delete out;
-		src->free(); delete src;
-	}
-
 	void test_build_sweep_svg_from_surfaces() {
 		Graphics::Surface *a = makePattern(12, 12);
 		Graphics::Surface *b = makePattern(12, 12);
-		const Common::String svg = buildSweepSvg(*a, *b, 2, false);
+		const Common::String svg = buildSweepSvg(*a, *b, 6, false, false, false);
 		TS_ASSERT(!svg.empty());
-		// Downscaled dims drive the viewBox.
+		// Resampled dims drive the viewBox; both slots requested auto.
 		TS_ASSERT(svg.contains("viewBox=\"0 0 6 6\""));
-		// Real PNG bytes now: the base64 of the PNG signature 0x89 P N G is "iVBORw".
 		TS_ASSERT(svg.contains("data:image/png;base64,iVBORw"));
+		TS_ASSERT(svg.contains("image-rendering:auto"));
+		TS_ASSERT(!svg.contains("image-rendering:pixelated"));
 		a->free(); delete a;
 		b->free(); delete b;
 	}
 
-	void test_build_sweep_svg_rejects_mismatched_sizes() {
+	void test_build_sweep_svg_rejects_bad_inputs() {
 		Graphics::Surface *a = makePattern(12, 12);
 		Graphics::Surface *b = makePattern(6, 6);
-		TS_ASSERT(buildSweepSvg(*a, *b, 1, false).empty());
+		TS_ASSERT(buildSweepSvg(*a, *b, 6, false, false, false).empty());  // size mismatch
+		TS_ASSERT(buildSweepSvg(*a, *a, 24, false, false, false).empty()); // upscale
+		TS_ASSERT(buildSweepSvg(*a, *a, 0, false, false, false).empty());  // zero width
+		a->free(); delete a;
+		b->free(); delete b;
+	}
+
+	void test_per_image_rendering_styles() {
+		// buildIt passes pixelatedLeft=true, pixelatedRight=false. Element
+		// order in the document: right (B, background, auto) image first,
+		// then the clipped left (A, pixelated) image. Each style attribute
+		// follows its own image's data URL.
+		const Common::String s = buildIt(false);
+		const char *right = strstr(s.c_str(), "UE5HQg==");
+		const char *left = strstr(s.c_str(), "UE5HQQ==");
+		const char *autoStyle = strstr(s.c_str(), "image-rendering:auto");
+		const char *pixStyle = strstr(s.c_str(), "image-rendering:pixelated");
+		TS_ASSERT(right != nullptr);
+		TS_ASSERT(left != nullptr);
+		TS_ASSERT(autoStyle != nullptr);
+		TS_ASSERT(pixStyle != nullptr);
+		TS_ASSERT(right < autoStyle);
+		TS_ASSERT(autoStyle < left);
+		TS_ASSERT(left < pixStyle);
+	}
+
+	void test_build_sweep_svg_full_width_embeds_as_is() {
+		Graphics::Surface *a = makePattern(12, 12);
+		Graphics::Surface *b = makePattern(12, 12);
+		const Common::String svg = buildSweepSvg(*a, *b, 12, false, false, false);
+		TS_ASSERT(!svg.empty());
+		TS_ASSERT(svg.contains("viewBox=\"0 0 12 12\""));
+		TS_ASSERT(svg.contains("data:image/png;base64,iVBORw"));
 		a->free(); delete a;
 		b->free(); delete b;
 	}

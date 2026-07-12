@@ -38,23 +38,24 @@ namespace Roger {
 // Layer 1: assemble the SVG document from already-PNG-encoded image bytes.
 // left = slot A (revealed by the clip rect), right = slot B (full background).
 // width/height set the viewBox and all proportional geometry (reference
-// authored at 1920 wide). Returns the empty string on invalid input.
-// Output is pure ASCII; the embedded interaction script contains no XML
-// significant characters (ported verbatim -- do not restyle it).
+// authored at 1920 wide). pixelatedLeft/Right choose each embedded image's
+// image-rendering style: pixelated (crisp pixel art) or auto (smooth).
+// Returns the empty string on invalid input. Output is pure ASCII; the
+// embedded interaction script contains no XML significant characters
+// (ported verbatim -- do not restyle it).
 Common::String buildSweepSvgFromPngData(const byte *pngLeft, uint32 lenLeft,
                                         const byte *pngRight, uint32 lenRight,
-                                        int width, int height, bool animated);
+                                        int width, int height, bool animated,
+                                        bool pixelatedLeft, bool pixelatedRight);
 
-// Layer 2 (Task 3): downscale + encode surfaces, then delegate to layer 1.
-// divisor is an integer divisor of the render (1|2|3|6 in the Studio UI).
+// Layer 2: scale + encode surfaces, then delegate to layer 1. left/right must
+// be the same size. targetWidth == left.w embeds the surfaces as-is; smaller
+// widths area-resample both (height follows the aspect ratio). The Studio
+// uses 1920 (as-is) and 640 (/3).
 Common::String buildSweepSvg(const Graphics::Surface &left,
                              const Graphics::Surface &right,
-                             int divisor, bool animated);
-
-// Nearest-neighbour integer downscale (top-left sample of each block).
-// Caller owns the result (free() then delete). divisor 1 returns a copy.
-// Exposed for unit tests. Returns nullptr on invalid divisor/size.
-Graphics::Surface *downscaleNearest(const Graphics::Surface &src, int divisor);
+                             int targetWidth, bool pixelatedLeft,
+                             bool pixelatedRight, bool animated);
 
 // General area resampler: each destination pixel is the overlap-area-weighted
 // average of the source pixels it covers, computed in linear light with

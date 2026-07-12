@@ -151,7 +151,8 @@ byte linearToSrgbByte(float v) {
 
 Common::String buildSweepSvgFromPngData(const byte *pngLeft, uint32 lenLeft,
                                         const byte *pngRight, uint32 lenRight,
-                                        int width, int height, bool animated) {
+                                        int width, int height, bool animated,
+                                        bool pixelatedLeft, bool pixelatedRight) {
 	if (!pngLeft || !lenLeft || !pngRight || !lenRight || width <= 0 || height <= 0) {
 		return Common::String();
 	}
@@ -204,13 +205,17 @@ Common::String buildSweepSvgFromPngData(const byte *pngLeft, uint32 lenLeft,
 	s += "</rect></clipPath></defs>\n";
 
 	// Right (B) image full-frame first, then left (A) clipped above it.
+	// Per-image image-rendering: pixelated keeps pixel-art slots crisp when
+	// the browser enlarges them; auto smooths resampled enhanced content.
 	const char *imgFmt =
 		"<image href=\"data:image/png;base64,%s\" x=\"0\" y=\"0\" "
 		"width=\"%d\" height=\"%d\" preserveAspectRatio=\"none\" "
-		"style=\"image-rendering:pixelated\"/>\n";
-	s += Common::String::format(imgFmt, b64Right.c_str(), width, height);
+		"style=\"image-rendering:%s\"/>\n";
+	s += Common::String::format(imgFmt, b64Right.c_str(), width, height,
+	                            pixelatedRight ? "pixelated" : "auto");
 	s += "<g clip-path=\"url(#picSweepReveal)\">\n";
-	s += Common::String::format(imgFmt, b64Left.c_str(), width, height);
+	s += Common::String::format(imgFmt, b64Left.c_str(), width, height,
+	                            pixelatedLeft ? "pixelated" : "auto");
 	s += "</g>\n";
 
 	// Slider handle: grab rect, divider line, circle, chevrons.
@@ -332,29 +337,31 @@ Graphics::Surface *areaResample(const Graphics::Surface &src, int dstW, int dstH
 	return out;
 }
 
-Graphics::Surface *downscaleNearest(const Graphics::Surface &src, int divisor) {
-	if (divisor < 1 || src.w < divisor || src.h < divisor) {
-		return nullptr;
-	}
-	Graphics::Surface *out = new Graphics::Surface();
-	out->create(src.w / divisor, src.h / divisor, src.format);
-	const int bpp = src.format.bytesPerPixel;
-	for (int y = 0; y < out->h; y++) {
-		for (int x = 0; x < out->w; x++) {
-			memcpy(out->getBasePtr(x, y), src.getBasePtr(x * divisor, y * divisor), bpp);
-		}
-	}
-	return out;
-}
-
 Common::String buildSweepSvg(const Graphics::Surface &left,
                              const Graphics::Surface &right,
-                             int divisor, bool animated) {
-	if (left.w != right.w || left.h != right.h) {
+                             int targetWidth, bool pixelatedLeft,
+                             bool pixelatedRight, bool animated) {
+	if (left.w != right.w || left.h != right.h || left.w < 1 || left.h < 1) {
 		return Common::String();
 	}
-	Graphics::Surface *ls = downscaleNearest(left, divisor);
-	Graphics::Surface *rs = downscaleNearest(right, divisor);
+	if (targetWidth < 1 || targetWidth > left.w) {
+		return Common::String();
+	}
+	// Height follows the aspect ratio (rounded to nearest, min 1).
+	int targetHeight = (left.h * targetWidth + left.w / 2) / left.w;
+	if (targetHeight < 1) {
+		targetHeight = 1;
+	}
+	const Graphics::Surface *ls = &left;
+	const Graphics::Surface *rs = &right;
+	Graphics::Surface *lScaled = nullptr;
+	Graphics::Surface *rScaled = nullptr;
+	if (targetWidth != left.w) {
+		lScaled = areaResample(left, targetWidth, targetHeight);
+		rScaled = areaResample(right, targetWidth, targetHeight);
+		ls = lScaled;
+		rs = rScaled;
+	}
 	Common::String out;
 	if (ls && rs) {
 		Common::MemoryWriteStreamDynamic pl(DisposeAfterUse::YES);
@@ -362,16 +369,17 @@ Common::String buildSweepSvg(const Graphics::Surface &left,
 		if (encodeSurfacePng(*ls, pl) && encodeSurfacePng(*rs, pr)) {
 			out = buildSweepSvgFromPngData(pl.getData(), static_cast<uint32>(pl.size()),
 			                               pr.getData(), static_cast<uint32>(pr.size()),
-			                               ls->w, ls->h, animated);
+			                               ls->w, ls->h, animated,
+			                               pixelatedLeft, pixelatedRight);
 		}
 	}
-	if (ls) {
-		ls->free();
-		delete ls;
+	if (lScaled) {
+		lScaled->free();
+		delete lScaled;
 	}
-	if (rs) {
-		rs->free();
-		delete rs;
+	if (rScaled) {
+		rScaled->free();
+		delete rScaled;
 	}
 	return out;
 }
