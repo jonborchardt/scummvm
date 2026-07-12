@@ -20,6 +20,8 @@
 
 #include "sci/roger/utils/studio/roger_sweep_svg.h"
 #include "common/base64.h"
+#include "common/memstream.h"
+#include "sci/roger/png_loader.h"
 
 namespace Sci {
 namespace Roger {
@@ -226,6 +228,50 @@ Common::String buildSweepSvgFromPngData(const byte *pngLeft, uint32 lenLeft,
 	s += kStandaloneSweepScript;
 	s += "</script>\n</svg>\n";
 	return s;
+}
+
+Graphics::Surface *downscaleNearest(const Graphics::Surface &src, int divisor) {
+	if (divisor < 1 || src.w < divisor || src.h < divisor) {
+		return nullptr;
+	}
+	Graphics::Surface *out = new Graphics::Surface();
+	out->create(src.w / divisor, src.h / divisor, src.format);
+	const int bpp = src.format.bytesPerPixel;
+	for (int y = 0; y < out->h; y++) {
+		for (int x = 0; x < out->w; x++) {
+			memcpy(out->getBasePtr(x, y), src.getBasePtr(x * divisor, y * divisor), bpp);
+		}
+	}
+	return out;
+}
+
+Common::String buildSweepSvg(const Graphics::Surface &left,
+                             const Graphics::Surface &right,
+                             int divisor, bool animated) {
+	if (left.w != right.w || left.h != right.h) {
+		return Common::String();
+	}
+	Graphics::Surface *ls = downscaleNearest(left, divisor);
+	Graphics::Surface *rs = downscaleNearest(right, divisor);
+	Common::String out;
+	if (ls && rs) {
+		Common::MemoryWriteStreamDynamic pl(DisposeAfterUse::YES);
+		Common::MemoryWriteStreamDynamic pr(DisposeAfterUse::YES);
+		if (encodeSurfacePng(*ls, pl) && encodeSurfacePng(*rs, pr)) {
+			out = buildSweepSvgFromPngData(pl.getData(), pl.size(),
+			                               pr.getData(), pr.size(),
+			                               ls->w, ls->h, animated);
+		}
+	}
+	if (ls) {
+		ls->free();
+		delete ls;
+	}
+	if (rs) {
+		rs->free();
+		delete rs;
+	}
+	return out;
 }
 
 } // namespace Roger

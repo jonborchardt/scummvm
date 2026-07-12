@@ -1,6 +1,8 @@
 #include <cxxtest/TestSuite.h>
 #include <cstring>
 #include "sci/roger/utils/studio/roger_sweep_svg.h"
+#include "graphics/surface.h"
+#include "graphics/pixelformat.h"
 using namespace Sci::Roger;
 
 // Fake PNG payloads: layer 1 never inspects the bytes, so any bytes do.
@@ -103,5 +105,66 @@ public:
 		TS_ASSERT(buildSweepSvgFromPngData(nullptr, 0, kPngB, 4, 10, 10, false).empty());
 		TS_ASSERT(buildSweepSvgFromPngData(kPngA, 4, kPngB, 0, 10, 10, false).empty());
 		TS_ASSERT(buildSweepSvgFromPngData(kPngA, 4, kPngB, 4, 0, 10, false).empty());
+	}
+
+	// 4x4 RGBA surface with pixel (x,y) = (x, y, 0, 255) for sampling checks.
+	static Graphics::Surface *makePattern(int w, int h) {
+		const Graphics::PixelFormat rgba(4, 8, 8, 8, 8, 24, 16, 8, 0);
+		Graphics::Surface *s = new Graphics::Surface();
+		s->create(w, h, rgba);
+		for (int y = 0; y < h; y++) {
+			for (int x = 0; x < w; x++) {
+				*(uint32 *)s->getBasePtr(x, y) = rgba.ARGBToColor(255, x, y, 0);
+			}
+		}
+		return s;
+	}
+
+	void test_downscale_nearest_samples_top_left() {
+		Graphics::Surface *src = makePattern(6, 6);
+		Graphics::Surface *out = downscaleNearest(*src, 3);
+		TS_ASSERT(out != nullptr);
+		TS_ASSERT_EQUALS(out->w, 2);
+		TS_ASSERT_EQUALS(out->h, 2);
+		// Block top-left samples: (0,0), (3,0), (0,3), (3,3).
+		uint8 a, r, g, b;
+		out->format.colorToARGB(*(const uint32 *)out->getBasePtr(1, 1), a, r, g, b);
+		TS_ASSERT_EQUALS((int)r, 3);
+		TS_ASSERT_EQUALS((int)g, 3);
+		out->free(); delete out;
+		src->free(); delete src;
+	}
+
+	void test_downscale_divisor_one_is_identity_copy() {
+		Graphics::Surface *src = makePattern(4, 4);
+		Graphics::Surface *out = downscaleNearest(*src, 1);
+		TS_ASSERT(out != nullptr);
+		TS_ASSERT_EQUALS(out->w, 4);
+		TS_ASSERT_EQUALS(out->h, 4);
+		TS_ASSERT_EQUALS(*(const uint32 *)out->getBasePtr(2, 3),
+		                 *(const uint32 *)src->getBasePtr(2, 3));
+		out->free(); delete out;
+		src->free(); delete src;
+	}
+
+	void test_build_sweep_svg_from_surfaces() {
+		Graphics::Surface *a = makePattern(12, 12);
+		Graphics::Surface *b = makePattern(12, 12);
+		const Common::String svg = buildSweepSvg(*a, *b, 2, false);
+		TS_ASSERT(!svg.empty());
+		// Downscaled dims drive the viewBox.
+		TS_ASSERT(svg.contains("viewBox=\"0 0 6 6\""));
+		// Real PNG bytes now: the base64 of the PNG signature 0x89 P N G is "iVBORw".
+		TS_ASSERT(svg.contains("data:image/png;base64,iVBORw"));
+		a->free(); delete a;
+		b->free(); delete b;
+	}
+
+	void test_build_sweep_svg_rejects_mismatched_sizes() {
+		Graphics::Surface *a = makePattern(12, 12);
+		Graphics::Surface *b = makePattern(6, 6);
+		TS_ASSERT(buildSweepSvg(*a, *b, 1, false).empty());
+		a->free(); delete a;
+		b->free(); delete b;
 	}
 };
