@@ -17,3 +17,4 @@ orientation is in [engines/sci/README.md](../../engines/sci/README.md) and
 | `FORK_MAINTENANCE.md` | How the fork tracks upstream long-term |
 | `DATA_LAYOUT.md` | On-disk layout of game data and the generation cache |
 | `LEGAL.md` | Licensing review (GPLv3+, no game assets in-repo) |
+| `WEB_DEMO.md` | Emscripten/WSL web-demo build, bundle layout, and gate snapshot (downstream-only) |
