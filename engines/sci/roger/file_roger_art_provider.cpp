@@ -3442,7 +3442,7 @@ bool FileRogerArtProvider::interceptEvent(Common::Event &ev) {
 	//   F11 - toggle per-frame Roger diagnostic logging
 	//   F12 - toggle the quick-tune debug panel
 	// Both F10 and F11 are also mirrored as clickable rows inside the F12 panel.
-	if (ev.type == Common::EVENT_KEYDOWN) {
+	if (ev.type == Common::EVENT_KEYDOWN && !ev.kbdRepeat) {
 		const Common::KeyCode kc = ev.kbd.keycode;
 		if (kc == Common::KEYCODE_F10) {
 			toggleOverlay();
