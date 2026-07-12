@@ -1049,8 +1049,15 @@ void RogerStudio::exportSweepSvg() {
 			markDirty();
 			return;
 		}
-		out.write(svg.c_str(), svg.size());
+		const uint32 wrote = out.write(svg.c_str(), svg.size());
+		out.flush();
+		const bool writeFailed = wrote != svg.size() || out.err();
 		out.close();
+		if (writeFailed) {
+			_status = "export FAILED: write " + name;
+			markDirty();
+			return;
+		}
 	}
 	_status = Common::String::format("exported sweep %dx (animated + interactive)", _svgScaleX);
 	markDirty();
