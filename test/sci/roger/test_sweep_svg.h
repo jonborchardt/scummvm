@@ -221,6 +221,17 @@ public:
 				TS_ASSERT((int)b >= c[2] - 1 && (int)b <= c[2] + 1);
 			}
 		}
+		// Replication structure is EXACT: within each 2x2 output block all
+		// four pixels must be bit-identical (uniform source blocks + the
+		// same arithmetic), regardless of the +-1 value band above.
+		for (int by = 0; by < 4; by += 2) {
+			for (int bx = 0; bx < 4; bx += 2) {
+				const uint32 tl = *(const uint32 *)out->getBasePtr(bx, by);
+				TS_ASSERT_EQUALS(*(const uint32 *)out->getBasePtr(bx + 1, by), tl);
+				TS_ASSERT_EQUALS(*(const uint32 *)out->getBasePtr(bx, by + 1), tl);
+				TS_ASSERT_EQUALS(*(const uint32 *)out->getBasePtr(bx + 1, by + 1), tl);
+			}
+		}
 		out->free(); delete out;
 		src->free(); delete src;
 	}
