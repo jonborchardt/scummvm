@@ -19,9 +19,11 @@
  */
 
 #include "sci/roger/utils/studio/roger_studio.h"
+#include "sci/roger/utils/studio/roger_sweep_svg.h"
 
 #include "common/config-manager.h"
 #include "common/events.h"
+#include "common/file.h"
 #include "common/system.h"
 #include "common/textconsole.h"
 #include "graphics/cursorman.h"
@@ -740,6 +742,7 @@ void RogerStudio::drawPanel() {
 	st.showGrid = _showGrid;
 	st.animPlaying = _animPlaying;
 	st.animMs = animSpeedMs(_animSpeedIdx);
+	st.svgScaleX = _svgScaleX;
 	st.activeSlot = _activeSlot;
 	st.displayMode = _displayMode;
 	st.buildPasses = _buildPasses;
@@ -866,6 +869,20 @@ void RogerStudio::dispatchWidget(uint32 id) {
 		markDirty(); break;
 	}
 	case kWidExport: exportShown(); break;
+	case kWidExportSvg: exportSweepSvg(); break;
+	case kWidSvgSize: {
+		// Cycle 6x -> 3x -> 2x -> 1x -> 6x.
+		static const int kScales[] = { 6, 3, 2, 1 };
+		int scaleIdx = 0;
+		for (int i = 0; i < 4; i++) {
+			if (kScales[i] == _svgScaleX) {
+				scaleIdx = i;
+			}
+		}
+		_svgScaleX = kScales[(scaleIdx + 1) % 4];
+		markDirty();
+		break;
+	}
 	case kWidParamMinus:
 		omyacParamSet(s.params, idx, omyacParamGet(s.params, idx) - omyacParamDesc(idx).step);
 		invalidateActive(); break;
@@ -981,6 +998,61 @@ void RogerStudio::exportShown() {
 		_status = "export FAILED: cannot open " + name;
 	}
 	if (tmp) { tmp->free(); delete tmp; }
+	markDirty();
+}
+
+void RogerStudio::exportSweepSvg() {
+	ensureFresh(_slots[0]);
+	ensureFresh(_slots[1]);
+	if (!_slots[0].render || !_slots[1].render) {
+		_status = "nothing to export";
+		markDirty();
+		return;
+	}
+	const Graphics::Surface *a = _slots[0].render;
+	const Graphics::Surface *b = _slots[1].render;
+	if (a->w != b->w || a->h != b->h) {
+		_status = "export FAILED: A/B size mismatch";
+		markDirty();
+		return;
+	}
+
+	Common::String dir;
+	if (ConfMan.hasKey("screenshotpath"))
+		dir = ConfMan.getPath("screenshotpath").toString('/');
+	if (dir.empty())
+		dir = "screenshots";
+	if (dir.lastChar() != '/')
+		dir += '/';
+
+	const int picId = _picIds.empty() ? 0 : _picIds[_picIdx];
+	const Common::String sa = sanitize(slotStamp(_slots[0]));
+	const Common::String sb = sanitize(slotStamp(_slots[1]));
+	const int divisor = 6 / _svgScaleX;   // 6x->1, 3x->2, 2x->3, 1x->6
+
+	// Sweep left = A (revealed), right = B (background). Both variants
+	// always: the animated file auto-sweeps until grabbed, the interactive
+	// file starts at centre. Labels in the files are placeholders (A/B) --
+	// edit them at the EDIT LABELS marker near the end of each file.
+	for (int variant = 0; variant < 2; variant++) {
+		const bool animated = (variant == 0);
+		const Common::String svg = buildSweepSvg(*a, *b, divisor, animated);
+		const Common::String name = studioSweepExportName(picId, sa, sb, _svgScaleX, animated);
+		if (svg.empty()) {
+			_status = "export FAILED: svg build " + name;
+			markDirty();
+			return;
+		}
+		Common::DumpFile out;
+		if (!out.open(Common::Path(dir + name))) {
+			_status = "export FAILED: cannot open " + name;
+			markDirty();
+			return;
+		}
+		out.write(svg.c_str(), svg.size());
+		out.close();
+	}
+	_status = Common::String::format("exported sweep %dx (animated + interactive)", _svgScaleX);
 	markDirty();
 }
 

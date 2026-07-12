@@ -101,7 +101,9 @@ enum WidKind {
 	kWidChipAdd,                                      // register built sequence as a pic mode + apply
 	kWidShowBackfill, kWidShowGrid,  // shared scene toggles (pink / pixel grid)
 	kWidGrid6,                       // per-mode cel comparison grid display mode
-	kWidAnimPlay, kWidAnimSlower, kWidAnimFaster   // global cel playback
+	kWidAnimPlay, kWidAnimSlower, kWidAnimFaster,  // global cel playback
+	kWidExportSvg,                   // write the sweep-SVG pair (animated + interactive)
+	kWidSvgSize                      // cycles the sweep-SVG export scale 6x/3x/2x/1x
 };
 
 struct StudioPanelState {
@@ -116,6 +118,7 @@ struct StudioPanelState {
 	bool showGrid;          // draw light plate-pixel grid when zoomed in
 	bool animPlaying = false;  // global cel playback running
 	int animMs = 150;          // current playback period (ms per cel)
+	int svgScaleX = 6;         // sweep-SVG export scale (6/3/2/1)
 	bool addPending = false;   // "add" would change the active slot (highlight it)
 	Common::Array<int> buildPasses; // the sequence being built (display-only chips)
 	Common::Array<int> paramValues; // active slot's, omyacParamCount() entries

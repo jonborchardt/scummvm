@@ -120,6 +120,7 @@ private:
 	Common::String slotStamp(const Slot &slot) const; // "default-ffflffaaaa-6x[-nref]"
 	void ensureDiff();               // (re)build _diffSurf + SAD readout when stale
 	void exportShown();
+	void exportSweepSvg();
 
 	// Scene-area geometry
 	Common::Rect sceneArea() const;  // _display minus the panel strip
@@ -166,6 +167,7 @@ private:
 	bool   _animPlaying = false;
 	int    _animSpeedIdx = 2;        // index into animSpeedMs table (150 ms)
 	uint32 _lastAnimTick = 0;
+	int    _svgScaleX = 6;           // sweep-SVG export scale (6/3/2/1)
 
 	// Grid-mode per-cel cache: the current cel rendered through the six grid
 	// presets, each at its preset's own factor. Keyed by (view, loop, cel);

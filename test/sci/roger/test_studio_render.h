@@ -477,4 +477,34 @@ public:
 			studioSweepExportName(2, "a", "b", 1, false),
 			Common::String("studio-scene002-sweep-a-vs-b-1x-interactive.svg"));
 	}
+
+	void test_panel_has_svg_export_and_size_widgets() {
+		StudioPanelState st;
+		st.picId = 2; st.viewId = 12; st.loopNo = 1; st.celNo = 0;
+		st.celX = 160; st.celY = 150;
+		st.showView = true; st.activeSlot = 0; st.displayMode = 0;
+		st.svgScaleX = 3;
+		Common::Array<PanelWidget> out;
+		const Common::Rect panel(0, 0, 1024, 240);
+		buildStudioPanel(panel, st, out);
+		bool sawExportSvg = false, sawSvgSize = false;
+		for (uint i = 0; i < out.size(); i++) {
+			const int kind = widKind(out[i].id);
+			if (kind != kWidExportSvg && kind != kWidSvgSize) {
+				continue;
+			}
+			if (kind == kWidExportSvg) {
+				sawExportSvg = true;
+			} else {
+				sawSvgSize = true;
+				TS_ASSERT(out[i].label.contains("3x"));
+			}
+			// The NEW widgets must stay inside the panel rect (containment is
+			// scoped to them: pre-existing rows are not this test's business).
+			TS_ASSERT(panel.contains(out[i].rect.left, out[i].rect.top));
+			TS_ASSERT(out[i].rect.right <= panel.right);
+		}
+		TS_ASSERT(sawExportSvg);
+		TS_ASSERT(sawSvgSize);
+	}
 };
