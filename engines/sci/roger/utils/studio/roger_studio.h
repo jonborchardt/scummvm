@@ -167,7 +167,7 @@ private:
 	bool   _animPlaying = false;
 	int    _animSpeedIdx = 2;        // index into animSpeedMs table (150 ms)
 	uint32 _lastAnimTick = 0;
-	int    _svgScaleX = 6;           // sweep-SVG export scale (6/3/2/1)
+	int    _svgWidth = 1920;         // sweep-SVG export width (1920|640)
 
 	// Grid-mode per-cel cache: the current cel rendered through the six grid
 	// presets, each at its preset's own factor. Keyed by (view, loop, cel);

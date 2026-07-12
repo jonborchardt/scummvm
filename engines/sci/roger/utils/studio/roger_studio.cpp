@@ -742,7 +742,7 @@ void RogerStudio::drawPanel() {
 	st.showGrid = _showGrid;
 	st.animPlaying = _animPlaying;
 	st.animMs = animSpeedMs(_animSpeedIdx);
-	st.svgScaleX = _svgScaleX;
+	st.svgWidth = _svgWidth;
 	st.activeSlot = _activeSlot;
 	st.displayMode = _displayMode;
 	st.buildPasses = _buildPasses;
@@ -870,19 +870,11 @@ void RogerStudio::dispatchWidget(uint32 id) {
 	}
 	case kWidExport: exportShown(); break;
 	case kWidExportSvg: exportSweepSvg(); break;
-	case kWidSvgSize: {
-		// Cycle 6x -> 3x -> 2x -> 1x -> 6x.
-		static const int kScales[] = { 6, 3, 2, 1 };
-		int scaleIdx = 0;
-		for (int i = 0; i < 4; i++) {
-			if (kScales[i] == _svgScaleX) {
-				scaleIdx = i;
-			}
-		}
-		_svgScaleX = kScales[(scaleIdx + 1) % 4];
+	case kWidSvgSize:
+		// Two supported export widths: 1920 (as-is) and 640 (/3).
+		_svgWidth = (_svgWidth == 1920) ? 640 : 1920;
 		markDirty();
 		break;
-	}
 	case kWidParamMinus:
 		omyacParamSet(s.params, idx, omyacParamGet(s.params, idx) - omyacParamDesc(idx).step);
 		invalidateActive(); break;
@@ -1024,11 +1016,18 @@ void RogerStudio::exportSweepSvg() {
 		dir = "screenshots";
 	if (dir.lastChar() != '/')
 		dir += '/';
+	// Sweep SVGs land in their own subfolder (they are large and paired).
+	dir += ".svg/";
 
 	const int picId = _picIds.empty() ? 0 : _picIds[_picIdx];
 	const Common::String sa = sanitize(slotStamp(_slots[0]));
 	const Common::String sb = sanitize(slotStamp(_slots[1]));
-	const int divisor = 6 / _svgScaleX;   // 6x->1, 3x->2, 2x->3, 1x->6
+	// Per-slot pixelated flag: a nearest-plate slot is pixel art and must
+	// stay crisp (image-rendering:pixelated; the /3 resample reproduces its
+	// 6x replication exactly as 2x). View-enhance mode is deliberately
+	// ignored -- the plate dominates the image.
+	const bool pixelatedA = _slots[0].plateMode == kPlateNearestRef;
+	const bool pixelatedB = _slots[1].plateMode == kPlateNearestRef;
 
 	// Sweep left = A (revealed), right = B (background). Both variants
 	// always: the animated file auto-sweeps until grabbed, the interactive
@@ -1036,15 +1035,15 @@ void RogerStudio::exportSweepSvg() {
 	// edit them at the EDIT LABELS marker near the end of each file.
 	for (int variant = 0; variant < 2; variant++) {
 		const bool animated = (variant == 0);
-		const Common::String svg = buildSweepSvg(*a, *b, divisor, animated);
-		const Common::String name = studioSweepExportName(picId, sa, sb, _svgScaleX, animated);
+		const Common::String svg = buildSweepSvg(*a, *b, _svgWidth, pixelatedA, pixelatedB, animated);
+		const Common::String name = studioSweepExportName(picId, sa, sb, _svgWidth, animated);
 		if (svg.empty()) {
 			_status = "export FAILED: svg build " + name;
 			markDirty();
 			return;
 		}
 		Common::DumpFile out;
-		if (!out.open(Common::Path(dir + name))) {
+		if (!out.open(Common::Path(dir + name), true)) {
 			_status = "export FAILED: cannot open " + name;
 			markDirty();
 			return;
@@ -1059,7 +1058,7 @@ void RogerStudio::exportSweepSvg() {
 			return;
 		}
 	}
-	_status = Common::String::format("exported sweep %dx (animated + interactive)", _svgScaleX);
+	_status = Common::String::format("exported sweep %d (animated + interactive)", _svgWidth);
 	markDirty();
 }
 

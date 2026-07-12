@@ -135,9 +135,9 @@ Common::String studioCompareExportName(int picId, bool diff,
 
 Common::String studioSweepExportName(int picId, const Common::String &stampA,
                                      const Common::String &stampB,
-                                     int scaleX, bool animated) {
-	return Common::String::format("studio-scene%03d-sweep-%s-vs-%s-%dx-%s.svg",
-	                              picId, stampA.c_str(), stampB.c_str(), scaleX,
+                                     int width, bool animated) {
+	return Common::String::format("studio-scene%03d-sweep-%s-vs-%s-%d-%s.svg",
+	                              picId, stampA.c_str(), stampB.c_str(), width,
 	                              animated ? "animated" : "interactive");
 }
 
@@ -215,7 +215,7 @@ void buildStudioPanel(const Common::Rect &panel, const StudioPanelState &st,
 	c.btn("Copy A>B", widId(kWidCopyAB));
 	c.btn("Export PNG", widId(kWidExport));
 	c.btn("SVG", widId(kWidExportSvg));
-	c.btn(Common::String::format("svg: %dx", st.svgScaleX), widId(kWidSvgSize));
+	c.btn(Common::String::format("svg: %d", st.svgWidth), widId(kWidSvgSize));
 	c.text(" ");
 	c.btn(st.showBackfill ? "pink: on" : "pink: off", widId(kWidShowBackfill), st.showBackfill);
 	c.btn(st.showGrid ? "grid: on" : "grid: off", widId(kWidShowGrid), st.showGrid);

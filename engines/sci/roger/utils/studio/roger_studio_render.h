@@ -78,11 +78,11 @@ Common::String studioCompareExportName(int picId, bool diff,
                                        const Common::String &stampA,
                                        const Common::String &stampB);
 
-// Sweep-SVG export: studio-scene<pic>-sweep-<A>-vs-<B>-<n>x-<variant>.svg.
-// scaleX is the UI size number (6/3/2/1 = the render divisor's inverse).
+// Sweep-SVG export: studio-scene<pic>-sweep-<A>-vs-<B>-<width>-<variant>.svg.
+// width is the export width in pixels (1920 = the 6x render as-is, 640 = /3).
 Common::String studioSweepExportName(int picId, const Common::String &stampA,
                                      const Common::String &stampB,
-                                     int scaleX, bool animated);
+                                     int width, bool animated);
 
 // ---- Studio v2: widget kinds (the widget record, id encoding, and hit-test are
 //    the shared sci/roger/ui/roger_widgets.h; kind 0 = "none" by that contract)
@@ -103,7 +103,7 @@ enum WidKind {
 	kWidGrid6,                       // per-mode cel comparison grid display mode
 	kWidAnimPlay, kWidAnimSlower, kWidAnimFaster,  // global cel playback
 	kWidExportSvg,                   // write the sweep-SVG pair (animated + interactive)
-	kWidSvgSize                      // cycles the sweep-SVG export scale 6x/3x/2x/1x
+	kWidSvgSize                      // cycles the sweep-SVG export width 1920/640
 };
 
 struct StudioPanelState {
@@ -118,7 +118,7 @@ struct StudioPanelState {
 	bool showGrid;          // draw light plate-pixel grid when zoomed in
 	bool animPlaying = false;  // global cel playback running
 	int animMs = 150;          // current playback period (ms per cel)
-	int svgScaleX = 6;         // sweep-SVG export scale (6/3/2/1)
+	int svgWidth = 1920;       // sweep-SVG export width (1920|640)
 	bool addPending = false;   // "add" would change the active slot (highlight it)
 	Common::Array<int> buildPasses; // the sequence being built (display-only chips)
 	Common::Array<int> paramValues; // active slot's, omyacParamCount() entries

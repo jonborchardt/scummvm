@@ -471,11 +471,11 @@ public:
 
 	void test_sweep_export_name() {
 		TS_ASSERT_EQUALS(
-			studioSweepExportName(2, "default-ffla", "default-nearest", 6, true),
-			Common::String("studio-scene002-sweep-default-ffla-vs-default-nearest-6x-animated.svg"));
+			studioSweepExportName(2, "default-ffla", "default-nearest", 1920, true),
+			Common::String("studio-scene002-sweep-default-ffla-vs-default-nearest-1920-animated.svg"));
 		TS_ASSERT_EQUALS(
-			studioSweepExportName(2, "a", "b", 1, false),
-			Common::String("studio-scene002-sweep-a-vs-b-1x-interactive.svg"));
+			studioSweepExportName(2, "a", "b", 640, false),
+			Common::String("studio-scene002-sweep-a-vs-b-640-interactive.svg"));
 	}
 
 	void test_panel_has_svg_export_and_size_widgets() {
@@ -483,7 +483,7 @@ public:
 		st.picId = 2; st.viewId = 12; st.loopNo = 1; st.celNo = 0;
 		st.celX = 160; st.celY = 150;
 		st.showView = true; st.activeSlot = 0; st.displayMode = 0;
-		st.svgScaleX = 3;
+		st.svgWidth = 640;
 		Common::Array<PanelWidget> out;
 		const Common::Rect panel(0, 0, 1024, 240);
 		buildStudioPanel(panel, st, out);
@@ -497,7 +497,7 @@ public:
 				sawExportSvg = true;
 			} else {
 				sawSvgSize = true;
-				TS_ASSERT(out[i].label.contains("3x"));
+				TS_ASSERT(out[i].label.contains("640"));
 			}
 			// The NEW widgets must stay inside the panel rect (containment is
 			// scoped to them: pre-existing rows are not this test's business).
