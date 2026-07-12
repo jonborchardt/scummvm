@@ -63,7 +63,50 @@ TEST_CFLAGS  := $(CFLAGS) -I$(srcdir)/test/cxxtest
 
 ifeq ($(ENABLE_SCI), STATIC_PLUGIN)
 	TESTS += $(srcdir)/test/sci/roger/*.h
-	TEST_LIBS += engines/sci/libsci.a
+	# Link the SCI-free Roger objects directly (mirroring build_tests.ps1's
+	# $RogerSources) instead of engines/sci/libsci.a: GNU ld extracts archive
+	# members wholesale, so libsci.a drags the entire SCI engine (and its
+	# GUI/base/audio dependencies) into the test runner via e.g.
+	# roger_asset_gen.o's Sci::g_sci reference. MSVC's /Gy + /OPT:REF quietly
+	# dead-strips those never-called engine paths on the Windows test build;
+	# roger_test_stubs.o is the explicit equivalent here (a stub being called
+	# fails loudly). The objects are PREPENDED so their undefined references
+	# still resolve from the common/graphics archives appended above
+	# (single-pass archive scanning). libcompression is repeated after the
+	# archives because the Roger TTF text path extracts graphics ttf.o,
+	# which needs Common::makeZipArchive (same cycle class as the doubled
+	# libcommon above).
+	TEST_LIBS := \
+	test/sci/roger/roger_test_stubs.o \
+	engines/sci/roger/gen/roger_pic_parser.o \
+	engines/sci/roger/gen/roger_pic_native.o \
+	engines/sci/roger/gen/roger_ega_blend.o \
+	engines/sci/roger/gen/roger_omyac.o \
+	engines/sci/roger/gen/roger_scale.o \
+	engines/sci/roger/gen/roger_asset_gen.o \
+	engines/sci/roger/png_loader.o \
+	engines/sci/roger/overlay/view_cache.o \
+	engines/sci/roger/gen/slice_set.o \
+	engines/sci/roger/overlay/roger_effects.o \
+	engines/sci/roger/overlay/roger_cursor.o \
+	engines/sci/roger/overlay/roger_compositor.o \
+	engines/sci/roger/overlay/roger_text.o \
+	engines/sci/roger/overlay/roger_palette_remap.o \
+	engines/sci/roger/roger_selftest.o \
+	engines/sci/roger/ui/roger_widgets.o \
+	engines/sci/roger/ui/roger_panel_style.o \
+	engines/sci/roger/utils/studio/roger_studio_render.o \
+	engines/sci/roger/roger_input.o \
+	engines/sci/roger/gen/roger_view_scaler.o \
+	engines/sci/roger/overlay/roger_journal.o \
+	engines/sci/roger/overlay/roger_menu_model.o \
+	engines/sci/roger/utils/tunepanel/roger_tune_panel.o \
+	engines/sci/roger/utils/eyetest/roger_eyetest_search.o \
+	engines/sci/roger/gen/roger_passes.o \
+	engines/sci/roger/launcher/roger_picker_model.o \
+	engines/sci/roger/utils/studio/roger_sweep_svg.o \
+	$(TEST_LIBS) \
+	common/compression/libcompression.a
 	TEST_CFLAGS += -DFIXTURE_DIR=\"$(srcdir)/test/sci/roger/fixtures\"
 endif
 TEST_LDFLAGS := $(LDFLAGS) $(LIBS)
@@ -99,7 +142,7 @@ test/runner.cpp: $(TESTS) $(srcdir)/test/module.mk
 
 clean: clean-test
 clean-test:
-	-$(RM) test/runner.cpp test/runner test/engine-data/encoding.dat test/system/null_osystem.o
+	-$(RM) test/runner.cpp test/runner test/engine-data/encoding.dat test/system/null_osystem.o test/sci/roger/roger_test_stubs.o
 	-rmdir test/engine-data
 
 test/engine-data/encoding.dat: $(srcdir)/dists/engine-data/encoding.dat
