@@ -14,7 +14,7 @@ Alliance bundle) — that is Phase 4/5 territory and belongs in a later doc.
 Roger's native target is Windows/MSVC (see the top-level `CLAUDE.md`). The web
 demo is a **second, WSL-hosted build** of the same source tree targeting
 emscripten/wasm, produced from a dedicated Linux-side clone so the Windows
-checkout and its build state are never touched. The flow has four stages:
+checkout and its build state are never touched. The flow has five stages:
 
 1. WSL clone of the Windows repo, on its own branch (`jon-wasm`).
 2. A native Linux build + `make test`, as a portability check before touching
@@ -175,7 +175,9 @@ build-emscripten/
           sq3.done.v<ver>.<passStamp>.marker
 ```
 
-Game data is copied in from a real local install (never committed):
+Game data is copied in from a real local install (never committed) — only
+needed for the HTTP-FS fallback layout; the packaged flow ships game data
+inside `scummvm-game.data` instead:
 
 ```sh
 cp -r "/path/to/Space Quest Collection/sq3" build-emscripten/data/games/sq3
