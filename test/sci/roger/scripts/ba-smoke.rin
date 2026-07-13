@@ -1,0 +1,37 @@
+# ba-smoke.rin - Betrayed Alliance Book 1 boot + parser + enhanced-plate smoke
+# New-game entry cadence discovered 2026-07-12; later BA segments copy this block.
+# NOTE: ROGER-STATE ego is ALWAYS -1,-1 for this fan game (its live ego is not in
+# global var 0, which the state probe reads) - gate progress on pic/windows instead.
+wait 5000              # boot settle; lands on the title menu (pic=802)
+state
+snap ba-title          # title ring: NEW GAME / RESTORE, mnemonic letters underlined
+key n                  # N = New Game title-menu mnemonic (R would open Restore)
+wait 4000              # intro story slideshow starts (pic=900, time-paced slides)
+key ESC                # ESC skips the ENTIRE slideshow; ENTER does NOT advance it
+wait 3000              # name-entry dialog appears (windows=3, edit field focused)
+state
+type "Roger"
+key ENTER              # empty name is rejected (Come on, you can do better!) - must type one
+wait 4000              # acceptance dialog: Excellent! Good luck in your quest, Roger.
+key ENTER              # dismiss acceptance; post-name narration windows follow, one per ENTER
+wait 4000
+key ENTER              # narration: Well, better figure out what this place is...
+wait 4000
+key ENTER              # last narration; wizard room (pic=18) loads with an entry dialog up
+wait 4000
+key ENTER              # dismiss the room-entry dialog (windows 3 -> 2); control is live
+wait 6000              # settle; extra ENTERs past this point are harmless (empty parser line)
+state
+snap ba-room           # hires wizard-room plate, ego at start position (left-center)
+click 220 150          # bonus walkability check: click-to-walk toward the table
+wait 3000
+state                  # ego coords stay -1,-1 here by design; movement verified via snaps
+type "look room"
+key ENTER              # parser exercise; response dialog opens (windows 2 -> 3)
+wait 2500              # dialog appear settle
+state
+snap ba-lookroom       # mid-dialog: parser response over the plate + ego at click target
+key ENTER              # dismiss the response dialog (windows 3 -> 2)
+wait 1500
+state
+quit
