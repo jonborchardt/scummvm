@@ -257,6 +257,108 @@ for this bundle), `onerror` logs a warning and the engine falls straight
 back to the plain-HTTP `data/games/` layout above — the degrade path is
 automatic, no ini change required.
 
+## Phase 4 bundle (Betrayed Alliance)
+
+Phase 4 replaces the SQ3 dev bundle above with the public demo game,
+**Betrayed Alliance Book 1 v1.3.3.1** (game id `sci-fanmade`; pinned/licensed
+per the spec's §4). The mechanics below are additive to everything above —
+same packaged-flow (Phase 2.5) machinery, same `/gamedata` mount, same
+`build.sh dist` base step — only the staged game/cache content and shipped
+ini target a different game.
+
+**Minimal staging.** Only three files ever leave the release download: a
+staging directory holding exactly `resource.map` + `resource.001` +
+`LICENSE.TXT`, copied from the local release
+(`J:\BetrayedAllianceBook1-v1.3.3.1\...`) — never the bundled DOSBox/SDL/
+drivers/interpreter EXEs/`SRC/`. From `~/scummvm-wasm` with that staging dir
+already populated (e.g. `~/ba-game-stage`):
+
+```sh
+dists/emscripten/build-package_game.sh ~/ba-game-stage \
+  '/mnt/j/BetrayedAllianceBook1-v1.3.3.1/sci-fanmade-roger/cache' \
+  sci-fanmade v6 p0p2p2p2p2p2p1p0p0p0
+```
+
+Expected output: `staged: 3 game files, 4549 cache files`, producing
+`build-emscripten/scummvm-game.data` at **25,720,155 bytes (~24.5 MiB)**.
+**Note:** `file_packager.py` writes its progress as carriage-return-only
+updates, which can visually garble the staged-count echo line in a scrollback
+buffer — if the count looks suspicious, verify with `find <staging-dir> -type
+f | wc -l` / `find <cache-dir> -type f -name '*.png' | wc -l` rather than
+re-reading the terminal text.
+
+`LICENSE.TXT` is also copied to `build-emscripten/LICENSE-BetrayedAlliance.txt`
+(served at the bundle root; the landing page links it — see below).
+
+**Shipped ini is a tracked file, copied in, not hand-edited.**
+`dists/emscripten/roger-demo.ini` is the single source of truth for
+`build-emscripten/scummvm.ini`; `build.sh dist` does not copy it
+automatically, so re-copy it after every dist rebuild:
+
+```sh
+cp dists/emscripten/roger-demo.ini build-emscripten/scummvm.ini
+```
+
+(Verify with `grep betrayed build-emscripten/scummvm.ini` — a dist rebuild
+that clobbers the ini without a re-copy silently reverts the bundle to
+whatever ini shape `build.sh dist` last generated.) Remember the emscripten
+runtime persists `scummvm.ini` into IndexedDB on first boot (see Dev
+gotchas above), so any change to the shipped ini needs an IndexedDB clear
+from the directory-listing page to take effect on a subsequent load.
+
+**No-fragment default.** `custom_shell-pre.js` (commit `111cb8a282a`) pushes
+`betrayed` onto `Module["arguments"]` when `window.location.hash` is empty —
+`roger_no_launcher=true` alone still leaves a bare argv falling through to
+the stock ScummVM launcher, so the pre-js default is what makes a plain
+`scummvm.html` cold load boot straight into the game. A URL fragment (e.g.
+`#sq3` during dev) still wins unchanged when present.
+
+**Landing page.** `custom_shell.html` (commit `6b49f93d075`) replaces the
+stock emscripten shell with one screen: the game canvas over a slim info bar
+carrying a one-line description of Roger, the F10 display-mode hint
+(Enhanced → Original → Side-by-Side), parser/click control notes, and a
+Ryan Slattery / Slattstudio credit line linking `slattstudio.com`,
+`github.com/Slattstudio/BetrayedAllianceBook1`, and the bundle-root
+`LICENSE-BetrayedAlliance.txt`, plus a browser-storage-saves caveat. The
+debug output textarea from the stock shell is gone; engine output goes to
+the console only.
+
+**Side-by-side treatment (decided by trying both, per spec §5 Phase 4).**
+The user tried both variants at the wizard room and chose **Variant B: boot
+straight into full-screen Enhanced, with the info bar's F10 hint as the
+discovery path** — no `roger_display_mode` key ships in `roger-demo.ini`.
+The mechanism for Variant A (boot straight into Side-by-Side) remains
+available and was verified working this phase: add
+`roger_display_mode=sbs` under `[betrayed]` in `roger-demo.ini` and rebuild.
+
+**Measured sizes (2026-07-12, Chrome via Playwright, full verification
+sweep — see the Gate snapshot below for the item-by-item results):**
+
+| Artifact | Size |
+|---|---|
+| `build-emscripten` total (`du -sh`) | 55 MB |
+| `scummvm-game.data` | 25,720,155 bytes (~24.5 MiB) |
+| `scummvm.wasm` | 14,007,305 bytes (~13.4 MiB) |
+
+Cold load to the title screen: ~3-6 s (localhost). All within the spec §3
+expected range (~45-55 MB total / ~25 MB `.data` / ~14 MB wasm) and far
+under the ~500 MB budget and GitHub Pages per-file/site caps.
+
+**Known ship-visible residuals** (already-filed follow-ups, not Phase 4
+defects):
+
+- The Enhanced-mode status bar renders BA's blackletter title glyphs as
+  literal ASCII punctuation (`$etrayed #lliance: $ook I`) — BA stores its
+  fancy glyphs at ASCII codepoints, and Roger's TTF status-bar path draws the
+  raw bytes. Original mode (native bitmap font) renders the title correctly;
+  this is TTF-hybrid-path-specific.
+- The known SDL3 synthetic-typing filter edge (the machine-speed phantom
+  duplicate-character residual from Phase 2.6 — real human typing is clean)
+  has a new data point from this phase's verification sweep: it reproduces
+  at 500-700 ms synthetic keystroke gaps in the in-game parser box, and in
+  the native ScummVM GMM save-name widget (a different code path) even at
+  1000 ms gaps.
+
 ## Shipped `scummvm.ini`
 
 Two variants, differing only in `roger_gen_mode`. Both boot straight into the
@@ -381,11 +483,15 @@ http://localhost:8080/scummvm.html#sq3
   `python-is-python3` (`test/cxxtest/bin/cxxtestgen` has a `#!/usr/bin/env
   python` shebang; a fresh Ubuntu image ships only `python3`). Both are
   included in the setup command above.
-- **SQ3 bundle is dev-only and never deployed.** It exists purely to verify
-  the build/bundle/cache mechanics end to end; the shipped ini's
-  `description` field says so explicitly (`(dev bundle - never deployed)`).
-  A permanent public deployment is Phase 4/5 territory with its own game
-  (Betrayed Alliance) and hosting plan, not covered here.
+- **SQ3 is fully replaced in the assembled bundle as of Phase 4.** The
+  packaged flow now stages Betrayed Alliance (see "Phase 4 bundle" above);
+  SQ3 remains only as the *dev fallback* if someone reruns
+  `build-package_game.sh` against the SQ3 game/cache paths and re-copies a
+  matching ini section — useful for isolating build/bundle mechanics from
+  game content, but not part of the shipped configuration. It exists purely
+  to verify the build/bundle/cache mechanics end to end; the original
+  bundle's shipped ini `description` field said so explicitly (`(dev bundle
+  - never deployed)`).
 
 ## Gate snapshot — 2026-07-12
 
