@@ -678,10 +678,10 @@ GPL *distribution*, so the repo carries the standard three-part answer:
 
    Since the fork is public, this pointer is a complete-corresponding-source
    answer without shipping a source tarball. The commit currently pointed
-   to (`9d59830330e`) is one commit *after* the one the wasm was actually
-   compiled at in Phase 4 (`029573ac9ad`) — everything in between is
-   non-compiled assembly tooling (the `build-assemble_demo.sh` script and
-   this doc section), so `9d59830330e` still rebuilds byte-identical
+   to (`9d59830330e`) is two commits *after* the one the wasm was actually
+   compiled at in Phase 4 (`029573ac9ad`) — both intervening commits are
+   non-compiled assembly tooling (the `build-assemble_demo.sh` script plus
+   a file-mode fix), so `9d59830330e` still rebuilds byte-identical
    binaries and remains a valid pointer.
 3. **`site/LICENSE-BetrayedAlliance.txt`** — the bundled fan game's own
    MIT license (copied verbatim from the release's `LICENSE.TXT` at
