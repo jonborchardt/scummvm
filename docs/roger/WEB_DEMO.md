@@ -6,15 +6,17 @@ part of any upstream PR. Upstream ScummVM's own emscripten port is unaffected;
 Roger's web demo is a downstream packaging exercise on top of it.
 
 This is a factual build/run record, re-derivable from a clean WSL install. It
-does not cover deployment (hosting, permanent asset placement, the Betrayed
-Alliance bundle) — that is Phase 4/5 territory and belongs in a later doc.
+covers everything through demo assembly, including the Phase 4 Betrayed
+Alliance bundle (see "Phase 4 bundle" below); it does not cover deployment
+(hosting, CI publishing, permanent asset placement) — that is Phase 5
+territory and belongs in a later doc.
 
 ## Overview
 
 Roger's native target is Windows/MSVC (see the top-level `CLAUDE.md`). The web
 demo is a **second, WSL-hosted build** of the same source tree targeting
 emscripten/wasm, produced from a dedicated Linux-side clone so the Windows
-checkout and its build state are never touched. The flow has five stages:
+checkout and its build state are never touched. The flow has six stages:
 
 1. WSL clone of the Windows repo, on its own branch (`jon-wasm`).
 2. A native Linux build + `make test`, as a portability check before touching
@@ -27,6 +29,10 @@ checkout and its build state are never touched. The flow has five stages:
    many per-file HTTP fetches — see "Packaged game data" below. This is
    now the primary path; the plain-HTTP layout from stage 4 remains as the
    fallback when no package is present.
+6. The **Phase 4 bundle-content swap**: Betrayed Alliance replaces SQ3 as
+   the staged game/cache content in the assembled bundle, with the shipped
+   ini, no-fragment boot default, and branded landing page — see "Phase 4
+   bundle (Betrayed Alliance)" below.
 
 ## WSL clone and push-back flow
 
@@ -332,13 +338,19 @@ available and was verified working this phase: add
 `roger_display_mode=sbs` under `[betrayed]` in `roger-demo.ini` and rebuild.
 
 **Measured sizes (2026-07-12, Chrome via Playwright, full verification
-sweep — see the Gate snapshot below for the item-by-item results):**
+sweep).** All six sweep items passed: cold load with no ScummVM chrome,
+parser round-trip, walk/scene sanity, F10 one-step-per-press across all
+three display modes, save/reload via IDBFS, and a clean console. The
+item-by-item evidence lives in the local-only sweep report
+(`.superpowers/sdd/task-6-report.md`, screenshots `screenshots/phase4/` —
+neither is tracked; the "Gate snapshot" section further below is the
+earlier Phase 1/2 SQ3 data, not this sweep).
 
 | Artifact | Size |
 |---|---|
 | `build-emscripten` total (`du -sh`) | 55 MB |
 | `scummvm-game.data` | 25,720,155 bytes (~24.5 MiB) |
-| `scummvm.wasm` | 14,007,305 bytes (~13.4 MiB) |
+| `scummvm.wasm` | 14,007,305 bytes (~13.4 MiB; a later relink of the same source than the 14,007,161-byte figure quoted elsewhere in this doc — shell-only relinks re-emit the wasm) |
 
 Cold load to the title screen: ~3-6 s (localhost). All within the spec §3
 expected range (~45-55 MB total / ~25 MB `.data` / ~14 MB wasm) and far
