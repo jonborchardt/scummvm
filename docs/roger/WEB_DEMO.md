@@ -425,7 +425,11 @@ display-mode single-step behavior specifically — scripted keyboard events
 could not be made to single-step reliably in headless browser automation
 and require a real keypress to confirm; plus general extended play in
 Chrome and Firefox) was still pending. Treat the figures above as build/perf
-evidence, not a substitute for that soak.
+evidence, not a substitute for that soak. *(Update, later the same day: the
+scripted F10 double-step turned out to be the phantom repeat burst itself —
+after the repeat-filter fix `589c114f436` the 2026-07-12 regression sweep
+below verifies F10 single-stepping under scripted input; the Chrome+Firefox
+human soak remains the open gate.)*
 
 ## Performance: packaged vs HTTP-FS — 2026-07-12
 
@@ -479,7 +483,7 @@ entirely on load/scene-change events rather than steady-state play.
   continuously across a room and into the next; a second press stops the
   ego immediately, no double-processing). F10 single-steps the
   display-mode cycle exactly once per press across all three modes
-  (Enhanced -> Original -> Side-by-Side -> Enhanced); Escape/arrow-key SCI
+  (Enhanced → Original → Side-by-Side → Enhanced); Escape/arrow-key SCI
   menu navigation moves exactly one entry per press in both Enhanced and
   Original, with no stale pixels left on close.
 - **New residual, machine-speed only (scripted sweep + DOM census,
