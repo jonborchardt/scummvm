@@ -624,3 +624,272 @@ entirely on load/scene-change events rather than steady-state play.
   ghost above remains filed from real-hardware reports; synthetic-vs-real
   mouse-event timing is the suspected reason it doesn't reproduce under
   scripted input.
+
+## Phase 5 deploy (GitHub Pages)
+
+Phase 5 covers everything this doc's overview scoped out of Phase 4:
+hosting, CI publishing, and permanent asset placement. The bundle itself
+(Phase 4, above) is unchanged — Phase 5 only adds a dedicated publishing
+repo and a workflow that serves it.
+
+### Demo repo
+
+The assembled bundle is published from a **separate, dedicated repo** —
+never this fork — per the design spec's §3.1/§4.1 repo-placement rule
+(~50 MB of generated assets must never enter this repo's history):
+
+- Repo: `jonborchardt/roger-web-demo`, **public**.
+- Live URL: `https://jonborchardt.github.io/roger-web-demo/`.
+- Publishing mechanism: `.github/workflows/deploy.yml`, a GitHub Actions
+  workflow that publishes the repo's `site/` directory to GitHub Pages on
+  every push to `main` (`actions/checkout` → `actions/configure-pages` →
+  `actions/upload-pages-artifact` → `actions/deploy-pages`). Pages needed
+  **one-time manual enablement** — the first workflow run failed at
+  `configure-pages` with `Resource not accessible by integration` (Pages
+  had never been turned on for the repo); the fix was a one-shot API call
+  before re-running the workflow:
+
+  ```sh
+  gh api -X POST repos/jonborchardt/roger-web-demo/pages -f build_type=workflow
+  ```
+
+  This only needs to happen once per repo, not per deploy.
+- Repo contents: `README.md` (demo description + credits), `COPYING`
+  (verbatim GPLv3 text, copied from this fork's `COPYING`),
+  `.github/workflows/deploy.yml`, `.gitignore`, and `site/` — the entire
+  assembled bundle from `build-assemble_demo.sh` (below), committed and
+  replaced wholesale on every redeploy.
+
+**Licensing story.** Serving the compiled `scummvm.wasm` to the public is
+GPL *distribution*, so the repo carries the standard three-part answer:
+
+1. **`COPYING`** at the repo root — the full GPLv3 text, satisfying the
+   "include a copy of the license" obligation for the engine.
+2. **`site/build-info.txt`** — the **GPL source pointer**: a small text
+   file stamped at assembly time naming the exact fork repo, branch, and
+   commit the served binaries were built from:
+
+   ```
+   Roger web demo build info
+   source: https://github.com/jonborchardt/scummvm (branch jon-wasm)
+   commit: 9d59830330e8b4902e0ff3c2314308adb7c20027
+   assembled: 2026-07-13T15:15:03Z
+   ```
+
+   Since the fork is public, this pointer is a complete-corresponding-source
+   answer without shipping a source tarball. The commit currently pointed
+   to (`9d59830330e`) is one commit *after* the one the wasm was actually
+   compiled at in Phase 4 (`029573ac9ad`) — everything in between is
+   non-compiled assembly tooling (the `build-assemble_demo.sh` script and
+   this doc section), so `9d59830330e` still rebuilds byte-identical
+   binaries and remains a valid pointer.
+3. **`site/LICENSE-BetrayedAlliance.txt`** — the bundled fan game's own
+   MIT license (copied verbatim from the release's `LICENSE.TXT` at
+   assembly time), satisfying the license *condition* attached to
+   redistributing Betrayed Alliance's game data alongside the engine.
+
+   The README credits Ryan Slattery / Slattstudio with plain attribution
+   only (source repo + `slattstudio.com` links) and an explicit
+   "not affiliated with / endorsed by" disclaimer — no partnership framing.
+
+### Assembly script
+
+`dists/emscripten/build-assemble_demo.sh` turns a built `build-emscripten/`
+tree into the exact directory that gets mirrored into the demo repo's
+`site/`. It is a **tracked fork file**, but because it lives under the
+blanket-ignored `dists/` glob it is invisible to a plain `git add` —
+**committing it (or any future edit to it) requires `git add -f`.**
+
+The script refuses to assemble a stale or broken bundle — it gates on:
+
+- `scummvm.wasm` and `scummvm-game.data` both present in `build-emscripten/`.
+- `scummvm.ini` carries a `[betrayed]` section **and** does not carry a
+  `roger_display_mode` override (catches a dev leftover from Variant-A
+  side-by-side testing leaking into a release build).
+- `scummvm.js` carries the no-fragment `betrayed` boot default (catches a
+  stale shell that wasn't actually relinked after a pre-js edit).
+- `scummvm-game.data` size falls inside a 20–30 MB window (catches a
+  mis-packaged or empty game-data blob for Betrayed Alliance specifically).
+
+Any gate failure is a hard `FAIL: <reason>` to stderr and a non-zero exit
+with **no output directory written** — verified directly by a negative
+test (appending `roger_display_mode=sbs` to the ini reliably blocked
+assembly with no `assembled:` line).
+
+On success it: renames `scummvm.html` → `index.html`; copies the engine
+artifacts, `LICENSE-BetrayedAlliance.txt`, favicon/logo/manifest/icons, and
+the whole `data/` tree; touches `.nojekyll` (so GitHub Pages doesn't run
+Jekyll over the `_`-prefixed emscripten output); and stamps
+`build-info.txt` (the GPL source pointer above) with the fork's current
+`HEAD` commit and an ISO-8601 assembly timestamp. Output default:
+`<repo-root>/demo-site` (gitignored — added to `.gitignore` alongside the
+existing `/build*` glob). Last measured output: 30 files, ~54 MB.
+
+### Known subpath residual (read before deciding this is "done")
+
+**GitHub Pages serves the demo under a subpath** (`/roger-web-demo/`, not
+the origin root), but **ScummVM's built-in GUI data directory is fetched
+from an absolute `/data/...` URL baked into the wasm at build time** —
+this is a stock upstream emscripten-target behavior, not something Phase 5
+introduced:
+
+- `configure` (upstream, unmodified) sets `datadir='/data'` for the
+  `wasm32-*` host — an **absolute**, leading-slash path.
+- `backends/fs/emscripten/http-fs.cpp` builds its fetch URL directly from
+  that absolute `datadir`, so every request for engine-owned GUI data
+  resolves from the **origin root**, ignoring whatever subpath the page
+  itself was loaded from.
+
+Net effect: `/data/*` (ScummVM's own GUI theme zips, `fonts.dat`,
+`translations.dat`, `gui-icons.dat`, `helpdialog.zip`, `achievements.dat`,
+`shaders.dat` — **not** any SCI game or Roger cache data, which stay
+subpath-clean via the `/gamedata` MEMFS mount) 404s when the page is
+loaded at `https://jonborchardt.github.io/roger-web-demo/`, even though
+those exact files are shipped correctly and reachable one level down at
+`https://jonborchardt.github.io/roger-web-demo/data/...`.
+
+**Measured impact (accepted, shipping as-is):** the game boots with no
+chrome, plays fully, enhanced art is intact, and save/load round-trips
+correctly through both the F5 GMM dialog and the parser `save game`
+command. The only visible cost is cosmetic: the save/restore dialog
+renders in ScummVM's plain **builtin fallback theme** instead of the
+styled theme (its zip lives under `/data/`), and Roger's own TTF
+dialog/header fonts (`GoMono-Regular.ttf`, `NotoSans-Regular.ttf`, also
+served from `data/fonts.dat`) fall back to bitmap rendering. Both are
+legible; neither blocks play, save, or restore.
+
+**Three fix options, for a future decision (none applied this phase):**
+
+- **(A) Accept as-is — current ship state.** Zero engine/backend risk,
+  zero extra work; the cosmetic cost above is the whole price.
+- **(B) Host at a subpath-free URL** — the user-pages root
+  `jonborchardt.github.io` (verified unused as of this phase) or a custom
+  domain pointed at the repo. Resolves the residual completely with **no
+  engine change** — `/data/...` and the page root would coincide — but
+  spends the personal `jonborchardt.github.io` namespace on this demo (or
+  requires a custom domain).
+- **(C) Make `datadir` relative / base-aware for the emscripten build** —
+  either drop the leading slash at `configure:2010` or derive a page-base
+  prefix (`location.pathname` / `document.baseURI`) inside
+  `http-fs.cpp`'s fetch. Cleanest technically (fixes it for any hosting
+  path, not just this one repo's layout), but it is a `configure` /
+  `backends/fs/emscripten/` **engine/backend edit**, which the Phase 5
+  design spec's §8 out-of-scope list and this task's constraints both
+  forbid touching, and it requires a full wasm rebuild + re-verification.
+
+This is the **subpath-simulation gotcha**: serving the assembled bundle at
+a plain HTTP root (the desktop dev flow, `python3 -m http.server 8080`
+inside `build-emscripten/`) never exercises this class of bug, because
+`/data/...` and the server root are the same path there. **Always verify
+a redeploy candidate by simulating the actual Pages subpath** (symlink the
+assembled directory under a path segment and serve *that*, per the
+runbook below) — root-only testing is not sufficient and will not catch
+this residual reappearing or worsening.
+
+### Measured public-URL load time
+
+From the live `https://jonborchardt.github.io/roger-web-demo/` (Chrome,
+fresh IndexedDB + cleared HTTP cache, cold navigation, 2026-07-13):
+
+| Stage | Time (from navigation start) |
+|---|---|
+| `scummvm.wasm` fetch complete | ~2.25 s |
+| `scummvm-game.data` fetch complete | ~5.07 s (25.7 MB transferred as ~21.1 MB gzip'd over the CDN — the dominant cost) |
+| DOMContentLoaded / load | ~0.28 s |
+| Title screen fully rendered | **~6–8 s total** |
+
+A same-page reload (after a save, testing IndexedDB persistence) lands in
+a comparable ~8–9 s window, with `scummvm.js`/`scummvm-game.js` served
+`304` from cache and only `scummvm-game.data` re-fetched. The full
+scripted acceptance sweep against this URL passed all 6 checklist items
+(cold load with no chrome, network audit, playability round-trip, all
+three F10 display modes, save-survives-reload, clean console modulo the
+known residuals above) — see `.superpowers/sdd/task-4-report.md`
+(local-only, not tracked) for the item-by-item evidence.
+
+### Redeploy runbook
+
+The ordered sequence a future cache regeneration, pass-tuning change, or
+game-content swap actually needs to run, end to end:
+
+1. **If the generation pipeline changed**, regenerate the desktop Roger
+   cache first (a normal precache run against the local Betrayed Alliance
+   install) — the web bundle only ever ships a *copy* of a cache warmed on
+   desktop, it never generates its own.
+2. **Re-package the game data + cache** with
+   `dists/emscripten/build-package_game.sh`, the same Betrayed Alliance
+   invocation used to build the shipped bundle (staging dir holding only
+   `resource.map` + `resource.001` + `LICENSE.TXT`, filtered to the
+   current cache version/pass token):
+
+   ```sh
+   dists/emscripten/build-package_game.sh ~/ba-game-stage \
+     '/mnt/j/BetrayedAllianceBook1-v1.3.3.1/sci-fanmade-roger/cache' \
+     sci-fanmade v6 p0p2p2p2p2p2p1p0p0p0
+   ```
+
+   (See "Phase 4 bundle (Betrayed Alliance)" above for the full staging
+   contract and expected file counts. Requires `build.sh dist` to have
+   already produced `build-emscripten/` this session.)
+3. **Re-copy the shipped ini** — `build.sh dist` does not do this
+   automatically, and a fresh `dist` silently reverts `scummvm.ini`:
+
+   ```sh
+   cp dists/emscripten/roger-demo.ini build-emscripten/scummvm.ini
+   ```
+4. **Assemble the site directory:**
+
+   ```sh
+   sh dists/emscripten/build-assemble_demo.sh
+   ```
+
+   A clean run prints `assembled: <path> (<size>, <N> files)`; any gate
+   failure prints `FAIL: <reason>` and writes nothing — treat that as a
+   stop, not something to work around.
+5. **Subpath-simulation check — do not skip.** Serve the assembled
+   directory under a path segment (never bare root) and load it at that
+   subpath, exactly mirroring how GitHub Pages will serve it:
+
+   ```sh
+   wsl.exe -u jon bash -lc "rm -rf /tmp/pages-sim && mkdir -p /tmp/pages-sim && \
+     ln -s /home/jon/scummvm-wasm/demo-site /tmp/pages-sim/roger-web-demo && \
+     cd /tmp/pages-sim && python3 -m http.server 8081"
+   ```
+
+   then load `http://localhost:8081/roger-web-demo/` (not
+   `http://localhost:8081/`) and confirm: cold boot reaches the title
+   screen with no chrome, and the only 404s are the known `/data/*` +
+   `favicon.ico` residuals documented above — any *new* 404 or a broken
+   boot means something regressed and must be fixed before mirroring to
+   the demo repo.
+6. **Mirror into the demo repo's `site/`:**
+
+   ```powershell
+   robocopy "\\wsl.localhost\Ubuntu\home\jon\scummvm-wasm\demo-site" `
+     "e:\github2\roger-web-demo\site" /MIR /NFL /NDL
+   ```
+
+   `/MIR` is required — it deletes files in `site/` that are no longer in
+   the new `demo-site/`, keeping the two in exact sync rather than
+   accumulating stale bundle files across redeploys. Robocopy exit codes
+   0–7 are success (1 = "files copied", not an error).
+7. **Commit and push the demo repo** (`e:\github2\roger-web-demo`, not this
+   fork) — a normal `git add site` + commit + `git push origin main`.
+8. **Watch the deploy workflow:**
+
+   ```sh
+   gh run watch <run-id> --repo jonborchardt/roger-web-demo --exit-status
+   ```
+
+   (`gh run list --repo jonborchardt/roger-web-demo` finds the run id if
+   not run interactively right after the push.)
+9. **Public-URL spot check** — confirm the live bundle actually updated
+   before calling the redeploy done:
+
+   ```sh
+   curl.exe -s https://jonborchardt.github.io/roger-web-demo/build-info.txt
+   curl.exe -s -o NUL -w "%{http_code}" https://jonborchardt.github.io/roger-web-demo/scummvm.wasm
+   ```
+
+   Confirm `build-info.txt`'s `commit:` line matches the fork commit just
+   pushed, and `scummvm.wasm` returns `200`.
