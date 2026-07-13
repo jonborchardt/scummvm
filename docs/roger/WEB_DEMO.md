@@ -473,3 +473,32 @@ entirely on load/scene-change events rather than steady-state play.
 - **Still open (separate follow-up):** the Enhanced-mode stale
   dropdown-overlay ghost seen when dismissing the menu with the mouse (a
   Roger overlay-invalidation issue, unrelated to input handling).
+- **Verified (scripted regression sweep, 2026-07-12):** real same-key-stop
+  semantics hold up — two genuine presses of the same key (distinct
+  timestamps) both survive the filter (one `ArrowRight` press walks
+  continuously across a room and into the next; a second press stops the
+  ego immediately, no double-processing). F10 single-steps the
+  display-mode cycle exactly once per press across all three modes
+  (Enhanced -> Original -> Side-by-Side -> Enhanced); Escape/arrow-key SCI
+  menu navigation moves exactly one entry per press in both Enhanced and
+  Original, with no stale pixels left on close.
+- **New residual, machine-speed only (scripted sweep + DOM census,
+  2026-07-12):** under synthetic input faster than any human types
+  (~1 ms key hold), a phantom character still slips past the
+  same-timestamp filter — `roll` typed as `rolll`, a rapid `abcd` control
+  as `abbcd`. A DOM-level keydown/keyup census showed one clean event pair
+  per physical press, no `repeat` flag, no duplicate timestamps, so the
+  extra character is manufactured inside the SDL3/emscripten layer itself,
+  past the exact-equality guards in
+  `backends/events/emscriptensdl/emscriptensdl-events.h` (the
+  `SDL_EVENT_KEY_DOWN` repeat/scancode/timestamp triple-match, and
+  especially the single global last-timestamp slot on the
+  `SDL_EVENT_TEXT_INPUT` branch). Real-keyboard typing was user-confirmed
+  clean the same day; a fix (timestamp tolerance window, or
+  per-character `TEXT_INPUT` dedup) is deferred to a dedicated session.
+- **Mouse-menu ghost: not reproduced under synthetic input.** Eight
+  varied mousedown/drag/dismiss patterns against the Enhanced-mode menu
+  (plus an Original-mode contrast) all came back clean this sweep. The
+  ghost above remains filed from real-hardware reports; synthetic-vs-real
+  mouse-event timing is the suspected reason it doesn't reproduce under
+  scripted input.
