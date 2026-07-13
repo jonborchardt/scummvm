@@ -65,6 +65,7 @@ lib*.a
 /ScummVM Manual*.pdf
 
 /build*
+/demo-site/
 /staging
 /portdist
 
