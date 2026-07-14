@@ -869,3 +869,49 @@ game-content swap actually needs to run, end to end:
 
    Confirm `build-info.txt`'s `commit:` line matches the fork commit just
    pushed, and `scummvm.wasm` returns `200`.
+
+### Future direction: move the build into GitHub Actions (retires the separate repo)
+
+The current split — dedicated `roger-web-demo` repo holding the built
+bundle, wasm compiled locally in WSL, CI only publishing — is a deliberate
+**iterate-fast** choice, not the intended end state. It exists so a Roger
+code change can be rebuilt and eyeballed in seconds without waiting on a
+heavy emscripten toolchain spin-up in CI on every poke. The manual
+robocopy-and-push redeploy is the accepted price of that speed while the
+code is still moving.
+
+**Trigger to revisit:** once the code has stabilized ("we like it") and
+redeploys become routine rather than exploratory.
+
+**Target end state:** stand up the emscripten build in a GitHub Actions
+workflow that compiles the wasm on push and deploys straight to Pages
+(`actions/configure-pages` → `upload-pages-artifact` → `deploy-pages`, the
+same publish trio, but fed by a CI build step instead of a committed
+`site/`). This single move collapses several things at once:
+
+- **No committed binaries anywhere.** CI builds the ~55 MB bundle per run
+  and uploads it as the Pages artifact; it never enters any repo's git
+  history. Clone size and history stay clean.
+- **The separate `roger-web-demo` repo retires.** Its only reason to exist
+  is to *hold* the built bundle for Pages to serve; once CI produces the
+  bundle on demand, there is nothing to hold. The fork can publish its own
+  Pages (`jonborchardt.github.io/scummvm/`-class URL) as the one canonical
+  Roger showcase — fitting the fork's role as a long-lived showcase until
+  upstream merge.
+- **Provenance becomes the workflow run**, not a hand-stamped
+  `build-info.txt` — the Pages deployment is tied to the exact source
+  commit CI built from, automatically.
+
+**Cost / why it is deferred:** the emscripten build is heavy (emsdk install
++ full wasm link), so a CI round-trip is minutes, not seconds — worth
+paying only when manual rebuilds start to chafe, not while iterating. The
+`--enable-png --enable-freetype2 --enable-zlib` command-contract amendment
+(§ Emscripten build above) must carry into the CI build step, and the
+`roger-demo.ini` copy + `build-package_game.sh` game/cache staging (which
+`build.sh dist` does not do) must become explicit CI steps — the same gaps
+the local runbook already calls out.
+
+This also settles the "pull the demo into the fork vs leave it separate"
+question by dissolving it: with CI building and publishing, neither a
+separate repo nor a committed-bundle folder is needed — the fork simply
+builds and serves itself.
