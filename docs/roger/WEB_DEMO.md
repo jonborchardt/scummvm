@@ -115,17 +115,17 @@ web build still boots but Roger's enhanced rendering is silently degraded.
 **Every `build.sh` invocation for this project must carry:**
 
 ```sh
---enable-png --enable-freetype2 --enable-zlib
+--enable-png --enable-freetype2 --enable-zlib --enable-vkeybd
 ```
 
 The full three-stage build:
 
 ```sh
 ./dists/emscripten/build.sh configure --disable-all-engines --enable-engine=sci \
-    --enable-png --enable-freetype2 --enable-zlib
+    --enable-png --enable-freetype2 --enable-zlib --enable-vkeybd
 
 ./dists/emscripten/build.sh make --disable-all-engines --enable-engine=sci \
-    --enable-png --enable-freetype2 --enable-zlib
+    --enable-png --enable-freetype2 --enable-zlib --enable-vkeybd
 ```
 
 The first `configure` run auto-installs emsdk (~300 MB, node + clang
@@ -152,7 +152,7 @@ replace it.
 
 ```sh
 ./dists/emscripten/build.sh dist --disable-all-engines --enable-engine=sci \
-    --enable-png --enable-freetype2 --enable-zlib
+    --enable-png --enable-freetype2 --enable-zlib --enable-vkeybd
 ```
 
 This produces `build-emscripten/` containing the engine artifacts, ScummVM's
@@ -651,7 +651,7 @@ below in every case; only how much gets rebuilt first differs:
   clone `git fetch origin && git merge --ff-only origin/jon-wasm`, then
   rebuild only the compiled artifacts — `build.sh make` (relinks
   `scummvm.wasm`/`.js`/`.html`) then `build.sh dist` (both carrying
-  `--enable-png --enable-freetype2 --enable-zlib`) — re-copy
+  `--enable-png --enable-freetype2 --enable-zlib --enable-vkeybd`) — re-copy
   `roger-demo.ini`, run `build-assemble_demo.sh`, do the subpath-simulation
   check, robocopy into the demo repo, push, watch, verify. **The game
   data (`scummvm-game.data`) and the art cache are NOT touched** — `dist`
@@ -948,8 +948,8 @@ same publish trio, but fed by a CI build step instead of a committed
 **Cost / why it is deferred:** the emscripten build is heavy (emsdk install
 + full wasm link), so a CI round-trip is minutes, not seconds — worth
 paying only when manual rebuilds start to chafe, not while iterating. The
-`--enable-png --enable-freetype2 --enable-zlib` command-contract amendment
-(§ Emscripten build above) must carry into the CI build step, and the
+`--enable-png --enable-freetype2 --enable-zlib --enable-vkeybd` command-contract
+amendment (§ Emscripten build above) must carry into the CI build step, and the
 `roger-demo.ini` copy + `build-package_game.sh` game/cache staging (which
 `build.sh dist` does not do) must become explicit CI steps — the same gaps
 the local runbook already calls out.
