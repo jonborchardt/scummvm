@@ -51,7 +51,13 @@ HTTPFilesystemNode::HTTPFilesystemNode(const Common::String &p) : _path(p), _isV
 	if (_path == DATA_PATH) { // need special case for handling the root of the http-filesystem
 		_isDirectory = true;
 		_isValid = true;
-		_url = _path;
+		// Seed the fetch URL as page-relative (strip the leading slash) so the
+		// browser resolves it against the document base URL. An absolute
+		// "/data" resolves from the origin root and 404s whenever the app is
+		// served from a sub-path (e.g. a GitHub Pages project site); the
+		// page-relative form works both at the root and under any sub-path.
+		// The VFS path (_path) stays absolute; only the fetch URL is relative.
+		_url = _path.hasPrefix("/") ? Common::String(_path.c_str() + 1) : _path;
 	} else { // we need to peek in the parent folder to see if the node exists and if it's a directory
 		AbstractFSNode *parent = getParent();
 		AbstractFSList tmp = AbstractFSList();
