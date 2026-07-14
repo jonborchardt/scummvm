@@ -1268,3 +1268,23 @@ appears nowhere outside `engines/sci/roger/`. This is enforced by the quarantine
 grep above and documented in §3 and §10. Roger-off (null observer) is byte-identical
 to stock SCI; original-mode smoke confirms the provider-present native path also exits
 cleanly.
+
+## 12. Post-audit addendum: web-demo footprint (2026-07-14)
+
+Added AFTER this audit's 2026-07-10 baseline, so NOT counted in §2's measured
+830-line total. The Roger web demo (native Emscripten/wasm build, Phases 1-6;
+full build/deploy/redeploy story in `docs/roger/WEB_DEMO.md`) touched these files
+outside `engines/sci/roger/`. All are downstream web-demo enablement; the quarantine
+grep is unaffected (no `roger` references outside `engines/sci/roger/`).
+
+| File | Web-demo role | Upstream story |
+|---|---|---|
+| `backends/fs/emscripten/http-fs.cpp` | page-relative data-dir fetch so a subpath (GitHub Pages `/roger-web-demo/`) deploy resolves `data/*` | **clean upstream-PR candidate** — generic, Roger-agnostic portability fix (absolute `/data/` breaks any subpath deploy) |
+| `backends/events/emscriptensdl/emscriptensdl-events.h` | SDL3 phantom key-repeat + `TEXT_INPUT` dedup filters | web-only backend (never compiled for desktop); the sanctioned "web-specific code in the backend, not in engine code" path |
+| `dists/emscripten/build-assemble_demo.sh` | assembles the publishable `demo-site` tree | downstream tooling (`git add -f` — under gitignored `dists/`) |
+| `dists/emscripten/build-package_game.sh` | packs the game+cache data blob | downstream tooling |
+| `dists/emscripten/custom_shell.html`, `custom_shell-pre.js` | landing page + optional game-data package load | downstream tooling |
+| `dists/emscripten/roger-demo.ini` | shipped ini (boots Betrayed Alliance) | downstream config |
+
+Not re-measured into §2's line-count baseline; when the manufactured-clean-branch
+pass runs, `http-fs.cpp` is the only file here worth a standalone upstream PR.
