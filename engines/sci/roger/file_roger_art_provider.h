@@ -428,8 +428,21 @@ private:
 
 	// Render each unique non-ASCII byte of `text` as a glyph surface from the game's
 	// SCI font (fontId, penColor), own it in _uiIcons, and append {byte,surface} to
-	// `out`. ASCII-only text yields an empty list (pure TTF path).
-	void buildGlyphs(const char *text, int fontId, int penColor, Common::Array<Roger::UiGlyph> &out);
+	// `out`. ASCII-only text normally yields an empty list (pure TTF path). When
+	// `blitAllBytes` is set, printable-ASCII bytes are ALSO captured as game-font glyphs
+	// -- used for the status/title bar of a decorative-font game (_decorativeStatusFont)
+	// whose font repurposes ASCII code points as ornamental letters, so the bar matches
+	// native instead of showing literal punctuation. Default false: every other caller's
+	// ASCII stays on the crisp TTF, byte-identical to before.
+	void buildGlyphs(const char *text, int fontId, int penColor, Common::Array<Roger::UiGlyph> &out,
+	                 bool blitAllBytes = false);
+
+	// True when the active game's status/title bar is drawn in a font that repurposes
+	// printable-ASCII code points as decorative glyphs (Betrayed Alliance maps '$'/'#'
+	// to blackletter capitals). Detected once at construction from the game's identity
+	// (NOT the shared "sci-fanmade" id). Gates the status-bar full-glyph blit only; all
+	// other games and all other text stay on the hybrid TTF path unchanged.
+	bool _decorativeStatusFont = false;
 
 	// Feeder B: upscale captured native generic regions (_genRegions) onto scene.
 	// scene is the current frame's composite surface (RGBA32). picRect is the

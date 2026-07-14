@@ -227,13 +227,15 @@ static const Graphics::Surface *findGlyph(const Common::Array<UiGlyph> *glyphs, 
 	return nullptr;
 }
 
-// Does this line contain a byte outside printable ASCII that we have a glyph for?
+// Does this line contain any byte we have a game-font glyph for? The glyph set is
+// built game-side (buildGlyphs): non-ASCII bytes plus any printable-ASCII slot the
+// game font repurposed as a decorative glyph. So a glyph entry existing IS the signal
+// to draw that byte from the game font -- the byte's ASCII range no longer matters.
 static bool lineHasGlyph(const Common::String &line, const Common::Array<UiGlyph> *glyphs) {
 	if (!glyphs || glyphs->empty())
 		return false;
 	for (uint i = 0; i < line.size(); i++) {
-		const byte c = (byte)line[i];
-		if ((c < 0x20 || c >= 0x7f) && findGlyph(glyphs, c))
+		if (findGlyph(glyphs, (byte)line[i]))
 			return true;
 	}
 	return false;
@@ -246,7 +248,7 @@ static int mixedLineWidth(const Graphics::Font *f, const Common::String &line,
 	Common::String run;
 	for (uint i = 0; i < line.size(); i++) {
 		const byte c = (byte)line[i];
-		const Graphics::Surface *g = (c < 0x20 || c >= 0x7f) ? findGlyph(glyphs, c) : nullptr;
+		const Graphics::Surface *g = findGlyph(glyphs, c);
 		if (g) {
 			if (!run.empty()) {
 				w += f->getStringWidth(run);
@@ -428,7 +430,7 @@ void RogerTextRenderer::drawAtPx(Graphics::ManagedSurface &dst, const Common::St
 			Common::String run;
 			for (uint c = 0; c < lines[i].size(); c++) {
 				const byte ch = (byte)lines[i][c];
-				const Graphics::Surface *g = (ch < 0x20 || ch >= 0x7f) ? findGlyph(glyphs, ch) : nullptr;
+				const Graphics::Surface *g = findGlyph(glyphs, ch);
 				if (g) {
 					if (!run.empty()) {
 						f->drawString(&dst, run, x, y, rect.right - x, color, Graphics::kTextAlignLeft);

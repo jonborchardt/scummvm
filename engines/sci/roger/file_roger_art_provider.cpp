@@ -90,6 +90,25 @@ FileRogerArtProvider::FileRogerArtProvider(const Common::String &gameId,
 	_basePath = rogerPath.toString('/');
 	_gameId = gameId;
 
+	// Decorative-font status bar detection. Betrayed Alliance (a fan game) draws its
+	// status/title bar in a font that repurposes printable-ASCII code points as
+	// blackletter capitals ('$'=B, '#'=A), so Roger's hybrid text path -- which sends
+	// printable ASCII to the crisp TTF -- renders the title as literal punctuation
+	// ("$etrayed #lliance"). There is NO game-agnostic pixel signal that separates a
+	// repurposed slot from an ordinary letter (a content-based bitmap comparison put a
+	// normal 'R' and the decorative '#' at the SAME deviation score), so this is gated
+	// on the game's identity instead. The SCI game id here is the SHARED "sci-fanmade"
+	// value (true for ALL SCI fan games, so useless as a discriminator); BA is matched
+	// by its human-readable description string instead. Status/title only -- BA's
+	// dialogue/narration keeps the crisp TTF; every other game is untouched.
+	{
+		Common::String desc = ConfMan.hasKey("description") ? ConfMan.get("description")
+		                                                     : Common::String();
+		desc.toLowercase();
+		if (desc.contains("betrayed alliance"))
+			_decorativeStatusFont = true;
+	}
+
 	// roger_visual_variant / roger_priority_variant selected prebuilt PNG files (the
 	// hires visual and the EGA-color overlay-occlusion map). Under in-engine
 	// generation both the visual and the occlusion bands are produced from the SCI
@@ -1802,13 +1821,15 @@ void FileRogerArtProvider::presentComparison() {
 }
 
 void FileRogerArtProvider::buildGlyphs(const char *text, int fontId, int penColor,
-                                       Common::Array<Roger::UiGlyph> &out) {
+                                       Common::Array<Roger::UiGlyph> &out, bool blitAllBytes) {
 	if (!text || !_assetGen)
 		return;
 	for (const char *p = text; *p; ++p) {
 		const byte c = (byte)*p;
-		if (c >= 0x20 && c < 0x7f)
-			continue; // printable ASCII -> TTF handles it
+		if (!blitAllBytes && c >= 0x20 && c < 0x7f)
+			continue; // ordinary printable ASCII -> the crisp TTF handles it. Only a
+			          // decorative-font status bar (blitAllBytes) captures ASCII too, so
+			          // its repurposed glyphs (BA's blackletter '$'/'#') render like native.
 		bool seen = false;
 		for (uint i = 0; i < out.size(); i++)
 			if (out[i].ch == c) {
@@ -2140,7 +2161,11 @@ void FileRogerArtProvider::uiPushStatusInternal(const Common::Rect &r, const cha
 	e.useAltFont = true;
 	e.token = token;
 	e.nativeFontH = nativeFontH; e.nativeTextW = nativeTextW;
-	buildGlyphs(text, fontId, penColor, e.glyphs);
+	// Decorative-font games (BA) draw the status/title bar with a font that repurposes
+	// printable-ASCII slots as ornamental letters -- blit EVERY byte from the game font
+	// so the bar matches native, not the hybrid TTF path's literal punctuation. All
+	// other games keep the crisp-TTF-for-ASCII path (blitAllBytes stays false).
+	buildGlyphs(text, fontId, penColor, e.glyphs, _decorativeStatusFont);
 	journalAppend(e);
 	markUiDirty(r);
 	presentBarrier();
