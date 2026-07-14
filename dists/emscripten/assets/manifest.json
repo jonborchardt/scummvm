@@ -16,6 +16,7 @@
     "start_url": "scummvm.html",
     "background_color": "#3367D6",
     "display": "fullscreen",
+    "orientation": "landscape",
     "theme_color": "#c60",
     "shortcuts": [
      

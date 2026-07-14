@@ -108,10 +108,20 @@
       padding: 0 4px;
       font: 11.5px monospace;
     }
+
+    #rotate-hint { display:none; }
+    @media (orientation: portrait) and (max-width: 900px) {
+      #rotate-hint {
+        display:flex; position:fixed; inset:0; z-index:10;
+        align-items:center; justify-content:center; text-align:center;
+        background:#000; color:#fff; font:16px sans-serif; padding:2em;
+      }
+    }
   </style>
 </head>
 
 <body>
+  <div id="rotate-hint">Rotate your phone to landscape for the best view.</div>
   <progress hidden id=progress max=100 value=0></progress>
   <div id="status">Loading…</div>
 
