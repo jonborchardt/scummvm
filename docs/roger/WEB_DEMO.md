@@ -1127,3 +1127,159 @@ since 2026-07-12):
 at `docs/superpowers/2026-07-12-ba-courtesy-email.md`. It is the user's
 own draft to send or not — **Phase 6 sends nothing and takes no email
 action of any kind.**
+
+## Mobile support
+
+Added 2026-07-14 (six commits, `7a3d96bf669`..`9e841fe2f14` on `jon-wasm`):
+touch/mobile-keyboard support for the live demo, so a phone or tablet
+browser can play Betrayed Alliance without a physical keyboard. This is
+additive to everything above — same bundle, same publishing pipeline; only
+the shell and two backend files changed.
+
+### `kFeatureVirtualKeyboard` implementation
+
+The Emscripten backend never answered `kFeatureVirtualKeyboard` — SCI calls
+`setFeatureState(kFeatureVirtualKeyboard, true)` whenever a text field gets
+focus (the name-entry field, the GMM save-name box), and with no backend
+support that was a no-op, so mobile browsers never got a chance to show a
+keyboard. `backends/platform/sdl/emscripten/emscripten.{h,cpp}` now answers
+it: `hasFeature`/`getFeatureState`/`setFeatureState` handle
+`kFeatureVirtualKeyboard` alongside the existing `kFeatureFullscreenMode`
+case, backed by a new `_virtualKeyboardShown` member and an `EM_JS` shim
+(`showMobileKeyboard`) that calls a `window.__mobileKbdShow(show)` function
+defined in the shell (below). This mirrors how the Android/iOS ScummVM
+backends already answer the same hook — the web backend was the gap.
+
+**This implementation has no Roger dependency and is a clean upstream-PR
+candidate** (same category as the `http-fs.cpp` subpath fix in §12) — it is
+general SCI/GUI feature parity for the stock Emscripten port, not anything
+Betrayed-Alliance- or Roger-specific.
+
+### Hidden-input / text-bridge flow
+
+There is no way to summon a real mobile on-screen keyboard (OSK) without a
+focused, editable DOM element, and no way to read what the OSK types except
+through that element's `input` events — so `custom_shell.html` carries a
+1x1, off-screen, `aria-hidden` `<input id="mobile-kbd-input">`. The flow:
+
+1. SCI calls `setFeatureState(kFeatureVirtualKeyboard, true)` →
+   `showMobileKeyboard(true)` (EM_JS) → `window.__mobileKbdShow(true)` →
+   the shell clears and focuses `#mobile-kbd-input` (`{ preventScroll: true }`,
+   and must run inside/just-after the user gesture that triggered focus, or
+   the phone OSK will not appear — a documented mobile-Safari/Chrome
+   constraint, not a bug).
+2. The phone's real OSK pops (it is now editing a real focused `<input>`)
+   and writes into it. The shell listens for `input` events (guarded by
+   `compositionstart`/`compositionend` so IME composition — Asian-language
+   OSKs — is not diffed mid-composition) and diffs the new value against the
+   previous one: a common-prefix scan computes how many trailing characters
+   were deleted (each becomes a synthetic Backspace) and which new
+   characters were appended (each becomes its own character push). A
+   `keydown` listener for `Enter` pushes a Return key directly (OSKs vary in
+   whether they fire an `input` event for Enter).
+3. Each pushed key calls `Module._EmscriptenKbd_pushKey(keycode, ascii)` — a
+   `EMSCRIPTEN_KEEPALIVE` C shim in `emscripten.cpp` — which reaches the live
+   `EmscriptenSdlEventSource` via a module-level pointer
+   (`g_emscriptenKbdSource`, set/cleared by the event source's own
+   constructor/destructor) and calls its new `injectKey(keycode, ascii)`
+   method. `injectKey` pushes a keydown+keyup `Common::Event` pair onto a
+   new `_injected` queue (`backends/events/emscriptensdl/emscriptensdl-events.h`).
+4. `pollEvent()` drains `_injected` before falling through to the normal SDL
+   poll, so injected keys are indistinguishable from real ones to the rest
+   of the engine — SCI's text-edit widgets, the parser box, and the GMM
+   save-name field all just see ordinary key events. **The physical-keyboard
+   path is completely unchanged** — this is purely additive.
+5. `setFeatureState(kFeatureVirtualKeyboard, false)` → `__mobileKbdShow(false)`
+   blurs the hidden input, dismissing the OSK.
+
+A defensive follow-up (`9e841fe2f14`) resets the shell's `composing` flag
+whenever the input is (re)focused, so an interrupted IME composition
+(navigating away mid-composition, then reopening the keyboard) cannot leave
+the flag stuck `true` and silently swallow all subsequent `input` events.
+
+**Known internal-linkage note (documented follow-up, not a bug today):**
+`g_emscriptenKbdSource` in `emscriptensdl-events.h` is declared `static`
+(internal linkage — each translation unit that includes the header would
+get its own copy). This is correct *today* because exactly one translation
+unit (`emscriptensdl-events.h`'s own compilation via the Emscripten events
+backend) ever constructs an `EmscriptenSdlEventSource`, so there is only
+ever one instance to reach. If event-source creation is ever moved out of
+its current single site, this must become an external-linkage definition
+(defined once in a `.cpp`, declared `extern` in the header) or a proper
+accessor function — flagged here so it is not silently wrong later.
+
+### Viewport / orientation
+
+`e75839c18cf` adds a `width=device-width, initial-scale=1, user-scalable=no`
+viewport meta tag and `touch-action: none` on the canvas, so pinch-zoom and
+double-tap-zoom gestures no longer fight the game (both would otherwise
+zoom the page instead of being consumed as game taps) and a touch tap maps
+1:1 to game coordinates instead of being offset by browser zoom/pan state.
+
+`d6268bbcf75` adds `"orientation": "landscape"` to
+`dists/emscripten/assets/manifest.json` (Betrayed Alliance is a landscape
+game) and a CSS-only "rotate your phone" hint overlay shown while the
+viewport is in portrait. The same commit also avoids forcing fullscreen
+during text entry — an iOS Safari quirk where a fullscreen transition can
+suppress the on-screen keyboard entirely; harmless to leave off on Android.
+
+### vkeybd fallback
+
+`163663bcf8b` adds `--enable-vkeybd` to every documented build command (the
+"Emscripten build" command-contract amendment above now lists it alongside
+`--enable-png --enable-freetype2 --enable-zlib`). This compiles ScummVM's
+own built-in on-screen virtual keyboard into the web-demo build as a
+fallback text-input path for any touch device where the native-OSK bridge
+above does not apply or does not produce a usable keyboard (e.g. a browser
+that blocks programmatic focus outside a stricter gesture window, or a
+platform without the DOM `input`-on-hidden-element trick). Bundle wiring is
+automatic once the flag is set — `backends/vkeybd/packs/vkeybd_default.zip`
+and `vkeybd_small.zip` are staged into `build-emscripten/data/` by
+`Makefile.common`'s `DIST_FILES_VKEYBD` whenever `ENABLE_VKEYBD` is defined,
+the same way the theme zips and font data are.
+
+**Build-command gotcha specific to this flag:** `dists/emscripten/build.sh`'s
+`make` and `dist` tasks do **not** re-run `configure` — only the `configure`
+(or `build`, which does all three) task does. Adding `--enable-vkeybd` (or
+any new `--enable-*`/`--disable-*` flag) to an existing WSL clone that was
+last configured without it requires an explicit
+`./dists/emscripten/build.sh configure ...` pass with the new flag before
+`make`/`dist` will pick it up — `config.h` silently keeps `#undef
+ENABLE_VKEYBD` (or whatever flag) otherwise, with no error, and the vkeybd
+packs simply never appear in the assembled bundle.
+
+### Native-OSK verification status
+
+The hidden-input/text-bridge path (the primary mechanism) is
+**Android-verified**: confirmed working on a real Android phone in Chrome —
+focusing SCI's name field and the GMM save-name box both pop the native
+Android keyboard and accepted typed text lands correctly.
+
+**iOS is designed-for but unverified** — no iOS device was available to test
+against. The two known iOS Safari quirks (the user-gesture-adjacent-focus
+requirement, and fullscreen suppressing the OSK) are both mitigated in the
+implementation above (focus happens synchronously from the feature-state
+call chain, and fullscreen is not forced during text entry), but neither
+mitigation has been confirmed on real iOS hardware. The `--enable-vkeybd`
+fallback exists partly as a hedge against this gap. A future iPhone soak is
+the open follow-up.
+
+### Android acceptance checklist (human-only gate)
+
+The one remaining gate for mobile support — cannot be automated
+(Playwright has no real touch/OSK/orientation-sensor environment). Run on a
+real Android phone, in Chrome, at
+`https://jonborchardt.github.io/roger-web-demo/`:
+
+1. Boot into BA; at the name prompt, the **phone keyboard appears** and a
+   typed name is accepted.
+2. Save a game → the save-name box pops the keyboard and accepts a name.
+3. Point-and-click plays (tap → walk/look/icon); no pinch/double-tap zoom
+   fighting.
+4. Landscape is sensible; portrait shows the rotate hint.
+5. F10 cycles Enhanced/Original/SBS.
+
+iOS is designed-for but unverified (no device) — the `--enable-vkeybd`
+fallback and the non-forced-fullscreen mitigation are the hedges; a future
+iPhone soak is the open follow-up (see "Native-OSK verification status"
+above).

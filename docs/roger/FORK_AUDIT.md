@@ -1288,3 +1288,22 @@ grep is unaffected (no `roger` references outside `engines/sci/roger/`).
 
 Not re-measured into §2's line-count baseline; when the manufactured-clean-branch
 pass runs, `http-fs.cpp` is the only file here worth a standalone upstream PR.
+
+### 12.1 Mobile support addendum (2026-07-14)
+
+Added the same day as §12, after its baseline — the web demo's mobile
+on-screen-keyboard + touch/viewport support (6 commits, `7a3d96bf669`..
+`9e841fe2f14`). Same disposition as §12: downstream web-demo enablement,
+quarantine grep unaffected (no `roger` references outside
+`engines/sci/roger/`).
+
+| File | Web-demo role | Upstream story |
+|---|---|---|
+| `backends/platform/sdl/emscripten/emscripten.{h,cpp}` | answers `kFeatureVirtualKeyboard` (focus/blur a hidden shell `<input>` to summon the phone OSK, mirroring the Android/iOS backends); `_virtualKeyboardShown` state | **clean upstream-PR candidate** — the web backend never implemented this hook; Roger-agnostic, general SCI/GUI feature parity fix |
+| `backends/events/emscriptensdl/emscriptensdl-events.h` | injected-event queue (`injectKey`/`_injected`) draining ahead of the SDL poll, fed by the shell's hidden-input text bridge via the `EmscriptenKbd_pushKey` KEEPALIVE shim; `g_emscriptenKbdSource` static pointer as the shim's entry point | web-only backend (never compiled for desktop); same category as the existing phantom-key-repeat/TEXT_INPUT filters in this file. **Known follow-up:** `g_emscriptenKbdSource` is `static` (internal linkage) — correct today since only this translation unit constructs an `EmscriptenSdlEventSource`, but should become an external-linkage definition or an accessor function if event-source creation ever moves out of `emscripten.cpp`/this header pair |
+| `dists/emscripten/assets/manifest.json` | adds `"orientation": "landscape"` (Betrayed Alliance is a landscape game) | downstream config |
+| `dists/emscripten/custom_shell.html` | hidden `#mobile-kbd-input` text bridge (diffs OSK input against the previous value, turns the delta into character/backspace/Enter key pushes), mobile viewport (`user-scalable=no`) + `touch-action: none` on the canvas, CSS-only portrait rotate-hint overlay, IME composing-flag reset on keyboard show | downstream tooling — shell markup/script, no engine logic |
+
+Not re-measured into §2's line-count baseline; `emscripten.{h,cpp}`'s
+`kFeatureVirtualKeyboard` implementation is the one file here worth a
+standalone upstream PR (same reasoning as `http-fs.cpp` in §12).
