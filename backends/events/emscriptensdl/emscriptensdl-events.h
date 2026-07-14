@@ -83,8 +83,17 @@ protected:
 				_lastKeyDownTimestamp = event->key.timestamp;
 			}
 		} else if (event->type == SDL_EVENT_TEXT_INPUT) {
+			// event->text.timestamp is in nanoseconds (SDL_GetTicksNS(), see
+			// SDL_CommonEvent::timestamp); convert the delta to milliseconds
+			// before comparing to kTextInputDedupMs, as sdl3-events.cpp
+			// already does for SDL_NS_TO_MS(event->tfinger.timestamp).
+			// Guard against a timestamp going backwards (should not happen,
+			// but if it does, fail safe and keep the event instead of
+			// underflowing the unsigned subtraction into a huge delta that
+			// would coincidentally pass the <= check).
 			if (_lastTextInputText == event->text.text &&
-					(event->text.timestamp - _lastTextInputTimestamp) <= kTextInputDedupMs) {
+					event->text.timestamp >= _lastTextInputTimestamp &&
+					SDL_NS_TO_MS(event->text.timestamp - _lastTextInputTimestamp) <= kTextInputDedupMs) {
 				event->type = SDL_EVENT_FIRST;
 			} else {
 				_lastTextInputTimestamp = event->text.timestamp;
@@ -98,7 +107,7 @@ private:
 	Uint64 _lastKeyDownTimestamp;
 	Uint64 _lastTextInputTimestamp;
 	Common::String _lastTextInputText;
-	static const Uint64 kTextInputDedupMs = 30; // < any human repeat; > any phantom coincidence
+	static const Uint64 kTextInputDedupMs = 30; // real ms (see SDL_NS_TO_MS above); < any human repeat, > any phantom coincidence
 };
 
 #endif /* BACKEND_EVENTS_EMSCRIPTEN_H */
