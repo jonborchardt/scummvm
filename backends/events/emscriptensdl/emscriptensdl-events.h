@@ -25,23 +25,61 @@
 #include "backends/events/sdl/sdl-events.h"
 #include "backends/platform/sdl/emscripten/emscripten.h"
 #include "common/events.h"
+#include "common/queue.h"
 #include "common/str.h"
+
+class EmscriptenSdlEventSource;
+
+// FIXME: non-const global var -- set by EmscriptenSdlEventSource's own
+// constructor and cleared by its own destructor (below), so it always
+// points at the live event source or is null. The mobile-keyboard JS
+// bridge's EmscriptenKbd_pushKey() C shim (emscripten.cpp) needs a stable
+// entry point to reach the live event source from outside the class.
+static EmscriptenSdlEventSource *g_emscriptenKbdSource = nullptr;
 
 /**
  * SDL Events manager for Emscripten
  */
 class EmscriptenSdlEventSource : public SdlEventSource {
 public:
-	EmscriptenSdlEventSource() : _lastKeyDownScancode(SDL_SCANCODE_UNKNOWN), _lastKeyDownTimestamp(0), _lastTextInputTimestamp(0), _lastTextInputText() {}
+	EmscriptenSdlEventSource() : _lastKeyDownScancode(SDL_SCANCODE_UNKNOWN), _lastKeyDownTimestamp(0), _lastTextInputTimestamp(0), _lastTextInputText() {
+		g_emscriptenKbdSource = this;
+	}
+
+	~EmscriptenSdlEventSource() override {
+		if (g_emscriptenKbdSource == this)
+			g_emscriptenKbdSource = nullptr;
+	}
+
+	/**
+	 * Injected by the mobile-keyboard JS bridge via EmscriptenKbd_pushKey():
+	 * enqueues a keydown+keyup pair to be returned by pollEvent() ahead of
+	 * (but additively with) the normal SDL-polled events.
+	 */
+	void injectKey(Common::KeyCode keycode, uint16 ascii) {
+		Common::Event down;
+		down.type = Common::EVENT_KEYDOWN;
+		down.kbd.keycode = keycode;
+		down.kbd.ascii = ascii;
+		down.kbd.flags = 0;
+		_injected.push(down);
+		Common::Event up = down;
+		up.type = Common::EVENT_KEYUP;
+		_injected.push(up);
+	}
 
 	/**
 	 * Gets and processes SDL events.
 	 */
 	bool pollEvent(Common::Event &event) override {
-	
+		if (!_injected.empty()) {
+			event = _injected.pop();
+			return true;
+		}
+
 		bool ret_value = SdlEventSource::pollEvent(event);
-		if (event.type != Common::EVENT_QUIT && event.type != Common::EVENT_RETURN_TO_LAUNCHER) {	
-			// yield to the browser and process timers  
+		if (event.type != Common::EVENT_QUIT && event.type != Common::EVENT_RETURN_TO_LAUNCHER) {
+			// yield to the browser and process timers
 			// (after polling the events to ensure synchronous event processing)
 			g_system->delayMillis(0);
 		}
@@ -108,6 +146,7 @@ private:
 	Uint64 _lastTextInputTimestamp;
 	Common::String _lastTextInputText;
 	static const Uint64 kTextInputDedupMs = 30; // real ms (see SDL_NS_TO_MS above); < any human repeat, > any phantom coincidence
+	Common::Queue<Common::Event> _injected;
 };
 
 #endif /* BACKEND_EVENTS_EMSCRIPTEN_H */

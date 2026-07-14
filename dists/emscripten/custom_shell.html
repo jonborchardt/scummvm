@@ -119,14 +119,47 @@
          aria-hidden="true"
          style="position:absolute; left:-9999px; top:0; width:1px; height:1px; opacity:0; border:0; padding:0;">
   <script>
-    // Mobile on-screen-keyboard bridge. Text routing is added in Task 2;
-    // this task only focuses/blurs the hidden input so the phone OSK pops.
+    // Mobile on-screen-keyboard bridge. Diffs what the phone OSK writes into
+    // the hidden input against the previous value and turns the delta into
+    // ScummVM key events via Module._EmscriptenKbd_pushKey (a KEEPALIVE C
+    // shim defined in backends/platform/sdl/emscripten/emscripten.cpp).
     (function () {
       var input = document.getElementById('mobile-kbd-input');
+      var prev = '';
+      var composing = false;
+      var KEYCODE_BACKSPACE = 8, KEYCODE_RETURN = 13;
+
+      function pushKey(keycode, ascii) {
+        if (Module && Module._EmscriptenKbd_pushKey) {
+          Module._EmscriptenKbd_pushKey(keycode, ascii);
+        }
+      }
+      function commit(newVal) {
+        // common prefix length
+        var i = 0, minLen = Math.min(prev.length, newVal.length);
+        while (i < minLen && prev[i] === newVal[i]) i++;
+        // deletions
+        for (var d = prev.length; d > i; d--) pushKey(KEYCODE_BACKSPACE, 0);
+        // insertions
+        for (var j = i; j < newVal.length; j++) {
+          var code = newVal.charCodeAt(j);
+          pushKey(code, code);
+        }
+        prev = newVal;
+      }
+      if (input) {
+        input.addEventListener('compositionstart', function () { composing = true; });
+        input.addEventListener('compositionend', function () { composing = false; commit(input.value); });
+        input.addEventListener('input', function () { if (!composing) commit(input.value); });
+        input.addEventListener('keydown', function (e) {
+          if (e.key === 'Enter') { pushKey(KEYCODE_RETURN, 13); e.preventDefault(); }
+        });
+      }
       window.__mobileKbdShow = function (show) {
         if (!input) return;
         if (show) {
           input.value = '';
+          prev = '';
           // Must run inside/just-after a user gesture for the OSK to appear.
           input.focus({ preventScroll: true });
         } else {

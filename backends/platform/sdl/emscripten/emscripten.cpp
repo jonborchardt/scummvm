@@ -104,6 +104,15 @@ void EMSCRIPTEN_KEEPALIVE cloud_connection_json_callback(char *str) {
 	}
 }
 #endif
+
+// Entry point for the mobile on-screen-keyboard JS bridge (custom_shell.html):
+// diffs the hidden input's text and calls this once per character/backspace/
+// return key. g_emscriptenKbdSource (emscriptensdl-events.h) is kept live by
+// EmscriptenSdlEventSource's own constructor/destructor.
+void EMSCRIPTEN_KEEPALIVE EmscriptenKbd_pushKey(int keycode, int ascii) {
+	if (g_emscriptenKbdSource)
+		g_emscriptenKbdSource->injectKey((Common::KeyCode)keycode, (uint16)ascii);
+}
 }
 
 // Overridden functions
