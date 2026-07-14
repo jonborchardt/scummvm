@@ -173,6 +173,7 @@
         if (show) {
           input.value = '';
           prev = '';
+          composing = false;
           // Must run inside/just-after a user gesture for the OSK to appear.
           input.focus({ preventScroll: true });
         } else {
