@@ -632,6 +632,48 @@ hosting, CI publishing, and permanent asset placement. The bundle itself
 (Phase 4, above) is unchanged — Phase 5 only adds a dedicated publishing
 repo and a workflow that serves it.
 
+## Publishing pipeline (how a change reaches the live demo)
+
+**The mental model, one line:** desktop dev + commit to `jon-wasm` (this
+fork) → fast-forward the WSL clone (`~/scummvm-wasm`) → rebuild the wasm
+in WSL → assemble the site directory → mirror into the demo repo's
+`site/` → push → GitHub Actions publishes to Pages. **The fork holds the
+source; the dedicated `roger-web-demo` repo holds the built bundle; CI
+(`deploy.yml`) only publishes what's already in `site/` — it never
+compiles anything.**
+
+**Three change scenarios** — the commands are the same "Redeploy runbook"
+below in every case; only how much gets rebuilt first differs:
+
+- **(A) A Roger / engine code change** (the common case — e.g. the
+  subpath data-fetch fix `ef87ff42e8b`, the TEXT_INPUT dedup
+  `fd33fa244`/`fa5ec26cdc`): commit to `jon-wasm`, push, then in the WSL
+  clone `git fetch origin && git merge --ff-only origin/jon-wasm`, then
+  rebuild only the compiled artifacts — `build.sh make` (relinks
+  `scummvm.wasm`/`.js`/`.html`) then `build.sh dist` (both carrying
+  `--enable-png --enable-freetype2 --enable-zlib`) — re-copy
+  `roger-demo.ini`, run `build-assemble_demo.sh`, do the subpath-simulation
+  check, robocopy into the demo repo, push, watch, verify. **The game
+  data (`scummvm-game.data`) and the art cache are NOT touched** — `dist`
+  preserves them; only `scummvm.wasm`/`.js`/`.html` change. This is the
+  whole point of the split: a C++ change recompiles the engine, nothing
+  else moves.
+- **(B) A generation-pipeline change** (a `kTransformVersion` bump or a
+  pass-set change — invalidates the cache): FIRST regenerate the desktop
+  Roger cache (a normal precache run), then re-run
+  `build-package_game.sh` to re-pack the game+cache blob, then continue
+  as (A) from `build.sh make`.
+- **(C) A game swap** (a different bundled game entirely): re-stage the
+  new game's `resource.map`/`resource.001`/license file plus its cache,
+  run `build-package_game.sh`, update the shipped ini's
+  `path=/gamedata/games/<gameid>` (and section), then proceed as (A).
+
+See "Redeploy runbook" below for the exact per-step commands covering all
+three scenarios. `build-info.txt`'s `commit:` line is the deploy's
+provenance stamp — it must match the fork commit the served wasm was
+actually built from; checking it after a push is the last step of every
+redeploy (Redeploy runbook step 9).
+
 ### Demo repo
 
 The assembled bundle is published from a **separate, dedicated repo** —
@@ -785,8 +827,9 @@ known residuals above) — see `.superpowers/sdd/task-4-report.md`
 
 ### Redeploy runbook
 
-The ordered sequence a future cache regeneration, pass-tuning change, or
-game-content swap actually needs to run, end to end:
+The detailed steps for scenarios A/B/C above, end to end (scenario A —
+a pure Roger/engine code change — skips steps 1–2; they only apply when
+the cache or packaged game data changed):
 
 1. **If the generation pipeline changed**, regenerate the desktop Roger
    cache first (a normal precache run against the local Betrayed Alliance
@@ -915,3 +958,172 @@ This also settles the "pull the demo into the fork vs leave it separate"
 question by dissolving it: with CI building and publishing, neither a
 separate repo nor a committed-bundle folder is needed — the fork simply
 builds and serves itself.
+
+## Phase 6 closeout
+
+Phase 6 is the web-demo effort's closeout: three residuals carried out of
+Phases 2.6/4/5 were each investigated to a fix, a partial fix, or a
+documented residual, and the design spec that drove Phases 1–5
+(`docs/superpowers/specs/2026-07-04-roger-web-demo-design.md`, a
+gitignored local-only file) is retired — this document is now the sole
+tracked record of the whole effort. Fork tip at closeout: `ec336ab06fa`
+on `jon-wasm` (still unmerged; the user merges himself, per project
+convention).
+
+### Phase history summary
+
+(Full detail lived in the spec's §9 progress log; recorded here since
+the spec is being deleted.)
+
+- **Phase 1** — native-only wasm build boots SQ3 with Roger inert
+  (`roger_gen_mode=prebuilt`); verifies the emscripten target compiles
+  and runs the unmodified SCI engine.
+- **Phase 2** — enhanced mode (`roger_gen_mode=cache`) ships with a
+  pre-warmed cache in the bundle; scripted gates (boot, hires plates,
+  save/config persistence, display-mode cycling) all passed; steady
+  walking measured at the desktop-healthy 83 ms period / 2–5 ms busy.
+- **Phase 2.5** — an unplanned interstitial: the user's play test failed
+  on *feel* despite green scripted gates. Root-caused to synchronous
+  per-file HTTP fetches blocking the SCI cycle on every scene load; fixed
+  by packaging game data + cache into a single Emscripten preload blob
+  mounted at `/gamedata` (MEMFS) instead of the lazy per-file HTTP
+  filesystem — first playable room 20.4 s → ~2 s. Separately, an SDL3
+  phantom key-repeat burst (identical-timestamp spurious keydowns) was
+  found and filtered, first for Roger's debug hotkeys, then for SCI's own
+  event manager.
+- **Phase 2.6** — scripted regression sweep closed issues 1a/2/2b/
+  3-keyboard (real same-key-stop semantics preserved, no over-filtering).
+  Two residuals were filed from this sweep and carried forward into
+  Phase 6: the machine-speed TEXT_INPUT phantom-duplication filter edge,
+  and the Enhanced-mode mouse-menu overlay ghost (real-hardware-only,
+  never reproduced under Playwright).
+- **Phase 3** — Betrayed Alliance Book 1 v1.3.3.1 (MIT-licensed, game id
+  `sci-fanmade`) validated on desktop. The plan's scripted `.rin`
+  playthrough was abandoned by user decision (BA changes rooms only by
+  walking the ego off-screen, impractical to script blind), so the user
+  played the entire game himself instead — verdict "all good," zero
+  rendering anomalies. Zero engine/detection changes were needed for the
+  third game; cache grew from a 4,549-file baseline to 4,550 (one missed
+  view-cel generated during play, then a permanent hit). A courtesy email
+  to the author (Ryan Slattery / Slattstudio) was drafted but never sent
+  — sending is the user's call, not part of any Phase.
+- **Phase 4** — BA replaced SQ3 as the bundled game: branded landing page
+  (`custom_shell.html`), no-fragment boot default so a bare `scummvm.html`
+  load boots straight into BA, and Variant B (boot full-screen Enhanced,
+  F10 as the discovery path for Side-by-Side) chosen by the user after
+  trying both at the wizard room. Measured bundle: ~55 MB total, ~24.5 MB
+  `scummvm-game.data` (3 game files + 4,549 cache files), ~14 MB wasm.
+- **Phase 5** — deployed to a dedicated public repo,
+  `jonborchardt/roger-web-demo`, published to GitHub Pages via
+  `.github/workflows/deploy.yml`; live at
+  `https://jonborchardt.github.io/roger-web-demo/`. A subpath data-fetch
+  bug (ScummVM's built-in GUI data — theme zips/fonts/icons — fetched
+  from an absolute `/data/...` URL, breaking under Pages' `/roger-web-demo/`
+  subpath) was found post-deploy and fixed (`ef87ff42e8b`), restoring full
+  TTF dialog text and the themed save/load dialog on the live subpath.
+- **Phase 6** (this section) — closes out the three carried residuals
+  (below) and hands off the one remaining human-acceptance pass.
+
+### Per-defect outcomes
+
+**1. Blackletter status-bar title — DOCUMENTED RESIDUAL (fix shipped,
+then reverted).** Betrayed Alliance's status/title font repurposes
+printable-ASCII code points as blackletter capitals (`$`=B, `#`=A).
+Roger's hybrid text path routes printable ASCII to the crisp TTF (only
+non-ASCII bytes are blitted from the game's own font glyphs), so the
+Enhanced/Side-by-Side status title renders as literal `$etrayed
+#lliance`. **Native/Original mode renders it correctly** — it always
+draws the game font's own glyph, never the TTF. A fix landed
+(`ef0fa7fb762`, "Blit decorative-font status-bar glyphs") that keyed the
+full-glyph-blit behavior off the game's ConfMan description string, but
+was reverted the same phase (`ec336ab06fa`) because it embedded
+game-specific knowledge in `engines/sci/roger`, violating the
+game-agnosticism invariant this project holds itself to. A **general,
+content-only** fix was investigated and found infeasible: three distinct
+pixel metrics were tried and each failed a different way —
+  - (a) absolute glyph-vs-reference deviation: a normal `R` and BA's
+    decorative `#` scored identically;
+  - (b) relative self-vs-best-letter-match across fonts: false-flagged
+    ordinary stock-font symbols (`$ / % @ [ \ ] |`);
+  - (c) same-font best-own-letter near-duplicate ranking: inverted —
+    BA's ornate blackletter `$`/`#` scored *below* genuine stock
+    `[`/`]`, which are themselves near-copies of `I`/`l`.
+
+  At SCI0 EGA bitmap resolution (roughly 6–10 px glyphs) no content-only
+  signal separates a font's bespoke decorative capitals from ordinary
+  symbol/letter resemblances that already exist in stock SCI0 fonts. The
+  one approach that would work — diffing each glyph against the
+  pristine, unmodified stock SCI0 font — is blocked by this repo's
+  no-proprietary-data rule (the stock font is Sierra's and cannot be
+  bundled as a test fixture or reference). **Candidate future path:** a
+  stock-font-diff detector, if a non-proprietary reference for the stock
+  SCI0 font ever becomes available. Accepted as an Enhanced/Side-by-Side-
+  mode-only cosmetic residual; Original mode is unaffected.
+
+**2. SDL3 TEXT_INPUT phantom duplicate character — FIXED (partial), with
+a residual.** Commits `fd33fa24438` ("Dedup phantom TEXT_INPUT by
+content+window") and `fa5ec26cdc1` ("Convert TEXT_INPUT dedup delta
+ns->ms"). The emscripten SDL3 port's single global last-timestamp slot
+let a machine-speed phantom `SDL_EVENT_TEXT_INPUT` (arriving at a
+slightly different timestamp than the real one) slip through the
+same-timestamp filter and duplicate a typed character. The fix drops a
+`TEXT_INPUT` event when it repeats the same text within a sub-human
+30 ms window (the first attempt compared an SDL3 nanosecond timestamp
+delta against a millisecond constant — an effective no-op — corrected
+in the follow-up commit via `SDL_NS_TO_MS`, with an underflow guard so
+out-of-order timestamps fail safe by keeping the event). 30 ms sits
+comfortably below the ~60 ms human repeated-key floor, so genuine
+double letters (verified with `book`'s double-o at human typing pace)
+always survive. This is a real, verified, strictly-safe improvement —
+but **not a complete fix**: a phantom that arrives after an intervening
+keystroke lands outside any recent-content window and cannot be caught
+by this dedup, so some words still show a duplicate character at human
+typing pace (observed e.g. `ffrederick`, `ggallahhad` — a duplicated
+first character). This residual is real (not synthetic-input-only) but
+rare; real-user impact is low. A complete fix needs a different
+mechanism — scancode-burst correlation across the whole keydown/textinput
+pipeline, not a per-event content/time window — and is out of scope for
+this closeout.
+
+**3. Enhanced-mode mouse-menu overlay ghost — DOCUMENTED RESIDUAL
+(unreproduced).** Stale Enhanced-mode dropdown pixels reported after
+mouse-driven menu use on real hardware; Original mode is clean. Never
+reproduced under Playwright across 8+ patterns tried in earlier phases
+plus 7 new human-timed patterns tried this phase (title-switch,
+row-execute, click-away, drag-off, escape-dismiss, rapid multi-title
+cycling, and a click-away contrast), in both Enhanced and Original mode
+— every capture came back pixel-identical to a clean baseline (PIL diff).
+This remains real-hardware-only. Candidate seam for a future fix:
+`engines/sci/roger/overlay/roger_menu_model.{h,cpp}`'s dropdown-close
+invalidation path (`onWindowClose(dropdown)` / `onMenuHighlight`) and
+the compositor's menu-region invalidation. Note for a future repro
+attempt: BA's menu has no press-hold-drag / click-away / drag-off cancel
+gesture — only Escape and row-execute/title-switch close it — which
+narrows what a real-hardware repro session needs to differ on from the
+synthetic attempts already ruled out. Awaits a real-hardware repro
+before it can be fixed.
+
+### Human-acceptance checklist (the one remaining gate)
+
+Everything else in Phases 1–6 is scripted-complete and evidenced. The
+sole remaining item is a human pass on a second machine, run **once in
+Chrome and once in Firefox** (Firefox closes the Phase 2 gate carried
+since 2026-07-12):
+
+- Open `https://jonborchardt.github.io/roger-web-demo/` in a fresh
+  incognito/private window.
+- Confirm it boots straight into Betrayed Alliance with no ScummVM
+  launcher/picker/GMM chrome visible.
+- Play a few rooms and confirm healthy game speed (no walking-speed
+  stutter, no multi-second scene-change freezes).
+- Press F10 and confirm it single-steps Enhanced → Original →
+  Side-by-Side → Enhanced.
+- Save the game, reload the page, restore the save, and confirm it
+  returns to the exact saved position.
+- Repeat the above in the other browser (Chrome and Firefox both
+  required — this is what closes the carried Phase 2 gate).
+
+**On the courtesy email:** a draft to Ryan Slattery / Slattstudio exists
+at `docs/superpowers/2026-07-12-ba-courtesy-email.md`. It is the user's
+own draft to send or not — **Phase 6 sends nothing and takes no email
+action of any kind.**
