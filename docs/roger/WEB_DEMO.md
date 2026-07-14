@@ -672,17 +672,15 @@ GPL *distribution*, so the repo carries the standard three-part answer:
    ```
    Roger web demo build info
    source: https://github.com/jonborchardt/scummvm (branch jon-wasm)
-   commit: 9d59830330e8b4902e0ff3c2314308adb7c20027
-   assembled: 2026-07-13T15:15:03Z
+   commit: ef87ff42e8bd2e530a566263c2e83998fadeb094
+   assembled: 2026-07-14T01:40:16Z
    ```
 
    Since the fork is public, this pointer is a complete-corresponding-source
-   answer without shipping a source tarball. The commit currently pointed
-   to (`9d59830330e`) is two commits *after* the one the wasm was actually
-   compiled at in Phase 4 (`029573ac9ad`) — both intervening commits are
-   non-compiled assembly tooling (the `build-assemble_demo.sh` script plus
-   a file-mode fix), so `9d59830330e` still rebuilds byte-identical
-   binaries and remains a valid pointer.
+   answer without shipping a source tarball. `ef87ff42e8b` is the exact
+   commit the served `scummvm.wasm`/`scummvm.js` were compiled from (the
+   base-relative data-fetch fix below rebuilt them), so the pointer names
+   the true build tree.
 3. **`site/LICENSE-BetrayedAlliance.txt`** — the bundled fan game's own
    MIT license (copied verbatim from the release's `LICENSE.TXT` at
    assembly time), satisfying the license *condition* attached to
@@ -725,66 +723,44 @@ Jekyll over the `_`-prefixed emscripten output); and stamps
 `<repo-root>/demo-site` (gitignored — added to `.gitignore` alongside the
 existing `/build*` glob). Last measured output: 30 files, ~54 MB.
 
-### Known subpath residual (read before deciding this is "done")
+### Subpath data fetch (fixed 2026-07-14)
 
-**GitHub Pages serves the demo under a subpath** (`/roger-web-demo/`, not
-the origin root), but **ScummVM's built-in GUI data directory is fetched
-from an absolute `/data/...` URL baked into the wasm at build time** —
-this is a stock upstream emscripten-target behavior, not something Phase 5
-introduced:
-
-- `configure` (upstream, unmodified) sets `datadir='/data'` for the
-  `wasm32-*` host — an **absolute**, leading-slash path.
-- `backends/fs/emscripten/http-fs.cpp` builds its fetch URL directly from
-  that absolute `datadir`, so every request for engine-owned GUI data
-  resolves from the **origin root**, ignoring whatever subpath the page
-  itself was loaded from.
-
-Net effect: `/data/*` (ScummVM's own GUI theme zips, `fonts.dat`,
-`translations.dat`, `gui-icons.dat`, `helpdialog.zip`, `achievements.dat`,
-`shaders.dat` — **not** any SCI game or Roger cache data, which stay
-subpath-clean via the `/gamedata` MEMFS mount) 404s when the page is
-loaded at `https://jonborchardt.github.io/roger-web-demo/`, even though
-those exact files are shipped correctly and reachable one level down at
+GitHub Pages serves the demo under a subpath (`/roger-web-demo/`, not the
+origin root). ScummVM's built-in GUI data directory — `/data/*`: the GUI
+theme zips, `fonts.dat`, `translations.dat`, `gui-icons.dat`,
+`helpdialog.zip`, `achievements.dat`, `shaders.dat` (**not** any SCI game
+or Roger cache data, which ride the subpath-clean `/gamedata` MEMFS mount)
+— was fetched from an **absolute** `/data/...` URL, so the browser
+resolved it from the origin root and it 404'd under the subpath, even
+though those files ship correctly one level down at
 `https://jonborchardt.github.io/roger-web-demo/data/...`.
 
-**Measured impact (accepted, shipping as-is):** the game boots with no
-chrome, plays fully, enhanced art is intact, and save/load round-trips
-correctly through both the F5 GMM dialog and the parser `save game`
-command. The only visible cost is cosmetic: the save/restore dialog
-renders in ScummVM's plain **builtin fallback theme** instead of the
-styled theme (its zip lives under `/data/`), and Roger's own TTF
-dialog/header fonts (`GoMono-Regular.ttf`, `NotoSans-Regular.ttf`, also
-served from `data/fonts.dat`) fall back to bitmap rendering. Both are
-legible; neither blocks play, save, or restore.
+**The visible symptom** was a tiny dialog font: Roger's TTF dialog/header
+fonts (`GoMono-Regular.ttf`, `NotoSans-Regular.ttf`, packed in
+`data/fonts.dat`) failed to load and fell back to a built-in bitmap font
+that tops out ~16 px, so on the hires overlay dialog/narration text
+rendered roughly 3-4x too small; the ScummVM save/load dialog also lost
+its theme. The game itself always played fine — only `/data/`-backed GUI
+assets were affected.
 
-**Three fix options, for a future decision (none applied this phase):**
+**Fix — commit `ef87ff42e8b`, `backends/fs/emscripten/http-fs.cpp`.** The
+HTTP filesystem now seeds its root fetch URL **page-relative** (strips the
+leading slash off `DATA_PATH`) so `fetch()` resolves `data/...` against the
+document base URL — correct under any subpath *and* at the origin root. The
+VFS path stays absolute; only the fetch URL changed. This is a general,
+Roger-agnostic portability fix (an absolute `/data/` breaks *any* subpath
+deployment, not just this repo's layout) and is a candidate for upstreaming.
+Verified on the live public URL: `data/fonts.dat` returns 200, dialog text
+renders at full TTF size, and the save/load dialog is themed again.
 
-- **(A) Accept as-is — current ship state.** Zero engine/backend risk,
-  zero extra work; the cosmetic cost above is the whole price.
-- **(B) Host at a subpath-free URL** — the user-pages root
-  `jonborchardt.github.io` (verified unused as of this phase) or a custom
-  domain pointed at the repo. Resolves the residual completely with **no
-  engine change** — `/data/...` and the page root would coincide — but
-  spends the personal `jonborchardt.github.io` namespace on this demo (or
-  requires a custom domain).
-- **(C) Make `datadir` relative / base-aware for the emscripten build** —
-  either drop the leading slash at `configure:2010` or derive a page-base
-  prefix (`location.pathname` / `document.baseURI`) inside
-  `http-fs.cpp`'s fetch. Cleanest technically (fixes it for any hosting
-  path, not just this one repo's layout), but it is a `configure` /
-  `backends/fs/emscripten/` **engine/backend edit**, which the Phase 5
-  design spec's §8 out-of-scope list and this task's constraints both
-  forbid touching, and it requires a full wasm rebuild + re-verification.
-
-This is the **subpath-simulation gotcha**: serving the assembled bundle at
-a plain HTTP root (the desktop dev flow, `python3 -m http.server 8080`
-inside `build-emscripten/`) never exercises this class of bug, because
-`/data/...` and the server root are the same path there. **Always verify
-a redeploy candidate by simulating the actual Pages subpath** (symlink the
-assembled directory under a path segment and serve *that*, per the
-runbook below) — root-only testing is not sufficient and will not catch
-this residual reappearing or worsening.
+**The subpath-simulation gotcha still applies to every redeploy.** Serving
+the assembled bundle at a plain HTTP root (the desktop dev flow, `python3
+-m http.server 8080` inside `build-emscripten/`) does not exercise this
+class of bug, because `/data/...` and the server root coincide there.
+**Always verify a redeploy candidate by simulating the actual Pages
+subpath** (symlink the assembled directory under a path segment and serve
+*that*, per the runbook below) — root-only testing will not catch a
+subpath-fetch regression.
 
 ### Measured public-URL load time
 
