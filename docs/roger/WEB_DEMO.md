@@ -702,6 +702,17 @@ never this fork — per the design spec's §3.1/§4.1 repo-placement rule
   assembled bundle from `build-assemble_demo.sh` (below), committed and
   replaced wholesale on every redeploy.
 
+**Companion explainer site (added 2026-07-14).** The demo repo's `site/` root is
+now a hand-authored explainer site (`index.html` + `comparisons.html` +
+`upstreaming.html` + `style.css` + `svg/` + `img/`), committed and edited
+*directly in the demo repo* — it is NOT assembled from this fork and does not ride
+the redeploy runbook. The compiled game bundle now lives under
+`site/betrayed-alliance/`; the runbook's robocopy mirror step targets that folder
+so a game redeploy cannot wipe the explainer. The demo repo's `CLAUDE.md` states
+which files are hand-authored vs generated. Explainer edits deploy on their own
+push to the demo repo's `main` via the existing `deploy.yml`, with no wasm
+rebuild.
+
 **Licensing story.** Serving the compiled `scummvm.wasm` to the public is
 GPL *distribution*, so the repo carries the standard three-part answer:
 
@@ -885,13 +896,17 @@ the cache or packaged game data changed):
 
    ```powershell
    robocopy "\\wsl.localhost\Ubuntu\home\jon\scummvm-wasm\demo-site" `
-     "e:\github2\roger-web-demo\site" /MIR /NFL /NDL
+     "e:\github2\roger-web-demo\site\betrayed-alliance" /MIR /NFL /NDL
    ```
 
    `/MIR` is required — it deletes files in `site/` that are no longer in
    the new `demo-site/`, keeping the two in exact sync rather than
    accumulating stale bundle files across redeploys. Robocopy exit codes
-   0–7 are success (1 = "files copied", not an error).
+   0–7 are success (1 = "files copied", not an error). `/MIR` deletes
+   files in the target not in the new bundle — the target is the
+   **per-game folder** `site\betrayed-alliance`, NOT `site\` root, so the
+   hand-authored explainer at the site root is never touched. (For a new
+   game demo, mirror into its own `site\<slug>` folder.)
 7. **Commit and push the demo repo** (`e:\github2\roger-web-demo`, not this
    fork) — a normal `git add site` + commit + `git push origin main`.
 8. **Watch the deploy workflow:**
@@ -906,8 +921,8 @@ the cache or packaged game data changed):
    before calling the redeploy done:
 
    ```sh
-   curl.exe -s https://jonborchardt.github.io/roger-web-demo/build-info.txt
-   curl.exe -s -o NUL -w "%{http_code}" https://jonborchardt.github.io/roger-web-demo/scummvm.wasm
+   curl.exe -s https://jonborchardt.github.io/roger-web-demo/betrayed-alliance/build-info.txt
+   curl.exe -s -o NUL -w "%{http_code}" https://jonborchardt.github.io/roger-web-demo/betrayed-alliance/scummvm.wasm
    ```
 
    Confirm `build-info.txt`'s `commit:` line matches the fork commit just
