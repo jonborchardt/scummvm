@@ -11,11 +11,16 @@ background ("plate"), the ego/props (priority-masked against the art), and the S
 UI (dialogs, score/title banner, menus, inventory, text-input) into that overlay.
 
 This targets the **native desktop build** (Windows/MSVC here). An earlier
-web/Emscripten/PixiJS prototype was abandoned and removed.
+web/Emscripten/**PixiJS canvas** prototype was abandoned and removed — but the
+same native Roger overlay now also runs in the browser through ScummVM's own
+Emscripten/wasm build, published as a live web demo (Betrayed Alliance) at
+`https://jonborchardt.github.io/roger-web-demo/`; the build/deploy story is in
+[WEB_DEMO.md](roger/WEB_DEMO.md).
 
 **Further documentation:** [docs/roger/](roger/) contains fork-maintenance and
 upstreaming documents — [DATA_LAYOUT.md](roger/DATA_LAYOUT.md) covers the
-generation cache in detail, [LEGAL.md](roger/LEGAL.md) covers licensing, and
+generation cache in detail, [LEGAL.md](roger/LEGAL.md) covers licensing,
+[WEB_DEMO.md](roger/WEB_DEMO.md) covers the web-demo build/deploy, and
 [README.md](roger/README.md) is the index of that set.
 
 Roger plugs into the SCI engine through a neutral, engine-owned observer interface,
