@@ -114,6 +114,28 @@
 
   <canvas class=emscripten id=canvas oncontextmenu=event.preventDefault() tabindex=-1></canvas>
 
+  <input id="mobile-kbd-input" type="text"
+         autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false"
+         aria-hidden="true"
+         style="position:absolute; left:-9999px; top:0; width:1px; height:1px; opacity:0; border:0; padding:0;">
+  <script>
+    // Mobile on-screen-keyboard bridge. Text routing is added in Task 2;
+    // this task only focuses/blurs the hidden input so the phone OSK pops.
+    (function () {
+      var input = document.getElementById('mobile-kbd-input');
+      window.__mobileKbdShow = function (show) {
+        if (!input) return;
+        if (show) {
+          input.value = '';
+          // Must run inside/just-after a user gesture for the OSK to appear.
+          input.focus({ preventScroll: true });
+        } else {
+          input.blur();
+        }
+      };
+    })();
+  </script>
+
   <div id="infobar">
     <h1>Betrayed Alliance Book&nbsp;1 &middot; enhanced by <strong>Roger</strong></h1>
     <p>

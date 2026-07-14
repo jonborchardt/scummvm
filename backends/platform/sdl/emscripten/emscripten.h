@@ -40,6 +40,7 @@ protected:
 #ifdef USE_CLOUD
 	CloudConnectionCallback _cloudConnectionCallback;
 #endif
+	bool _virtualKeyboardShown = false;
 
 public:
 	void initBackend() override;

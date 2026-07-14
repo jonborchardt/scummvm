@@ -51,6 +51,12 @@ EM_JS(void, toggleFullscreen, (bool enable), {
 	}
 });
 
+EM_JS(void, showMobileKeyboard, (bool show), {
+	if (typeof window !== 'undefined' && window.__mobileKbdShow) {
+		window.__mobileKbdShow(!!show);
+	}
+});
+
 EM_JS(void, downloadFile, (const char *filenamePtr, char *dataPtr, int dataSize), {
 	const view = new Uint8Array(Module.HEAPU8.buffer, dataPtr, dataSize);
 	const blob = new Blob([view], {
@@ -133,12 +139,16 @@ bool OSystem_Emscripten::hasFeature(Feature f) {
 		return true;
 	if (f == kFeatureNoQuit)
 		return true;
+	if (f == kFeatureVirtualKeyboard)
+		return true;
 	return OSystem_POSIX::hasFeature(f);
 }
 
 bool OSystem_Emscripten::getFeatureState(Feature f) {
 	if (f == kFeatureFullscreenMode) {
 		return isFullscreen();
+	} else if (f == kFeatureVirtualKeyboard) {
+		return _virtualKeyboardShown;
 	} else {
 		return OSystem_POSIX::getFeatureState(f);
 	}
@@ -147,6 +157,9 @@ bool OSystem_Emscripten::getFeatureState(Feature f) {
 void OSystem_Emscripten::setFeatureState(Feature f, bool enable) {
 	if (f == kFeatureFullscreenMode) {
 		toggleFullscreen(enable);
+	} else if (f == kFeatureVirtualKeyboard) {
+		_virtualKeyboardShown = enable;
+		showMobileKeyboard(enable);
 	} else {
 		OSystem_POSIX::setFeatureState(f, enable);
 	}
