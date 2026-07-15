@@ -138,8 +138,16 @@
     // shim defined in backends/platform/sdl/emscripten/emscripten.cpp).
     (function () {
       var input = document.getElementById('mobile-kbd-input');
+      var canvas = document.getElementById('canvas');
       var prev = '';
       var composing = false;
+      // True while the game has a text field active (kFeatureVirtualKeyboard on).
+      // Mobile browsers only show the OSK when focus() runs inside a user
+      // gesture, but the game requests the keyboard from its own loop (no
+      // gesture), so the programmatic focus below is blocked on the phone.
+      // We also re-focus on the next canvas tap while a field is active, so
+      // the OSK pops from that gesture.
+      var kbdWanted = false;
       var KEYCODE_BACKSPACE = 8, KEYCODE_RETURN = 13;
 
       function pushKey(keycode, ascii) {
@@ -168,15 +176,29 @@
           if (e.key === 'Enter') { pushKey(KEYCODE_RETURN, 13); e.preventDefault(); }
         });
       }
+      // User-gesture fallback: a tap on the canvas while a text field is active
+      // focuses the hidden input from within the gesture, which lets the phone
+      // show its keyboard. Additive only (no preventDefault) so the tap still
+      // reaches the game as a click. Harmless on desktop.
+      if (canvas) {
+        var refocusOnTap = function () {
+          if (kbdWanted && input) input.focus({ preventScroll: true });
+        };
+        canvas.addEventListener('touchend', refocusOnTap, { passive: true });
+        canvas.addEventListener('pointerup', refocusOnTap, { passive: true });
+      }
       window.__mobileKbdShow = function (show) {
         if (!input) return;
         if (show) {
           input.value = '';
           prev = '';
           composing = false;
-          // Must run inside/just-after a user gesture for the OSK to appear.
+          kbdWanted = true;
+          // Works on desktop; on mobile this is usually blocked (no gesture),
+          // so the canvas-tap fallback above summons the OSK instead.
           input.focus({ preventScroll: true });
         } else {
+          kbdWanted = false;
           input.blur();
         }
       };
