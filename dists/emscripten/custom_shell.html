@@ -119,28 +119,24 @@
       }
     }
 
-    /* Floating "show keyboard" button: an explicit, always-available way to
-       summon the native on-screen keyboard (focus must happen from a real tap,
-       which mobile browsers require before showing the OSK). */
-    #kbd-btn {
-      position: fixed;
-      right: 12px;
-      bottom: calc(var(--bar-h) + 12px);
-      z-index: 6;
-      width: 46px;
-      height: 46px;
-      border-radius: 23px;
+    /* Action bar (mobile): tappable buttons in the side panel — the native
+       keyboard, plus keys the phone keyboard lacks (Esc, F10). Hidden on
+       desktop; shown in the landscape side column. */
+    #actionbar { display: none; }
+    #actionbar .act {
+      flex: 0 0 auto;
+      min-height: 42px;
+      padding: 9px 14px;
       border: 1px solid #3a3428;
-      background: rgba(20, 17, 12, 0.82);
+      border-radius: 6px;
+      background: rgba(40, 34, 21, 0.9);
       color: #e8dfc8;
-      font-size: 22px;
-      line-height: 44px;
-      text-align: center;
-      padding: 0;
+      font: 14px Georgia, 'Times New Roman', serif;
       cursor: pointer;
       -webkit-user-select: none;
       user-select: none;
     }
+    #actionbar .act:active { background: #4a4230; }
 
     /* Landscape on a phone: give the game the full height and move the banner
        to a side column so the game is as large as possible. */
@@ -162,7 +158,7 @@
         overflow-y: auto;
       }
       #infobar p { font-size: 12px; }
-      #kbd-btn { bottom: 12px; right: calc(var(--side-w) + 12px); }
+      #actionbar { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
     }
   </style>
 </head>
@@ -181,7 +177,6 @@
          autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false"
          aria-hidden="true"
          style="position:fixed; left:0; top:0; width:1px; height:1px; opacity:0; border:0; padding:0; margin:0; font-size:16px; pointer-events:none; z-index:0;">
-  <button id="kbd-btn" type="button" title="Show keyboard" aria-label="Show keyboard">&#9000;</button>
   <script>
     // Mobile on-screen-keyboard bridge. Diffs what the phone OSK writes into
     // the hidden input against the previous value and turns the delta into
@@ -238,17 +233,36 @@
         canvas.addEventListener('touchend', refocusOnTap, { passive: true });
         canvas.addEventListener('pointerup', refocusOnTap, { passive: true });
       }
-      // Explicit, always-available native-keyboard trigger. Focusing from this
-      // real tap satisfies the mobile browser's user-gesture requirement, so the
-      // OSK appears even when the game did not request it (e.g. a parser prompt).
-      var kbdBtn = document.getElementById('kbd-btn');
-      if (kbdBtn && input) {
-        kbdBtn.addEventListener('click', function () {
-          input.value = '';
-          prev = '';
-          composing = false;
-          input.focus({ preventScroll: true });
+      // Action-bar buttons (native keyboard, Esc, F10). Focusing the input from
+      // this real tap satisfies the mobile user-gesture rule for showing the OSK;
+      // Esc/F10 inject keys the phone keyboard lacks. F10 (291) drives Roger's
+      // Enhanced/Original/Side-by-Side toggle; Esc is 27.
+      var actionbar = document.getElementById('actionbar');
+      if (actionbar) {
+        actionbar.addEventListener('click', function (e) {
+          var btn = (e.target && e.target.closest) ? e.target.closest('button[data-act]') : null;
+          if (!btn) return;
+          var act = btn.getAttribute('data-act');
+          if (act === 'kbd') {
+            if (input) { input.value = ''; prev = ''; composing = false; input.focus({ preventScroll: true }); }
+          } else if (act === 'esc') {
+            pushKey(27, 27);
+          } else if (act === 'f10') {
+            pushKey(291, 0);
+          }
         });
+      }
+      // Keep the game visible above the on-screen keyboard: when the OSK shrinks
+      // the visual viewport, constrain the canvas to the visible area so the
+      // bottom input line is not hidden behind it. Cleared when the OSK closes.
+      if (window.visualViewport && canvas) {
+        var vv = window.visualViewport;
+        var fitAboveKeyboard = function () {
+          var kbUp = (window.innerHeight - vv.height) > 150;
+          canvas.style.height = kbUp ? (vv.height + 'px') : '';
+        };
+        vv.addEventListener('resize', fitAboveKeyboard);
+        vv.addEventListener('scroll', fitAboveKeyboard);
       }
       window.__mobileKbdShow = function (show) {
         if (!input) return;
@@ -269,6 +283,11 @@
   </script>
 
   <div id="infobar">
+    <div id="actionbar">
+      <button class="act" type="button" data-act="kbd">&#9000; Keyboard</button>
+      <button class="act" type="button" data-act="esc">Esc</button>
+      <button class="act" type="button" data-act="f10">Enhanced (F10)</button>
+    </div>
     <h1>Betrayed Alliance Book&nbsp;1 &middot; enhanced by <strong>Roger</strong></h1>
     <p>
       Roger re-renders classic SCI adventure games with high-resolution art generated
