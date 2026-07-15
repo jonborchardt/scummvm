@@ -12,6 +12,7 @@
   <style>
     :root {
       --bar-h: 84px;
+      --side-w: 240px;
     }
 
     body {
@@ -117,6 +118,52 @@
         background:#000; color:#fff; font:16px sans-serif; padding:2em;
       }
     }
+
+    /* Floating "show keyboard" button: an explicit, always-available way to
+       summon the native on-screen keyboard (focus must happen from a real tap,
+       which mobile browsers require before showing the OSK). */
+    #kbd-btn {
+      position: fixed;
+      right: 12px;
+      bottom: calc(var(--bar-h) + 12px);
+      z-index: 6;
+      width: 46px;
+      height: 46px;
+      border-radius: 23px;
+      border: 1px solid #3a3428;
+      background: rgba(20, 17, 12, 0.82);
+      color: #e8dfc8;
+      font-size: 22px;
+      line-height: 44px;
+      text-align: center;
+      padding: 0;
+      cursor: pointer;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+
+    /* Landscape on a phone: give the game the full height and move the banner
+       to a side column so the game is as large as possible. */
+    @media (orientation: landscape) and (max-height: 600px) {
+      canvas.emscripten {
+        width: calc(100% - var(--side-w));
+        height: 100%;
+      }
+      #infobar {
+        top: 0;
+        bottom: 0;
+        left: auto;
+        right: 0;
+        width: var(--side-w);
+        height: 100%;
+        border-top: none;
+        border-left: 1px solid #3a3428;
+        padding: 12px 14px;
+        overflow-y: auto;
+      }
+      #infobar p { font-size: 12px; }
+      #kbd-btn { bottom: 12px; right: calc(var(--side-w) + 12px); }
+    }
   </style>
 </head>
 
@@ -127,10 +174,14 @@
 
   <canvas class=emscripten id=canvas oncontextmenu=event.preventDefault() tabindex=-1></canvas>
 
+  <!-- In-viewport (not off-screen): Android Chrome will not show its keyboard
+       for an input positioned off-screen (left:-9999px). Kept invisible via
+       opacity and non-interactive via pointer-events; focused programmatically. -->
   <input id="mobile-kbd-input" type="text"
          autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false"
          aria-hidden="true"
-         style="position:absolute; left:-9999px; top:0; width:1px; height:1px; opacity:0; border:0; padding:0;">
+         style="position:fixed; left:0; top:0; width:1px; height:1px; opacity:0; border:0; padding:0; margin:0; font-size:16px; pointer-events:none; z-index:0;">
+  <button id="kbd-btn" type="button" title="Show keyboard" aria-label="Show keyboard">&#9000;</button>
   <script>
     // Mobile on-screen-keyboard bridge. Diffs what the phone OSK writes into
     // the hidden input against the previous value and turns the delta into
@@ -186,6 +237,18 @@
         };
         canvas.addEventListener('touchend', refocusOnTap, { passive: true });
         canvas.addEventListener('pointerup', refocusOnTap, { passive: true });
+      }
+      // Explicit, always-available native-keyboard trigger. Focusing from this
+      // real tap satisfies the mobile browser's user-gesture requirement, so the
+      // OSK appears even when the game did not request it (e.g. a parser prompt).
+      var kbdBtn = document.getElementById('kbd-btn');
+      if (kbdBtn && input) {
+        kbdBtn.addEventListener('click', function () {
+          input.value = '';
+          prev = '';
+          composing = false;
+          input.focus({ preventScroll: true });
+        });
       }
       window.__mobileKbdShow = function (show) {
         if (!input) return;
