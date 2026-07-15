@@ -137,6 +137,7 @@
       user-select: none;
     }
     #actionbar .act:active { background: #4a4230; }
+    #actionbar .act.nav { min-width: 42px; padding: 9px 0; text-align: center; font-size: 18px; }
 
     /* Landscape on a phone: give the game the full height and move the banner
        to a side column so the game is as large as possible. */
@@ -233,25 +234,29 @@
         canvas.addEventListener('touchend', refocusOnTap, { passive: true });
         canvas.addEventListener('pointerup', refocusOnTap, { passive: true });
       }
-      // Action-bar buttons (native keyboard, Esc, F10). Focusing the input from
-      // this real tap satisfies the mobile user-gesture rule for showing the OSK;
-      // Esc/F10 inject keys the phone keyboard lacks. F10 (291) drives Roger's
-      // Enhanced/Original/Side-by-Side toggle; Esc is 27.
-      var actionbar = document.getElementById('actionbar');
-      if (actionbar) {
-        actionbar.addEventListener('click', function (e) {
-          var btn = (e.target && e.target.closest) ? e.target.closest('button[data-act]') : null;
-          if (!btn) return;
-          var act = btn.getAttribute('data-act');
-          if (act === 'kbd') {
-            if (input) { input.value = ''; prev = ''; composing = false; input.focus({ preventScroll: true }); }
-          } else if (act === 'esc') {
-            pushKey(27, 27);
-          } else if (act === 'f10') {
-            pushKey(291, 0);
-          }
-        });
-      }
+      // Action-bar buttons. Delegated on `document` because #actionbar lives in
+      // #infobar, which is parsed AFTER this script — querying it here returns
+      // null (this was the "buttons do nothing" bug). Focusing the input from
+      // this real tap satisfies the mobile user-gesture rule for the OSK; the
+      // rest inject keys the phone keyboard lacks. Esc opens the SCI menu
+      // (menu.cpp interactiveWithKeyboard); arrows + OK navigate it; F10 (291)
+      // drives Roger's Enhanced/Original/Side-by-Side toggle.
+      var ACT_KEY = {
+        esc:   [27, 27],   f10:  [291, 0],
+        up:    [273, 0],   down: [274, 0],
+        left:  [276, 0],   right:[275, 0],
+        enter: [13, 13]
+      };
+      document.addEventListener('click', function (e) {
+        var btn = (e.target && e.target.closest) ? e.target.closest('#actionbar button[data-act]') : null;
+        if (!btn) return;
+        var act = btn.getAttribute('data-act');
+        if (act === 'kbd') {
+          if (input) { input.value = ''; prev = ''; composing = false; input.focus({ preventScroll: true }); }
+        } else if (ACT_KEY[act]) {
+          pushKey(ACT_KEY[act][0], ACT_KEY[act][1]);
+        }
+      });
       // Keep the game visible above the on-screen keyboard: when the OSK shrinks
       // the visual viewport, constrain the canvas to the visible area so the
       // bottom input line is not hidden behind it. Cleared when the OSK closes.
@@ -285,8 +290,13 @@
   <div id="infobar">
     <div id="actionbar">
       <button class="act" type="button" data-act="kbd">&#9000; Keyboard</button>
-      <button class="act" type="button" data-act="esc">Esc</button>
+      <button class="act" type="button" data-act="esc">Menu (Esc)</button>
       <button class="act" type="button" data-act="f10">Enhanced (F10)</button>
+      <button class="act nav" type="button" data-act="left" aria-label="Left">&#8592;</button>
+      <button class="act nav" type="button" data-act="up" aria-label="Up">&#8593;</button>
+      <button class="act nav" type="button" data-act="down" aria-label="Down">&#8595;</button>
+      <button class="act nav" type="button" data-act="right" aria-label="Right">&#8594;</button>
+      <button class="act nav" type="button" data-act="enter">OK</button>
     </div>
     <h1>Betrayed Alliance Book&nbsp;1 &middot; enhanced by <strong>Roger</strong></h1>
     <p>
