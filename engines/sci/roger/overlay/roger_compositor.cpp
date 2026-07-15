@@ -369,7 +369,17 @@ void dedupeGenericTextElements(Common::Array<UiElement> &elems, uint32 genericTo
 				if ((elems[j].token & ns) == genericToken)
 					continue;
 				const UiElementType jt = elems[j].type;
-				const bool jRendersText = (jt == kUiText || jt == kUiButton || jt == kUiTextEdit);
+				// The dedup exists to reconcile ONE native text draw seen by two hooks: the
+				// semantic control hook (kControlTokenNs) and the generic Box hook. So the
+				// covering element that lets us drop the generic copy must itself be a genuine
+				// control-namespace text element. A non-control, non-generic element -- e.g. a
+				// bitsShow region captured with a raw save-under-handle token (namespace 0,
+				// empty text) that the intro's decorative drop-cap/frame animation draws over
+				// the upper caption rows -- is NOT a text duplicate and must never drop the
+				// caption line it merely overlaps (it was silently deleting every caption line
+				// but the last).
+				const bool jRendersText = (elems[j].token & ns) == kControlTokenNs &&
+				                          (jt == kUiText || jt == kUiButton || jt == kUiTextEdit);
 				// A control that renders the same text usually draws its label at a small
 				// offset inside its box, so dedup on substantial overlap (>=70%), not strict
 				// containment. Window/icon never drop the text they enclose.

@@ -66,6 +66,23 @@ public:
 		TS_ASSERT(elems[0].type == kUiWindow);
 		TS_ASSERT(elems[1].token == G); // generic text survived
 	}
+	void test_dedupe_keeps_generic_covered_by_noncontrol_region() {
+		// Regression (Betrayed Alliance intro): a non-generic, NON-control element -- e.g. a
+		// bitsShow region captured with a raw save-under-handle token (namespace 0, empty
+		// text) that the intro's decorative drop-cap/frame animation draws over the upper
+		// caption rows -- must NOT drop the generic caption line it overlaps. Only a genuine
+		// control-namespace text element is the semantic duplicate. Before the fix this
+		// deleted every caption line but the last.
+		const uint32 G = 0x60000000u;
+		Common::Array<UiElement> elems;
+		UiElement region; region.type = kUiText; region.nativeRect = Common::Rect(52, 130, 262, 154);
+		region.token = 0x001a0071u; // raw save-under handle: namespace 0, NOT control
+		elems.push_back(region);
+		elems.push_back(txt(70, 140, 251, 148, G | 2)); // caption line fully inside region -> KEEP
+		Roger::dedupeGenericTextElements(elems, G);
+		TS_ASSERT_EQUALS(elems.size(), 2u);
+		TS_ASSERT(elems[1].token == (G | 2)); // caption survived
+	}
 	void test_dedupe_drops_generic_covered_by_button_or_edit() {
 		// Removing the show-gate means a control's own label (kUiButton) and field text
 		// (kUiTextEdit) are now ALSO captured generically via GfxText16::Box. Those
