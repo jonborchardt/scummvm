@@ -88,4 +88,59 @@ public:
 		TS_ASSERT_EQUALS(k.keycode, Common::KEYCODE_UP);
 		TS_ASSERT_EQUALS(k.ascii, (uint16)0);
 	}
+
+	// --- emscriptenTextInputEchoesKeyDown (orphaned TEXT_INPUT echo drop) ---
+
+	static const uint64 kMs = 1000000ULL; // ns per ms
+
+	// The doubled-letter case: keydown 'a' polled alone, its keypress-derived
+	// TEXT_INPUT "a" arrives just after -- an echo, must be dropped.
+	void test_echo_same_letter_dropped() {
+		TS_ASSERT(emscriptenTextInputEchoesKeyDown('a', 10 * kMs, "a", 12 * kMs, 100));
+	}
+
+	// Shift delivers the uppercase from the same physical key; the keydown
+	// keycode stays lowercase. Case-insensitive match.
+	void test_echo_uppercase_dropped() {
+		TS_ASSERT(emscriptenTextInputEchoesKeyDown('a', 10 * kMs, "A", 12 * kMs, 100));
+	}
+
+	void test_echo_digit_and_space_dropped() {
+		TS_ASSERT(emscriptenTextInputEchoesKeyDown('3', 10 * kMs, "3", 11 * kMs, 100));
+		TS_ASSERT(emscriptenTextInputEchoesKeyDown(' ', 10 * kMs, " ", 11 * kMs, 100));
+	}
+
+	// A different character is real input (e.g. shift+2 -> "@"), never an echo.
+	void test_different_char_kept() {
+		TS_ASSERT(!emscriptenTextInputEchoesKeyDown('2', 10 * kMs, "@", 11 * kMs, 100));
+		TS_ASSERT(!emscriptenTextInputEchoesKeyDown('a', 10 * kMs, "b", 11 * kMs, 100));
+	}
+
+	// Outside the window the TEXT_INPUT cannot belong to that keydown.
+	void test_outside_window_kept() {
+		TS_ASSERT(!emscriptenTextInputEchoesKeyDown('a', 10 * kMs, "a", 200 * kMs, 100));
+	}
+
+	// A TEXT_INPUT stamped before the keydown is not its echo (and the
+	// unsigned delta must not underflow into a pass).
+	void test_earlier_timestamp_kept() {
+		TS_ASSERT(!emscriptenTextInputEchoesKeyDown('a', 50 * kMs, "a", 10 * kMs, 100));
+	}
+
+	// Multi-char / multi-byte text (IME commit, paste) is never an echo.
+	void test_multichar_text_kept() {
+		TS_ASSERT(!emscriptenTextInputEchoesKeyDown('a', 10 * kMs, "ab", 11 * kMs, 100));
+		TS_ASSERT(!emscriptenTextInputEchoesKeyDown('a', 10 * kMs, "\xC3\xA9", 11 * kMs, 100));
+	}
+
+	// Non-printable keydown keycodes (arrows, function keys) deliver no
+	// character, so a TEXT_INPUT near them is real input.
+	void test_nonprintable_keydown_kept() {
+		TS_ASSERT(!emscriptenTextInputEchoesKeyDown(0x4000004Fu /* SDLK_RIGHT */, 10 * kMs, "a", 11 * kMs, 100));
+	}
+
+	void test_empty_text_kept() {
+		TS_ASSERT(!emscriptenTextInputEchoesKeyDown('a', 10 * kMs, "", 11 * kMs, 100));
+		TS_ASSERT(!emscriptenTextInputEchoesKeyDown('a', 10 * kMs, (const char *)0, 11 * kMs, 100));
+	}
 };

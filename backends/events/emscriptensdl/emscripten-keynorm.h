@@ -95,4 +95,42 @@ inline EmscriptenInjectedKey normalizeEmscriptenInjectedKey(int keycode, int asc
 	return k;
 }
 
+/**
+ * True when a standalone SDL_EVENT_TEXT_INPUT merely echoes the character
+ * that the immediately-preceding SDL_EVENT_KEY_DOWN already delivered.
+ *
+ * SdlEventSource pairs a KEY_DOWN with its TEXT_INPUT by peeking the SDL
+ * queue (obtainUnicode) and consuming the TEXT_INPUT. On Emscripten the
+ * runtime is single-threaded: the browser can only queue the keypress-
+ * derived TEXT_INPUT when control returns to its event loop, so the game's
+ * poll regularly lands BETWEEN the pair. The KEY_DOWN then delivers the
+ * character anyway (mapKey derives printable ASCII from the keycode) and
+ * the orphaned TEXT_INPUT later fakes a second key-down with the same
+ * character -- the intermittent doubled letters seen while typing. An
+ * orphaned TEXT_INPUT always follows its own KEY_DOWN in the SDL queue
+ * (browser event order is preserved, and a TEXT_INPUT still queued when a
+ * later KEY_DOWN is polled gets consumed by the pairing peek), so echo
+ * detection only ever needs the latest KEY_DOWN.
+ *
+ * keydownKeycode is the SDL keycode of the last accepted KEY_DOWN (layout
+ * keycode: lowercase ASCII for letter keys). Letters match case-
+ * insensitively -- shift/caps deliver the uppercase from the same physical
+ * key. Other printable keys match exactly (mapKey's fallback returns the
+ * keycode itself). Multi-byte/multi-char text (IME, paste) never matches.
+ */
+inline bool emscriptenTextInputEchoesKeyDown(uint32 keydownKeycode, uint64 keydownTimestampNs, const char *text, uint64 textTimestampNs, uint64 windowMs) {
+	if (!text || !text[0] || text[1] != '\0')
+		return false;
+	if (textTimestampNs < keydownTimestampNs)
+		return false;
+	if ((textTimestampNs - keydownTimestampNs) / 1000000ULL > windowMs)
+		return false;
+	byte c = (byte)text[0];
+	if (c < 0x20 || c > 0x7E)
+		return false;
+	if (keydownKeycode >= 'a' && keydownKeycode <= 'z')
+		return c == keydownKeycode || c == (keydownKeycode & ~0x20u);
+	return keydownKeycode >= 0x20 && keydownKeycode <= 0x7E && c == keydownKeycode;
+}
+
 #endif

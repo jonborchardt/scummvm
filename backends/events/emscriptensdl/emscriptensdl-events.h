@@ -44,7 +44,7 @@ extern EmscriptenSdlEventSource *g_emscriptenKbdSource;
  */
 class EmscriptenSdlEventSource : public SdlEventSource {
 public:
-	EmscriptenSdlEventSource() : _lastKeyDownScancode(SDL_SCANCODE_UNKNOWN), _lastKeyDownTimestamp(0), _lastTextInputTimestamp(0), _lastTextInputText() {
+	EmscriptenSdlEventSource() : _lastKeyDownScancode(SDL_SCANCODE_UNKNOWN), _lastKeyDownKeycode(0), _lastKeyDownTimestamp(0), _lastTextInputTimestamp(0), _lastTextInputText() {
 		g_emscriptenKbdSource = this;
 	}
 
@@ -123,9 +123,23 @@ protected:
 				event->type = SDL_EVENT_FIRST;
 			} else {
 				_lastKeyDownScancode = event->key.scancode;
+				_lastKeyDownKeycode = event->key.key;
 				_lastKeyDownTimestamp = event->key.timestamp;
 			}
 		} else if (event->type == SDL_EVENT_TEXT_INPUT) {
+			// A TEXT_INPUT reaching this poll loop is one the KEY_DOWN
+			// pairing peek (SdlEventSource::obtainUnicode) did NOT consume:
+			// on this single-threaded runtime the poll regularly lands
+			// between a keydown and its keypress-derived TEXT_INPUT, the
+			// KEY_DOWN delivers the character via mapKey's keycode fallback,
+			// and the orphaned TEXT_INPUT would fake a second key-down with
+			// the same character (intermittent doubled letters while
+			// typing). Drop it when it merely echoes the last KEY_DOWN.
+			if (emscriptenTextInputEchoesKeyDown(_lastKeyDownKeycode, _lastKeyDownTimestamp,
+					event->text.text, event->text.timestamp, kTextInputEchoWindowMs)) {
+				event->type = SDL_EVENT_FIRST;
+				return;
+			}
 			// event->text.timestamp is in nanoseconds (SDL_GetTicksNS(), see
 			// SDL_CommonEvent::timestamp); convert the delta to milliseconds
 			// before comparing to kTextInputDedupMs, as sdl3-events.cpp
@@ -147,10 +161,17 @@ protected:
 
 private:
 	SDL_Scancode _lastKeyDownScancode;
+	Uint32 _lastKeyDownKeycode;
 	Uint64 _lastKeyDownTimestamp;
 	Uint64 _lastTextInputTimestamp;
 	Common::String _lastTextInputText;
 	static const Uint64 kTextInputDedupMs = 30; // real ms (see SDL_NS_TO_MS above); < any human repeat, > any phantom coincidence
+	// Echo window for orphaned TEXT_INPUTs vs their own KEY_DOWN: the pair is
+	// generated back-to-back in one browser input sequence (delta typically
+	// <1 ms; the window only absorbs timestamp jitter). A genuine repeated
+	// letter is safe at ANY gap: its own KEY_DOWN both delivers the character
+	// and becomes the new comparison point before its TEXT_INPUT arrives.
+	static const Uint64 kTextInputEchoWindowMs = 100;
 	Common::Queue<Common::Event> _injected;
 };
 
