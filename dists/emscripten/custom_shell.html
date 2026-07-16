@@ -334,8 +334,28 @@
         var on = !!(document.fullscreenElement || document.webkitFullscreenElement);
         b.innerHTML = on ? '&#x26F6; Exit fullscreen' : '&#x26F6; Fullscreen';
       }
-      document.addEventListener('fullscreenchange', syncFsBtn);
-      document.addEventListener('webkitfullscreenchange', syncFsBtn);
+      // SDL3's emscripten driver listens for document fullscreenchange and
+      // treats ANY fullscreen as its canvas going fullscreen: it flags its
+      // window FULLSCREEN (Emscripten_HandleFullscreenChange), after which
+      // Emscripten_HandleResize SKIPS the normal canvas-follows-CSS resize.
+      // On a phone the URL bar/system bars leaving IS a window resize, so
+      // the game froze at its pre-fullscreen size. Page-level fullscreen is
+      // pure browser-chrome removal — the canvas keeps its CSS layout and
+      // SDL must see only the ordinary resize (the same proven path as a
+      // phone rotation). This listener registers before the engine script
+      // loads, so it runs ahead of SDL's document listener and swallows
+      // exactly the page-level transitions; a canvas-element fullscreen
+      // (SDL's own fullscreen-feature path) passes through untouched.
+      var pageFsActive = false;
+      function onFsChange(e) {
+        var el = document.fullscreenElement || document.webkitFullscreenElement;
+        var pageLevel = (el === fsRoot) || (!el && pageFsActive);
+        pageFsActive = (el === fsRoot);
+        syncFsBtn();
+        if (pageLevel && e.stopImmediatePropagation) e.stopImmediatePropagation();
+      }
+      document.addEventListener('fullscreenchange', onFsChange);
+      document.addEventListener('webkitfullscreenchange', onFsChange);
       // #actionbar is parsed after this script (same reason the click handler
       // above is delegated), so the unsupported-hide waits for DOMContentLoaded.
       document.addEventListener('DOMContentLoaded', syncFsBtn);

@@ -1170,6 +1170,23 @@ offers the two routes that exist:
   `black-translucent` status-bar style) so an iOS home-screen launch runs
   without Safari chrome — the only URL-bar-free route on iPhone.
 
+**SDL fullscreen-event swallow (fix, 2026-07-15).** The first deploy froze
+the game at its pre-fullscreen size: SDL3's emscripten driver listens for
+document `fullscreenchange` (`SDL_emscriptenevents.c`,
+`Emscripten_HandleFullscreenChange`) and treats ANY fullscreen — including
+our page-level one — as its canvas going fullscreen, flagging its window
+`SDL_WINDOW_FULLSCREEN`, after which `Emscripten_HandleResize` skips the
+normal canvas-follows-CSS resize. Hiding the browser chrome IS a window
+resize, so the canvas backing store never adapted (reproduced
+deterministically: resize while page-fullscreen left the backing store
+stale; the same resize outside fullscreen tracked correctly). The shell
+now registers its own `fullscreenchange`/`webkitfullscreenchange` listener
+BEFORE the engine script loads (listener order on the same target is
+registration order) and `stopImmediatePropagation()`s exactly the
+page-level transitions, so SDL sees only the ordinary window resize — the
+same proven path as a phone rotation. A canvas-element fullscreen (SDL's
+own fullscreen feature) passes through untouched.
+
 One interaction to watch on real hardware (folded into the device gate
 below): the OSK bridge must still summon the phone keyboard while the page
 is fullscreen — expected fine on Android (the OSK overlays fullscreen pages
