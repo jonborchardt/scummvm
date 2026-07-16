@@ -167,6 +167,11 @@ void OSystem_Emscripten::setFeatureState(Feature f, bool enable) {
 	if (f == kFeatureFullscreenMode) {
 		toggleFullscreen(enable);
 	} else if (f == kFeatureVirtualKeyboard) {
+		// SCI redraws its text-edit control (and re-requests the keyboard)
+		// on every kDrawControl; re-running the JS bridge for an unchanged
+		// state resets the OSK bridge's in-flight diff/composition state.
+		if (enable == _virtualKeyboardShown)
+			return;
 		_virtualKeyboardShown = enable;
 		showMobileKeyboard(enable);
 	} else {
