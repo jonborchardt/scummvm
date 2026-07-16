@@ -36,7 +36,8 @@ class EmscriptenSdlEventSource;
 // points at the live event source or is null. The mobile-keyboard JS
 // bridge's EmscriptenKbd_pushKey() C shim (emscripten.cpp) needs a stable
 // entry point to reach the live event source from outside the class.
-static EmscriptenSdlEventSource *g_emscriptenKbdSource = nullptr;
+// Defined in backends/platform/sdl/emscripten/emscripten.cpp.
+extern EmscriptenSdlEventSource *g_emscriptenKbdSource;
 
 /**
  * SDL Events manager for Emscripten

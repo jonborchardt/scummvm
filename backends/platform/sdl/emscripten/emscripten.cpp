@@ -36,6 +36,10 @@
 #include "backends/text-to-speech/emscripten/emscripten-text-to-speech.h"
 #endif
 
+// Single definition; declared extern in emscriptensdl-events.h so every
+// translation unit shares the one live pointer.
+EmscriptenSdlEventSource *g_emscriptenKbdSource = nullptr;
+
 // Inline JavaScript, see https://emscripten.org/docs/api_reference/emscripten.h.html#inline-assembly-javascript for details
 EM_JS(bool, isFullscreen, (), {
 	return !!document.fullscreenElement;

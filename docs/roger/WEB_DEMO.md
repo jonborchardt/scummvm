@@ -1212,16 +1212,9 @@ whenever the input is (re)focused, so an interrupted IME composition
 (navigating away mid-composition, then reopening the keyboard) cannot leave
 the flag stuck `true` and silently swallow all subsequent `input` events.
 
-**Known internal-linkage note (documented follow-up, not a bug today):**
-`g_emscriptenKbdSource` in `emscriptensdl-events.h` is declared `static`
-(internal linkage — each translation unit that includes the header would
-get its own copy). This is correct *today* because exactly one translation
-unit (`emscriptensdl-events.h`'s own compilation via the Emscripten events
-backend) ever constructs an `EmscriptenSdlEventSource`, so there is only
-ever one instance to reach. If event-source creation is ever moved out of
-its current single site, this must become an external-linkage definition
-(defined once in a `.cpp`, declared `extern` in the header) or a proper
-accessor function — flagged here so it is not silently wrong later.
+`g_emscriptenKbdSource` is declared `extern` in `emscriptensdl-events.h` and
+defined once in `backends/platform/sdl/emscripten/emscripten.cpp`, ensuring
+every translation unit shares the single live pointer to the event source.
 
 ### Viewport / orientation
 
