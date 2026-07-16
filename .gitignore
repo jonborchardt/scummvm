@@ -333,6 +333,7 @@ __pycache__/
 .playwright
 .playwright-mcp
 !build_and_run.ps1
+/scratchpad
 
 # Superpowers SDD session scratch (ledger, briefs, reports, review diffs)
 .superpowers/
