@@ -204,6 +204,20 @@
       var kbdWanted = false;
       var KEYCODE_BACKSPACE = 8, KEYCODE_RETURN = 13;
 
+      // The bridge only auto-focuses on touch devices: on desktop the
+      // physical keyboard already reaches the game through SDL, and
+      // focusing the hidden input there risks double-delivering keys.
+      var TOUCH = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+
+      function openKbd() {
+        if (!input) return;
+        input.value = '';
+        prev = '';
+        composing = false;
+        kbdWanted = true;
+        input.focus({ preventScroll: true });
+      }
+
       function pushKey(keycode, ascii) {
         if (Module && Module._EmscriptenKbd_pushKey) {
           Module._EmscriptenKbd_pushKey(keycode, ascii);
@@ -259,7 +273,7 @@
         if (!btn) return;
         var act = btn.getAttribute('data-act');
         if (act === 'kbd') {
-          if (input) { input.value = ''; prev = ''; composing = false; input.focus({ preventScroll: true }); }
+          openKbd();
         } else if (ACT_KEY[act]) {
           pushKey(ACT_KEY[act][0], ACT_KEY[act][1]);
         }
@@ -279,13 +293,18 @@
       window.__mobileKbdShow = function (show) {
         if (!input) return;
         if (show) {
-          input.value = '';
-          prev = '';
-          composing = false;
-          kbdWanted = true;
-          // Works on desktop; on mobile this is usually blocked (no gesture),
+          // On mobile, programmatic focus is usually blocked (no gesture),
           // so the canvas-tap fallback above summons the OSK instead.
-          input.focus({ preventScroll: true });
+          // On desktop, focus() would succeed, risking double-delivery of keys
+          // through both the bridge and SDL's physical keyboard path, so it's
+          // deliberately excluded.
+          if (TOUCH) openKbd();
+          else {
+            kbdWanted = true;
+            input.value = '';
+            prev = '';
+            composing = false;
+          }
         } else {
           kbdWanted = false;
           input.blur();
