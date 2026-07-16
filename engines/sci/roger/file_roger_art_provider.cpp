@@ -3537,6 +3537,35 @@ bool FileRogerArtProvider::interceptEvent(Common::Event &ev) {
 		if (tunePanelMouse(ev.type == Common::EVENT_LBUTTONDOWN, ev.mouse))
 			return true;
 	}
+	// Click-outside dismisses the keyboard-opened menu. Native SCI0's
+	// interactiveWithKeyboard IGNORES a mouse press that is below the bar and
+	// not on a dropdown item (menu.cpp) -- the menu just stays open, which
+	// reads as broken to a modern player. While a dropdown is on-screen (the
+	// journal holds kGfxTokenMenuDropdown ops only then), rewrite an outside
+	// click into the Esc the menu loop already understands. Pure observer-side
+	// UX: with Roger off, stock behavior is untouched.
+	if (ev.type == Common::EVENT_LBUTTONDOWN && enabled && _journal) {
+		Common::Rect dropUnion;
+		bool haveDrop = false;
+		const Common::Array<Roger::UiElement> &ops = _journal->ops();
+		for (uint i = 0; i < ops.size(); i++) {
+			if (ops[i].token != kGfxTokenMenuDropdown)
+				continue;
+			if (!haveDrop) {
+				dropUnion = ops[i].nativeRect;
+				haveDrop = true;
+			} else {
+				dropUnion.extend(ops[i].nativeRect);
+			}
+		}
+		if (haveDrop && ev.mouse.y >= 10 && !dropUnion.contains(ev.mouse)) {
+			ev.type = Common::EVENT_KEYDOWN;
+			ev.kbd.keycode = Common::KEYCODE_ESCAPE;
+			ev.kbd.ascii = 27;
+			ev.kbd.flags = 0;
+			ev.kbdRepeat = false;
+		}
+	}
 	return false;
 }
 
