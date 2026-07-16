@@ -334,6 +334,8 @@ __pycache__/
 .playwright-mcp
 !build_and_run.ps1
 /scratchpad
+# Local-only record of the Betrayed Alliance permission email (private correspondence)
+/docs/permission-betrayed-alliance-email.txt
 
 # Superpowers SDD session scratch (ledger, briefs, reports, review diffs)
 .superpowers/
