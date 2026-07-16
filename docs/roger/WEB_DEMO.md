@@ -1299,6 +1299,17 @@ than a plain value assignment — the branch code itself executed and reset
 correctly. The real-device Android/iPad gate below remains human-only and
 unchanged.
 
+**Known bridge limitations (recorded 2026-07-15, none blocking):** (1) when
+the normalizer *drops* an OSK character (emoji surrogate halves; Latin-1
+accents the game font can't show), the JS `prev` buffer still advances, so
+backspacing over such a character later deletes real preceding text — the
+same desync class the backspace fix closed, now confined to characters the
+game never displays (durable fix would push a placeholder character
+instead of dropping). (2) `focus()` on an already-focused input is a
+browser no-op, so if Android's back button hides the OSK while the hidden
+input keeps focus, a canvas tap may not re-summon it (hardening: blur
+before focus in `openKbd()`); fold both into the device gate below.
+
 ### Android acceptance checklist (human-only gate)
 
 The one remaining gate for mobile support — cannot be automated
