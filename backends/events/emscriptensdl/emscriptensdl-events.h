@@ -27,6 +27,7 @@
 #include "common/events.h"
 #include "common/queue.h"
 #include "common/str.h"
+#include "backends/events/emscriptensdl/emscripten-keynorm.h"
 
 class EmscriptenSdlEventSource;
 
@@ -57,11 +58,14 @@ public:
 	 * (but additively with) the normal SDL-polled events.
 	 */
 	void injectKey(Common::KeyCode keycode, uint16 ascii) {
+		EmscriptenInjectedKey norm = normalizeEmscriptenInjectedKey((int)keycode, (int)ascii);
+		if (!norm.valid)
+			return;
 		Common::Event down;
 		down.type = Common::EVENT_KEYDOWN;
-		down.kbd.keycode = keycode;
-		down.kbd.ascii = ascii;
-		down.kbd.flags = 0;
+		down.kbd.keycode = norm.keycode;
+		down.kbd.ascii = norm.ascii;
+		down.kbd.flags = norm.flags;
 		_injected.push(down);
 		Common::Event up = down;
 		up.type = Common::EVENT_KEYUP;

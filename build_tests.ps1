@@ -125,7 +125,8 @@ $RogerTestHeaders = @(
     "test_gfx_observer_tokens.h",
     "test_roger_telemetry.h",
     "test_menu_model.h",
-    "test_sweep_svg.h"
+    "test_sweep_svg.h",
+    "test_emscripten_keynorm.h"
 )
 
 # ── Locate MSBuild via vswhere ────────────────────────────────────────────────
