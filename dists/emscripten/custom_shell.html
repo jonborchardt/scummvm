@@ -137,7 +137,14 @@
       user-select: none;
     }
     #actionbar .act:active { background: #4a4230; }
-    #actionbar .act.nav { min-width: 42px; padding: 9px 0; text-align: center; font-size: 18px; }
+    #actionbar .act.nav { padding: 0; text-align: center; font-size: 20px; min-height: 0; }
+    /* Arrow keys arranged as a D-pad: Up on top, Left/Down/Right below. */
+    #dpad { display: grid; grid-template-columns: repeat(3, 46px); grid-template-rows: repeat(2, 46px); gap: 6px; }
+    #dpad .act { width: 100%; height: 100%; }
+    #dpad .du { grid-area: 1 / 2; }
+    #dpad .dl { grid-area: 2 / 1; }
+    #dpad .dd { grid-area: 2 / 2; }
+    #dpad .dr { grid-area: 2 / 3; }
 
     /* Landscape on a phone: give the game the full height and move the banner
        to a side column so the game is as large as possible. */
@@ -159,7 +166,7 @@
         overflow-y: auto;
       }
       #infobar p { font-size: 12px; }
-      #actionbar { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+      #actionbar { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; margin-bottom: 12px; }
     }
   </style>
 </head>
@@ -292,11 +299,13 @@
       <button class="act" type="button" data-act="kbd">&#9000; Keyboard</button>
       <button class="act" type="button" data-act="esc">Menu (Esc)</button>
       <button class="act" type="button" data-act="f10">Enhanced (F10)</button>
-      <button class="act nav" type="button" data-act="left" aria-label="Left">&#8592;</button>
-      <button class="act nav" type="button" data-act="up" aria-label="Up">&#8593;</button>
-      <button class="act nav" type="button" data-act="down" aria-label="Down">&#8595;</button>
-      <button class="act nav" type="button" data-act="right" aria-label="Right">&#8594;</button>
-      <button class="act nav" type="button" data-act="enter">OK</button>
+      <div id="dpad">
+        <button class="act nav du" type="button" data-act="up" aria-label="Up">&#8593;</button>
+        <button class="act nav dl" type="button" data-act="left" aria-label="Left">&#8592;</button>
+        <button class="act nav dd" type="button" data-act="down" aria-label="Down">&#8595;</button>
+        <button class="act nav dr" type="button" data-act="right" aria-label="Right">&#8594;</button>
+      </div>
+      <button class="act" type="button" data-act="enter">OK</button>
     </div>
     <h1>Betrayed Alliance Book&nbsp;1 &middot; enhanced by <strong>Roger</strong></h1>
     <p>
