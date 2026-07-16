@@ -654,11 +654,19 @@ reg_t GfxPaint16::kernelDisplay(const char *text, uint16 languageSplitter, int a
 	// Observer: the kDisplay TEXT itself is captured per line inside GfxText16::Box
 	// at its exact placed rect, so this hook mirrors only the opaque background
 	// fill. token = the save-under handle, so the fill dies with the restore.
+	// rect is port-local here; globalize it exactly as bitsSave does internally
+	// (clip to the port, then offsetRect) so the observer sees the screen rect --
+	// unconverted, a picture-port fill lands picScreenTop rows high and paints
+	// over whatever text sits above it.
 	if (doSaveUnder && g_sciGfxObserver && colorBack != -1) {
-		g_sciGfxObserver->onText(rect, "", -1 /*fontId n/a*/,
-		                         colorPen >= 0 ? colorPen : 0, colorBack, alignment,
-		                         0, 0, gfxHandleToken(result.getSegment(), result.getOffset()),
-		                         SciGfxObserver::kTextSourceFill, 0 /*itemId*/);
+		Common::Rect fillScreenRect(rect.left, rect.top, rect.right, rect.bottom);
+		fillScreenRect.clip(_ports->getPort()->rect);
+		_ports->offsetRect(fillScreenRect);
+		if (!fillScreenRect.isEmpty())
+			g_sciGfxObserver->onText(fillScreenRect, "", -1 /*fontId n/a*/,
+			                         colorPen >= 0 ? colorPen : 0, colorBack, alignment,
+			                         0, 0, gfxHandleToken(result.getSegment(), result.getOffset()),
+			                         SciGfxObserver::kTextSourceFill, 0 /*itemId*/);
 	}
 
 	if (colorBack != -1)
