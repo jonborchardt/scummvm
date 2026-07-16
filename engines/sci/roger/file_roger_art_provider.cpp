@@ -3399,6 +3399,69 @@ void FileRogerArtProvider::onFrameStart() {
 	// GUI self-heal (see healExternalOverlayHide): this cycle's barrier
 	// flushes the mark.
 	healExternalOverlayHide();
+
+	// Caret blink phase for a live selected text edit (this cycle's barrier
+	// presents the marked rect when the phase flips).
+	updateCaretBlink();
+}
+
+void FileRogerArtProvider::updateCaretBlink() {
+	if (!enabled || !overlayShown() || !_journal)
+		return;
+	// Topmost edit field wins (append order = draw order). Any kUiTextEdit
+	// carries the caret -- see the compositor's caret branch for why the
+	// SELECTED style bit is deliberately not consulted.
+	const Common::Array<Roger::UiElement> &ops = _journal->ops();
+	const Roger::UiElement *edit = nullptr;
+	for (uint i = 0; i < ops.size(); i++) {
+		if (ops[i].type == Roger::kUiTextEdit)
+			edit = &ops[i];
+	}
+	if (!edit) {
+		// No live edit field: park the phase ON so the next field starts solid
+		// (and the last OFF frame of a disposed field never sticks -- its
+		// window close already invalidated the region).
+		_caretBlinkOn = true;
+		_caretBlinkNextFlipMs = 0;
+		_caretSig = 0;
+		if (_compositor)
+			_compositor->setCaretBlinkOn(true);
+		return;
+	}
+	const uint32 now = g_system->getMillis();
+	const uint32 sig = edit->token ^ ((uint32)edit->cursorPos << 20) ^ (uint32)edit->text.size();
+	// 30 ticks at 60 ticks/sec -- the exact native blink half-period
+	// (GfxControls16::texteditSetBlinkTime).
+	const uint32 kCaretBlinkMs = 30 * 1000 / 60;
+	bool flipped = false;
+	if (sig != _caretSig || _caretBlinkNextFlipMs == 0) {
+		// New field, or the user typed/moved the caret: restart solid-on, like
+		// native's blink-time reset on every textedit redraw.
+		_caretSig = sig;
+		if (!_caretBlinkOn) {
+			markNativeDirty(edit->nativeRect);
+			flipped = true;
+		}
+		_caretBlinkOn = true;
+		_caretBlinkNextFlipMs = now + kCaretBlinkMs;
+	} else if (now >= _caretBlinkNextFlipMs) {
+		_caretBlinkOn = !_caretBlinkOn;
+		_caretBlinkNextFlipMs = now + kCaretBlinkMs;
+		markNativeDirty(edit->nativeRect);
+		flipped = true;
+	}
+	if (_compositor)
+		_compositor->setCaretBlinkOn(_caretBlinkOn);
+	// A frozen-cycle edit loop (see the interceptEvent call site) has no
+	// cycle-end barrier flush; present the flipped caret region now. Defers/
+	// no-ops harmlessly when called mid-cycle from onFrameStart.
+	if (flipped) {
+		if (_diag)
+			warning("ROGER-DIAG[caret]: blink=%d tok=%08x rect=(%d,%d,%d,%d)",
+			        (int)_caretBlinkOn, edit->token, edit->nativeRect.left, edit->nativeRect.top,
+			        edit->nativeRect.right, edit->nativeRect.bottom);
+		presentBarrier();
+	}
 }
 
 // GUI self-heal: a ScummVM GUI dialog (GMM, save/load chooser) clears the
@@ -3431,6 +3494,14 @@ bool FileRogerArtProvider::interceptEvent(Common::Event &ev) {
 	// hidden/stale overlay until then.
 	if (healExternalOverlayHide())
 		presentBarrier();
+
+	// Caret blink for frozen-cycle edit fields: this seam polls continuously
+	// even while a script-driven modal edit loop (e.g. Betrayed Alliance's
+	// name prompt) holds kernelAnimate frozen with no draw events firing --
+	// the onFrameStart tick dries up there, and event polling is the only
+	// thing guaranteed to keep running. O(journal size); presents only on an
+	// actual phase flip.
+	updateCaretBlink();
 
 	// Side-by-side compare mode: remap so the left (enhanced) panel drives the
 	// game. No-op in the other display modes. Runs FIRST so the tune-panel

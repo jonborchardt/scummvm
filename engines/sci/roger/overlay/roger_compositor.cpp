@@ -1050,13 +1050,25 @@ void RogerCompositor::renderUiLayer(Graphics::ManagedSurface &dest,
 			                      : fmt.ARGBToColor(255, 255, 255, 255);
 			tr->drawAtPx(dest, e.text, textRect, col, e.align, finalPx, e.vAlignTop, &e.glyphs);
 		}
-		// SELECTED -> caret
-		if (tr && finalPx > 0 && e.type == kUiTextEdit && (e.style & 0x8) && !textRect.isEmpty()) {
+		// Caret on ANY edit field, blink-phase gated (the provider drives ~500 ms
+		// flips mirroring native's kernelTexteditChange). Not gated on the
+		// SELECTED style bit: that comes from the script's `state` selector and
+		// fan-made games (Betrayed Alliance) leave it unset on the one active
+		// edit -- and an SCI0 dialog only ever shows its focused edit control.
+		// Drawn as 1 native px scaled to the overlay -- the old 1-dest-px vLine
+		// was invisible at hires widths.
+		if (tr && finalPx > 0 && e.type == kUiTextEdit && !textRect.isEmpty() && _caretBlinkOn) {
 			const int cx = textRect.left + tr->caretAtPx(e.text, e.cursorPos, finalPx);
 			const byte *pc = palette ? palette + (e.penColor >= 0 ? e.penColor : 0) * 3 : nullptr;
 			const uint32 col = pc ? fmt.ARGBToColor(255, pc[0], pc[1], pc[2])
 			                      : fmt.ARGBToColor(255, 255, 255, 255);
-			dest.vLine(cx, textRect.top + 1, textRect.bottom - 2, col);
+			int cw = nativeRowsToOverlay(1, gameRect.height());
+			if (cw < 2)
+				cw = 2;
+			Common::Rect cr(cx, textRect.top + 1, cx + cw, textRect.bottom - 1);
+			cr.clip(textRect);
+			if (!cr.isEmpty())
+				dest.fillRect(cr, col);
 		}
 	}
 }

@@ -275,6 +275,12 @@ public:
 	// roger_diag: revertible seed/present trace (off by default). See file_roger_art_provider.
 	void setDiag(bool on) { _diag = on; }
 
+	// Blinking text-edit caret: the provider flips this on a ~500 ms phase
+	// (mirroring GfxControls16's native kernelTexteditChange blink, which the
+	// semantic kUiTextEdit element paints over) and marks the edit rect dirty;
+	// renderUiLayer draws the caret only in the ON phase.
+	void setCaretBlinkOn(bool on) { _caretBlinkOn = on; }
+
 	// -CycleLog: one ROGER-PRESENT line per present (full flag, region count, pushed
 	// area in overlay px). Off by default; the dirty-area gate reads it.
 	void setPresentLog(bool on) { _presentLog = on; }
@@ -436,6 +442,7 @@ private:
 	bool _dirtyPresent = false;
 	bool _diag = false; // roger_diag seed/present trace (revertible instrumentation)
 	bool _presentLog = false; // ROGER-PRESENT per-present telemetry (perf-gate instrumentation)
+	bool _caretBlinkOn = true; // text-edit caret blink phase (provider-driven; true = caret drawn)
 	int _framesSinceFullPresent = 0; // periodic full-present heal counter
 	// Sprite dirty rects, tracked at renderScene granularity (NOT present granularity): rolled
 	// cur->prev at the TOP of renderScene, so an intervening UI-only present (presentWithUi,

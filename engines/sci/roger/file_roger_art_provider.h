@@ -353,6 +353,16 @@ private:
 	// onFrameStart (per cycle) and interceptEvent (covers GUI-closed-during-
 	// frozen-SCI-dialog, where no cycle runs until the SCI dialog dismisses).
 	bool healExternalOverlayHide();
+	// Text-edit caret blink: per-cycle ~500 ms phase flip for the topmost
+	// SELECTED kUiTextEdit element (native's kernelTexteditChange blink is
+	// painted over by the semantic element, so the overlay blinks on its own
+	// clock). A content/caret-position change resets the phase to solid-on,
+	// matching native's texteditSetBlinkTime reset while typing. Called from
+	// onFrameStart; O(journal size), and journals are small.
+	void updateCaretBlink();
+	bool _caretBlinkOn = true;         // current phase (mirrored to the compositor)
+	uint32 _caretBlinkNextFlipMs = 0;  // g_system->getMillis() deadline for the next flip
+	uint32 _caretSig = 0;              // token/cursorPos/len signature of the tracked edit
 	// Overlay-space rect the cursor would occupy right now (empty when not drawable).
 	// Extracted from compositeCursor so the barrier can detect cursor movement.
 	Common::Rect cursorDstRect(const Common::Rect &gameRect);
