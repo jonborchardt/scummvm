@@ -299,12 +299,6 @@
           // through both the bridge and SDL's physical keyboard path, so it's
           // deliberately excluded.
           if (TOUCH) openKbd();
-          else {
-            kbdWanted = true;
-            input.value = '';
-            prev = '';
-            composing = false;
-          }
         } else {
           kbdWanted = false;
           input.blur();
