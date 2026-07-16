@@ -1,0 +1,62 @@
+Jonathan Borchardt
+Sat, Jul 11, 4:10 PM
+to ryanjslatteryauthor, slatts
+
+Hi Ryan,
+
+My name is Jon Borchardt. I'm a longtime Sierra adventure fan, and I've been playing Betrayed Alliance Book 1 — it's a remarkable piece of work, and easily the strongest SCI0 fan game I've come across. I'm writing to ask your permission for something.
+
+For the past while I've been building Roger, an open-source project on top of ScummVM that enhances how classic SCI0 EGA games look. It generates high-resolution versions of the backgrounds and sprites from the game's own original resources at runtime — nothing about the game itself is modified; the game data, logic, puzzles, and text are untouched, and it's purely a display layer. It even has a side-by-side mode that shows the enhanced and original renderings at once, which is honestly the best part: you can see exactly what the enhancement does to art like yours in real time. I've attached some screenshots so you can see it for yourself.
+
+[images]
+
+The project isn't ready for release yet — it's still a work in progress — but the code is public if you're curious: https://github.com/jonborchardt/scummvm/tree/jon-first-pass-prompt-1/engines/sci/roger
+
+And I've been writing about the upscaling approach behind it on my blog, if you'd like a deeper look at what's going on under the hood: https://jonb.hashnode.dev/omyac-upscaler-leaning-all-the-way-into-the-anchor-graph-approach
+
+The Sierra classics can't legally be redistributed, so as a public showcase I'd like to put a free, browser-playable demo online — a simple static web page where anyone can play a great SCI0 game through the enhanced renderer, no install needed. Betrayed Alliance Book 1 is the game I'd love to feature. Concretely, that would mean:
+Your game's data files bundled with the demo page so it runs in the browser (this is the part I'm asking permission for — the game is a free download, but it's yours, and I won't redistribute it without your blessing).
+Prominent credit to you and Slatt Studio on the page, with a link to your site/download page — my hope is the demo actually sends new players your way.
+Completely free and non-commercial: no ads, no monetization, no accounts. Just a playable showcase.
+A few things I'd offer up front: I'd be glad to send you a private preview link before anything goes public, so you can see exactly how your game looks and plays through it; I'll credit you however you prefer; and if you ever want it taken down or changed, I'll do so, no questions asked.
+
+If you'd rather not, that's completely fine too — I'd still love to hear what you think of the enhanced rendering of your artwork, and the desktop version of the project can show it either way.
+
+One other option, if you'd prefer not to have the full game out there: I could deploy just a demo slice, a handful of rooms with a prominent "download the full game" call-out linking to you. That would need a trimmed-down resource.map from your side, so it's only worth exploring if it appeals to you.
+
+Thanks for making the game, and for reading this.
+
+Best regards,
+Jon Borchardt
+
+
+Ryan
+Tue, Jul 14, 10:34 AM
+to me
+
+Jon,
+Thanks for reaching out. I'm sorry it took me so long to reply. I admit that I saw it before I went to bed one night, and completely forgot about it thereafter!
+You're project looks really cool and I do not mind you bundling it with Betrayed Alliance at all. I would only ask that you credit it to Slattstudio as a single word, Not Slatt Studio.
+My game is freeware so I do not mind it being shared around publicly, but I do appreciate you asking me about it first. Good luck with Roger and I look forward to seeing it in action!
+Sincerely,
+Ryan Slattery
+
+
+Jonathan Borchardt
+Tue, Jul 14, 11:41 AM
+to Ryan
+
+Hi Ryan,
+
+Thank you so much. I really appreciate both the permission and the kind words about Roger.
+
+And absolutely, I’ll credit the game to Slattstudio as a single word everywhere it appears.
+
+Betrayed Alliance is an exceptional game, and I’m genuinely excited that it can be the public showcase for this project. The care you put into the artwork makes it especially rewarding to see through the enhanced renderer, and I hope the demo introduces a lot of new players to it.
+
+I’ll send you a private preview before anything goes public so you can see it in action and make sure the presentation and crediting look right.
+
+Thanks again for making the game, and for trusting me with it.
+
+With much appreciation,
+Jon
