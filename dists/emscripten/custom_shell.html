@@ -111,7 +111,7 @@
     }
 
     #rotate-hint { display:none; }
-    @media (orientation: portrait) and (max-width: 900px) {
+    @media (orientation: portrait) and (pointer: coarse) {
       #rotate-hint {
         display:flex; position:fixed; inset:0; z-index:10;
         align-items:center; justify-content:center; text-align:center;
@@ -146,9 +146,9 @@
     #dpad .dd { grid-area: 2 / 2; }
     #dpad .dr { grid-area: 2 / 3; }
 
-    /* Landscape on a phone: give the game the full height and move the banner
+    /* Landscape on a touch device (phone or tablet): give the game the full height and move the banner
        to a side column so the game is as large as possible. */
-    @media (orientation: landscape) and (max-height: 600px) {
+    @media (orientation: landscape) and (pointer: coarse) {
       canvas.emscripten {
         width: calc(100% - var(--side-w));
         height: 100%;
