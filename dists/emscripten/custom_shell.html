@@ -5,6 +5,13 @@
   <meta charset="utf-8">
   <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <!-- Add-to-Home-Screen launches with no browser chrome. On iPhone Safari
+       this is the ONLY way to lose the URL bar (no Fullscreen API for
+       non-video content there); manifest.json's "display: fullscreen"
+       covers the Android install path. -->
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <link rel="manifest" href="manifest.json">
   <link rel="apple-touch-icon" href="scummvm-192.png">
   <title>Betrayed Alliance — enhanced by Roger</title>
@@ -287,10 +294,51 @@
         var act = btn.getAttribute('data-act');
         if (act === 'kbd') {
           openKbd();
+        } else if (act === 'fullscreen') {
+          toggleFullscreen();
         } else if (ACT_KEY[act]) {
           pushKey(ACT_KEY[act][0], ACT_KEY[act][1]);
         }
       });
+      // Fullscreen toggle: hides the URL bar + system bars on Android Chrome.
+      // Must run from a user gesture (this click), so it cannot be automatic.
+      // Orientation lock is only permitted while fullscreen, so it rides the
+      // same gesture — best-effort (rejects on desktop / iPad; that's fine).
+      // iPhone Safari has no Fullscreen API for non-video content: the button
+      // is hidden there (Add to Home Screen is the iOS route, see <head>).
+      var fsRoot = document.documentElement;
+      function toggleFullscreen() {
+        var exit = document.exitFullscreen || document.webkitExitFullscreen;
+        if (document.fullscreenElement || document.webkitFullscreenElement) {
+          if (exit) exit.call(document);
+          return;
+        }
+        var req = fsRoot.requestFullscreen || fsRoot.webkitRequestFullscreen;
+        if (!req) return;
+        var p = req.call(fsRoot, { navigationUI: 'hide' });
+        if (p && p.then) {
+          p.then(function () {
+            if (screen.orientation && screen.orientation.lock) {
+              screen.orientation.lock('landscape').catch(function () {});
+            }
+          }).catch(function () {});
+        }
+      }
+      function syncFsBtn() {
+        var b = document.getElementById('fs-btn');
+        if (!b) return;
+        if (!(fsRoot.requestFullscreen || fsRoot.webkitRequestFullscreen)) {
+          b.style.display = 'none';
+          return;
+        }
+        var on = !!(document.fullscreenElement || document.webkitFullscreenElement);
+        b.innerHTML = on ? '&#x26F6; Exit fullscreen' : '&#x26F6; Fullscreen';
+      }
+      document.addEventListener('fullscreenchange', syncFsBtn);
+      document.addEventListener('webkitfullscreenchange', syncFsBtn);
+      // #actionbar is parsed after this script (same reason the click handler
+      // above is delegated), so the unsupported-hide waits for DOMContentLoaded.
+      document.addEventListener('DOMContentLoaded', syncFsBtn);
       // Keep the game visible above the on-screen keyboard: when the OSK shrinks
       // the visual viewport, constrain the canvas to the visible area so the
       // bottom input line is not hidden behind it. Cleared when the OSK closes.
@@ -329,6 +377,7 @@
       <button class="act" type="button" data-act="kbd">&#9000; Keyboard</button>
       <button class="act" type="button" data-act="esc">Menu (Esc)</button>
       <button class="act" type="button" data-act="f10">Enhanced (F10)</button>
+      <button class="act" type="button" data-act="fullscreen" id="fs-btn">&#x26F6; Fullscreen</button>
       <div id="dpad">
         <button class="act nav du" type="button" data-act="up" aria-label="Up">&#8593;</button>
         <button class="act nav dl" type="button" data-act="left" aria-label="Left">&#8592;</button>

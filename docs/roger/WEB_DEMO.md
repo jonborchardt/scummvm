@@ -1151,6 +1151,32 @@ browser can play Betrayed Alliance without a physical keyboard. This is
 additive to everything above — same bundle, same publishing pipeline; only
 the shell and two backend files changed.
 
+### Fullscreen / hiding the browser chrome (added 2026-07-15)
+
+Browsers do not allow hiding the URL bar without a user action, so the shell
+offers the two routes that exist:
+
+- **Action-bar `⛶ Fullscreen` button** (`data-act="fullscreen"`): calls
+  `requestFullscreen({ navigationUI: 'hide' })` on the document element from
+  the tap gesture, which hides the URL bar and system bars on Android
+  Chrome, then best-effort `screen.orientation.lock('landscape')` (only
+  permitted while fullscreen; rejection ignored on desktop/iPad). The button
+  relabels via `fullscreenchange` and is hidden at `DOMContentLoaded` when
+  no Fullscreen API exists — i.e. on iPhone Safari, which has none for
+  non-video content.
+- **Add to Home Screen**: `manifest.json` already declares
+  `"display": "fullscreen"` for the Android install path; the shell now also
+  carries `apple-mobile-web-app-capable` (+ `mobile-web-app-capable` and a
+  `black-translucent` status-bar style) so an iOS home-screen launch runs
+  without Safari chrome — the only URL-bar-free route on iPhone.
+
+One interaction to watch on real hardware (folded into the device gate
+below): the OSK bridge must still summon the phone keyboard while the page
+is fullscreen — expected fine on Android (the OSK overlays fullscreen pages
+and the `visualViewport` fit handler still fires), and on iPad fullscreen
+is known to suppress the OSK, in which case exiting fullscreen is the
+workaround (fullscreen is never forced, so text entry always has that out).
+
 ### `kFeatureVirtualKeyboard` implementation
 
 The Emscripten backend never answered `kFeatureVirtualKeyboard` — SCI calls
@@ -1324,5 +1350,8 @@ real Android phone, in Chrome, at
    fighting.
 4. Landscape is sensible; portrait shows the rotate hint.
 5. F10 cycles Enhanced/Original/SBS.
+6. The `⛶ Fullscreen` button hides the URL bar + system bars and locks
+   landscape; the name-prompt / save-name keyboard still appears while
+   fullscreen (see "Fullscreen / hiding the browser chrome" above).
 
 iOS is designed-for but unverified (no device) — the non-forced-fullscreen mitigation is the only remaining hedge (the vkeybd fallback was removed 2026-07-15); a future iPhone soak is the open follow-up (see "Native-OSK verification status" above).
