@@ -1276,9 +1276,7 @@ against. The two known iOS Safari quirks (the user-gesture-adjacent-focus
 requirement, and fullscreen suppressing the OSK) are both mitigated in the
 implementation above (focus happens synchronously from the feature-state
 call chain, and fullscreen is not forced during text entry), but neither
-mitigation has been confirmed on real iOS hardware. The `--enable-vkeybd`
-fallback exists partly as a hedge against this gap. A future iPhone soak is
-the open follow-up.
+mitigation has been confirmed on real iOS hardware. With the vkeybd fallback removed (see the section note above), the native-OSK bridge is the ONLY text-input path — if it fails on iOS there is currently no fallback. A future iPhone soak is the open follow-up.
 
 ### Android acceptance checklist (human-only gate)
 
@@ -1295,7 +1293,4 @@ real Android phone, in Chrome, at
 4. Landscape is sensible; portrait shows the rotate hint.
 5. F10 cycles Enhanced/Original/SBS.
 
-iOS is designed-for but unverified (no device) — the `--enable-vkeybd`
-fallback and the non-forced-fullscreen mitigation are the hedges; a future
-iPhone soak is the open follow-up (see "Native-OSK verification status"
-above).
+iOS is designed-for but unverified (no device) — the non-forced-fullscreen mitigation is the only remaining hedge (the vkeybd fallback was removed 2026-07-15); a future iPhone soak is the open follow-up (see "Native-OSK verification status" above).
