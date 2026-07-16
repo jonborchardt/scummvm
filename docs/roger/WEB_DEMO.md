@@ -1278,6 +1278,27 @@ implementation above (focus happens synchronously from the feature-state
 call chain, and fullscreen is not forced during text entry), but neither
 mitigation has been confirmed on real iOS hardware. With the vkeybd fallback removed (see the section note above), the native-OSK bridge is the ONLY text-input path — if it fails on iOS there is currently no fallback. A future iPhone soak is the open follow-up.
 
+**2026-07-15 scripted verification (fork `a654e7e34b6`, rebuilt bundle,
+Chromium/Playwright against the local subpath simulation):** the desktop
+pass and the emulated-touch pass both passed in full. Desktop (default
+viewport, no touch): BA boots to the name prompt, `Hero` typed via
+physical-key events arrives exactly (no doubled characters), Enter advances
+exactly one dialog, and `document.activeElement` stays on the canvas (the
+hidden bridge input never steals desktop focus). Emulated touch (1024x768,
+`hasTouch`, `pointer: coarse` matching): `#actionbar` shows
+Keyboard/Menu/Enhanced/D-pad/OK in the side column with the canvas layout
+intact; the Keyboard button focuses `#mobile-kbd-input` and a canvas
+`pointerup` re-focuses it (`kbdWanted` fallback); the staged OSK edit
+sequence `Rpger` → `Rger` → `Roger` lands as exactly `Roger` in the game's
+name field (backspace-diff fix); a curly apostrophe maps to a plain `'`;
+Enter delivers RETURN (name accepted) and the commit-newline branch resets
+`input.value` to empty. One scripted-emulation caveat: a text input's value
+sanitizer strips `\n` before the `input` event fires, so the IME
+newline-insertion branch was driven via an instance accessor shadow rather
+than a plain value assignment — the branch code itself executed and reset
+correctly. The real-device Android/iPad gate below remains human-only and
+unchanged.
+
 ### Android acceptance checklist (human-only gate)
 
 The one remaining gate for mobile support — cannot be automated
